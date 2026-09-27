@@ -1,0 +1,24 @@
+# ESPDeck protocol 3 test vectors, produced by crypto_test.cpp (mbedTLS) and crypto_test.swift
+# (CryptoKit), which agree. Inputs:
+#   macPrivateKey    = 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a   (RFC 7748 §6.1 Alice)
+#   devicePrivateKey = 5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb   (RFC 7748 §6.1 Bob)
+#   bridgeID         = 0c6e0a52-1f6b-4b8e-9f1a-2b3c4d5e6f70
+#   deviceID         = f4:12:fa:00:00:01
+#   deviceNonce      = 000102030405060708090a0b0c0d0e0f
+#   bridgeNonce      = 101112131415161718191a1b1c1d1e1f
+#   hello            = {"type":"hello","protocol":3,"id":"f4:12:fa:00:00:01"}
+#   frame payload    = {"type":"show","key":0,"hash":"9f86d081884c7d659a2feaa0c55ad015"}
+macPublicKey=8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a
+devicePublicKey=de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f
+sharedSecret=4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742
+code=414104
+K=0a6f7f43433a281bab912ca5883473a11b06c6996659443481afd7435b5cb8d3
+pairConfirmProof=049fab3a5fd440c3089c03e151ed91b3655f0f3f8e2d3941d44aee7041cd1960
+helloSHA256=26ec75395ceca6b43c107c03d2f2b3a263bdc5c3c995f62dd7e438f5d4bf21d2
+bridgeProof=bde6e08a9ef9f0e199f0ec5ea6653a3a29e754c964a0a042ce341d0fbed35322
+deviceProof=d8b2518f90df72c36c37ccb93e479a502aa33968224d9a5c9d1424641db4a069
+S=0aef58f27a7126113dace7c6c749657b0643ae701667c8a5d7cb46dc658e4fd6
+macFromBridgeCounter0=366b99b2e7d5f2fe4996598d0f58b4d0
+macFromBridgeCounter1=2afdb2527a0b79f4980fbb06365e5f29
+macFromDeviceCounter0=07830bc5ea5877a4589682e73428da05
+macFromDeviceCounter0102030405060708=bb6585cd2aadf753475a14c35450de04

@@ -1,0 +1,8 @@
+dependencies:
+  idf: ">=5.1"
+  espressif/usb_host_hid: "^1.0.3"
+  espressif/esp_websocket_client: "^1.4.0"
+  espressif/mdns: "*"
+  espressif/qrcode: "*"
+  espressif/esp_new_jpeg: "*"
+  joltwallet/littlefs: "*"

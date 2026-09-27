@@ -1,0 +1,38 @@
+// The dev board's RGB LED as a status light:
+//   setup mode              pulsing blue
+//   looking for Wi-Fi       pulsing yellow
+//   connected               solid green at 25%, pulsing brighter while data moves
+//   a key pressed or held   white, for at least a moment even on a quick tap
+#pragma once
+
+#include <cstdint>
+
+class StatusLed {
+public:
+	enum class Mode : uint8_t {
+		Setup,
+		Searching,
+		Connected,
+	};
+
+	void begin( uint8_t pin );
+
+	// A key went down: white now, and for at least kKeyFlash even if it's released at once
+	// (the loop can be busy uploading an image for a third of a second).
+	void keyPressed();
+
+	// Data went to or came from the Mac.
+	void activity();
+
+	// Call every loop pass; writes the LED only when its colour changes.
+	void update( Mode mode, bool keyDown );
+
+private:
+	void write( uint8_t red, uint8_t green, uint8_t blue );
+
+	uint8_t  pin_           = 0;
+	bool     ready_         = false;
+	uint32_t written_       = 0xFFFFFFFF;   // last colour sent, 0xRRGGBB
+	uint32_t keyUntil_      = 0;            // millis()
+	uint32_t activityUntil_ = 0;
+};
