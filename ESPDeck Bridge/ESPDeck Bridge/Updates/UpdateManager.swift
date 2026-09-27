@@ -301,6 +301,10 @@ final class UpdateManager {
 
 	func installFirmware( on id: String ) async {
 		guard let controller, let release = latestFirmware, let device = controller.device( id ) else { return }
+		// Several things can start an update (the device connecting, an update check finishing,
+		// the Install button), sometimes in the same moment. Only one may run; the progress is
+		// set below before anything awaits, so a second request always sees the first.
+		guard device.firmwareProgress?.isActive != true else { return }
 		let version = release.version.description
 
 		do {
