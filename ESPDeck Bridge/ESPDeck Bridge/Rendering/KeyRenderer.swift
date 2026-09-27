@@ -19,6 +19,7 @@ struct KeyFace: Equatable {
 	var symbol      : String?
 	var tint        : Color = .white
 	var label       : String?
+	var labelOnTop  = false
 	var unreachable = false
 	/// Arrow drawn inside the opening of `door.garage.open` while the door moves.
 	var doorArrow   : String?
@@ -49,16 +50,10 @@ struct KeyFaceView: View {
 			}
 
 			VStack( spacing: 2 ) {
+				if face.labelOnTop { labelText }
 				artwork
 					.frame( maxWidth: .infinity, maxHeight: .infinity )
-
-				if let label = face.label, !label.isEmpty {
-					Text( label )
-						.font( .system( size: 12, weight: .semibold ) )
-						.foregroundStyle( .white )
-						.lineLimit( 1 )
-						.minimumScaleFactor( 0.6 )
-				}
+				if !face.labelOnTop { labelText }
 			}
 			.padding( 6 )
 			.opacity( face.unreachable ? 0.45 : 1 )
@@ -73,6 +68,16 @@ struct KeyFaceView: View {
 		}
 		.frame( width: CGFloat( deckKeyPixels ), height: CGFloat( deckKeyPixels ) )
 		.environment( \.colorScheme, .dark )
+	}
+
+	@ViewBuilder private var labelText: some View {
+		if let label = face.label, !label.isEmpty {
+			Text( label )
+				.font( .system( size: 12, weight: .semibold ) )
+				.foregroundStyle( .white )
+				.lineLimit( 1 )
+				.minimumScaleFactor( 0.6 )
+		}
 	}
 
 	@ViewBuilder private var artwork: some View {

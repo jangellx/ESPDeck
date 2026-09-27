@@ -93,6 +93,13 @@ struct SleepTrigger: Codable, Equatable, Identifiable {
 	}
 }
 
+enum LabelPosition: String, Codable, CaseIterable, Identifiable {
+	case top, bottom
+
+	var id: String { rawValue }
+	var title: String { self == .top ? "Top" : "Bottom" }
+}
+
 struct DeviceSettings: Codable, Equatable, Identifiable {
 	/// Wi-Fi MAC address, e.g. "f4:12:fa:00:00:00".
 	var id            : String
@@ -108,6 +115,9 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	var brightness    = 80
 	var orientation   = "auto"
 	var sleepTimeout  = 0
+
+	/// Where every key's label goes. Drawn by the bridge, so it works offline too.
+	var labelPosition = LabelPosition.bottom
 
 	var sleepTriggers : [SleepTrigger] = []
 	/// Run when the deck goes to sleep or wakes, however that happened.
@@ -129,6 +139,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		brightness    = try container.decodeIfPresent( Int.self, forKey: .brightness ) ?? 80
 		orientation   = try container.decodeIfPresent( String.self, forKey: .orientation ) ?? "auto"
 		sleepTimeout  = try container.decodeIfPresent( Int.self, forKey: .sleepTimeout ) ?? 0
+		labelPosition = try container.decodeIfPresent( LabelPosition.self, forKey: .labelPosition ) ?? .bottom
 		sleepTriggers = try container.decodeIfPresent( [SleepTrigger].self, forKey: .sleepTriggers ) ?? []
 		onSleep       = try container.decodeIfPresent( KeyAssignment.self, forKey: .onSleep ) ?? KeyAssignment()
 		onWake        = try container.decodeIfPresent( KeyAssignment.self, forKey: .onWake ) ?? KeyAssignment()

@@ -252,6 +252,11 @@ final class DeckController {
 	}
 
 	/// Changes a demo deck's model. Keys past the new size are kept, just not shown.
+	func setLabelPosition( device id: String, _ position: LabelPosition ) {
+		updateMirror( id ) { $0.labelPosition = position }
+		renderAll( device: id )
+	}
+
 	func setDemoLayout( device id: String, _ layout: DeckLayout ) {
 		guard settings( id )?.isDemo == true else { return }
 		updateMirror( id ) { $0.layout = layout }
@@ -391,9 +396,11 @@ final class DeckController {
 	/// How a key looks now, or as it would look in `state` (for the Icons previews).
 	func face( device id: String, key: Int, state override: KeyState? = nil ) -> KeyFace {
 		let assignment = assignment( id, key: key )
+		let labelOnTop = settings( id )?.labelPosition == .top
 		guard let kind = assignment.kind else {
 			// Not bound to anything, but it can still carry an icon and a label.
 			var face = KeyFace()
+			face.labelOnTop = labelOnTop
 			face.background = assignment.backgroundColor.flatMap( Color.init( hex: ) )
 			face.label      = assignment.showLabel && !assignment.label.isEmpty ? assignment.label : nil
 			applyCustomIcon( assignment.iconName( for: .standard ), to: &face )
@@ -402,6 +409,7 @@ final class DeckController {
 
 		let state = override ?? state( device: id, key: key )
 		var face  = KeyFace()
+		face.labelOnTop = labelOnTop
 		face.symbol     = kind.symbol( for: state )
 		face.tint       = kind.tint( for: state )
 		face.doorArrow  = kind.doorArrow( for: state )

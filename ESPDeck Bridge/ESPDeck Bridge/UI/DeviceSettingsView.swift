@@ -61,6 +61,8 @@ struct DeviceSettingsView: View {
 					.onSubmit { controller.renameDemo( device: deviceID, to: nameDraft ) }
 					.onChange( of: nameDraft ) { controller.renameDemo( device: deviceID, to: nameDraft ) }
 
+				labelPositionPicker
+
 				Picker( "Model", selection: demoModelBinding ) {
 					ForEach( DeckLayout.presets, id: \.model ) { layout in
 						Text( "\(layout.model) (\(layout.rows) × \(layout.cols))" ).tag( layout.model )
@@ -85,6 +87,20 @@ struct DeviceSettingsView: View {
 			}
 		}
 		.formStyle( .grouped )
+	}
+
+	/// Drawn by the bridge, so it can change while the device is offline.
+	private var labelPositionPicker: some View {
+		Picker( "Labels", selection: Binding {
+			controller.settings( deviceID )?.labelPosition ?? .bottom
+		} set: { position in
+			controller.setLabelPosition( device: deviceID, position )
+		} ) {
+			ForEach( LabelPosition.allCases ) { position in
+				Text( position.title ).tag( position )
+			}
+		}
+		.pickerStyle( .segmented )
 	}
 
 	private var demoModelBinding: Binding<String> {
@@ -138,6 +154,7 @@ struct DeviceSettingsView: View {
 						if !editing { controller.setBrightness( device: deviceID, Int( brightness ) ) }
 					}
 				}
+				.disabled( !online )
 				Picker( "Image Orientation", selection: orientationBinding ) {
 					Text( "Automatic (\(defaultTransformTitle( device )))" ).tag( "auto" )
 					Divider()
@@ -145,8 +162,9 @@ struct DeviceSettingsView: View {
 						Text( transform.title ).tag( transform.rawValue )
 					}
 				}
+				.disabled( !online )
+				labelPositionPicker
 			}
-			.disabled( !online )
 
 			Section {
 				Picker( "Sleep After", selection: sleepBinding ) {
