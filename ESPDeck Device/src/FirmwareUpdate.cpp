@@ -33,9 +33,11 @@ void FirmwareUpdate::abort() {
 FirmwareUpdate::Status FirmwareUpdate::begin( const char *version, size_t size, const char *sha256Hex ) {
 	Status status;
 	status.state = Status::State::Error;
+	// Only the authenticated bridge sends updates, so a new begin means it started over (say,
+	// after losing track of the last one): drop the old transfer rather than refuse.
 	if( active_ ) {
-		status.message = "An update is already running.";
-		return status;
+		ESP_LOGW( TAG, "A new update replaces the one in progress" );
+		abort();
 	}
 	if( !Crypto::fromHex( sha256Hex, expected_, sizeof( expected_ ) ) ) {
 		status.message = "Bad SHA-256.";

@@ -148,7 +148,7 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 | `setupMode` | `enabled` (bool) | enter or leave setup mode |
 | `unpair` | | delete the pairing key; the connection then closes |
 | `factoryReset` | | erase NVS (Wi-Fi, name, pairing, settings, the setup network's password) and the image cache, then restart; the device comes back in setup mode. The firmware stays. The setup page offers the same reset. |
-| `firmwareBegin` | `version`, `size` (bytes), `sha256` (hex of the whole image) | start a firmware update; answered with `firmwareStatus` `ready` or `error` |
+| `firmwareBegin` | `version`, `size` (bytes), `sha256` (hex of the whole image) | start a firmware update; answered with `firmwareStatus` `ready` or `error`. A `firmwareBegin` during an update abandons that update and starts over (firmware 3.0.3 and later; earlier firmware answers `error`) |
 | `firmwareEnd` | | all data sent; the ESP32 verifies the SHA-256, answers `installed` or `error`, and on success restarts about 1 second later |
 
 These are the unauthenticated messages from the Mac:
