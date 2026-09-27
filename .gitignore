@@ -1,0 +1,8 @@
+# macOS and iCloud Drive
+.DS_Store
+# Anything named *.nosync stays out of iCloud: the git data (.git.nosync) and
+# ESPDeck Device/managed_components.nosync (managed_components is a symlink to it).
+*.nosync
+
+# Built firmware for the web installer; the release workflow builds and deploys it.
+web/firmware/*.bin
