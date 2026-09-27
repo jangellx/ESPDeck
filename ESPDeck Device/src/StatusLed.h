@@ -3,6 +3,8 @@
 //   looking for Wi-Fi       pulsing yellow
 //   connected               solid green at 25%, pulsing brighter while data moves
 //   a key pressed or held   white, for at least a moment even on a quick tap
+// While the deck is asleep, connected is off and everything else is very dim (pulses keep
+// pulsing), so the light doesn't glow in a dark room.
 #pragma once
 
 #include <cstdint>
@@ -25,9 +27,10 @@ public:
 	void activity();
 
 	// Call every loop pass; writes the LED only when its colour changes.
-	void update( Mode mode, bool keyDown );
+	void update( Mode mode, bool keyDown, bool asleep );
 
 private:
+	void show( uint8_t red, uint8_t green, uint8_t blue );
 	void write( uint8_t red, uint8_t green, uint8_t blue );
 
 	uint8_t  pin_           = 0;
@@ -35,4 +38,5 @@ private:
 	uint32_t written_       = 0xFFFFFFFF;   // last colour sent, 0xRRGGBB
 	uint32_t keyUntil_      = 0;            // millis()
 	uint32_t activityUntil_ = 0;
+	bool     dim_           = false;
 };

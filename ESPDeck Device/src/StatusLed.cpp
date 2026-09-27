@@ -15,6 +15,16 @@ namespace {
 	constexpr uint32_t kActivityHold   = 300;   // ms the data pulse lasts after the last message
 	constexpr uint32_t kActivityPeriod = 400;   // ms, a quicker pulse than the searching ones
 	constexpr uint8_t  kActivityPeak   = 160;
+	// Asleep, the pulse peak scales down to this: visible in a dark room, but no more.
+	constexpr uint8_t  kSleepPeak      = 8;
+
+	// Scales a channel for sleep, keeping anything that was lit at least barely lit.
+	uint8_t dimmed( uint8_t level ) {
+		if( level == 0 )
+			return 0;
+		unsigned scaled = ( (unsigned)level * kSleepPeak + kPulsePeak / 2 ) / kPulsePeak;
+		return (uint8_t)( scaled < 1 ? 1 : scaled > 255 ? 255 : scaled );
+	}
 
 	bool before( uint32_t deadline ) {
 		return (int32_t)( deadline - millis() ) > 0;
@@ -45,33 +55,46 @@ void StatusLed::activity() {
 	activityUntil_ = millis() + kActivityHold;
 }
 
-void StatusLed::update( Mode mode, bool keyDown ) {
+void StatusLed::update( Mode mode, bool keyDown, bool asleep ) {
 	if( !ready_ )
 		return;
+	dim_ = asleep;
 
 	if( keyDown || before( keyUntil_ ) ) {
-		write( kKeyLevel, kKeyLevel, kKeyLevel );
+		show( kKeyLevel, kKeyLevel, kKeyLevel );
+		return;
+	}
+
+	if( asleep && mode == Mode::Connected ) {
+		show( 0, 0, 0 );
 		return;
 	}
 
 	switch( mode ) {
 		case Mode::Setup: {
 			uint8_t level = pulseLevel();
-			write( 0, level / 4, level );            // Wi-Fi blue
+			show( 0, level / 4, level );             // Wi-Fi blue
 			break;
 		}
 		case Mode::Searching: {
 			uint8_t level = pulseLevel();
-			write( level, (uint8_t)( level * 3 / 4 ), 0 );   // yellow (a touch less green reads as yellow on WS2812s)
+			show( level, (uint8_t)( level * 3 / 4 ), 0 );    // yellow (a touch less green reads as yellow on WS2812s)
 			break;
 		}
 		case Mode::Connected:
 			if( before( activityUntil_ ) )
-				write( 0, (uint8_t)( kConnectedLevel + ( kActivityPeak - kConnectedLevel ) * pulse( kActivityPeriod ) ), 0 );
+				show( 0, (uint8_t)( kConnectedLevel + ( kActivityPeak - kConnectedLevel ) * pulse( kActivityPeriod ) ), 0 );
 			else
-				write( 0, kConnectedLevel, 0 );
+				show( 0, kConnectedLevel, 0 );
 			break;
 	}
+}
+
+void StatusLed::show( uint8_t red, uint8_t green, uint8_t blue ) {
+	if( dim_ )
+		write( dimmed( red ), dimmed( green ), dimmed( blue ) );
+	else
+		write( red, green, blue );
 }
 
 void StatusLed::write( uint8_t red, uint8_t green, uint8_t blue ) {

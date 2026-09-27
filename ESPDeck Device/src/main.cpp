@@ -1339,7 +1339,7 @@ void loop() {
 	statusLed.update( portal.active()                 ? StatusLed::Mode::Setup
 					  : WiFi.status() == WL_CONNECTED ? StatusLed::Mode::Connected
 					  :                                 StatusLed::Mode::Searching,
-					  keysDown != 0 );
+					  keysDown != 0, asleep );
 
 	if( wifiJoined ) {
 		wifiJoined = false;
