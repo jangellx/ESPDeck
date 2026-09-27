@@ -1,0 +1,106 @@
+//
+//  DeckDevice.swift
+//  ESPDeck Bridge
+//
+//  Live state of one ESP32: its connection, what it reported, what each key shows, and
+//  what the Mac knows about its image cache. Settings live in DeviceSettings.
+//
+
+import Observation
+import UIKit
+
+@Observable
+final class DeckDevice: Identifiable {
+	let id: String
+
+	/// The WebSocket client, or nil while the device is offline.
+	var client   : ClientID?
+	var endpoint : String?
+	var firmware : String?
+	var ip       : String?
+	var deck     = DeckInfo.disconnected
+	var status   = DeviceStatus()
+
+	/// What each key currently shows; the configuration UI draws these.
+	var keys     : [RenderedKey?] = []
+	var pressed  : Set<Int> = []
+
+	/// Set when another key goes down during a press, so chords (like the setup-mode
+	/// corner hold) don't trigger key actions.
+	@ObservationIgnored var chord        = false
+	/// Hashes the ESP32 has cached, as far as we know. `need` corrects mistakes.
+	@ObservationIgnored var knownHashes  : Set<String> = []
+	/// Hash last sent in `show` for each key.
+	@ObservationIgnored var shown        : [Int: String] = [:]
+	/// Recently rendered images, so `need` can be answered without re-rendering.
+	@ObservationIgnored var recentImages : [String: Data] = [:]
+	@ObservationIgnored var recentOrder  : [String] = []
+	@ObservationIgnored var pushTask     : Task<Void, Never>?
+	/// For automatic firmware updates, which wait for an idle deck.
+	@ObservationIgnored var lastKeyActivity = Date.distantPast
+
+	/// Frames sent and received, newest last, for the Log tab.
+	var log          : [TrafficEntry] = []
+	static let logLimit = 1000
+
+	/// Keys sent a `show` the deck hasn't confirmed with `shown` yet, and how many keys the
+	/// current batch of updates has had, for the progress bar under the simulated deck.
+	var pendingShows : [Int: String] = [:]
+	var batchTotal   = 0
+	@ObservationIgnored var lastProgress = Date()
+	@ObservationIgnored var pendingTimeout: Task<Void, Never>?
+
+	/// A firmware update in progress, or the last one's failure.
+	var firmwareProgress : FirmwareProgress?
+	@ObservationIgnored var firmwareImage: Data?
+
+	var isOnline: Bool { client != nil }
+
+	init( id: String ) {
+		self.id = id
+	}
+
+	/// Forgets everything learned from a connection.
+	func disconnected() {
+		client      = nil
+		endpoint    = nil
+		deck        = .disconnected
+		status      = DeviceStatus()
+		pressed     = []
+		chord       = false
+		knownHashes = []
+		shown       = [:]
+		clearPending()
+	}
+
+	func clearPending() {
+		pendingShows = [:]
+		batchTotal   = 0
+		pendingTimeout?.cancel()
+	}
+
+	func record( _ entry: TrafficEntry ) {
+		log.append( entry )
+		if log.count > Self.logLimit {
+			log.removeFirst( log.count - Self.logLimit )
+		}
+	}
+}
+
+struct FirmwareProgress: Equatable {
+	enum Phase: Equatable {
+		case downloading
+		case sending( sent: Int, total: Int )
+		case installing
+		case restarting
+		case failed( String )
+	}
+
+	var version : String
+	var phase   : Phase
+
+	var isActive: Bool {
+		if case .failed = phase { return false }
+		return true
+	}
+}

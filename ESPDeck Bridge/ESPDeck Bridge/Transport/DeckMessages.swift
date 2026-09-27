@@ -1,0 +1,291 @@
+//
+//  DeckMessages.swift
+//  ESPDeck Bridge
+//
+//  Wire format shared with the ESP32. See PROTOCOL.md next to the two projects.
+//
+
+import Foundation
+
+/// The deck object: whether a Stream Deck is plugged in, and if so what it is.
+struct DeckInfo: Codable, Equatable {
+	var connected : Bool
+	var model     : String?
+	var pid       : Int?
+	var serial    : String?
+	var firmware  : String?
+	var rows      : Int?
+	var cols      : Int?
+	var keySize   : Int?
+	var format    : KeyImageFormat?
+	var transform : KeyTransform?
+
+	static let disconnected = DeckInfo( connected: false )
+
+	/// The layout to render for, when the report is complete.
+	var layout: DeckLayout? {
+		guard connected, let rows, let cols, let keySize, rows > 0, cols > 0, keySize > 0 else { return nil }
+		return DeckLayout( model: model ?? "Stream Deck", rows: rows, cols: cols, keySize: keySize,
+						   format: format ?? .jpeg, transform: transform ?? .none )
+	}
+}
+
+/// The settings object; the ESP32 persists these.
+struct DeviceReportedSettings: Codable, Equatable {
+	var orientation  : String?
+	var sleepTimeout : Int?
+	var brightness   : Int?
+	var ip           : String?
+}
+
+/// The status object.
+struct DeviceStatus: Codable, Equatable {
+	var asleep    = false
+	var setupMode = false
+	/// Why it last changed: "timer", "key", "bridge", "chord", "setupPage", "exitKey", "boot".
+	var reason    : String?
+
+	static func describe( reason: String ) -> String {
+		switch reason {
+			case "timer":     "sleep timer"
+			case "key":       "key press"
+			case "bridge":    "from ESPDeck Bridge"
+			case "chord":     "corner-key hold"
+			case "setupPage": "setup page"
+			case "exitKey":   "Exit key"
+			case "boot":      "restart"
+			default:          reason
+		}
+	}
+}
+
+struct DeviceHello {
+	var protocolVersion : Int
+	/// 16 random bytes for the authentication handshake (protocol 3).
+	var nonce           : Data?
+	/// Bridge ID the device is paired with; empty when unpaired.
+	var pairedBridge    : String
+	var id       : String
+	var name     : String
+	var firmware : String
+	var cached   : [String]
+	var deck     : DeckInfo
+	var settings : DeviceReportedSettings
+	var status   : DeviceStatus
+}
+
+/// ESP32 → Mac
+enum DeviceMessage {
+	case hello( DeviceHello )
+	case deck( DeckInfo )
+	case status( DeviceStatus )
+	case need( hash: String )
+	case keyDown( Int )
+	case keyUp( Int )
+	/// A key now shows this image on the deck (uploaded, or it already did).
+	case shown( key: Int, hash: String )
+	case auth( proof: Data )
+	case pairResponse( publicKey: Data )
+	case pairConfirm( proof: Data )
+	case pairCancel
+	case firmwareStatus( FirmwareStatus )
+
+	struct FirmwareStatus {
+		enum State: String {
+			case ready, progress, installed, error
+		}
+		var state    : State
+		var received : Int?
+		var message  : String?
+	}
+
+	/// Messages the ESP32 may send before the session is authenticated.
+	var isHandshake: Bool {
+		switch self {
+			case .hello, .auth, .pairResponse, .pairConfirm, .pairCancel: true
+			default:                                                      false
+		}
+	}
+
+	private struct Envelope: Decodable {
+		var type     : String
+		var `protocol`   : Int?
+		var nonce        : String?
+		var pairedBridge : String?
+		var proof        : String?
+		var publicKey    : String?
+		var state        : String?
+		var received     : Int?
+		var message      : String?
+		var id       : String?
+		var name     : String?
+		var firmware : String?
+		var cached   : [String]?
+		var deck     : DeckInfo?
+		var settings : DeviceReportedSettings?
+		var status   : DeviceStatus?
+		var reason   : String?        // beside `status`, not inside it
+		var hash     : String?
+		var key      : Int?
+	}
+
+	/// Keys beyond this are ignored; no Stream Deck has more.
+	static let maxKeys = 64
+
+	init?( json: Data ) {
+		guard let envelope = try? JSONDecoder().decode( Envelope.self, from: json ) else { return nil }
+
+		switch envelope.type {
+			case "hello":
+				guard let id = envelope.id, !id.isEmpty else { return nil }
+				self = .hello( DeviceHello( protocolVersion: envelope.protocol ?? 2, nonce: envelope.nonce.flatMap { Data( hex: $0 ) },
+											pairedBridge: envelope.pairedBridge ?? "",
+											id: id.lowercased(), name: envelope.name ?? id, firmware: envelope.firmware ?? "?",
+											cached: envelope.cached ?? [], deck: envelope.deck ?? .disconnected,
+											settings: envelope.settings ?? DeviceReportedSettings(), status: envelope.status ?? DeviceStatus() ) )
+			case "deck":
+				guard let deck = envelope.deck else { return nil }
+				self = .deck( deck )
+			case "status":
+				guard var status = envelope.status else { return nil }
+				status.reason = envelope.reason ?? status.reason
+				self = .status( status )
+			case "need":
+				guard let hash = envelope.hash else { return nil }
+				self = .need( hash: hash )
+			case "keyDown":
+				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
+				self = .keyDown( key )
+			case "keyUp":
+				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
+				self = .keyUp( key )
+			case "shown":
+				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ), let hash = envelope.hash else { return nil }
+				self = .shown( key: key, hash: hash )
+			case "auth":
+				guard let proof = envelope.proof.flatMap( { Data( hex: $0 ) } ) else { return nil }
+				self = .auth( proof: proof )
+			case "pairResponse":
+				guard let key = envelope.publicKey.flatMap( { Data( hex: $0 ) } ), key.count == 32 else { return nil }
+				self = .pairResponse( publicKey: key )
+			case "pairConfirm":
+				guard let proof = envelope.proof.flatMap( { Data( hex: $0 ) } ) else { return nil }
+				self = .pairConfirm( proof: proof )
+			case "pairCancel":
+				self = .pairCancel
+			case "firmwareStatus":
+				guard let state = envelope.state.flatMap( FirmwareStatus.State.init( rawValue: ) ) else { return nil }
+				self = .firmwareStatus( FirmwareStatus( state: state, received: envelope.received, message: envelope.message ) )
+			default:
+				return nil
+		}
+	}
+}
+
+/// Mac → ESP32 control messages. Images go out as binary frames; see `imageFrame`.
+enum HostMessage: Encodable {
+	case show( key: Int, hash: String )
+	case brightness( Int )
+	case setName( String )
+	case orientation( String )
+	case sleepTimeout( Int )
+	case sleep
+	case wake
+	case setupMode( Bool )
+	case unpair
+	case factoryReset
+	case firmwareBegin( version: String, size: Int, sha256: String )
+	case firmwareEnd
+	// Unauthenticated handshake messages
+	case auth( nonce: Data, proof: Data )
+	case pairRequest( bridgeID: String, bridgeName: String, publicKey: Data )
+	case pairCancel
+
+	private enum CodingKeys: String, CodingKey {
+		case type, key, hash, value, name, seconds, enabled
+		case version, size, sha256, nonce, proof, bridgeID, bridgeName, publicKey
+	}
+
+	func encode( to encoder: Encoder ) throws {
+		var container = encoder.container( keyedBy: CodingKeys.self )
+		switch self {
+			case .show( let key, let hash ):
+				try container.encode( "show", forKey: .type )
+				try container.encode( key, forKey: .key )
+				try container.encode( hash, forKey: .hash )
+			case .brightness( let value ):
+				try container.encode( "brightness", forKey: .type )
+				try container.encode( value, forKey: .value )
+			case .setName( let name ):
+				try container.encode( "setName", forKey: .type )
+				try container.encode( name, forKey: .name )
+			case .orientation( let value ):
+				try container.encode( "orientation", forKey: .type )
+				try container.encode( value, forKey: .value )
+			case .sleepTimeout( let seconds ):
+				try container.encode( "sleepTimeout", forKey: .type )
+				try container.encode( seconds, forKey: .seconds )
+			case .sleep:
+				try container.encode( "sleep", forKey: .type )
+			case .wake:
+				try container.encode( "wake", forKey: .type )
+			case .setupMode( let enabled ):
+				try container.encode( "setupMode", forKey: .type )
+				try container.encode( enabled, forKey: .enabled )
+			case .unpair:
+				try container.encode( "unpair", forKey: .type )
+			case .factoryReset:
+				try container.encode( "factoryReset", forKey: .type )
+			case .firmwareBegin( let version, let size, let sha256 ):
+				try container.encode( "firmwareBegin", forKey: .type )
+				try container.encode( version, forKey: .version )
+				try container.encode( size, forKey: .size )
+				try container.encode( sha256, forKey: .sha256 )
+			case .firmwareEnd:
+				try container.encode( "firmwareEnd", forKey: .type )
+			case .auth( let nonce, let proof ):
+				try container.encode( "auth", forKey: .type )
+				try container.encode( nonce.hex, forKey: .nonce )
+				try container.encode( proof.hex, forKey: .proof )
+			case .pairRequest( let bridgeID, let bridgeName, let publicKey ):
+				try container.encode( "pairRequest", forKey: .type )
+				try container.encode( bridgeID, forKey: .bridgeID )
+				try container.encode( bridgeName, forKey: .bridgeName )
+				try container.encode( publicKey.hex, forKey: .publicKey )
+			case .pairCancel:
+				try container.encode( "pairCancel", forKey: .type )
+		}
+	}
+
+	/// Sendable before the session is authenticated.
+	var isHandshake: Bool {
+		switch self {
+			case .auth, .pairRequest, .pairCancel: true
+			default:                               false
+		}
+	}
+
+	/// "FWU1" + 32-bit little-endian offset + a chunk of the app image.
+	static func firmwareFrame( offset: Int, chunk: Data ) -> Data {
+		var frame = Data( "FWU1".utf8 )
+		var value = UInt32( offset ).littleEndian
+		withUnsafeBytes( of: &value ) { frame.append( contentsOf: $0 ) }
+		frame.append( chunk )
+		return frame
+	}
+
+	/// "IMG1" + 16 raw hash bytes + image file.
+	static func imageFrame( hash: String, image: Data ) -> Data? {
+		let digits = Array( hash.utf8 )
+		guard digits.count == 32 else { return nil }
+
+		var frame = Data( "IMG1".utf8 )
+		for index in stride( from: 0, to: digits.count, by: 2 ) {
+			guard let pair = String( bytes: digits[index...index + 1], encoding: .ascii ),
+				  let byte = UInt8( pair, radix: 16 ) else { return nil }
+			frame.append( byte )
+		}
+		frame.append( image )
+		return frame
+	}
+}

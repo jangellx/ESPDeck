@@ -1,0 +1,133 @@
+//
+//  TrafficViews.swift
+//  ESPDeck Bridge
+//
+//  The Log tab (every frame to and from a device, timestamped), and the transfer status
+//  under the simulated deck.
+//
+
+import SwiftUI
+
+struct TrafficLogView: View {
+	let device: DeckDevice
+
+	@State private var filter = ""
+
+	private static let time: Date.FormatStyle = .dateTime.hour( .twoDigits( amPM: .omitted ) ).minute( .twoDigits ).second( .twoDigits ).secondFraction( .fractional( 3 ) )
+
+	var body: some View {
+		let entries = device.log.reversed().filter { filter.isEmpty || $0.summary.localizedStandardContains( filter ) }
+
+		VStack( spacing: 0 ) {
+			HStack {
+				TextField( "Filter", text: $filter, prompt: Text( "Filter (e.g. keyDown, image, show)" ) )
+					.textFieldStyle( .roundedBorder )
+					.frame( maxWidth: 320 )
+				Spacer()
+				Text( "\(device.log.count) entries" )
+					.foregroundStyle( .secondary )
+					.font( .caption )
+				Button( "Copy" ) { UIPasteboard.general.string = text( entries ) }
+					.disabled( entries.isEmpty )
+				Button( "Clear" ) { device.log.removeAll() }
+					.disabled( device.log.isEmpty )
+			}
+			.padding( 12 )
+
+			Divider()
+
+			if entries.isEmpty {
+				ContentUnavailableView( "No Traffic", systemImage: "arrow.up.arrow.down",
+										description: Text( device.isOnline ? "Messages to and from this device appear here." : "The device is offline." ) )
+			} else {
+				List( entries ) { entry in
+					HStack( alignment: .firstTextBaseline, spacing: 10 ) {
+						Text( entry.date, format: Self.time )
+							.foregroundStyle( .secondary )
+						Image( systemName: Self.symbol( entry.direction ) )
+							.foregroundStyle( Self.color( entry.direction ) )
+							.accessibilityLabel( Self.name( entry.direction ) )
+						Text( entry.summary )
+							.lineLimit( 2 )
+							.textSelection( .enabled )
+							.fontWeight( entry.direction == .event ? .semibold : .regular )
+						Spacer( minLength: 8 )
+						if entry.bytes > 0 {
+							Text( ByteCountFormatter.string( fromByteCount: Int64( entry.bytes ), countStyle: .file ) )
+								.foregroundStyle( .secondary )
+						}
+					}
+					.font( .callout.monospaced() )
+				}
+				.listStyle( .plain )
+			}
+		}
+	}
+
+	private func text( _ entries: [TrafficEntry] ) -> String {
+		entries.reversed().map { entry in
+			let arrow = entry.direction == .sent ? "→" : entry.direction == .received ? "←" : "•"
+			return "\(entry.date.formatted( Self.time ))  \(arrow)  \(entry.summary)" + ( entry.bytes > 0 ? "  (\(entry.bytes) B)" : "" )
+		}.joined( separator: "\n" )
+	}
+
+	static func symbol( _ direction: TrafficEntry.Direction ) -> String {
+		switch direction {
+			case .sent:     "arrow.up.circle.fill"
+			case .received: "arrow.down.circle.fill"
+			case .event:    "bolt.circle.fill"
+		}
+	}
+
+	static func color( _ direction: TrafficEntry.Direction ) -> Color {
+		switch direction {
+			case .sent:     .accentColor
+			case .received: .green
+			case .event:    .orange
+		}
+	}
+
+	static func name( _ direction: TrafficEntry.Direction ) -> String {
+		switch direction {
+			case .sent:     "Sent"
+			case .received: "Received"
+			case .event:    "Event"
+		}
+	}
+}
+
+/// Under the simulated deck: how far the physical deck is through its updates, or the
+/// last message when it's caught up.
+struct TransferStatusView: View {
+	let device: DeckDevice
+
+	var body: some View {
+		VStack( alignment: .leading, spacing: 6 ) {
+			if !device.isOnline {
+				Label( "Offline", systemImage: "wifi.slash" )
+					.foregroundStyle( .secondary )
+			} else if !device.pendingShows.isEmpty {
+				let total = max( device.batchTotal, device.pendingShows.count )
+				let done  = total - device.pendingShows.count
+				ProgressView( value: Double( done ), total: Double( total ) ) {
+					Text( "Updating the deck: \(done) of \(total) \(total == 1 ? "key" : "keys")" )
+				} currentValueLabel: {
+					if let last = device.log.last {
+						Text( "\(last.direction == .sent ? "↑" : last.direction == .received ? "↓" : "•") \(last.summary)" )
+							.lineLimit( 1 )
+					}
+				}
+			} else {
+				Label( "The deck is up to date", systemImage: "checkmark.circle" )
+					.foregroundStyle( .secondary )
+				if let last = device.log.last {
+					Text( "Last: \(last.direction == .sent ? "↑" : last.direction == .received ? "↓" : "•") \(last.summary) · \(last.date.formatted( date: .omitted, time: .standard ))" )
+						.lineLimit( 1 )
+						.foregroundStyle( .secondary )
+				}
+			}
+		}
+		.font( .caption )
+		.frame( maxWidth: .infinity, alignment: .leading )
+	}
+}

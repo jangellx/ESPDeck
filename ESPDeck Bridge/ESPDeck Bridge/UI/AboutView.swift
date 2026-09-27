@@ -1,0 +1,259 @@
+//
+//  AboutView.swift
+//  ESPDeck Bridge
+//
+//  Version, requirements, and third-party attributions for the app and the firmware.
+//  Keep this in sync with the Credits section of the README.
+//
+
+import SwiftUI
+
+struct Credit: Identifiable {
+	let name    : String
+	let use     : String
+	let license : String
+	let url     : URL?
+	var text    : String?
+
+	var id: String { name }
+}
+
+enum Credits {
+	/// Used by ESPDeck Bridge, or by the firmware it installs.
+	static let all: [Credit] = [
+		Credit( name: "python-elgato-streamdeck", use: "Stream Deck model layouts and USB report formats used by the firmware",
+				license: "MIT (Dean Camera)", url: URL( string: "https://github.com/abcminiuser/python-elgato-streamdeck" ),
+				text: pythonElgatoStreamDeckLicense ),
+		Credit( name: "Elgato Stream Deck HID documentation", use: "Stream Deck USB protocol reference",
+				license: "Elgato", url: URL( string: "https://docs.elgato.com/streamdeck/hid/" ) ),
+		Credit( name: "ESP-IDF", use: "Firmware framework", license: "Apache License 2.0",
+				url: URL( string: "https://github.com/espressif/esp-idf" ) ),
+		Credit( name: "Arduino core for ESP32", use: "Firmware framework (Wi-Fi, mDNS, web server)", license: "GNU LGPL 2.1",
+				url: URL( string: "https://github.com/espressif/arduino-esp32" ) ),
+		Credit( name: "ESP-IDF USB Host HID driver", use: "Firmware: talking to the Stream Deck", license: "Apache License 2.0",
+				url: URL( string: "https://github.com/espressif/esp-usb" ) ),
+		Credit( name: "esp_websocket_client and mdns", use: "Firmware: connection to this app", license: "Apache License 2.0",
+				url: URL( string: "https://github.com/espressif/esp-protocols" ) ),
+		Credit( name: "esp_littlefs", use: "Firmware: image cache", license: "MIT (Brian Pugh)",
+				url: URL( string: "https://github.com/joltwallet/esp_littlefs" ) ),
+		Credit( name: "ESP QR Code component", use: "Firmware: setup-mode QR codes", license: "Apache License 2.0",
+				url: URL( string: "https://github.com/espressif/idf-extra-components" ) ),
+		Credit( name: "esp_new_jpeg", use: "Firmware: JPEG encoding for setup-mode images", license: "Espressif MIT",
+				url: URL( string: "https://github.com/espressif/esp-adf-libs" ) ),
+		Credit( name: "ESP Web Tools", use: "Browser-based firmware installer", license: "Apache License 2.0",
+				url: URL( string: "https://github.com/esphome/esp-web-tools" ) ),
+		Credit( name: "Inter", use: "Firmware: the typeface for text drawn on the deck", license: "SIL Open Font License 1.1",
+				url: URL( string: "https://github.com/rsms/inter" ), text: interLicense ),
+	]
+
+	static let interLicense = """
+		Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
+
+		This Font Software is licensed under the SIL Open Font License, Version 1.1.
+		This license is copied below, and is also available with a FAQ at:
+		http://scripts.sil.org/OFL
+
+		-----------------------------------------------------------
+		SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+		-----------------------------------------------------------
+
+		PREAMBLE
+		The goals of the Open Font License (OFL) are to stimulate worldwide
+		development of collaborative font projects, to support the font creation
+		efforts of academic and linguistic communities, and to provide a free and
+		open framework in which fonts may be shared and improved in partnership
+		with others.
+
+		The OFL allows the licensed fonts to be used, studied, modified and
+		redistributed freely as long as they are not sold by themselves. The
+		fonts, including any derivative works, can be bundled, embedded,
+		redistributed and/or sold with any software provided that any reserved
+		names are not used by derivative works. The fonts and derivatives,
+		however, cannot be released under any other type of license. The
+		requirement for fonts to remain under this license does not apply
+		to any document created using the fonts or their derivatives.
+
+		DEFINITIONS
+		"Font Software" refers to the set of files released by the Copyright
+		Holder(s) under this license and clearly marked as such. This may
+		include source files, build scripts and documentation.
+
+		"Reserved Font Name" refers to any names specified as such after the
+		copyright statement(s).
+
+		"Original Version" refers to the collection of Font Software components as
+		distributed by the Copyright Holder(s).
+
+		"Modified Version" refers to any derivative made by adding to, deleting,
+		or substituting -- in part or in whole -- any of the components of the
+		Original Version, by changing formats or by porting the Font Software to a
+		new environment.
+
+		"Author" refers to any designer, engineer, programmer, technical
+		writer or other person who contributed to the Font Software.
+
+		PERMISSION AND CONDITIONS
+		Permission is hereby granted, free of charge, to any person obtaining
+		a copy of the Font Software, to use, study, copy, merge, embed, modify,
+		redistribute, and sell modified and unmodified copies of the Font
+		Software, subject to the following conditions:
+
+		1) Neither the Font Software nor any of its individual components,
+		in Original or Modified Versions, may be sold by itself.
+
+		2) Original or Modified Versions of the Font Software may be bundled,
+		redistributed and/or sold with any software, provided that each copy
+		contains the above copyright notice and this license. These can be
+		included either as stand-alone text files, human-readable headers or
+		in the appropriate machine-readable metadata fields within text or
+		binary files as long as those fields can be easily viewed by the user.
+
+		3) No Modified Version of the Font Software may use the Reserved Font
+		Name(s) unless explicit written permission is granted by the corresponding
+		Copyright Holder. This restriction only applies to the primary font name as
+		presented to the users.
+
+		4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+		Software shall not be used to promote, endorse or advertise any
+		Modified Version, except to acknowledge the contribution(s) of the
+		Copyright Holder(s) and the Author(s) or with their explicit written
+		permission.
+
+		5) The Font Software, modified or unmodified, in part or in whole,
+		must be distributed entirely under this license, and must not be
+		distributed under any other license. The requirement for fonts to
+		remain under this license does not apply to any document created
+		using the Font Software.
+
+		TERMINATION
+		This license becomes null and void if any of the above conditions are
+		not met.
+
+		DISCLAIMER
+		THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+		EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+		MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+		OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+		COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+		INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+		DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+		FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+		OTHER DEALINGS IN THE FONT SOFTWARE.
+		"""
+
+	static let pythonElgatoStreamDeckLicense = """
+		Copyright (c) Dean Camera
+
+		Permission to use, copy, modify, and distribute this software and its documentation for any purpose is hereby granted without fee, provided that the above copyright notice appear in all copies and that both that the copyright notice and this permission notice and warranty disclaimer appear in supporting documentation, and that the name of the author not be used in advertising or publicity pertaining to distribution of the software without specific, written prior permission.
+
+		The author disclaims all warranties with regard to this software, including all implied warranties of merchantability and fitness. In no event shall the author be liable for any special, indirect or consequential damages or any damages whatsoever resulting from loss of use, data or profits, whether in an action of contract, negligence or other tortious action, arising out of or in connection with the use or performance of this software.
+		"""
+}
+
+struct AboutView: View {
+	let controller: DeckController
+
+	@State private var shownLicense: Credit?
+
+	var body: some View {
+		ScrollView {
+			VStack( alignment: .leading, spacing: 24 ) {
+				HStack( spacing: 16 ) {
+					Image( systemName: "square.grid.3x2.fill" )
+						.font( .system( size: 48 ) )
+						.foregroundStyle( .tint )
+					VStack( alignment: .leading, spacing: 4 ) {
+						Text( "ESPDeck Bridge" )
+							.font( .largeTitle.bold() )
+						Text( "Version \(controller.updates.currentAppVersion) (\(build))" )
+							.foregroundStyle( .secondary )
+					}
+				}
+
+				Text( "Turns an Elgato Stream Deck on an ESP32-S3 into a HomeKit control panel. This app watches your HomeKit accessories, draws the keys, and runs the actions; the ESPDeck firmware connects the Stream Deck to it over Wi-Fi." )
+
+				if let repository = controller.updates.repository, let url = URL( string: "https://github.com/\(repository)" ) {
+					Link( "Source code and releases on GitHub", destination: url )
+				}
+
+				section( "Requirements" ) {
+					bullet( "A Mac running macOS 27 or later, signed in to an iCloud account that's a member of the Home. The Mac must stay on and logged in (turn on automatic login and Launch at Login for an always-on panel)." )
+					bullet( "An ESP32-S3 with 16 MB flash and 8 MB PSRAM (ESP32-S3-DevKitC-1 N16R8), running ESPDeck firmware." )
+					bullet( "An Elgato Stream Deck (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module)." )
+					bullet( "A 5 V USB power supply rated 2 A or more, and its cable. It powers both the ESP32-S3 and the Stream Deck." )
+					bullet( "A passive USB-C OTG adapter with a power input: a USB-C plug for the board's native USB port, a USB-A port for the Stream Deck, and a USB-C port for the power supply. Adapters that need USB-PD negotiation may never switch on power to the Stream Deck." )
+					bullet( "If the Stream Deck's cable ends in USB-C: a USB-A (male) to USB-C (female) adapter that includes the CC pull-up resistor. Choose one labeled for charging and sync (data), not charge-only; one that mentions a 56 kΩ resistor is the surest bet. Not needed if the cable ends in USB-A." )
+					bullet( "A 2.4 GHz Wi-Fi network shared by the Mac and the ESP32." )
+				}
+
+				section( "Acknowledgments" ) {
+					ForEach( Credits.all ) { credit in
+						VStack( alignment: .leading, spacing: 2 ) {
+							HStack( alignment: .firstTextBaseline ) {
+								if let url = credit.url {
+									Link( credit.name, destination: url ).fontWeight( .semibold )
+								} else {
+									Text( credit.name ).fontWeight( .semibold )
+								}
+								Text( "· \(credit.license)" ).foregroundStyle( .secondary )
+								if credit.text != nil {
+									Button( "License" ) { shownLicense = credit }
+										.buttonStyle( .borderless )
+										.font( .caption )
+								}
+							}
+							Text( credit.use )
+								.font( .caption )
+								.foregroundStyle( .secondary )
+						}
+					}
+				}
+
+				section( "Trademarks" ) {
+					Text( "Elgato and Stream Deck are trademarks of Corsair Memory, Inc. HomeKit and Mac are trademarks of Apple Inc. ESPDeck isn't affiliated with, endorsed by, or sponsored by Elgato, Corsair, Apple, or Espressif." )
+						.font( .callout )
+				}
+			}
+			.frame( maxWidth: 640, alignment: .leading )
+			.padding( 40 )
+			.frame( maxWidth: .infinity )
+		}
+		.navigationTitle( "About" )
+		.sheet( item: $shownLicense ) { credit in
+			NavigationStack {
+				ScrollView {
+					Text( credit.text ?? "" )
+						.font( .callout.monospaced() )
+						.textSelection( .enabled )
+						.padding()
+				}
+				.navigationTitle( credit.name )
+				.toolbar {
+					ToolbarItem( placement: .confirmationAction ) {
+						Button( "Done" ) { shownLicense = nil }
+					}
+				}
+			}
+			.frame( minWidth: 520, minHeight: 420 )
+		}
+	}
+
+	private var build: String {
+		Bundle.main.object( forInfoDictionaryKey: "CFBundleVersion" ) as? String ?? "?"
+	}
+
+	private func section<Content: View>( _ title: String, @ViewBuilder content: () -> Content ) -> some View {
+		VStack( alignment: .leading, spacing: 10 ) {
+			Text( title ).font( .title3.bold() )
+			content()
+		}
+	}
+
+	private func bullet( _ text: String ) -> some View {
+		HStack( alignment: .firstTextBaseline, spacing: 8 ) {
+			Text( "•" )
+			Text( text )
+		}
+		.font( .callout )
+	}
+}

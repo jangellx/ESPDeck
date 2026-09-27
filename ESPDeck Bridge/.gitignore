@@ -1,0 +1,4 @@
+xcuserdata/
+Config/Signing.local.xcconfig
+build/
+dist/

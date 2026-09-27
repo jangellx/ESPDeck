@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ESPDeckGitHubRepository</key>
+	<string>$(ESPDECK_GITHUB_REPOSITORY)</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_deckbridge._tcp</string>
+	</array>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+	</dict>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>ESPDeck Key Assignment</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.tmproductions.espdeck.key-assignment</string>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>ESPDeck Key</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.tmproductions.espdeck.key</string>
+		</dict>
+	</array>
+</dict>
+</plist>

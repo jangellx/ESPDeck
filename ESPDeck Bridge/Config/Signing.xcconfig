@@ -1,0 +1,17 @@
+// Signing and identity settings, shared by both targets.
+//
+// To build under your own Apple developer team, don't edit this file: create
+// Config/Signing.local.xcconfig (git-ignored) and override what you need, e.g.
+//
+//   DEVELOPMENT_TEAM = ABCDE12345
+//   BUNDLE_ID_PREFIX = com.example
+//   ESPDECK_GITHUB_REPOSITORY = yourname/ESPDeck
+
+DEVELOPMENT_TEAM = 9259PET5M4
+BUNDLE_ID_PREFIX = com.tmproductions
+
+// GitHub repository ("owner/name") whose Releases the app checks for app and firmware
+// updates. Empty turns update checks off.
+ESPDECK_GITHUB_REPOSITORY = jangellx/ESPDeck
+
+#include? "Signing.local.xcconfig"
