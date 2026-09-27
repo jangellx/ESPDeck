@@ -61,15 +61,13 @@ struct DeviceSettingsView: View {
 					.onSubmit { controller.renameDemo( device: deviceID, to: nameDraft ) }
 					.onChange( of: nameDraft ) { controller.renameDemo( device: deviceID, to: nameDraft ) }
 
-				labelPositionPicker
-
 				Picker( "Model", selection: demoModelBinding ) {
 					ForEach( DeckLayout.presets, id: \.model ) { layout in
 						Text( "\(layout.model) (\(layout.rows) × \(layout.cols))" ).tag( layout.model )
 					}
 				}
 			} header: {
-				Text( "Demo Deck" )
+				SectionHeader( "Demo Deck" )
 			} footer: {
 				Text( "A demo deck lets you lay out keys without hardware. Its keys show live HomeKit states and Test Action works; nothing is sent to a device. Changing the model keeps keys that no longer fit, and they return if you switch back." )
 			}
@@ -87,20 +85,6 @@ struct DeviceSettingsView: View {
 			}
 		}
 		.formStyle( .grouped )
-	}
-
-	/// Drawn by the bridge, so it can change while the device is offline.
-	private var labelPositionPicker: some View {
-		Picker( "Labels", selection: Binding {
-			controller.settings( deviceID )?.labelPosition ?? .bottom
-		} set: { position in
-			controller.setLabelPosition( device: deviceID, position )
-		} ) {
-			ForEach( LabelPosition.allCases ) { position in
-				Text( position.title ).tag( position )
-			}
-		}
-		.pickerStyle( .segmented )
 	}
 
 	private var demoModelBinding: Binding<String> {
@@ -141,14 +125,14 @@ struct DeviceSettingsView: View {
 					LabeledContent( "IP Address", value: ip )
 				}
 			} header: {
-				Text( "Device" )
+				SectionHeader( "Device" )
 			} footer: {
 				if !online {
 					Text( "This device is offline. Its keys can still be edited; they're sent when it reconnects. Name, display, and sleep timer changes need it online." )
 				}
 			}
 
-			Section( "Display" ) {
+			Section {
 				LabeledContent( "Brightness" ) {
 					Slider( value: $brightness, in: 0...100, step: 5 ) { editing in
 						if !editing { controller.setBrightness( device: deviceID, Int( brightness ) ) }
@@ -163,7 +147,8 @@ struct DeviceSettingsView: View {
 					}
 				}
 				.disabled( !online )
-				labelPositionPicker
+			} header: {
+				SectionHeader( "Display" )
 			}
 
 			Section {
@@ -182,7 +167,7 @@ struct DeviceSettingsView: View {
 						.disabled( !device.status.asleep )
 				}
 			} header: {
-				Text( "Sleep" )
+				SectionHeader( "Sleep" )
 			} footer: {
 				Text( "Sleep turns the deck's keys off. Pressing any key wakes it, and that press doesn't trigger the key." )
 			}
@@ -197,7 +182,7 @@ struct DeviceSettingsView: View {
 					controller.updateSettings( device: deviceID ) { $0.sleepTriggers.append( SleepTrigger() ) }
 				}
 			} header: {
-				if settings.sleepTriggers.isEmpty { Text( "Triggers" ) }
+				if settings.sleepTriggers.isEmpty { SectionHeader( "Triggers" ) }
 			} footer: {
 				Text( "Sleep or wake the deck when a HomeKit accessory changes state, e.g. wake it when the office light turns on." )
 			}
@@ -229,13 +214,12 @@ struct DeviceSettingsView: View {
 						Text( "This removes its key assignments and settings from ESPDeck Bridge. If it connects again, it appears as a new device." )
 					}
 			} header: {
-				Text( "Setup" )
+				SectionHeader( "Setup" )
 			} footer: {
 				Text( "Setup mode shows QR codes on the deck for joining the device's own Wi-Fi network and opening its setup page, where you can change its Wi-Fi network and name. You can also enter it by holding the top-left and bottom-right keys for 5 seconds.\n\nFactory Reset erases the device itself. Forget Device removes it from ESPDeck Bridge (and unpairs it) but leaves its Wi-Fi settings alone." )
 			}
 		}
 		.formStyle( .grouped )
-		.headerProminence( .increased )
 	}
 
 	private func deckDescription( _ settings: DeviceSettings, _ device: DeckDevice ) -> String {
@@ -300,7 +284,7 @@ private struct CopyKeysMenu: View {
 	}
 }
 
-/// "When <accessory> becomes <state>, <sleep|wake>."
+/// "When <accessory> changes to <state>, <sleep|wake>."
 private struct TriggerSection: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -319,7 +303,7 @@ private struct TriggerSection: View {
 			}
 
 			if let kind = trigger.source.kind {
-				Picker( "Becomes", selection: binding( \.state ) ) {
+				Picker( "Changes to", selection: binding( \.state ) ) {
 					ForEach( kind.states ) { state in
 						Text( state.title ).tag( state )
 					}
@@ -334,11 +318,11 @@ private struct TriggerSection: View {
 			.pickerStyle( .segmented )
 
 			if let opposite = trigger.state.opposite {
-				Toggle( "\(trigger.effect.opposite.title) the deck when it becomes \(opposite.title)", isOn: binding( \.reverse ) )
+				Toggle( "\(trigger.effect.opposite.title) the deck when it changes to \(opposite.title)", isOn: binding( \.reverse ) )
 			}
 		} header: {
 			HStack {
-				Text( "Trigger" )
+				SectionHeader( "Trigger" )
 				Spacer()
 				Button( "Remove", role: .destructive ) {
 					controller.updateSettings( device: deviceID ) { settings in
@@ -396,7 +380,7 @@ private struct CommandSection: View {
 					.disabled( command.action == .none )
 			}
 		} header: {
-			Text( title )
+			SectionHeader( title )
 		} footer: {
 			Text( footer )
 		}

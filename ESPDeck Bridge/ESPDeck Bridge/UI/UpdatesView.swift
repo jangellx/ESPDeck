@@ -34,7 +34,7 @@ struct UpdatesView: View {
 					releaseNotes( latest )
 				}
 			} header: {
-				Text( "ESPDeck Bridge" )
+				SectionHeader( "ESPDeck Bridge" )
 			} footer: {
 				Text( "Updates come from the project's GitHub Releases. Before installing, the app checks the download's SHA-256 and that it's signed by the same developer." )
 			}
@@ -50,7 +50,7 @@ struct UpdatesView: View {
 					FirmwareRow( controller: controller, device: device )
 				}
 			} header: {
-				Text( "ESPDeck Firmware" )
+				SectionHeader( "ESPDeck Firmware" )
 			} footer: {
 				Text( "Firmware is sent to each ESPDeck over its paired connection. Automatic updates wait until a deck is asleep or hasn't been used for 5 minutes. If new firmware can't reconnect, the device goes back to its previous firmware on its own." )
 			}

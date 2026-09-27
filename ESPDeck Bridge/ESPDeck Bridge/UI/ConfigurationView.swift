@@ -224,6 +224,7 @@ private struct DeviceDetailView: View {
 						ScrollView( [ .vertical, .horizontal ] ) {
 							VStack( spacing: 14 ) {
 								DeckGridView( controller: controller, deviceID: deviceID, selection: $selectedKey )
+								LabelPositionControl( controller: controller, deviceID: deviceID )
 								if let device = controller.device( deviceID ), controller.settings( deviceID )?.isDemo != true {
 									TransferStatusView( device: device )
 										.frame( maxWidth: 520 )
@@ -261,5 +262,30 @@ private struct DeviceDetailView: View {
 	/// Copy and Paste act on the selected key while the Keys page is showing.
 	private func updateFocus() {
 		controller.focusedKey = page == .keys ? ( deviceID, selectedKey ) : nil
+	}
+}
+
+/// Under the deck preview, since it applies to every key on the deck.
+private struct LabelPositionControl: View {
+	let controller : DeckController
+	let deviceID   : String
+
+	var body: some View {
+		HStack( spacing: 10 ) {
+			Text( "Key Labels" )
+				.foregroundStyle( .secondary )
+			Picker( "Key Labels", selection: Binding {
+				controller.settings( deviceID )?.labelPosition ?? .bottom
+			} set: { position in
+				controller.setLabelPosition( device: deviceID, position )
+			} ) {
+				ForEach( LabelPosition.allCases ) { position in
+					Text( position.title ).tag( position )
+				}
+			}
+			.pickerStyle( .segmented )
+			.labelsHidden()
+			.fixedSize()
+		}
 	}
 }

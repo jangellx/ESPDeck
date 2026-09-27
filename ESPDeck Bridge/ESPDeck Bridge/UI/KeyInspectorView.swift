@@ -41,7 +41,7 @@ struct KeyInspectorView: View {
 					LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 				}
 			} header: {
-				Text( "Key \(key + 1)" )
+				SectionHeader( "Key \(key + 1)" )
 			} footer: {
 				if assignment.isToggleShortcut {
 					Text( "Each press runs the shortcut with \u{201C}on\u{201D} or \u{201C}off\u{201D} as its Shortcut Input: the state the key is switching to. If the shortcut ends with Stop and Output of \u{201C}on\u{201D} or \u{201C}off\u{201D}, the key shows that state instead." )
@@ -55,12 +55,14 @@ struct KeyInspectorView: View {
 				}
 			}
 
-			Section( "Appearance" ) {
+			Section {
 				Toggle( "Show Label", isOn: binding( \.showLabel ) )
 				TextField( "Label", text: binding( \.label ), prompt: Text( controller.defaultName( for: assignment ) ?? "Label" ) )
 					.disabled( !assignment.showLabel )
 
 				ColorPicker( "Background", selection: backgroundBinding, supportsOpacity: false )
+			} header: {
+				SectionHeader( "Appearance" )
 			}
 
 			Section {
@@ -80,7 +82,7 @@ struct KeyInspectorView: View {
 				}
 				.padding( .vertical, 6 )
 			} header: {
-				Text( "Icons" )
+				SectionHeader( "Icons" )
 			} footer: {
 				Text( "Click a state to choose an SF Symbol, or drag an image onto it. States without their own icon use Default's, filled for On." )
 			}
@@ -113,7 +115,6 @@ struct KeyInspectorView: View {
 			}
 		}
 		.formStyle( .grouped )
-		.headerProminence( .increased )
 	}
 
 	/// The current state has its own icon, or falls back to Default.
