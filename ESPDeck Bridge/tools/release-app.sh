@@ -8,8 +8,11 @@
 #
 #   xcrun notarytool store-credentials ESPDeck --apple-id you@example.com --team-id TEAMID
 #
-# Output in dist/: ESPDeck-Bridge-VERSION.zip and its .sha256. Publish both on a GitHub
-# release tagged bridge-vVERSION; the app's update check looks for exactly that.
+# Output in dist/:
+#   ESPDeck-Bridge-VERSION.dmg   for first-time downloads: the app and an Applications link
+#   ESPDeck-Bridge-VERSION.zip   what the app's own updater installs
+# each with a .sha256. Publish them on a GitHub release tagged bridge-vVERSION; the app's
+# update check looks for exactly that. Both are notarized and stapled.
 
 set -euo pipefail
 
@@ -26,6 +29,7 @@ ARCHIVE="$BUILD/ESPDeck-Bridge.xcarchive"
 EXPORT="$BUILD/export"
 APP="$EXPORT/ESPDeck Bridge.app"
 ZIP="$DIST/ESPDeck-Bridge-$VERSION.zip"
+DMG="$DIST/ESPDeck-Bridge-$VERSION.dmg"
 
 # The version in the project must match the tag.
 PROJECT_VERSION=$( xcodebuild -project "ESPDeck Bridge.xcodeproj" -scheme "$SCHEME" -destination "$DESTINATION" -showBuildSettings 2>/dev/null \
@@ -57,7 +61,23 @@ rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 ( cd "$DIST" && shasum -a 256 "${ZIP:t}" | awk '{ print $1 }' > "${ZIP:t}.sha256" )
 
+echo "==> Making the disk image"
+# Signed with the same Developer ID as the app, then notarized and stapled itself, so it
+# opens without a Gatekeeper warning even offline.
+IDENTITY=$( codesign -dvv "$APP" 2>&1 | awk -F= '/^Authority=Developer ID Application/ { print $2; exit }' )
+STAGING="$BUILD/dmg"
+rm -rf "$STAGING" "$DMG"
+mkdir -p "$STAGING"
+ditto "$APP" "$STAGING/${APP:t}"
+ln -s /Applications "$STAGING/Applications"
+hdiutil create -volname "ESPDeck Bridge" -srcfolder "$STAGING" -format UDZO -fs HFS+ -ov "$DMG" -quiet
+codesign --sign "$IDENTITY" --timestamp "$DMG"
+xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
+xcrun stapler staple "$DMG"
+spctl --assess --type open --context context:primary-signature --verbose "$DMG"
+( cd "$DIST" && shasum -a 256 "${DMG:t}" | awk '{ print $1 }' > "${DMG:t}.sha256" )
+
 echo
-echo "Built $ZIP"
-echo "Publish it with:"
-echo "  gh release create bridge-v$VERSION \"$ZIP\" \"$ZIP.sha256\" --title \"ESPDeck Bridge $VERSION\" --notes-file NOTES.md"
+echo "Built $DMG and $ZIP"
+echo "Publish them with:"
+echo "  gh release create bridge-v$VERSION \"$DMG\" \"$DMG.sha256\" \"$ZIP\" \"$ZIP.sha256\" --title \"ESPDeck Bridge $VERSION\" --notes-file NOTES.md"

@@ -95,7 +95,7 @@ New ESPDecks appear under **New Devices** until they're paired (see Pairing abov
 
 **Updates** (in the sidebar) checks GitHub Releases for the app (tags `bridge-vX.Y.Z`) and the firmware (`firmware-vX.Y.Z`). Each can install automatically, ask first, or only check when you click Check Now. The app checks the download's SHA-256 and that it's signed by the same Team ID before replacing itself. The repository must be public for update checks to work.
 
-**Releasing the app:** set the version (MARKETING_VERSION), then run `ESPDeck Bridge/tools/release-app.sh X.Y.Z`. It archives, exports with Developer ID, notarizes (one-time setup: `xcrun notarytool store-credentials ESPDeck …`, see the script), staples, and zips into `dist/` with a `.sha256`. Attach both to a GitHub release tagged `bridge-vX.Y.Z`.
+**Releasing the app:** set the version (MARKETING_VERSION), then run `ESPDeck Bridge/tools/release-app.sh X.Y.Z`. It archives, exports with Developer ID, notarizes (one-time setup: `xcrun notarytool store-credentials ESPDeck …`, see the script), staples, and writes to `dist/` a disk image for first-time downloads (also signed, notarized and stapled) and a zip for the app's updater, each with a `.sha256`. Attach all four to a GitHub release tagged `bridge-vX.Y.Z`.
 
 The app isn't sandboxed (it's distributed outside the App Store, and it has to replace itself when updating); it uses the hardened runtime and is notarized. Its data is in `~/Library/Application Support/ESPDeck Bridge`.
 
