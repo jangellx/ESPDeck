@@ -39,11 +39,11 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	}
 
 	func activateApp() {
-		NSApp.activate()
+		Self.forceActivate()
 	}
 
 	func bringWindowsToFront( excluding title: String ) {
-		NSApp.activate()
+		Self.forceActivate()
 		// Not by title: the configuration window's title follows the selected device.
 		for window in NSApp.windows where window.isVisible && window.canBecomeKey && window.title != title {
 			// An agent app's activation request can be declined, so also order the window
@@ -51,6 +51,15 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 			window.makeKeyAndOrderFront( nil )
 			window.orderFrontRegardless()
 		}
+	}
+
+	/// Cooperative activation (`NSApp.activate()`) can be declined while another app is
+	/// frontmost. The window then comes forward without the app becoming active, so the
+	/// window isn't key and its first click is swallowed. The older call still activates an
+	/// agent app outright; it's deprecated, but has no replacement that can't be declined.
+	private static func forceActivate() {
+		NSApp.activate()
+		NSApp.activate( ignoringOtherApps: true )
 	}
 
 	func closeWindows( titled title: String ) {
@@ -127,14 +136,33 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		}
 	}
 
-	func startShortcut( id: String, completion: @escaping ( String? ) -> Void ) {
+	func startShortcut( id: String, input: String?, completion: @escaping ( String?, String ) -> Void ) {
 		Task {
-			let message = await Task.detached( priority: .userInitiated ) { () -> String? in
-				let result = Self.capture( Self.shortcutsTool, [ "run", id ] )
-				return result.status == 0 ? nil : ( result.error.isEmpty ? "The shortcut failed." : result.error )
-			}.value
-			completion( message )
+			let ( message, output ) = await Task.detached( priority: .userInitiated ) { Self.runShortcut( id: id, input: input ) }.value
+			completion( message, output )
 		}
+	}
+
+	/// The input goes in, and the output comes back, through files in a scratch folder.
+	nonisolated private static func runShortcut( id: String, input: String? ) -> ( String?, String ) {
+		let folder = FileManager.default.temporaryDirectory.appendingPathComponent( "espdeck-shortcut-\(UUID().uuidString)" )
+		try? FileManager.default.createDirectory( at: folder, withIntermediateDirectories: true )
+		defer { try? FileManager.default.removeItem( at: folder ) }
+
+		var arguments = [ "run", id ]
+		let outputFile = folder.appendingPathComponent( "output.txt" )
+		if let input {
+			let inputFile = folder.appendingPathComponent( "input.txt" )
+			try? Data( input.utf8 ).write( to: inputFile )
+			arguments += [ "--input-path", inputFile.path, "--output-path", outputFile.path ]
+		}
+
+		let result = capture( shortcutsTool, arguments )
+		guard result.status == 0 else {
+			return ( result.error.isEmpty ? "The shortcut failed." : result.error, "" )
+		}
+		let output = ( try? String( contentsOf: outputFile, encoding: .utf8 ) ) ?? result.output
+		return ( nil, output.trimmingCharacters( in: .whitespacesAndNewlines ) )
 	}
 
 	nonisolated private static func readShortcuts() -> ( [[String]], String? ) {

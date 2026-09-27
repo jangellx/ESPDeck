@@ -19,6 +19,11 @@ struct KeyAssignment: Codable, Equatable {
 	var shortcutID  : String?
 	/// Last known name of the shortcut, for the label and when Shortcuts can't be reached.
 	var shortcutName: String?
+	/// Shortcuts only: true makes an On/Off key that passes "on" or "off" to the shortcut as
+	/// its input. nil (or false) runs it once per press.
+	var shortcutToggles : Bool?
+	/// On/Off shortcuts: the state the key last switched to, or that the shortcut reported.
+	var shortcutState   : KeyState?
 	var action      = KeyAction.none
 	/// Overrides the accessory/scene name. Empty uses the name.
 	var label       = ""
@@ -31,6 +36,13 @@ struct KeyAssignment: Codable, Equatable {
 	var icons       : [String: String] = [:]
 	/// "#RRGGBB" base of the key's background gradient; nil is plain black.
 	var backgroundColor : String?
+
+	var isToggleShortcut: Bool { kind == .shortcut && shortcutToggles == true }
+
+	/// States that can have their own icon, besides `standard`.
+	var states: [KeyState] { isToggleShortcut ? [ .on, .off ] : kind?.states ?? [] }
+
+	var actions: [KeyAction] { isToggleShortcut ? [ .toggle, .turnOn, .turnOff, .none ] : kind?.actions ?? [] }
 
 	/// The key accessory, then the others.
 	var members: [KeyMember] {

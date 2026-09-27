@@ -8,8 +8,12 @@
 import SwiftUI
 
 struct SymbolPicker: View {
-	let current  : String?
-	let onPick   : ( String ) -> Void
+	let current     : String?
+	let removeTitle : String
+	/// The state has an icon of its own to remove.
+	let canRemove   : Bool
+	let onPick      : ( String ) -> Void
+	let onRemove    : () -> Void
 
 	@State private var query    = ""
 	@State private var category = "all"
@@ -60,9 +64,14 @@ struct SymbolPicker: View {
 				}
 			}
 
-			Text( symbols.isEmpty ? "No matching symbols. Press Return to use a name exactly as typed." : "\(symbols.count) symbols" )
-				.font( .caption )
-				.foregroundStyle( .secondary )
+			HStack {
+				Text( symbols.isEmpty ? "No matching symbols. Press Return to use a name exactly as typed." : "\(symbols.count) symbols" )
+					.font( .caption )
+					.foregroundStyle( .secondary )
+				Spacer()
+				Button( removeTitle, role: .destructive, action: onRemove )
+					.disabled( !canRemove )
+			}
 		}
 		.padding( 14 )
 		.frame( width: 460, height: 420 )

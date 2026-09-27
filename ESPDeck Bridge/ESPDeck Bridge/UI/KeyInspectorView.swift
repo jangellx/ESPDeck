@@ -26,8 +26,15 @@ struct KeyInspectorView: View {
 				.id( "\(deviceID)/\(key)" )   // fresh mode and search for each key
 
 				if let kind = assignment.kind {
+					if kind == .shortcut {
+						Picker( "Type", selection: shortcutTogglesBinding ) {
+							Text( "One-Shot" ).tag( false )
+							Text( "On/Off" ).tag( true )
+						}
+						.pickerStyle( .segmented )
+					}
 					Picker( "On Press", selection: binding( \.action ) ) {
-						ForEach( kind.actions ) { action in
+						ForEach( assignment.actions ) { action in
 							Text( action.title ).tag( action )
 						}
 					}
@@ -35,6 +42,10 @@ struct KeyInspectorView: View {
 				}
 			} header: {
 				Text( "Key \(key + 1)" )
+			} footer: {
+				if assignment.isToggleShortcut {
+					Text( "Each press runs the shortcut with \u{201C}on\u{201D} or \u{201C}off\u{201D} as its Shortcut Input: the state the key is switching to. If the shortcut ends with Stop and Output of \u{201C}on\u{201D} or \u{201C}off\u{201D}, the key shows that state instead." )
+				}
 			}
 
 			PillRow {
@@ -54,7 +65,7 @@ struct KeyInspectorView: View {
 
 			Section {
 				LazyVGrid( columns: [ GridItem( .adaptive( minimum: 76 ), alignment: .top ) ], spacing: 14 ) {
-					ForEach( [ KeyState.standard ] + ( assignment.kind?.states ?? [] ) ) { state in
+					ForEach( [ KeyState.standard ] + assignment.states ) { state in
 						let face = controller.face( device: deviceID, key: key, state: state )
 						IconWell( title: state.title,
 								  face: face,
@@ -71,7 +82,7 @@ struct KeyInspectorView: View {
 			} header: {
 				Text( "Icons" )
 			} footer: {
-				Text( "Click a state to choose an SF Symbol, or drag an image onto it from Finder, a browser, or another app. States without their own icon use Default's; with none at all, the key shows the built-in symbols shown here. Dashed outlines mark states without their own icon." )
+				Text( "Click a state to choose an SF Symbol, or drag an image onto it. States without their own icon use Default's, filled for On." )
 			}
 
 			// Copy and Paste together, then a divider, then the destructive Clear Key.
@@ -110,6 +121,19 @@ struct KeyInspectorView: View {
 		let current = controller.state( device: deviceID, key: key )
 		if state == current { return true }
 		return state == .standard && assignment.icons[current.rawValue] == nil
+	}
+
+	/// One-Shot or On/Off, for shortcut keys. Switching picks that type's first action.
+	private var shortcutTogglesBinding: Binding<Bool> {
+		Binding {
+			assignment.isToggleShortcut
+		} set: { toggles in
+			controller.update( device: deviceID, key: key ) { assignment in
+				assignment.shortcutToggles = toggles ? true : nil
+				assignment.shortcutState   = nil
+				assignment.action          = assignment.actions.first ?? .none
+			}
+		}
 	}
 
 	private func binding<Value>( _ path: WritableKeyPath<KeyAssignment, Value> ) -> Binding<Value> {

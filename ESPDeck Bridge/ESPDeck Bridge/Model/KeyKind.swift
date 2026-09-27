@@ -254,7 +254,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 	func tint( for state: KeyState ) -> Color {
 		switch ( self, state ) {
 			case ( .garageDoor, _ ):   .white
-			case ( .power, .on ):      Color( red: 1, green: 0.76, blue: 0.18 )   // amber
+			case ( .power, .on ), ( .shortcut, .on ): Color( red: 1, green: 0.76, blue: 0.18 )   // amber
 			case ( _, .unknown ):      .gray
 			case ( _, .jammed ):       .red
 			case ( _, .unlocked ), ( _, .open ): .orange

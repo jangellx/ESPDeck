@@ -87,6 +87,9 @@ struct KeyFaceView: View {
 				.scaledToFit()
 				.symbolRenderingMode( symbol.contains( "trianglebadge" ) ? .multicolor : .monochrome )
 				.foregroundStyle( face.tint )
+				// Some symbols (lamp.ceiling, for one) draw filled in dark mode; keep the shapes
+				// the picker shows.
+				.environment( \.colorScheme, .light )
 				.overlay {
 					if let arrow = face.doorArrow {
 						DoorArrow( symbol: arrow, tint: face.tint )

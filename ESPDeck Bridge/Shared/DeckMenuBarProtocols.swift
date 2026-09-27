@@ -50,8 +50,9 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// The shortcut's icon as a PNG no larger than `size` pixels square, or nil.
 	func loadShortcutIcon( id: String, size: Int, completion: @escaping ( Data? ) -> Void )
 
-	/// Runs a shortcut; the completion gets nil when it finished, or an error message.
-	func startShortcut( id: String, completion: @escaping ( String? ) -> Void )
+	/// Runs a shortcut, with `input` as its text input if given. The completion gets nil and
+	/// the shortcut's output as text ("" for none) when it finished, or an error message.
+	func startShortcut( id: String, input: String?, completion: @escaping ( _ error: String?, _ output: String ) -> Void )
 
 	// MARK: Updates
 

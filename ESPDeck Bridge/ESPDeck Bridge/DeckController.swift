@@ -147,8 +147,20 @@ final class DeckController {
 		render( device: id, key: key )
 	}
 
+	/// Also gives the opposite state (On/Off, Open/Closed, Locked/Unlocked) the matching symbol,
+	/// unless it has an icon of its own that wasn't matched this way.
 	func setSymbol( _ name: String, device id: String, key: Int, state: KeyState ) {
+		let before = assignment( id, key: key )
 		config.setIcon( KeyAssignment.symbolPrefix + name, device: id, key: key, state: state )
+
+		if let opposite = state.opposite, before.states.contains( opposite ),
+		   let match = SymbolCounterpart.symbol( pairing: name, for: opposite ) {
+			let current      = before.icons[opposite.rawValue]
+			let wasMatched   = before.symbol( for: state ).flatMap { SymbolCounterpart.symbol( pairing: $0, for: opposite ) }
+			if current == nil || ( wasMatched != nil && before.symbol( for: opposite ) == wasMatched ) {
+				config.setIcon( KeyAssignment.symbolPrefix + match, device: id, key: key, state: opposite )
+			}
+		}
 		render( device: id, key: key )
 	}
 
@@ -368,6 +380,7 @@ final class DeckController {
 	func state( device id: String, key: Int ) -> KeyState {
 		let assignment = assignment( id, key: key )
 		guard let kind = assignment.kind else { return .standard }
+		if assignment.isToggleShortcut { return assignment.shortcutState ?? .off }
 		guard let ref = assignment.characteristicRef else { return kind.state( for: nil ) }
 		if let alert = assignment.alertRef, ( home.values[alert] as? NSNumber )?.boolValue == true {
 			return .obstructed
@@ -394,7 +407,7 @@ final class DeckController {
 		face.doorArrow  = kind.doorArrow( for: state )
 		face.shortcutID = assignment.shortcutID
 		face.background = assignment.backgroundColor.flatMap( Color.init( hex: ) )
-		applyCustomIcon( assignment.iconName( for: state ), to: &face )
+		applyCustomIcon( iconName( for: state, of: assignment ), to: &face )
 
 		if assignment.showLabel {
 			var label = assignment.label.isEmpty ? defaultName( for: assignment ) : assignment.label
@@ -663,16 +676,17 @@ final class DeckController {
 
 	/// Performs a key's action; also used by the configuration UI's Test button.
 	func press( device id: String, key: Int ) {
-		perform( assignment( id, key: key ), context: "Key \(key + 1)", device: id )
+		perform( assignment( id, key: key ), context: "Key \(key + 1)", device: id, key: key )
 	}
 
 	/// Runs an assignment's action: a HomeKit write, a scene, or a shortcut.
-	/// `device` is whose log records it.
-	func perform( _ assignment: KeyAssignment, context: String, device id: String? = nil ) {
+	/// `device` is whose log records it; `key`, when it's a key press, lets an On/Off
+	/// shortcut record its new state.
+	func perform( _ assignment: KeyAssignment, context: String, device id: String? = nil, key: Int? = nil ) {
 		guard let kind = assignment.kind, assignment.action != .none else { return }
 
 		if kind == .shortcut {
-			runShortcut( assignment, context: context, device: id )
+			runShortcut( assignment, context: context, device: id, key: key )
 			return
 		}
 
@@ -772,27 +786,71 @@ final class DeckController {
 	}
 
 
-	private func runShortcut( _ assignment: KeyAssignment, context: String, device: String? ) {
+	/// A One-Shot shortcut just runs. An On/Off one gets "on" or "off" as its input, the state
+	/// the key is switching to, and the key then shows the state the shortcut output
+	/// ("on"/"off", "true"/"false", "yes"/"no", "1"/"0"), or failing that the one it asked for.
+	private func runShortcut( _ assignment: KeyAssignment, context: String, device: String?, key: Int? ) {
 		guard let id = assignment.shortcutID else { return }
 		guard let macBridge else {
 			lastError = "Shortcuts can only run on the Mac."
 			return
 		}
+
+		var target: KeyState?
+		if assignment.isToggleShortcut {
+			switch assignment.action {
+				case .turnOn:  target = .on
+				case .turnOff: target = .off
+				default:       target = assignment.shortcutState == .on ? .off : .on
+			}
+		}
+		let input = target.map { $0 == .on ? "on" : "off" }
+
 		let name = assignment.shortcutName ?? "shortcut"
-		logEvent( "\(context): running shortcut \u{201C}\(name)\u{201D}", device: device )
-		macBridge.startShortcut( id: id ) { [weak self] message in
+		logEvent( "\(context): running shortcut \u{201C}\(name)\u{201D}" + ( input.map { " with input \u{201C}\($0)\u{201D}" } ?? "" ), device: device )
+		macBridge.startShortcut( id: id, input: input ) { [weak self] message, output in
 			guard let self else { return }
 			if let message {
 				lastError = "\(context): \(message)"
 				logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} failed: \(message)", device: device )
-			} else {
-				logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} finished", device: device )
+				return
 			}
+			guard let target, let device, let key else {
+				logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} finished", device: device )
+				return
+			}
+			let state = Self.shortcutState( from: output ) ?? target
+			update( device: device, key: key ) { assignment in
+				// Unless the key was reassigned while the shortcut ran.
+				if assignment.isToggleShortcut && assignment.shortcutID == id { assignment.shortcutState = state }
+			}
+			logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} finished; the key shows \(state.title)", device: device )
+		}
+	}
+
+	private static func shortcutState( from output: String ) -> KeyState? {
+		switch output.trimmingCharacters( in: .whitespacesAndNewlines ).lowercased() {
+			case "on", "true", "yes", "1":  .on
+			case "off", "false", "no", "0": .off
+			default:                        nil
 		}
 	}
 
 
 	// MARK: - Faces
+
+	/// A state's own icon, or else Default's. When Default is an SF Symbol, a state without its
+	/// own icon uses the matching variant if there is one: lamp.ceiling gives lamp.ceiling.fill
+	/// for On, door.garage.closed gives door.garage.open for Open. Off never gains a slash:
+	/// Default is the plain symbol, so Off only unfills it (lightbulb.fill gives lightbulb).
+	private func iconName( for state: KeyState, of assignment: KeyAssignment ) -> String? {
+		if assignment.icons[state.rawValue] == nil, let symbol = assignment.symbol( for: .standard ),
+		   let variant = SymbolCounterpart.symbol( pairing: symbol, for: state ),
+		   symbol.contains( "slash" ) || !variant.contains( "slash" ) {
+			return KeyAssignment.symbolPrefix + variant
+		}
+		return assignment.iconName( for: state )
+	}
 
 	/// A dropped image or chosen SF Symbol replaces the built-in artwork (and a
 	/// shortcut's own icon). The garage arrow only fits the built-in open-door symbol.

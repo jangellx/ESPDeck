@@ -56,9 +56,13 @@ extension KeyAssignment {
 		shortcutID   = target?.shortcutID
 		shortcutName = target?.kind == .shortcut ? target?.name : nil
 		others       = nil
-		if let kind = target?.kind {
-			if kindChanged || !kind.actions.contains( action ) {
-				action = kind.actions.first ?? .none
+		if kind != .shortcut {
+			shortcutToggles = nil
+		}
+		shortcutState = nil
+		if target?.kind != nil {
+			if kindChanged || !actions.contains( action ) {
+				action = actions.first ?? .none
 			}
 		} else {
 			action = .none
