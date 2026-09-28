@@ -50,8 +50,10 @@ struct USBSetupView: View {
 		.onChange( of: setup.selectedBoard?.espDeck?.name ) { nameDraft = setup.selectedBoard?.espDeck?.name ?? "" }
 		// A board that can be asked for networks, once it's showing.
 		.onChange( of: setup.selectedBoard?.espDeck != nil ? setup.selectedBoard?.id : nil ) { setup.findNetworksOnce() }
+		// The network the board is set up for, or else the strongest one.
+		.onChange( of: savedSSID ) { if let savedSSID { ssid = savedSSID } }
 		.onChange( of: setup.networks ) {
-			if ssid.isEmpty, let strongest = setup.networks.first { ssid = strongest.ssid }
+			if ssid.isEmpty, let first = savedSSID ?? setup.networks.first?.ssid { ssid = first }
 		}
 		.fileImporter( isPresented: $pickingFile, allowedContentTypes: [ .data ] ) { result in
 			if case .success( let url ) = result { choose( url ) }
@@ -69,6 +71,7 @@ struct USBSetupView: View {
 
 	private func appeared() {
 		nameDraft   = setup.selectedBoard?.espDeck?.name ?? ""
+		if ssid.isEmpty, let savedSSID { ssid = savedSSID }
 		setup.findNetworksOnce()
 		let updates = controller.updates
 		let stale   = updates.lastCheck.map { Date().timeIntervalSince( $0 ) > Self.recheckAfter } ?? true
@@ -184,6 +187,13 @@ struct USBSetupView: View {
 				lines.append( "Didn't answer: it may be running other firmware, or waiting in flashing mode." )
 			case .notAsked:
 				lines.append( "Not checked yet." )
+		}
+		if let network = board.espDeck?.network {
+			if network.ssid.isEmpty {
+				lines.append( "No Wi-Fi set up" )
+			} else {
+				lines.append( "Wi-Fi: \(network.ssid)" + ( network.connected ? "" : " (not connected)" ) )
+			}
 		}
 		if let hardware = board.hardware {
 			lines.append( hardware )
@@ -390,11 +400,20 @@ struct USBSetupView: View {
 				}
 				.tag( network.ssid )
 			}
+			// Set up for a network it can't see now (out of range, or hidden).
+			if let savedSSID, !setup.networks.contains( where: { $0.ssid == savedSSID } ) {
+				Text( "\(savedSSID) (current setting)" ).tag( savedSSID )
+			}
 			Divider()
 			Text( "Other Network…" ).tag( Self.otherNetwork )
 		}
 		.labelsHidden()
 		.fixedSize()
+	}
+
+	/// The network the selected board is set up for, when its firmware says.
+	private var savedSSID: String? {
+		setup.selectedBoard?.espDeck?.network.flatMap { $0.ssid.isEmpty ? nil : $0.ssid }
 	}
 
 	private var joinSSID: String {

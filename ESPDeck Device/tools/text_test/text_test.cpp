@@ -1,5 +1,6 @@
-// Checks src/Text.cpp on the Mac: the JSON nesting pre-scan, device-name validation and log
-// sanitizing. Run with run.sh; it prints each failure and exits non-zero if there are any.
+// Checks src/Text.cpp on the Mac: the JSON nesting pre-scan, device-name validation, log
+// sanitizing and text to show (Wi-Fi network names). Run with run.sh; it prints each
+// failure and exits non-zero if there are any.
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -74,6 +75,21 @@ int main() {
 	check( strcmp( Text::printable( nullptr, out, sizeof( out ) ), "" ) == 0, "null text" );
 	char tiny[3];
 	check( strcmp( Text::printable( "abcdef", tiny, sizeof( tiny ) ), "ab" ) == 0, "tiny buffer" );
+
+	// Text to show
+	char shown[33];
+	check( strcmp( Text::displayable( "Home Wi-Fi", shown, sizeof( shown ) ), "Home Wi-Fi" ) == 0, "plain network name unchanged" );
+	check( strcmp( Text::displayable( "K\xC3\xBC" "che \xF0\x9F\x8F\xA0", shown, sizeof( shown ) ), "K\xC3\xBC" "che \xF0\x9F\x8F\xA0" ) == 0, "UTF-8 kept" );
+	check( strcmp( Text::displayable( "a\nb\x1b" "c\x7f", shown, sizeof( shown ) ), "a?b?c?" ) == 0, "controls replaced" );
+	check( strcmp( Text::displayable( "a\xE2\x80\xAE" "b", shown, sizeof( shown ) ), "a?b" ) == 0, "right-to-left override replaced" );
+	check( strcmp( Text::displayable( "a\xFF\xC3", shown, sizeof( shown ) ), "a??" ) == 0, "invalid bytes replaced one by one" );
+	check( strcmp( Text::displayable( "a\xC0\xAF", shown, sizeof( shown ) ), "a??" ) == 0, "overlong form replaced" );
+	check( strcmp( Text::displayable( "12345678901234567890123456789012", shown, sizeof( shown ) ), "12345678901234567890123456789012" ) == 0, "32 bytes fit" );
+	check( strcmp( Text::displayable( "", shown, sizeof( shown ) ), "" ) == 0, "empty text" );
+	check( strcmp( Text::displayable( nullptr, shown, sizeof( shown ) ), "" ) == 0, "null text shown" );
+	char small[5];
+	check( strcmp( Text::displayable( "ab\xC3\xA9\xC3\xA9", small, sizeof( small ) ), "ab\xC3\xA9" ) == 0, "cut at a character boundary" );
+	check( strcmp( Text::displayable( "abc\xE2\x82\xAC", small, sizeof( small ) ), "abc" ) == 0, "a character that doesn't fit is left out" );
 
 	if( failures == 0 )
 		printf( "Text: all checks passed\n" );

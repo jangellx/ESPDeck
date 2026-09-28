@@ -1,5 +1,5 @@
-// Checks on text that comes from outside: JSON from the network, device names, and strings
-// headed for the log (which Improv clients read on the serial port). No ESP-IDF, so
+// Checks on text that comes from outside: JSON from the network, device names, Wi-Fi network
+// names, and strings headed for the log (which Improv clients read on the serial port). No ESP-IDF, so
 // tools/text_test builds exactly this file on the Mac.
 #pragma once
 
@@ -18,4 +18,9 @@ namespace Text {
 	// A copy for the log: printable ASCII only (anything else becomes '?'), truncated to fit
 	// out with "..." at the end. Returns out; a null text gives "".
 	const char *printable( const char *text, char *out, size_t size );
+
+	// A copy to show someone (a Wi-Fi network name, say): valid UTF-8, with each invalid
+	// byte and each control character (as isValidName() defines them) replaced by '?',
+	// cut at a character boundary to fit out. Returns out; a null text gives "".
+	const char *displayable( const char *text, char *out, size_t size );
 }

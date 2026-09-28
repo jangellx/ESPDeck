@@ -64,9 +64,26 @@ struct DeviceStatus: Codable, Equatable {
 	/// How NVS (Wi-Fi password, pairing key, …) is stored: "plain", "encrypted", or
 	/// "unsupported" (plain, and the chip can't encrypt it). Firmware 4.1.0 and later; nil before.
 	var storage   : String?
+	/// The Wi-Fi network it's set up for. Only sent inside the session (firmware 4.1.0 and
+	/// later; nil before, and in the unauthenticated hello).
+	var wifi      : WiFi?
 	/// Why it last changed: "timer", "key", "bridge", "chord", "setupPage", "exitKey", "boot",
-	/// "improv", "pairing", "timeout".
+	/// "improv", "pairing", "timeout", "session".
 	var reason    : String?
+
+	struct WiFi: Codable, Equatable {
+		/// The network name in its settings, "" when it has none.
+		var ssid      : String
+		/// Whether it's on that network now.
+		var connected : Bool
+	}
+
+	/// With a network name fit to show.
+	var sanitized: DeviceStatus {
+		var copy = self
+		copy.wifi?.ssid = DeviceMessage.displayName( wifi?.ssid ) ?? ""
+		return copy
+	}
 
 	static func describe( reason: String ) -> String {
 		switch reason {
@@ -80,6 +97,7 @@ struct DeviceStatus: Codable, Equatable {
 			case "improv":    "Wi-Fi set over USB"
 			case "pairing":   "pairing"
 			case "timeout":   "setup mode timed out"
+			case "session":   "connected"
 			default:          reason
 		}
 	}
@@ -193,14 +211,14 @@ enum DeviceMessage {
 											id: id, name: Self.displayName( envelope.name ) ?? id, firmware: envelope.firmware ?? "?",
 											elfSHA256: envelope.elfSHA256?.lowercased(),
 											cached: envelope.cached ?? [], deck: ( envelope.deck ?? .disconnected ).sanitized,
-											settings: envelope.settings ?? DeviceReportedSettings(), status: envelope.status ?? DeviceStatus() ) )
+											settings: envelope.settings ?? DeviceReportedSettings(), status: ( envelope.status ?? DeviceStatus() ).sanitized ) )
 			case "deck":
 				guard let deck = envelope.deck else { return nil }
 				self = .deck( deck.sanitized )
 			case "status":
 				guard var status = envelope.status else { return nil }
 				status.reason = envelope.reason ?? status.reason
-				self = .status( status )
+				self = .status( status.sanitized )
 			case "need":
 				guard let hash = envelope.hash else { return nil }
 				self = .need( hash: hash )

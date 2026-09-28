@@ -112,4 +112,32 @@ const char *printable( const char *text, char *out, size_t size ) {
 	return out;
 }
 
+const char *displayable( const char *text, char *out, size_t size ) {
+	if( size == 0 )
+		return out;
+	out[0] = '\0';
+	if( !text )
+		return out;
+
+	const uint8_t *bytes  = (const uint8_t *)text;
+	size_t         length = strlen( text );
+	size_t         used   = 0;
+	for( size_t i = 0; i < length; ) {
+		uint32_t codePoint;
+		size_t   bytesIn  = decode( bytes + i, length - i, codePoint );
+		bool     keep     = bytesIn != 0 && !isControl( codePoint );
+		size_t   bytesOut = keep ? bytesIn : 1;
+		if( used + bytesOut > size - 1 )
+			break;
+		if( keep )
+			memcpy( out + used, text + i, bytesIn );
+		else
+			out[used] = '?';
+		used += bytesOut;
+		i    += bytesIn != 0 ? bytesIn : 1;
+	}
+	out[used] = '\0';
+	return out;
+}
+
 }

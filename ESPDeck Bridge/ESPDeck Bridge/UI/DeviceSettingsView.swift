@@ -134,6 +134,9 @@ struct DeviceSettingsView: View {
 				if let ip = device.ip, online {
 					LabeledContent( "IP Address", value: ip )
 				}
+				if let wifi = device.status.wifi, online {
+					LabeledContent( "Wi-Fi", value: wifiDescription( wifi ) )
+				}
 			} header: {
 				SectionHeader( "Device" )
 			} footer: {
@@ -243,6 +246,12 @@ struct DeviceSettingsView: View {
 		if let serial = device.deck.serial, !serial.isEmpty { parts.append( serial ) }
 		if let firmware = device.deck.firmware, !firmware.isEmpty { parts.append( "firmware \(firmware)" ) }
 		return parts.joined( separator: " · " )
+	}
+
+	/// The network it's set up for (never its password, which stays on the device).
+	private func wifiDescription( _ wifi: DeviceStatus.WiFi ) -> String {
+		guard !wifi.ssid.isEmpty else { return "None set up" }
+		return wifi.connected ? wifi.ssid : "\(wifi.ssid) · not connected"
 	}
 
 	/// The model's own transform, as far as we can tell: the one in effect while the

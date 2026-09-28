@@ -7,8 +7,9 @@
 //  with Improv. Once on Wi-Fi it finds this bridge by itself, and pairing takes over.
 //
 //  Other ESP32 work may be going on at this Mac, so a port is open only briefly: once
-//  when a board appears, to ask what it runs (only on the ESP32's own USB port, where
-//  opening can't restart it), and for each action the user starts. Retries happen only
+//  when a board appears, to ask what it runs and which network it's set up for (only on
+//  the ESP32's own USB port, where opening can't restart it), and for each action the user
+//  starts. Retries happen only
 //  while a board this app just restarted is expected back.
 //
 
@@ -81,8 +82,18 @@ final class USBSetup {
 		var version  : String
 		var chip     : String
 		var name     : String
+		/// The network it's set up for; nil from firmware that doesn't say (before 4.1.0).
+		var network  : SavedNetwork?
 
 		var isESPDeck: Bool { firmware == FirmwareImage.projectName }
+	}
+
+	/// The Wi-Fi network in the board's settings. Only its name: the password never leaves it.
+	struct SavedNetwork: Equatable {
+		/// "" when it has none.
+		var ssid      : String
+		/// Whether it's on that network now.
+		var connected : Bool
 	}
 
 	enum Answer: Equatable {
@@ -211,6 +222,9 @@ final class USBSetup {
 		static let getInfo    = 0x03
 		static let scan       = 0x04
 		static let deviceName = 0x06
+		/// ESPDeck's own command (firmware 4.1.0 and later): the saved network's name, and
+		/// "YES" or "NO" for whether it's on it. Earlier firmware answers unknownCommand.
+		static let wifiNetwork = 0xFE
 
 		static let unknownCommand = 0x02
 
@@ -379,10 +393,11 @@ final class USBSetup {
 				if attempt > 0 { try? await Task.sleep( for: .seconds( 1 ) ) }
 				guard boards.contains( where: { $0.port.path == path } ) else { return }
 				guard openPort( path ) else { continue }
-				if send( Improv.getInfo ), let info = await wait( .milliseconds( 1500 ), { packet -> DeviceInfo? in
+				if send( Improv.getInfo ), var info = await wait( .milliseconds( 1500 ), { packet -> DeviceInfo? in
 					guard packet.type == Improv.typeResult, packet.value == Improv.getInfo, packet.strings.count >= 4 else { return nil }
 					return DeviceInfo( firmware: packet.strings[0], version: packet.strings[1], chip: packet.strings[2], name: packet.strings[3] )
 				} ) {
+					if info.isESPDeck { info.network = await askNetwork() }
 					answer = .answered( info )
 				}
 				closePort()
@@ -390,6 +405,20 @@ final class USBSetup {
 			}
 			update( path ) { $0.answer = answer }
 		}
+	}
+
+	/// The network an ESPDeck board is set up for, on the port that's open. Nil when its
+	/// firmware doesn't know the command (it says so at once) or doesn't answer quickly.
+	private func askNetwork() async -> SavedNetwork? {
+		guard send( Improv.wifiNetwork ) else { return nil }
+		let answer = await wait( .milliseconds( 700 ) ) { packet -> SavedNetwork?? in
+			if packet.type == Improv.typeResult, packet.value == Improv.wifiNetwork, let ssid = packet.strings.first {
+				return SavedNetwork( ssid: DeviceMessage.displayName( ssid ) ?? "", connected: packet.strings.count > 1 && packet.strings[1] == "YES" )
+			}
+			if packet.type == Improv.typeError, packet.value != 0 { return .some( nil ) }
+			return nil
+		}
+		return answer ?? nil
 	}
 
 	/// Asks a board the user picked, e.g. one on a USB-to-serial chip.
@@ -594,6 +623,12 @@ final class USBSetup {
 			if joined == true {
 				let name    = boards.first( where: { $0.port.path == path } )?.espDeck?.name ?? info.name
 				joinedBoard = JoinedBoard( path: path, deviceID: board.port.deviceID, name: name )
+				// It saved the network; firmware that can't say which keeps saying nothing.
+				update( path ) { board in
+					guard case .answered( var info ) = board.answer, info.network != nil else { return }
+					info.network = SavedNetwork( ssid: ssid, connected: true )
+					board.answer = .answered( info )
+				}
 			}
 			wifi = switch joined {
 				case true?:  .joined( ssid )

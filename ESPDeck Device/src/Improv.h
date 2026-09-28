@@ -1,6 +1,7 @@
 // Improv Wi-Fi over serial (https://www.improv-wifi.com/serial/, version 1): lets ESP Web
 // Tools or ESPDeck Bridge, over USB, ask for the device's details, list the Wi-Fi networks
-// it sees, give it credentials, and get or set its name.
+// it sees, give it credentials, and get or set its name. One command of ESPDeck's own
+// (0xFE) answers the name of the network it's set up for.
 //
 // It listens on UART0 (the console/COM port) always, and on the native USB port's
 // USB-Serial-JTAG when that's plugged into a computer. Log output keeps flowing on both;

@@ -40,6 +40,9 @@ namespace {
 	constexpr uint8_t  kRequestInfo     = 0x03;
 	constexpr uint8_t  kRequestScan     = 0x04;
 	constexpr uint8_t  kDeviceName      = 0x06;   // get (no data) or set (the name's bytes)
+	// ESPDeck's own commands. The spec numbers its commands up from 0x01 and reserves
+	// nothing for vendors, so these count down from the top of the range.
+	constexpr uint8_t  kWiFiNetwork     = 0xFE;   // the saved network's name, never its password
 
 	volatile bool      gotIP            = false;   // set on the Wi-Fi event task
 
@@ -211,6 +214,16 @@ void Improv::handleCommand( uint8_t command, const uint8_t *data, size_t length 
 			}
 			sendResult( kDeviceName, { settings_.name() } );
 			break;
+
+		case kWiFiNetwork: {
+			// The network in the settings (the one the device is set up for, empty if none),
+			// and whether it's on it now. Anyone at the USB port can read the flash anyway.
+			char ssid[33];
+			Text::displayable( settings_.ssid(), ssid, sizeof( ssid ) );
+			bool connected = settings_.hasCredentials() && WiFi.status() == WL_CONNECTED && WiFi.SSID() == settings_.ssid();
+			sendResult( kWiFiNetwork, { ssid, connected ? "YES" : "NO" } );
+			break;
+		}
 
 		case kRequestScan:
 			if( !scanWanted_ ) {

@@ -245,6 +245,16 @@ static cJSON *statusJSON() {
 	cJSON_AddBoolToObject( object, "setupMode", portal.active() );
 	cJSON_AddBoolToObject( object, "devOTA", settings.hasOTAPassword() );
 	cJSON_AddStringToObject( object, "storage", SecureNVS::stateName() );
+
+	// The network it's set up for, only inside the session: an unpaired device sends its
+	// hello to whichever bridge it finds. So the first hello goes without it, and a status
+	// follows the handshake.
+	if( session.authenticated() ) {
+		char   ssid[33];
+		cJSON *wifi = cJSON_AddObjectToObject( object, "wifi" );
+		cJSON_AddStringToObject( wifi, "ssid", Text::displayable( settings.ssid(), ssid, sizeof( ssid ) ) );
+		cJSON_AddBoolToObject( wifi, "connected", settings.hasCredentials() && WiFi.status() == WL_CONNECTED && WiFi.SSID() == settings.ssid() );
+	}
 	return object;
 }
 
@@ -286,7 +296,7 @@ static void sendDeck() {
 }
 
 // reason: what changed it ("timer", "key", "bridge", "chord", "setupPage", "exitKey",
-// "improv", "pairing", "boot", "timeout"), for the Mac's log.
+// "improv", "pairing", "boot", "timeout", "session"), for the Mac's log.
 static void sendStatus( const char *reason ) {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", "status" );
@@ -934,6 +944,9 @@ static void handleAuth( cJSON *json ) {
 	keysForwarded = 0;
 	swallowKeys   = keysDown != 0;
 	refreshScreen();
+
+	// What the unauthenticated hello left out (the Wi-Fi network).
+	sendStatus( "session" );
 }
 
 // Renamed since the last hello (over Improv, or on the setup page) while connected: inside a
