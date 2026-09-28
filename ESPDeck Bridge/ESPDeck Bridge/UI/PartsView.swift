@@ -147,8 +147,8 @@ struct PartsView: View {
 			VStack( alignment: .leading, spacing: 8 ) {
 				Text( "Also Needed" )
 					.font( .headline )
-				Label( "A Mac that stays on and logged in, signed in to an iCloud account that's a member of the Home.", systemImage: "desktopcomputer" )
-				Label( "A 2.4 GHz Wi-Fi network that the Mac and the ESP32-S3 share.", systemImage: "wifi" )
+				Label( "A Mac that **stays on and logged in**, signed in to an iCloud account that's a **member of the Home**.", systemImage: "desktopcomputer" )
+				Label( "A **2.4 GHz Wi-Fi network** that the Mac and the ESP32-S3 share.", systemImage: "wifi" )
 			}
 			.foregroundStyle( .secondary )
 
@@ -541,23 +541,23 @@ private struct Part: Identifiable {
 
 	static let all: [Part] = [
 		Part( number: 1, title: "Stream Deck",
-			  detail: "Any model with keys: Mini, Original, MK.2, XL, Neo, +, Pedal, or a module.",
+			  detail: "**Any model with keys**: Mini, Original, MK.2, XL, Neo, +, Pedal, or a module.",
 			  draw: Sketch.streamDeck ),
 		Part( number: 2, title: "ESP32-S3 Dev Kit",
-			  detail: "ESP32-S3-DevKitC-1 **N16R8** (16 MB flash, 8 MB PSRAM), or a clone of it. It has two USB-C ports: the Stream Deck uses the one labelled **USB**, not the one labelled UART (or COM on many clones).",
+			  detail: "ESP32-S3-DevKitC-1 **N16R8** (**16 MB flash, 8 MB PSRAM**), or a clone of it. It has two USB-C ports: the Stream Deck uses the one labelled **USB**, not the one labelled UART (or COM on many clones).",
 			  draw: Sketch.devKit ),
 		Part( number: 3, title: "USB-C OTG Adapter",
-			  detail: "Passive, with a USB-C plug for the dev kit, a USB-A port for the Stream Deck, and a USB-C port for power. Adapters that need USB-PD may never power the deck.",
+			  detail: "**Passive**, with a USB-C plug for the dev kit, a USB-A port for the Stream Deck, and a **USB-C port for power**. Adapters that need USB-PD may never power the deck.",
 			  draw: Sketch.otgAdapter ),
 		Part( number: 4, title: "USB-A to USB-C Adapter",
 			  detail: "USB-A plug to USB-C socket, labelled for **charging and data** (not charge-only).",
 			  note: "Only if your Stream Deck's cable ends in USB-C",
 			  draw: Sketch.aToCAdapter ),
 		Part( number: 5, title: "5 V Power Supply",
-			  detail: "A USB-C power supply rated 2 A or more. Through the OTG adapter, it powers both the ESP32-S3 and the Stream Deck.",
+			  detail: "A USB-C power supply **rated 2 A or more**. Through the OTG adapter, it powers both the ESP32-S3 and the Stream Deck.",
 			  draw: Sketch.powerSupply ),
 		Part( number: 6, title: "USB-C Cable",
-			  detail: "Connects the power supply to the OTG adapter. It also connects the dev kit to this Mac for installing firmware, so it must carry data; charge-only cables won't work.",
+			  detail: "Connects the power supply to the OTG adapter. It also connects the dev kit to this Mac for installing firmware, so it **must carry data**; charge-only cables won't work.",
 			  draw: Sketch.dataCable ),
 	]
 }
