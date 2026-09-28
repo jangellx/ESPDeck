@@ -2,6 +2,7 @@
 
 #include "Settings.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
@@ -47,6 +48,9 @@ void Settings::begin() {
 	loadString( "orientation", orientation_, sizeof( orientation_ ) );
 	sleepTimeout_ = preferences.getUInt( "sleepTimeout", 0 );
 	loadString( "bridgeID", bridgeID_, sizeof( bridgeID_ ) );
+	loadString( "otaHash", otaPasswordHash_, sizeof( otaPasswordHash_ ) );
+	if( strlen( otaPasswordHash_ ) != 64 )
+		otaPasswordHash_[0] = '\0';
 	paired_ = bridgeID_[0] && preferences.isKey( "pairingKey" )
 	          && preferences.getBytes( "pairingKey", pairingKey_, sizeof( pairingKey_ ) ) == sizeof( pairingKey_ );
 
@@ -90,6 +94,23 @@ bool Settings::setName( const char *name ) {
 		strlcpy( name_, name, sizeof( name_ ) );
 		preferences.putString( "name", name_ );
 	}
+	return true;
+}
+
+bool Settings::setOTAPasswordHash( const char *hash ) {
+	if( !hash || !hash[0] ) {
+		if( hasOTAPassword() ) {
+			otaPasswordHash_[0] = '\0';
+			preferences.remove( "otaHash" );
+		}
+		return true;
+	}
+	if( strlen( hash ) != 64 || strspn( hash, "0123456789abcdefABCDEF" ) != 64 )
+		return false;
+	strlcpy( otaPasswordHash_, hash, sizeof( otaPasswordHash_ ) );
+	for( char *c = otaPasswordHash_; *c; c++ )
+		*c = (char)tolower( *c );
+	preferences.putString( "otaHash", otaPasswordHash_ );
 	return true;
 }
 

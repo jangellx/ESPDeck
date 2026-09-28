@@ -1,26 +1,30 @@
-// See DevOTA.h. Everything here is compiled only in the espdeck-dev environment.
-#include "DevOTA.h"
-
-#if ESPDECK_DEV_OTA
-
-#ifndef ESPDECK_OTA_PASSWORD
-#error "espdeck-dev needs ESPDECK_OTA_PASSWORD (tools/dev_ota.py sets it)"
-#endif
-
+// See DevOTA.h.
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 #include <WiFi.h>
+
+#include "DevOTA.h"
 
 #include "esp_log.h"
 
 static const char *TAG = "DevOTA";
 
 namespace {
-	char   hostname[32]     = {};
+	char   hostname[32]       = {};
+	char   passwordHash[65]   = {};
 	void ( *startCallback )() = nullptr;
 	void ( *endCallback )()   = nullptr;
-	bool   listening        = false;
-	bool   running          = false;
+	bool   configured         = false;   // callbacks set up
+	bool   listening          = false;
+	bool   running            = false;
+
+	void stop() {
+		if( !listening )
+			return;
+		ArduinoOTA.end();
+		listening = false;
+		ESP_LOGI( TAG, "Uploads from PlatformIO off" );
+	}
 }
 
 void DevOTA::begin( const char *name, void ( *onStart )(), void ( *onEnd )() ) {
@@ -29,31 +33,42 @@ void DevOTA::begin( const char *name, void ( *onStart )(), void ( *onEnd )() ) {
 	endCallback   = onEnd;
 }
 
+void DevOTA::setPasswordHash( const char *hash ) {
+	// A new password applies from the next start.
+	stop();
+	strlcpy( passwordHash, hash ? hash : "", sizeof( passwordHash ) );
+}
+
 void DevOTA::loop( bool busy ) {
+	if( !passwordHash[0] )
+		return;
 	if( !listening ) {
 		if( WiFi.status() != WL_CONNECTED )
 			return;
-		ArduinoOTA.setHostname( hostname );
-		ArduinoOTA.setPassword( ESPDECK_OTA_PASSWORD );
-		ArduinoOTA.setMdnsEnabled( false );
-		ArduinoOTA.onStart( [] {
-			running = true;
-			ESP_LOGW( TAG, "Receiving a development build" );
-			if( startCallback )
-				startCallback();
-		} );
-		ArduinoOTA.onEnd( [] {
-			ESP_LOGW( TAG, "Development build installed; restarting" );
-			if( endCallback )
-				endCallback();
-		} );
-		ArduinoOTA.onError( []( ota_error_t error ) {
-			running = false;
-			ESP_LOGW( TAG, "Development upload failed (error %d)", (int)error );
-		} );
+		if( !configured ) {
+			ArduinoOTA.setHostname( hostname );
+			ArduinoOTA.setMdnsEnabled( false );
+			ArduinoOTA.onStart( [] {
+				running = true;
+				ESP_LOGW( TAG, "Receiving firmware from PlatformIO" );
+				if( startCallback )
+					startCallback();
+			} );
+			ArduinoOTA.onEnd( [] {
+				ESP_LOGW( TAG, "Firmware from PlatformIO installed; restarting" );
+				if( endCallback )
+					endCallback();
+			} );
+			ArduinoOTA.onError( []( ota_error_t error ) {
+				running = false;
+				ESP_LOGW( TAG, "Upload from PlatformIO failed (error %d)", (int)error );
+			} );
+			configured = true;
+		}
+		ArduinoOTA.setPasswordHash( passwordHash );
 		ArduinoOTA.begin();
 		listening = true;
-		ESP_LOGW( TAG, "Development build: accepting ArduinoOTA uploads on %s", WiFi.localIP().toString().c_str() );
+		ESP_LOGI( TAG, "Uploads from PlatformIO on, at %s", WiFi.localIP().toString().c_str() );
 	}
 	// Unanswered invitations time out in espota, which reports the upload as failed.
 	if( !busy )
@@ -63,11 +78,3 @@ void DevOTA::loop( bool busy ) {
 bool DevOTA::active() {
 	return running;
 }
-
-#else
-
-void DevOTA::begin( const char *, void ( * )(), void ( * )() ) {}
-void DevOTA::loop( bool ) {}
-bool DevOTA::active() { return false; }
-
-#endif

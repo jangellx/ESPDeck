@@ -213,6 +213,7 @@ static cJSON *statusJSON() {
 	cJSON *object = cJSON_CreateObject();
 	cJSON_AddBoolToObject( object, "asleep", asleep );
 	cJSON_AddBoolToObject( object, "setupMode", portal.active() );
+	cJSON_AddBoolToObject( object, "devOTA", settings.hasOTAPassword() );
 	return object;
 }
 
@@ -955,6 +956,17 @@ static void handleCommand( const char *type, cJSON *json ) {
 			applyBrightness();
 		}
 
+	} else if( strcmp( type, "devOTA" ) == 0 ) {
+		// Uploads from PlatformIO: the password's SHA-256, or none to turn them off.
+		const char *hash = cJSON_GetStringValue( cJSON_GetObjectItem( json, "passwordHash" ) );
+		if( settings.setOTAPasswordHash( hash ) ) {
+			DevOTA::setPasswordHash( settings.otaPasswordHash() );
+			ESP_LOGI( TAG, "Uploads from PlatformIO %s", settings.hasOTAPassword() ? "allowed" : "off" );
+		} else {
+			ESP_LOGW( TAG, "Bad devOTA message" );
+		}
+		sendStatus( "bridge" );
+
 	} else if( strcmp( type, "setName" ) == 0 ) {
 		if( !settings.setName( cJSON_GetStringValue( cJSON_GetObjectItem( json, "name" ) ) ) )
 			ESP_LOGW( TAG, "Bad setName message" );
@@ -1316,6 +1328,7 @@ void setup() {
 	}
 	bridge.begin( hostname );
 	DevOTA::begin( hostname, [] { refreshScreen( true ); }, [] { cache.persistNow(); } );
+	DevOTA::setPasswordHash( settings.otaPasswordHash() );
 	portal.begin();
 	session.reset();
 
@@ -1347,14 +1360,13 @@ void loop() {
 	if( wifiJoined ) {
 		wifiJoined = false;
 		settings.markCredentialsWork();
-#if ESPDECK_DEV_OTA
-		// A development build keeps a new image once it's on Wi-Fi, where the next upload
-		// comes from, rather than waiting for a bridge that may not be part of the test.
-		if( pendingVerify ) {
+		// With uploads from PlatformIO on, a new image is kept once it's on Wi-Fi, where the
+		// next upload comes from, rather than waiting for a bridge that may not be part of
+		// the test.
+		if( pendingVerify && settings.hasOTAPassword() ) {
 			FirmwareUpdate::markValid();
 			pendingVerify = false;
 		}
-#endif
 	}
 	DevOTA::loop( firmware.active() || restartPending );
 

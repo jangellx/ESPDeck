@@ -1,6 +1,6 @@
 // Device settings persisted in NVS: Wi-Fi credentials, the device name, the setup access
-// point's password, the image orientation, the sleep timeout, and the pairing (the key K and
-// the bridge ID). Brightness lives with the key assignments in ImageCache.
+// point's password, the image orientation, the sleep timeout, the pairing (the key K and
+// the bridge ID), and the password hash for uploads from PlatformIO (DevOTA). Brightness lives with the key assignments in ImageCache.
 #pragma once
 
 #include <cstddef>
@@ -42,6 +42,12 @@ public:
 	bool           setPairing( const uint8_t key[32], const char *bridgeID );
 	void           clearPairing();
 
+	// SHA-256 of the ArduinoOTA password, 64 hex digits; empty while uploads are off.
+	bool        hasOTAPassword() const  { return otaPasswordHash_[0] != '\0'; }
+	const char *otaPasswordHash() const { return otaPasswordHash_; }
+	// Empty or null turns uploads off; otherwise 64 hex digits. False for anything else.
+	bool        setOTAPasswordHash( const char *hash );
+
 	static constexpr size_t kMaxName     = 32;
 	static constexpr size_t kMaxBridgeID = 63;
 
@@ -58,4 +64,5 @@ private:
 	bool     paired_                     = false;
 	char     bridgeID_[kMaxBridgeID + 1] = {};
 	uint8_t  pairingKey_[32]             = {};
+	char     otaPasswordHash_[65]        = {};
 };
