@@ -4,7 +4,7 @@
 //
 //  Devices in the sidebar; each device has a Keys page (simulated deck plus the
 //  selected key's settings) and a Device page. New devices waiting to be paired, and
-//  the app's USB Setup (Mac only), Updates, Hardware and About pages, and the
+//  the app's USB Setup (Mac only), Updates, Getting Started and About pages, and the
 //  Status section with Launch at Login, are in the sidebar too. The selection lives in
 //  the controller's WindowState, which the app's menus also drive.
 //
@@ -42,7 +42,7 @@ struct ConfigurationView: View {
 			} else if window.selection == SidebarItem.updates {
 				UpdatesView( controller: controller )
 			} else if window.selection == SidebarItem.parts {
-				PartsView()
+				PartsView( controller: controller, selection: selection )
 			} else if window.selection == SidebarItem.about {
 				AboutView( controller: controller )
 			} else if let item = window.selection, item.hasPrefix( SidebarItem.newPrefix ),
@@ -183,7 +183,7 @@ private struct Sidebar: View {
 				}
 				.tag( SidebarItem.updates )
 
-				Label( "Hardware", systemImage: "shippingbox" )
+				Label( "Getting Started", systemImage: "shippingbox" )
 					.tag( SidebarItem.parts )
 
 				Label( "About", systemImage: "info.circle" )

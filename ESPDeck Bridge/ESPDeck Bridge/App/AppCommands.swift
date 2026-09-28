@@ -61,7 +61,7 @@ extension AppDelegate {
 			UIKeyCommand( title: page.rawValue, action: #selector( showPage( _: ) ), input: "\(index + 1)", modifierFlags: .command,
 						  propertyList: page.rawValue )
 		}
-		var items = [ ( "Updates", SidebarItem.updates ), ( "Hardware", SidebarItem.parts ), ( "About", SidebarItem.about ) ]
+		var items = [ ( "Updates", SidebarItem.updates ), ( "Getting Started", SidebarItem.parts ), ( "About", SidebarItem.about ) ]
 		if menuBarAvailable {
 			items.insert( ( "USB Setup", SidebarItem.usbSetup ), at: 1 )
 		}

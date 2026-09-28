@@ -2,8 +2,9 @@
 //  PartsView.swift
 //  ESPDeck Bridge
 //
-//  The Hardware page, two sheets like a product manual's: "What You Need" (the parts, as
-//  the "in the box" page) and "Putting It Together" (the parts assembled). The illustrations
+//  The Getting Started page, sheets like a product manual's: "What You Need" (the parts, as
+//  the "in the box" page), "Putting It Together" (the parts assembled), and "Find Your
+//  Device" (devices waiting to be set up, as they appear). The illustrations
 //  are two-colour line drawings (ink and the app icon's amber) drawn in code, so they stay
 //  sharp and follow light and dark mode.
 //
@@ -11,31 +12,46 @@
 import SwiftUI
 
 struct PartsView: View {
+	let controller          : DeckController
+	@Binding var selection  : String?
+
 	fileprivate enum Sheet: String, CaseIterable, Identifiable {
 		case parts    = "What You Need"
 		case assembly = "Putting It Together"
+		case find     = "Find Your Device"
 
 		var id: Self { self }
+
+		var previous: Sheet? { Self.allCases.firstIndex( of: self ).flatMap { $0 > 0 ? Self.allCases[$0 - 1] : nil } }
+		var next: Sheet?     { Self.allCases.firstIndex( of: self ).flatMap { $0 + 1 < Self.allCases.count ? Self.allCases[$0 + 1] : nil } }
 	}
 
 	@State private var sheet = Sheet.parts
 
 	var body: some View {
-		ScrollView {
-			VStack( alignment: .leading, spacing: 22 ) {
-				Picker( "Sheet", selection: $sheet ) {
-					ForEach( Sheet.allCases ) { sheet in
-						Text( sheet.rawValue ).tag( sheet )
-					}
+		VStack( spacing: 0 ) {
+			// Outside the scroll view, so it stays put while the sheet scrolls.
+			Picker( "Sheet", selection: $sheet ) {
+				ForEach( Sheet.allCases ) { sheet in
+					Text( sheet.rawValue ).tag( sheet )
 				}
-				.pickerStyle( .segmented )
-				.labelsHidden()
-				.fixedSize()
-
-				page( sheet )
 			}
-			.padding( 28 )
-			.frame( maxWidth: 900, alignment: .leading )
+			.pickerStyle( .segmented )
+			.labelsHidden()
+			.fixedSize()
+			.padding( .vertical, 12 )
+
+			Divider()
+
+			ScrollView {
+				VStack( alignment: .leading, spacing: 28 ) {
+					page( sheet )
+					pager
+				}
+				.padding( 28 )
+				.frame( maxWidth: 900, alignment: .leading )
+			}
+			.id( sheet )   // each sheet starts at the top
 		}
 	}
 
@@ -44,7 +60,34 @@ struct PartsView: View {
 		switch sheet {
 			case .parts:    parts
 			case .assembly: assembly
+			case .find:     FindDevicesSheet( controller: controller, selection: $selection )
 		}
+	}
+
+	/// Previous and next sheet, at the end of each one.
+	private var pager: some View {
+		HStack {
+			if let previous = sheet.previous {
+				Button {
+					sheet = previous
+				} label: {
+					Label( previous.rawValue, systemImage: "chevron.left" )
+				}
+			}
+			Spacer()
+			if let next = sheet.next {
+				Button {
+					sheet = next
+				} label: {
+					HStack( spacing: 6 ) {
+						Text( next.rawValue )
+						Image( systemName: "chevron.right" )
+					}
+				}
+				.buttonStyle( .borderedProminent )
+			}
+		}
+		.padding( .top, 8 )
 	}
 
 	private var parts: some View {
@@ -105,6 +148,98 @@ struct PartsView: View {
 				}
 			}
 		}
+	}
+}
+
+/// Devices that still need setting up: ESPDeck devices on the network waiting to be paired,
+/// and (on the Mac) boards plugged in over USB that aren't one of this Mac's devices yet.
+private struct FindDevicesSheet: View {
+	let controller          : DeckController
+	@Binding var selection  : String?
+
+	private var usbBoards: [USBSetup.Board] {
+		guard controller.usbSetup.isAvailable, controller.usbSetup.scanning else { return [] }
+		let known = Set( controller.devices.compactMap { controller.settings( $0.id )?.name } )
+		return controller.usbSetup.boards.filter { board in
+			board.espDeck.map { !known.contains( $0.name ) } ?? true
+		}
+	}
+
+	var body: some View {
+		VStack( alignment: .leading, spacing: 24 ) {
+			VStack( alignment: .leading, spacing: 6 ) {
+				Text( "Find Your Device" )
+					.font( .largeTitle.weight( .bold ) )
+				Text( "Once the dev kit is on your Wi-Fi, it finds ESPDeck Bridge and shows up here to be paired. A new dev kit needs Wi-Fi first: plug it into this Mac and set it up over USB, or scan the setup codes on the deck." )
+					.foregroundStyle( .secondary )
+			}
+
+			HStack( spacing: 10 ) {
+				ProgressView()
+					.controlSize( .small )
+				Text( "Looking for ESPDeck devices…" )
+					.foregroundStyle( .secondary )
+			}
+
+			if !controller.newDevices.isEmpty {
+				VStack( alignment: .leading, spacing: 10 ) {
+					Text( "On Your Network" )
+						.font( .headline )
+					ForEach( controller.newDevices ) { device in
+						row( icon: "lock.shield", title: device.hello.name,
+							 detail: device.reason == .oldFirmware ? "Needs a firmware update before it can be paired" : "Waiting to be paired",
+							 action: device.reason == .oldFirmware ? "Update…" : "Pair…" ) {
+							selection = SidebarItem.newDevice( device.client )
+						}
+					}
+				}
+			}
+
+			if !usbBoards.isEmpty {
+				VStack( alignment: .leading, spacing: 10 ) {
+					Text( "Plugged In over USB" )
+						.font( .headline )
+					ForEach( usbBoards ) { board in
+						row( icon: "cable.connector", title: board.espDeck?.name ?? board.port.title,
+							 detail: board.espDeck.map { "ESPDeck \($0.version), not set up on this Mac yet" } ?? "Needs ESPDeck installed",
+							 action: "Set Up…" ) {
+							selection = SidebarItem.usbSetup
+						}
+					}
+				}
+			}
+
+			if controller.newDevices.isEmpty && usbBoards.isEmpty {
+				VStack( alignment: .leading, spacing: 10 ) {
+					Text( "Nothing yet. Make sure the dev kit is powered, and on the same Wi-Fi network as this Mac." )
+						.foregroundStyle( .secondary )
+					if controller.usbSetup.isAvailable {
+						Button( "Open USB Setup" ) { selection = SidebarItem.usbSetup }
+					}
+				}
+			}
+		}
+	}
+
+	private func row( icon: String, title: String, detail: String, action: String, perform: @escaping () -> Void ) -> some View {
+		HStack( spacing: 12 ) {
+			Image( systemName: icon )
+				.font( .title2 )
+				.foregroundStyle( .tint )
+				.frame( width: 30 )
+			VStack( alignment: .leading, spacing: 2 ) {
+				Text( title )
+					.font( .headline )
+				Text( detail )
+					.font( .callout )
+					.foregroundStyle( .secondary )
+			}
+			Spacer()
+			Button( action, action: perform )
+				.buttonStyle( .borderedProminent )
+		}
+		.padding( 14 )
+		.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
 	}
 }
 
