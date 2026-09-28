@@ -36,7 +36,12 @@ enum DockPresence {
 		observers = names.map { name in
 			NotificationCenter.default.addObserver( forName: name, object: nil, queue: .main ) { _ in
 				// After the change settles: a closing window is still listed as visible here.
-				DispatchQueue.main.async { MainActor.assumeIsolated { update() } }
+				DispatchQueue.main.async {
+					MainActor.assumeIsolated {
+						update()
+						focusExpectedWindow()
+					}
+				}
 			}
 		}
 		update()
@@ -53,8 +58,19 @@ enum DockPresence {
 
 	/// A window is about to open: become regular now, so activating for it works.
 	static func windowWillOpen() {
-		expectingWindowUntil = Date( timeIntervalSinceNow: 3 )
+		expectingWindowUntil = Date( timeIntervalSinceNow: 5 )
 		update()
+	}
+
+	/// UIKit builds the window asynchronously, sometimes well after the click that asked for
+	/// it, and orders it in without making it key. So when the expected window shows up, make
+	/// it key and activate for it, once.
+	private static func focusExpectedWindow() {
+		guard Date() < expectingWindowUntil, let window = openWindows.first( where: \.isVisible ) else { return }
+		expectingWindowUntil = .distantPast
+		NSApp.activate()
+		NSApp.activate( ignoringOtherApps: true )
+		window.makeKeyAndOrderFront( nil )
 	}
 
 	static func closeWindows() {
