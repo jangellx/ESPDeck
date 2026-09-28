@@ -14,7 +14,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 
 	let controller = DeckController()
 
-	private var menuBar                  : DeckMenuBarPlugin?
+	private(set) var menuBar             : DeckMenuBarPlugin?
 	private var activity                 : NSObjectProtocol?
 	private var configurationRequested   = false
 	/// Launch windows showing the splash screen; never reused for configuration.

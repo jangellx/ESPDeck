@@ -53,7 +53,10 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		rebuild()
 	}
 
+	/// Called while handling the click that opens the window: become a regular app now, before
+	/// the window exists, so this activation (the one macOS credits to the click) sticks.
 	func activateApp() {
+		DockPresence.windowWillOpen()
 		Self.forceActivate()
 	}
 
@@ -346,7 +349,31 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	}
 
 	@objc private func quit() {
-		NSApp.terminate( nil )
+		confirmQuit()
+	}
+
+	/// Decks can't do anything while the bridge isn't running, so quitting asks first. With a
+	/// window open, closing it is offered too, since that's often what was meant.
+	func confirmQuit() {
+		let windowOpen = DockPresence.hasOpenWindow
+		let alert = NSAlert()
+		alert.messageText     = "Quit ESPDeck Bridge?"
+		alert.informativeText = "While ESPDeck Bridge isn't running, your Stream Decks can't control anything and show Connecting."
+		alert.addButton( withTitle: "Quit" )
+		if windowOpen {
+			alert.addButton( withTitle: "Close Config Window" )
+		}
+		alert.addButton( withTitle: "Cancel" ).keyEquivalent = "\u{1b}"
+
+		Self.forceActivate()
+		switch alert.runModal() {
+			case .alertFirstButtonReturn:
+				NSApp.terminate( nil )
+			case .alertSecondButtonReturn where windowOpen:
+				DockPresence.closeWindows()
+			default:
+				break
+		}
 	}
 
 	/// Catalyst quits when its last window closes. A menu bar app has to outlive its

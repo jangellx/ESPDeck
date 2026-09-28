@@ -30,6 +30,11 @@ extension AppDelegate {
 
 		// File
 		builder.remove( menu: .newItem )
+
+		// Quit asks first, as the status item's Quit does.
+		builder.replaceChildren( ofMenu: .quit ) { _ in
+			[ UIKeyCommand( title: "Quit ESPDeck Bridge", action: #selector( confirmQuit ), input: "q", modifierFlags: .command ) ]
+		}
 		// ⌘N makes the first model, the Mini.
 		let models: [UIMenuElement] = DeckLayout.presets.enumerated().map { index, layout in
 			let title = "\(layout.model) (\(layout.keyCount) keys)"
@@ -309,6 +314,14 @@ extension AppDelegate {
 	}
 
 	/// ⌥-arrows from the Key menu, and plain arrows while the deck preview has focus.
+	@objc func confirmQuit() {
+		if let menuBar {
+			menuBar.confirmQuit()
+		} else {
+			exit( 0 )   // no plugin (iPad): nothing to ask through
+		}
+	}
+
 	@objc func showUSBSetup() {
 		show( SidebarItem.usbSetup )
 	}
