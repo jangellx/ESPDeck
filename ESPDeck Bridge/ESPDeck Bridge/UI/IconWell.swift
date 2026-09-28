@@ -16,7 +16,6 @@ struct IconWell: View {
 	let hasCustomIcon : Bool
 	/// The state's own symbol, if it has one; highlighted in the picker.
 	let customSymbol  : String?
-	let isCurrent     : Bool
 	let onDrop        : ( DroppedImage ) -> Void
 	let onPickSymbol  : ( String ) -> Void
 	let onRemove      : () -> Void
@@ -63,14 +62,9 @@ struct IconWell: View {
 						.disabled( !hasCustomIcon )
 				}
 
-			HStack( spacing: 4 ) {
-				if isCurrent {
-					Circle().fill( Color.accentColor ).frame( width: 6, height: 6 )
-				}
-				Text( title )
-					.font( .caption )
-					.foregroundStyle( isCurrent ? .primary : .secondary )
-			}
+			Text( title )
+				.font( .caption )
+				.foregroundStyle( .secondary )
 		}
 		.help( "Click to choose an SF Symbol, or drag an image here" )
 	}

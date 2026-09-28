@@ -84,7 +84,6 @@ struct KeyInspectorView: View {
 								  icon: controller.artwork( for: face ),
 								  hasCustomIcon: assignment.icons[state.rawValue] != nil,
 								  customSymbol: assignment.symbol( for: state ),
-								  isCurrent: isShowing( state ),
 								  onDrop: { controller.setIcon( dropped: $0, device: deviceID, key: key, state: state ) },
 								  onPickSymbol: { controller.setSymbol( $0, device: deviceID, key: key, state: state ) },
 								  onRemove: { controller.removeIcon( device: deviceID, key: key, state: state ) } )
@@ -94,7 +93,7 @@ struct KeyInspectorView: View {
 			} header: {
 				SectionHeader( "Icons" )
 			} footer: {
-				Text( "Click a state to choose an SF Symbol, or drag an image onto it. States without their own icon use Default's, filled for On." )
+				Text( "Click a state to choose an SF Symbol, or drag an image onto it. States without their own icon use Default's, filled for On; a dashed outline marks them." )
 			}
 
 			// Copy and Paste together, then a divider, then the destructive Clear Key.
@@ -135,13 +134,6 @@ struct KeyInspectorView: View {
 	/// Key ▸ Assign Accessory/Scene/Shortcut.
 	private var modeRequest: Binding<TargetMode?> {
 		Binding { controller.window.requestedTargetMode } set: { controller.window.requestedTargetMode = $0 }
-	}
-
-	/// The current state has its own icon, or falls back to Default.
-	private func isShowing( _ state: KeyState ) -> Bool {
-		let current = controller.state( device: deviceID, key: key )
-		if state == current { return true }
-		return state == .standard && assignment.icons[current.rawValue] == nil
 	}
 
 	/// One-Shot or On/Off, for shortcut keys. Switching picks that type's first action.
