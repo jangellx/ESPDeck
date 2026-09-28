@@ -269,20 +269,21 @@ private struct DeveloperSection: View {
 	let controller : DeckController
 	let device     : DeckDevice
 
-	private static let firstVersion = Version( "3.2.0" )!
-
 	var body: some View {
-		let supported = device.firmware.flatMap( Version.init ).map { $0 >= Self.firstVersion } ?? false
+		// Firmware before 4.0.0 got the password's hash unencrypted; it can only turn uploads off.
+		let supported = ( device.protocolVersion ?? 0 ) >= DeckController.devOTAProtocol
+		let allowed   = device.status.devOTA ?? false
 
 		Section {
 			Toggle( "Allow uploads from PlatformIO", isOn: Binding {
-				device.status.devOTA ?? false
+				allowed
 			} set: { on in
 				controller.setDevOTA( device: device.id, enabled: on )
 			} )
-			.disabled( !device.isOnline || !supported )
+			.disabled( !device.isOnline || ( !supported && !allowed ) )
 			if device.isOnline && !supported {
-				Text( "Needs firmware 3.2.0 or later." )
+				Text( allowed ? "This firmware can't get the password safely. Turn uploads off, and update to firmware 4.0.0 or later to turn them on again."
+							  : "Needs firmware 4.0.0 or later." )
 					.font( .caption )
 					.foregroundStyle( .secondary )
 			}
@@ -325,8 +326,11 @@ private struct DeveloperPasswordRows: View {
 				.buttonStyle( .borderless )
 				.help( revealed ? "Hide the password" : "Show the password" )
 				Button( "Copy" ) {
-					UIPasteboard.general.string = password
+					// This Mac only (not Universal Clipboard), and gone after two minutes.
+					UIPasteboard.general.setItems( [ [ UTType.plainText.identifier: password ] ],
+												   options: [ .localOnly: true, .expirationDate: Date( timeIntervalSinceNow: 120 ) ] )
 				}
+				.help( "Copies the password for two minutes" )
 			}
 		}
 

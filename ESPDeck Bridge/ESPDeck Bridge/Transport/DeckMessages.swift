@@ -22,11 +22,28 @@ struct DeckInfo: Codable, Equatable {
 
 	static let disconnected = DeckInfo( connected: false )
 
-	/// The layout to render for, when the report is complete.
+	/// What a Stream Deck can have; a report outside these has no layout (the XL has 4 × 8
+	/// keys of 96 px, the + 120 px ones).
+	static let rowRange     = 1...8
+	static let columnRange  = 1...8
+	static let keySizeRange = 16...256
+
+	/// The layout to render for, when the report is complete and plausible.
 	var layout: DeckLayout? {
-		guard connected, let rows, let cols, let keySize, rows > 0, cols > 0, keySize > 0 else { return nil }
+		guard connected, let rows, let cols, let keySize, Self.rowRange.contains( rows ), Self.columnRange.contains( cols ),
+			  Self.keySizeRange.contains( keySize ) else { return nil }
 		return DeckLayout( model: model ?? "Stream Deck", rows: rows, cols: cols, keySize: keySize,
 						   format: format ?? .jpeg, transform: transform ?? .none )
+	}
+
+	/// Without a size the layout can't have: rendering and the key grid never see one.
+	var sanitized: DeckInfo {
+		guard layout == nil else { return self }
+		var copy = self
+		copy.rows    = nil
+		copy.cols    = nil
+		copy.keySize = nil
+		return copy
 	}
 }
 
@@ -44,7 +61,8 @@ struct DeviceStatus: Codable, Equatable {
 	var setupMode = false
 	/// Uploads from PlatformIO are allowed (firmware 3.2.0 and later; nil before).
 	var devOTA    : Bool?
-	/// Why it last changed: "timer", "key", "bridge", "chord", "setupPage", "exitKey", "boot".
+	/// Why it last changed: "timer", "key", "bridge", "chord", "setupPage", "exitKey", "boot",
+	/// "improv", "pairing", "timeout".
 	var reason    : String?
 
 	static func describe( reason: String ) -> String {
@@ -56,6 +74,9 @@ struct DeviceStatus: Codable, Equatable {
 			case "setupPage": "setup page"
 			case "exitKey":   "Exit key"
 			case "boot":      "restart"
+			case "improv":    "Wi-Fi set over USB"
+			case "pairing":   "pairing"
+			case "timeout":   "setup mode timed out"
 			default:          reason
 		}
 	}
@@ -63,7 +84,7 @@ struct DeviceStatus: Codable, Equatable {
 
 struct DeviceHello {
 	var protocolVersion : Int
-	/// 16 random bytes for the authentication handshake (protocol 3).
+	/// 16 random bytes for the authentication handshake (protocol 3 and later).
 	var nonce           : Data?
 	/// Bridge ID the device is paired with; empty when unpaired.
 	var pairedBridge    : String
@@ -89,9 +110,14 @@ enum DeviceMessage {
 	/// A key now shows this image on the deck (uploaded, or it already did).
 	case shown( key: Int, hash: String )
 	case auth( proof: Data )
-	case pairResponse( publicKey: Data )
+	/// Pairing (protocol 4): the deck's public key and its commitment to it and its nonce.
+	case pairResponse( publicKey: Data, commitment: Data )
+	/// The nonce the commitment covers, after the Mac sent its own.
+	case pairReveal( nonce: Data )
 	case pairConfirm( proof: Data )
-	case pairCancel
+	/// Why the deck cancelled or refused pairing: "deck", "timeout", "setupMode", "paired",
+	/// "busy", "failed", or nil (firmware before 4.0.0).
+	case pairCancel( reason: String? )
 	case firmwareStatus( FirmwareStatus )
 
 	struct FirmwareStatus {
@@ -106,8 +132,8 @@ enum DeviceMessage {
 	/// Messages the ESP32 may send before the session is authenticated.
 	var isHandshake: Bool {
 		switch self {
-			case .hello, .auth, .pairResponse, .pairConfirm, .pairCancel: true
-			default:                                                      false
+			case .hello, .auth, .pairResponse, .pairReveal, .pairConfirm, .pairCancel: true
+			default:                                                                   false
 		}
 	}
 
@@ -118,6 +144,7 @@ enum DeviceMessage {
 		var pairedBridge : String?
 		var proof        : String?
 		var publicKey    : String?
+		var commitment   : String?
 		var state        : String?
 		var received     : Int?
 		var message      : String?
@@ -136,22 +163,24 @@ enum DeviceMessage {
 
 	/// Keys beyond this are ignored; no Stream Deck has more.
 	static let maxKeys = 64
+	/// Longer names (from a device that hasn't authenticated, say) are cut.
+	static let maxNameLength = 64
 
 	init?( json: Data ) {
 		guard let envelope = try? JSONDecoder().decode( Envelope.self, from: json ) else { return nil }
 
 		switch envelope.type {
 			case "hello":
-				guard let id = envelope.id, !id.isEmpty else { return nil }
+				guard let id = envelope.id?.lowercased(), Self.isDeviceID( id ) else { return nil }
 				self = .hello( DeviceHello( protocolVersion: envelope.protocol ?? 2, nonce: envelope.nonce.flatMap { Data( hex: $0 ) },
 											pairedBridge: envelope.pairedBridge ?? "",
-											id: id.lowercased(), name: envelope.name ?? id, firmware: envelope.firmware ?? "?",
+											id: id, name: Self.displayName( envelope.name ) ?? id, firmware: envelope.firmware ?? "?",
 											elfSHA256: envelope.elfSHA256?.lowercased(),
-											cached: envelope.cached ?? [], deck: envelope.deck ?? .disconnected,
+											cached: envelope.cached ?? [], deck: ( envelope.deck ?? .disconnected ).sanitized,
 											settings: envelope.settings ?? DeviceReportedSettings(), status: envelope.status ?? DeviceStatus() ) )
 			case "deck":
 				guard let deck = envelope.deck else { return nil }
-				self = .deck( deck )
+				self = .deck( deck.sanitized )
 			case "status":
 				guard var status = envelope.status else { return nil }
 				status.reason = envelope.reason ?? status.reason
@@ -172,19 +201,44 @@ enum DeviceMessage {
 				guard let proof = envelope.proof.flatMap( { Data( hex: $0 ) } ) else { return nil }
 				self = .auth( proof: proof )
 			case "pairResponse":
-				guard let key = envelope.publicKey.flatMap( { Data( hex: $0 ) } ), key.count == 32 else { return nil }
-				self = .pairResponse( publicKey: key )
+				guard let key = envelope.publicKey.flatMap( { Data( hex: $0 ) } ), key.count == 32,
+					  let commitment = envelope.commitment.flatMap( { Data( hex: $0 ) } ), commitment.count == 32 else { return nil }
+				self = .pairResponse( publicKey: key, commitment: commitment )
+			case "pairReveal":
+				guard let nonce = envelope.nonce.flatMap( { Data( hex: $0 ) } ), nonce.count == DeckCrypto.nonceSize else { return nil }
+				self = .pairReveal( nonce: nonce )
 			case "pairConfirm":
 				guard let proof = envelope.proof.flatMap( { Data( hex: $0 ) } ) else { return nil }
 				self = .pairConfirm( proof: proof )
 			case "pairCancel":
-				self = .pairCancel
+				self = .pairCancel( reason: envelope.reason )
 			case "firmwareStatus":
 				guard let state = envelope.state.flatMap( FirmwareStatus.State.init( rawValue: ) ) else { return nil }
 				self = .firmwareStatus( FirmwareStatus( state: state, received: envelope.received, message: envelope.message ) )
 			default:
 				return nil
 		}
+	}
+
+	/// The Wi-Fi MAC address, "aa:bb:cc:dd:ee:ff" in lowercase.
+	static func isDeviceID( _ id: String ) -> Bool {
+		let parts = id.split( separator: ":", omittingEmptySubsequences: false )
+		return parts.count == 6 && parts.allSatisfy { $0.count == 2 && $0.allSatisfy( \.isHexDigit ) }
+	}
+
+	/// Without control or formatting characters (bidirectional overrides, say; the joiner in
+	/// emoji sequences stays) or surrounding spaces, and at most maxNameLength long.
+	static func displayName( _ name: String? ) -> String? {
+		guard let name else { return nil }
+		let scalars = name.unicodeScalars.filter { scalar in
+			switch scalar.properties.generalCategory {
+				case .control, .lineSeparator, .paragraphSeparator: false
+				case .format:                                       scalar.value == 0x200D
+				default:                                            true
+			}
+		}
+		let trimmed = String( String.UnicodeScalarView( scalars ) ).trimmingCharacters( in: .whitespacesAndNewlines )
+		return trimmed.isEmpty ? nil : String( trimmed.prefix( maxNameLength ) )
 	}
 }
 
@@ -200,18 +254,21 @@ enum HostMessage: Encodable {
 	case setupMode( Bool )
 	case unpair
 	case factoryReset
-	/// Uploads from PlatformIO: the SHA-256 hex of their password, or nil to turn them off.
-	case devOTA( passwordHash: String? )
-	case firmwareBegin( version: String, size: Int, sha256: String )
+	/// Uploads from PlatformIO: their password's SHA-256 sealed for the frame that carries it
+	/// (DeckServer.sendDevOTA), or nil to turn them off.
+	case devOTA( sealedHash: Data? )
+	/// allowDowngrade: the user confirmed installing this image even if it's older.
+	case firmwareBegin( version: String, size: Int, sha256: String, allowDowngrade: Bool )
 	case firmwareEnd
 	// Unauthenticated handshake messages
 	case auth( nonce: Data, proof: Data )
 	case pairRequest( bridgeID: String, bridgeName: String, publicKey: Data )
+	case pairNonce( Data )
 	case pairCancel
 
 	private enum CodingKeys: String, CodingKey {
 		case type, key, hash, value, name, seconds, enabled
-		case version, size, sha256, nonce, proof, bridgeID, bridgeName, publicKey, passwordHash
+		case version, size, sha256, allowDowngrade, nonce, proof, bridgeID, bridgeName, publicKey, passwordHash, sealedHash
 	}
 
 	func encode( to encoder: Encoder ) throws {
@@ -244,14 +301,21 @@ enum HostMessage: Encodable {
 				try container.encode( "unpair", forKey: .type )
 			case .factoryReset:
 				try container.encode( "factoryReset", forKey: .type )
-			case .devOTA( let passwordHash ):
+			case .devOTA( let sealedHash ):
 				try container.encode( "devOTA", forKey: .type )
-				try container.encode( passwordHash ?? "", forKey: .passwordHash )
-			case .firmwareBegin( let version, let size, let sha256 ):
+				if let sealedHash {
+					try container.encode( sealedHash.hex, forKey: .sealedHash )
+				} else {
+					try container.encode( "", forKey: .passwordHash )   // off, which firmware before 4.0.0 understands too
+				}
+			case .firmwareBegin( let version, let size, let sha256, let allowDowngrade ):
 				try container.encode( "firmwareBegin", forKey: .type )
 				try container.encode( version, forKey: .version )
 				try container.encode( size, forKey: .size )
 				try container.encode( sha256, forKey: .sha256 )
+				if allowDowngrade {
+					try container.encode( true, forKey: .allowDowngrade )
+				}
 			case .firmwareEnd:
 				try container.encode( "firmwareEnd", forKey: .type )
 			case .auth( let nonce, let proof ):
@@ -263,6 +327,9 @@ enum HostMessage: Encodable {
 				try container.encode( bridgeID, forKey: .bridgeID )
 				try container.encode( bridgeName, forKey: .bridgeName )
 				try container.encode( publicKey.hex, forKey: .publicKey )
+			case .pairNonce( let nonce ):
+				try container.encode( "pairNonce", forKey: .type )
+				try container.encode( nonce.hex, forKey: .nonce )
 			case .pairCancel:
 				try container.encode( "pairCancel", forKey: .type )
 		}
@@ -271,8 +338,8 @@ enum HostMessage: Encodable {
 	/// Sendable before the session is authenticated.
 	var isHandshake: Bool {
 		switch self {
-			case .auth, .pairRequest, .pairCancel: true
-			default:                               false
+			case .auth, .pairRequest, .pairNonce, .pairCancel: true
+			default:                                           false
 		}
 	}
 

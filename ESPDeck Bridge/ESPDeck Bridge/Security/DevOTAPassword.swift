@@ -65,20 +65,28 @@ nonisolated enum DevOTAPassword {
 		return nil
 	}
 
-	/// Replaces this Mac's password. The data-protection keychain when the app's signing
-	/// allows it, else the login keychain, as for the pairing keys.
+	/// Replaces this Mac's password in place (or adds it), so the old one is never gone before
+	/// the new one is stored. The data-protection keychain when the app's signing allows it,
+	/// else the login keychain, as for the pairing keys.
 	@discardableResult
 	static func store( _ password: String ) -> Bool {
+		let data = Data( password.utf8 )
 		for dataProtection in [ true, false ] {
-			SecItemDelete( base( dataProtection: dataProtection ) as CFDictionary )
-		}
-		for dataProtection in [ true, false ] {
-			var query = base( dataProtection: dataProtection )
-			query[kSecValueData as String]      = Data( password.utf8 )
-			query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-			query[kSecAttrLabel as String]      = "ESPDeck developer password"
-			let status = SecItemAdd( query as CFDictionary, nil )
-			if status == errSecSuccess { return true }
+			let query  = base( dataProtection: dataProtection )
+			var status = SecItemUpdate( query as CFDictionary, [ kSecValueData as String: data ] as CFDictionary )
+			if status == errSecItemNotFound {
+				var item = query
+				item[kSecValueData as String]      = data
+				item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+				item[kSecAttrLabel as String]      = "ESPDeck developer password"
+				status = SecItemAdd( item as CFDictionary, nil )
+			}
+			if status == errSecSuccess {
+				if dataProtection {
+					SecItemDelete( base( dataProtection: false ) as CFDictionary )   // an older, stale copy
+				}
+				return true
+			}
 			print( "[DevOTAPassword] Storing in the \(dataProtection ? "data-protection" : "login") keychain failed: \(status)" )
 		}
 		return false

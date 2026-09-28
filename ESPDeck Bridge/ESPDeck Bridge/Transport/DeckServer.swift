@@ -6,6 +6,9 @@
 //  Any number of clients; DeckController maps them to devices once they authenticate.
 //  Before that, only handshake messages pass in either direction; after it, every frame
 //  carries a MAC (PROTOCOL.md, Security).
+//  Connections that haven't authenticated are limited, so nothing else on the network can
+//  tie the app up: how many there are (per host and in all), how long they may take to say
+//  hello and to finish the handshake, and how large and how frequent their frames are.
 //  Network callbacks are delivered on the main queue, so each one asserts main-actor
 //  isolation.
 //
@@ -20,6 +23,19 @@ typealias ClientID = UUID
 final class DeckServer {
 	static let serviceType = "_deckbridge._tcp"
 	static let port: NWEndpoint.Port = 48620
+	/// PROTOCOL.md's version, advertised in the Bonjour TXT record.
+	static let protocolVersion = 4
+
+	// Unauthenticated connections
+	static let maxUnauthenticated        = 8
+	static let maxUnauthenticatedPerHost = 2
+	static let helloTimeout              : TimeInterval = 15
+	/// A hello lists the device's cached images (up to about 480 hashes, ~18 KB).
+	static let maxHelloSize              = 32 * 1024
+	static let maxHandshakeFrameSize     = 4 * 1024
+	/// Frames per rateWindow before the connection is closed.
+	static let maxHandshakeFrames        = 12
+	static let rateWindow                : TimeInterval = 10
 
 	enum ListenerState: Equatable {
 		case stopped
@@ -43,14 +59,25 @@ final class DeckServer {
 	}
 
 	private struct Client {
-		let connection : NWConnection
-		var endpoint   : String?
-		var session    : Session?
+		let connection  : NWConnection
+		/// The remote address, for the per-host limit.
+		let host        : String
+		let accepted    = Date()
+		var ready       = false
+		var endpoint    : String?
+		var session     : Session?
+		var helloSeen   = false
+		/// Closed if it hasn't authenticated by then; nil while it waits for the user.
+		var deadline    : Date?
+		var pairing     = false
+		var windowStart = Date()
+		var frames      = 0
 	}
 
 	@ObservationIgnored private var listener    : NWListener?
 	@ObservationIgnored private var clients     : [ClientID: Client] = [:]
 	@ObservationIgnored private var restartTask : Task<Void, Never>?
+	@ObservationIgnored private var sweepTask   : Task<Void, Never>?
 
 	/// Advertised in the Bonjour TXT record so paired devices find their own bridge.
 	@ObservationIgnored private var bridgeID = ""
@@ -76,7 +103,7 @@ final class DeckServer {
 
 		do {
 			let listener = try NWListener( using: parameters, on: Self.port )
-			let txt = NWTXTRecord( [ "id": bridgeID, "proto": "3" ] )
+			let txt = NWTXTRecord( [ "id": bridgeID, "proto": "\(Self.protocolVersion)" ] )
 			listener.service = NWListener.Service( name: "ESPDeck Bridge", type: Self.serviceType, domain: nil, txtRecord: txt )
 			listener.stateUpdateHandler = { [weak self] state in
 				MainActor.assumeIsolated { self?.listenerStateChanged( state ) }
@@ -86,6 +113,7 @@ final class DeckServer {
 			}
 			listener.start( queue: .main )
 			self.listener = listener
+			startSweeping()
 		} catch {
 			listenerState = .failed( error.localizedDescription )
 			scheduleRestart()
@@ -94,6 +122,8 @@ final class DeckServer {
 
 	func stop() {
 		restartTask?.cancel()
+		sweepTask?.cancel()
+		sweepTask = nil
 		listener?.cancel()
 		listener = nil
 		for id in Array( clients.keys ) {
@@ -112,7 +142,18 @@ final class DeckServer {
 
 	/// Switches a client to MAC'd frames with session key `key`.
 	func establishSession( _ client: ClientID, key: Data ) {
-		clients[client]?.session = Session( key: key )
+		clients[client]?.session  = Session( key: key )
+		clients[client]?.deadline = nil
+		clients[client]?.pairing  = false
+	}
+
+	/// How long an unauthenticated client has left to authenticate: `seconds` from now, or
+	/// no limit (nil) while it waits for the user. A pairing client isn't closed to make room
+	/// for new connections.
+	func setDeadline( _ client: ClientID, in seconds: TimeInterval?, pairing: Bool = false ) {
+		guard clients[client]?.session == nil else { return }
+		clients[client]?.deadline = seconds.map { Date( timeIntervalSinceNow: $0 ) }
+		clients[client]?.pairing  = pairing
 	}
 
 	private func listenerStateChanged( _ state: NWListener.State ) {
@@ -144,8 +185,28 @@ final class DeckServer {
 	// MARK: - Clients
 
 	private func accept( _ connection: NWConnection ) {
+		let host    = Self.describe( connection.endpoint )
+		let waiting = clients.filter { $0.value.session == nil }
+		guard waiting.values.filter( { $0.host == host } ).count < Self.maxUnauthenticatedPerHost else {
+			print( "[DeckServer] Refusing another unauthenticated connection from \(host)" )
+			connection.cancel()
+			return
+		}
+		if waiting.count >= Self.maxUnauthenticated {
+			// Make room: the oldest one that isn't pairing goes.
+			guard let oldest = waiting.filter( { !$0.value.pairing } ).min( by: { $0.value.accepted < $1.value.accepted } )?.key else {
+				print( "[DeckServer] Refusing a connection from \(host): too many unauthenticated ones" )
+				connection.cancel()
+				return
+			}
+			print( "[DeckServer] Too many unauthenticated connections; closing the oldest" )
+			drop( oldest )
+		}
+
 		let id = ClientID()
-		clients[id] = Client( connection: connection )
+		var client = Client( connection: connection, host: host )
+		client.deadline = Date( timeIntervalSinceNow: Self.helloTimeout )
+		clients[id] = client
 		connection.stateUpdateHandler = { [weak self] state in
 			MainActor.assumeIsolated { self?.connectionStateChanged( state, client: id ) }
 		}
@@ -156,6 +217,7 @@ final class DeckServer {
 		guard let client = clients[id] else { return }
 		switch state {
 			case .ready:
+				clients[id]?.ready    = true
 				clients[id]?.endpoint = Self.describe( client.connection.endpoint )
 				print( "[DeckServer] Connected: \(clients[id]?.endpoint ?? "?")" )
 				receive( from: id )
@@ -175,8 +237,24 @@ final class DeckServer {
 		guard let client = clients.removeValue( forKey: id ) else { return }
 		client.connection.stateUpdateHandler = nil
 		client.connection.cancel()
-		if client.endpoint != nil {
+		if client.ready {
 			onDisconnect?( id )
+		}
+	}
+
+	/// Closes unauthenticated clients whose deadline has passed, once a second.
+	private func startSweeping() {
+		guard sweepTask == nil else { return }
+		sweepTask = Task { [weak self] in
+			while !Task.isCancelled {
+				try? await Task.sleep( for: .seconds( 1 ) )
+				guard let self else { return }
+				let now = Date()
+				for ( id, client ) in clients where client.session == nil && client.deadline.map( { $0 < now } ) == true {
+					print( "[DeckServer] \(client.host) didn't authenticate in time; closing" )
+					drop( id )
+				}
+			}
 		}
 	}
 
@@ -201,18 +279,36 @@ final class DeckServer {
 		let metadata = context?.protocolMetadata( definition: NWProtocolWebSocket.definition ) as? NWProtocolWebSocket.Metadata
 		switch metadata?.opcode {
 			case .text, .binary:
-				guard let payload = verify( data ?? Data(), text: metadata?.opcode == .text, from: id ) else {
+				let frame = data ?? Data()
+				let text  = metadata?.opcode == .text
+				if clients[id]?.session == nil, let problem = handshakeProblem( frame, text: text, from: id ) {
+					print( "[DeckServer] \(problem) from \(clients[id]?.host ?? "?"); closing" )
+					drop( id )
+					return
+				}
+				guard let payload = verify( frame, text: text, from: id ) else {
 					print( "[DeckServer] Bad MAC from \(clients[id]?.endpoint ?? "?"); closing" )
 					drop( id )
 					return
 				}
-				guard metadata?.opcode == .text, let message = DeviceMessage( json: payload ) else {
+				guard text, let message = DeviceMessage( json: payload ) else {
 					print( "[DeckServer] Unrecognized message: \(String( decoding: payload.prefix( 200 ), as: UTF8.self ))" )
 					break
 				}
-				if clients[id]?.session == nil && !message.isHandshake {
-					print( "[DeckServer] Ignoring a message before authentication" )
-					break
+				if clients[id]?.session == nil {
+					guard message.isHandshake else {
+						print( "[DeckServer] Ignoring a message before authentication" )
+						break
+					}
+					if case .hello = message {
+						// One hello per connection; a second one would restart the handshake.
+						guard clients[id]?.helloSeen == false else {
+							print( "[DeckServer] A second hello before authentication; closing" )
+							drop( id )
+							return
+						}
+						clients[id]?.helloSeen = true
+					}
 				}
 				onMessage?( id, message, payload )
 				onTraffic?( id, TrafficEntry( direction: .received, summary: TrafficEntry.describe( json: payload ), bytes: payload.count ) )
@@ -224,6 +320,23 @@ final class DeckServer {
 		}
 		guard clients[id] != nil else { return }
 		receive( from: id )
+	}
+
+	/// Why an unauthenticated frame closes the connection, or nil if it may be read: binary
+	/// frames, frames larger than a handshake needs, and more of them than it needs.
+	private func handshakeProblem( _ frame: Data, text: Bool, from id: ClientID ) -> String? {
+		guard var client = clients[id] else { return "Unknown client" }
+		guard text else { return "Binary data before authentication" }
+		let limit = client.helloSeen ? Self.maxHandshakeFrameSize : Self.maxHelloSize
+		guard frame.count <= limit else { return "A \(frame.count) byte frame before authentication" }
+
+		if Date().timeIntervalSince( client.windowStart ) > Self.rateWindow {
+			client.windowStart = Date()
+			client.frames      = 0
+		}
+		client.frames += 1
+		clients[id] = client
+		return client.frames > Self.maxHandshakeFrames ? "Too many frames before authentication" : nil
 	}
 
 	/// Checks and strips an authenticated frame's MAC; unauthenticated frames pass as is.
@@ -260,6 +373,19 @@ final class DeckServer {
 		send( data, opcode: .text, to: id )
 	}
 
+	/// devOTA, with the password's SHA-256 sealed for the frame that carries it (its counter is
+	/// the nonce), or turning uploads off. Needs the session.
+	func sendDevOTA( passwordHash: Data?, to id: ClientID ) {
+		guard let session = clients[id]?.session else { return }
+		var sealed: Data?
+		if let passwordHash {
+			// Nothing else goes out between this and the send below, so this frame gets this counter.
+			guard let box = DeckCrypto.sealDevOTA( session: session.key, counter: session.sendCounter, passwordHash: passwordHash ) else { return }
+			sealed = box
+		}
+		send( .devOTA( sealedHash: sealed ), to: id )
+	}
+
 	func sendImage( hash: String, image: Data, to id: ClientID ) {
 		guard isAuthenticated( id ), let frame = HostMessage.imageFrame( hash: hash, image: image ) else { return }
 		send( frame, opcode: .binary, to: id )
@@ -291,6 +417,7 @@ final class DeckServer {
 		} )
 	}
 
+	/// The address alone, without the port.
 	private static func describe( _ endpoint: NWEndpoint ) -> String {
 		switch endpoint {
 			case .hostPort( let host, _ ):

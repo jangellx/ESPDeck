@@ -55,9 +55,9 @@ final class DeckController {
 	/// Connected devices that haven't authenticated, for the sidebar's New Devices.
 	var newDevices                                : [NewDevice] = []
 	@ObservationIgnored var handshakes            : [ClientID: Handshake] = [:]
-	/// Devices whose stored key failed; they're offered for pairing instead.
-	@ObservationIgnored var rejectedKeys          : Set<String> = []
 	@ObservationIgnored var clientDevices         : [ClientID: String] = [:]
+	/// This Mac's host name, for the deck while pairing; see bridgeName.
+	@ObservationIgnored var hostName              : String?
 	/// Nothing goes to the devices until HomeKit has names and values (or 10 s pass), so
 	/// launch doesn't send each key twice: once half-rendered, once for real.
 	@ObservationIgnored private var holdingPushes = true
@@ -85,6 +85,10 @@ final class DeckController {
 			self?.handle( message, from: client, payload: payload )
 		}
 		server.start( bridgeID: config.settings.bridgeID )
+		Task.detached { [weak self] in
+			let name = ProcessInfo.processInfo.hostName   // can wait on DNS
+			await MainActor.run { self?.hostName = name }
+		}
 
 		// Refresh names and icons of shortcuts already in use. Doing this only when one
 		// is used avoids an Automation prompt for people who never use shortcuts.
@@ -241,10 +245,23 @@ final class DeckController {
 		send( .setupMode( enabled ), to: id )
 	}
 
+	/// Firmware 4.0.0 and later get the password's hash encrypted; earlier firmware can only be
+	/// told to turn uploads off.
+	static let devOTAProtocol = 4
+
 	/// Allows uploads from PlatformIO with this Mac's developer password (made now if there
-	/// isn't one), or turns them off. Devices only get the password's hash.
+	/// isn't one), or turns them off. Devices only get the password's hash, encrypted.
 	func setDevOTA( device id: String, enabled: Bool ) {
-		send( .devOTA( passwordHash: enabled ? DevOTAPassword.hash( developerPasswordCreatingIfNeeded() ) : nil ), to: id )
+		guard let device = device( id ), let client = device.client else { return }
+		guard !enabled || ( device.protocolVersion ?? 0 ) >= Self.devOTAProtocol else {
+			lastError = "Uploads from PlatformIO need firmware 4.0.0 or later on the deck."
+			return
+		}
+		server.sendDevOTA( passwordHash: enabled ? Self.devOTAHash( developerPasswordCreatingIfNeeded() ) : nil, to: client )
+	}
+
+	private static func devOTAHash( _ password: String ) -> Data? {
+		Data( hex: DevOTAPassword.hash( password ) )
 	}
 
 	@discardableResult
@@ -261,17 +278,26 @@ final class DeckController {
 		return password
 	}
 
-	/// Which devices got a new developer password, and which allow uploads but are offline
-	/// and keep the old one.
+	/// Which devices got a new developer password, which allow uploads but are offline and
+	/// keep the old one, and which had uploads turned off because their firmware can't get the
+	/// new one safely (before 4.0.0).
 	struct DeveloperPasswordChange {
-		var updated : [String]
-		var offline : [String]
+		var updated   : [String]
+		var offline   : [String]
+		var turnedOff : [String] = []
 
 		var summary: String {
 			let count = updated.count == 1 ? "1 device updated" : "\(updated.count) devices updated"
-			guard !offline.isEmpty else { return updated.isEmpty ? "No device allows uploads right now." : "\(count)." }
-			let names = ListFormatter.localizedString( byJoining: offline )
-			return "\(count); \(names) \(offline.count == 1 ? "is" : "are") offline and still \(offline.count == 1 ? "uses" : "use") the old password."
+			var text  = updated.isEmpty && offline.isEmpty && turnedOff.isEmpty ? "No device allows uploads right now." : "\(count)."
+			if !offline.isEmpty {
+				let names = ListFormatter.localizedString( byJoining: offline )
+				text = "\(count); \(names) \(offline.count == 1 ? "is" : "are") offline and still \(offline.count == 1 ? "uses" : "use") the old password."
+			}
+			if !turnedOff.isEmpty {
+				let names = ListFormatter.localizedString( byJoining: turnedOff )
+				text += " Uploads were turned off on \(names), which \(turnedOff.count == 1 ? "needs" : "need") firmware 4.0.0 or later for the new password."
+			}
+			return text
 		}
 	}
 
@@ -286,9 +312,14 @@ final class DeckController {
 		var change = DeveloperPasswordChange( updated: [], offline: [] )
 		for device in devices {
 			guard let settings = settings( device.id ), !settings.isDemo else { continue }
-			if device.isOnline, device.status.devOTA == true {
-				send( .devOTA( passwordHash: DevOTAPassword.hash( new ) ), to: device.id )
-				change.updated.append( settings.name )
+			if let client = device.client, device.status.devOTA == true {
+				if ( device.protocolVersion ?? 0 ) >= Self.devOTAProtocol {
+					server.sendDevOTA( passwordHash: Self.devOTAHash( new ), to: client )
+					change.updated.append( settings.name )
+				} else {
+					server.sendDevOTA( passwordHash: nil, to: client )
+					change.turnedOff.append( settings.name )
+				}
 			} else if !device.isOnline, settings.devOTA {
 				change.offline.append( settings.name )
 			}
@@ -355,7 +386,6 @@ final class DeckController {
 		guard let client = device( id )?.client, server.isAuthenticated( client ) else { return }
 		server.send( .factoryReset, to: client )
 		PairingKeyStore.delete( id )
-		rejectedKeys.remove( id )
 	}
 
 	/// Removes a device's settings and unpairs it. If it's connected, it comes back as a
@@ -601,9 +631,14 @@ final class DeckController {
 		}
 	}
 
+	/// Into the device's Log tab once the connection has authenticated; until then only into
+	/// its handshake, whose frames join the log if it does (anyone can claim a device's ID).
 	private func recordTraffic( _ entry: TrafficEntry, client: ClientID ) {
-		guard let id = clientDevices[client] ?? handshakes[client]?.hello.id, let device = device( id ) else { return }
-		device.record( entry )
+		if let id = clientDevices[client], let device = device( id ) {
+			device.record( entry )
+		} else {
+			recordHandshakeTraffic( entry, client: client )
+		}
 	}
 
 	private func handle( _ message: DeviceMessage, from client: ClientID, payload: Data ) {
@@ -612,13 +647,19 @@ final class DeckController {
 			return
 		}
 		if case .hello( let hello ) = message {
-			adoptDevice( hello, from: client )   // a resync inside the session
+			// A resync inside the session, which can't change who the device is.
+			guard hello.id == clientDevices[client] else {
+				print( "[DeckController] A hello inside the session claimed another ID (\(hello.id)); closing" )
+				server.drop( client )
+				return
+			}
+			adoptDevice( hello, from: client )
 			return
 		}
 		guard let id = clientDevices[client], let device = device( id ) else { return }
 
 		switch message {
-			case .hello, .auth, .pairResponse, .pairConfirm, .pairCancel:
+			case .hello, .auth, .pairResponse, .pairReveal, .pairConfirm, .pairCancel:
 				break
 
 			case .firmwareStatus( let status ):
@@ -688,7 +729,8 @@ final class DeckController {
 	}
 
 	/// A device that has authenticated: add it if it's new, and bring it up to date.
-	func adoptDevice( _ hello: DeviceHello, from client: ClientID ) {
+	/// `handshakeTraffic`: the connection's frames before it authenticated, for the log.
+	func adoptDevice( _ hello: DeviceHello, from client: ClientID, handshakeTraffic: [TrafficEntry] = [] ) {
 		print( "[DeckController] hello from \(hello.name) (\(hello.id)): firmware \(hello.firmware), \(hello.cached.count) cached images" )
 
 		// A reconnecting device replaces its old connection.
@@ -719,17 +761,22 @@ final class DeckController {
 		}
 
 		guard let device = device( hello.id ) else { return }
-		device.client        = client
-		device.endpoint      = server.endpoint( of: client )
-		device.firmware      = hello.firmware
-		device.firmwareBuild = hello.elfSHA256
-		device.ip            = hello.settings.ip ?? device.endpoint
-		device.deck          = hello.deck
-		device.status        = hello.status
-		device.pressed       = []
-		device.chord         = false
-		device.knownHashes   = Set( hello.cached )
-		device.shown         = [:]
+		for entry in handshakeTraffic {
+			device.record( entry )
+		}
+		device.client          = client
+		device.endpoint        = server.endpoint( of: client )
+		device.lastAddress     = device.endpoint
+		device.protocolVersion = hello.protocolVersion
+		device.firmware        = hello.firmware
+		device.firmwareBuild   = hello.elfSHA256
+		device.ip              = hello.settings.ip ?? device.endpoint
+		device.deck            = hello.deck
+		device.status          = hello.status
+		device.pressed         = []
+		device.chord           = false
+		device.knownHashes     = Set( hello.cached )
+		device.shown           = [:]
 		device.clearPending()
 
 		// `shown` was just reset, so rendering sends every key once (a second forced pass
@@ -881,6 +928,10 @@ final class DeckController {
 		let input = target.map { $0 == .on ? "on" : "off" }
 
 		let name = assignment.shortcutName ?? "shortcut"
+		if macBridge.isShortcutRunning( id: id ) {
+			logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} is still running; press ignored", device: device )
+			return
+		}
 		logEvent( "\(context): running shortcut \u{201C}\(name)\u{201D}" + ( input.map { " with input \u{201C}\($0)\u{201D}" } ?? "" ), device: device )
 		macBridge.startShortcut( id: id, input: input ) { [weak self] message, output in
 			guard let self else { return }

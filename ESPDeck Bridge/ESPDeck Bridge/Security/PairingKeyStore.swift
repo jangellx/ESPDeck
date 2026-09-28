@@ -11,11 +11,16 @@ import Security
 
 enum PairingKeyStore {
 	private static let service = "ESPDeck Bridge pairing key"
-	/// Keys already read, so a reconnect doesn't go to the Keychain on the main thread.
+	/// Keys already read, so a reconnect doesn't go to the Keychain on the main thread…
 	private static var cache: [String: Data] = [:]
+	/// …and IDs without one, so hellos from unknown devices (or anyone making them up) don't
+	/// either. Cleared when it gets large.
+	private static var missing: Set<String> = []
+	private static let missingLimit = 256
 
 	static func key( for deviceID: String ) -> Data? {
 		if let cached = cache[deviceID] { return cached }
+		if missing.contains( deviceID ) { return nil }
 		for dataProtection in [ true, false ] {
 			var query = base( deviceID, dataProtection: dataProtection )
 			query[kSecReturnData as String] = true
@@ -27,21 +32,32 @@ enum PairingKeyStore {
 				return data
 			}
 		}
+		if missing.count >= missingLimit { missing.removeAll() }
+		missing.insert( deviceID )
 		return nil
 	}
 
+	/// Replaces the key in place (or adds it), so the old one is never gone before the new one
+	/// is stored.
 	@discardableResult
 	static func store( _ key: Data, for deviceID: String ) -> Bool {
-		delete( deviceID )
 		for dataProtection in [ true, false ] {
-			var query = base( deviceID, dataProtection: dataProtection )
-			query[kSecValueData as String]      = key
-			query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-			query[kSecAttrLabel as String]      = "ESPDeck \(deviceID)"
-
-			let status = SecItemAdd( query as CFDictionary, nil )
+			let query  = base( deviceID, dataProtection: dataProtection )
+			var status = SecItemUpdate( query as CFDictionary, [ kSecValueData as String: key ] as CFDictionary )
+			if status == errSecItemNotFound {
+				var item = query
+				item[kSecValueData as String]      = key
+				item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+				item[kSecAttrLabel as String]      = "ESPDeck \(deviceID)"
+				status = SecItemAdd( item as CFDictionary, nil )
+			}
 			if status == errSecSuccess {
+				if dataProtection {
+					// An older copy in the login keychain would only be stale.
+					SecItemDelete( base( deviceID, dataProtection: false ) as CFDictionary )
+				}
 				cache[deviceID] = key
+				missing.remove( deviceID )
 				return true
 			}
 			// -34018: missing keychain entitlement for the data-protection keychain.
@@ -52,6 +68,7 @@ enum PairingKeyStore {
 
 	static func delete( _ deviceID: String ) {
 		cache[deviceID] = nil
+		missing.insert( deviceID )
 		for dataProtection in [ true, false ] {
 			SecItemDelete( base( deviceID, dataProtection: dataProtection ) as CFDictionary )
 		}

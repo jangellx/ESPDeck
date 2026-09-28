@@ -14,14 +14,16 @@ final class DeckDevice: Identifiable {
 	let id: String
 
 	/// The WebSocket client, or nil while the device is offline.
-	var client        : ClientID?
-	var endpoint      : String?
-	var firmware      : String?
+	var client          : ClientID?
+	var endpoint        : String?
+	/// The protocol version its firmware speaks (hello's `protocol`).
+	var protocolVersion : Int?
+	var firmware        : String?
 	/// Identifies the running build; see DeviceHello.elfSHA256.
-	var firmwareBuild : String?
-	var ip            : String?
-	var deck          = DeckInfo.disconnected
-	var status        = DeviceStatus()
+	var firmwareBuild   : String?
+	var ip              : String?
+	var deck            = DeckInfo.disconnected
+	var status          = DeviceStatus()
 
 	/// What each key currently shows; the configuration UI draws these.
 	var keys     : [RenderedKey?] = []
@@ -38,6 +40,8 @@ final class DeckDevice: Identifiable {
 	@ObservationIgnored var recentImages : [String: Data] = [:]
 	@ObservationIgnored var recentOrder  : [String] = []
 	@ObservationIgnored var pushTask     : Task<Void, Never>?
+	/// Where it last authenticated from; kept while it's offline.
+	@ObservationIgnored var lastAddress  : String?
 	/// For automatic firmware updates, which wait for an idle deck.
 	@ObservationIgnored var lastKeyActivity = Date.distantPast
 
@@ -55,6 +59,8 @@ final class DeckDevice: Identifiable {
 	/// A firmware update in progress, or the last one's failure.
 	var firmwareProgress : FirmwareProgress?
 	@ObservationIgnored var firmwareImage: Data?
+	/// The end of the chunk sent last: the `received` the device must report next.
+	@ObservationIgnored var firmwareChunkEnd: Int?
 
 	var isOnline: Bool { client != nil }
 
