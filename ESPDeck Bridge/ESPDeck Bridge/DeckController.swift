@@ -100,9 +100,7 @@ final class DeckController {
 
 		// Refresh names and icons of shortcuts already in use. Doing this only when one
 		// is used avoids an Automation prompt for people who never use shortcuts.
-		if config.settings.devices.contains( where: { settings in
-			( settings.keys + [ settings.onSleep, settings.onWake ] ).contains { $0.kind == .shortcut }
-		} ) {
+		if usesShortcuts {
 			reloadShortcuts()
 		}
 
@@ -126,6 +124,13 @@ final class DeckController {
 		refreshClipboard()
 		NotificationCenter.default.addObserver( forName: UIPasteboard.changedNotification, object: nil, queue: .main ) { [weak self] _ in
 			MainActor.assumeIsolated { self?.refreshClipboard() }
+		}
+	}
+
+	/// A key, or a sleep or wake command, runs a shortcut.
+	private var usesShortcuts: Bool {
+		config.settings.devices.contains { settings in
+			( settings.keys + [ settings.onSleep, settings.onWake ] ).contains { $0.kind == .shortcut }
 		}
 	}
 
@@ -410,6 +415,40 @@ final class DeckController {
 		devices.removeAll { $0.id == id }
 		config.removeUnusedIcons()
 		assignmentsChanged()
+	}
+
+	/// After the settings and Keychain were replaced with another bridge (see
+	/// DeckController+Transfer): forgets every connection and what it knew about the old
+	/// bridge, and starts again as the new one, without relaunching.
+	func restartAsReplacedBridge() {
+		server.stop()   // drops every client; clientDisconnected tidies up after each
+		for request in storageEncryptionRequests.values {
+			request.timeout.cancel()
+		}
+		for handshake in handshakes.values {
+			handshake.pairing?.timeout?.cancel()
+		}
+		for device in devices {
+			device.pushTask?.cancel()
+			device.clearPending()
+		}
+		storageEncryptionRequests = [:]
+		storageEncryption         = [:]
+		storageChoicePending      = []
+		handshakes                = [:]
+		clientDevices             = [:]
+		newDevices                = []
+		triggerStates             = [:]
+		focusedKey                = nil
+
+		devices           = config.settings.devices.map { DeckDevice( id: $0.id ) }
+		developerPassword = DevOTAPassword.stored()
+		window.selection  = devices.first?.id
+		if usesShortcuts {
+			reloadShortcuts()
+		}
+		assignmentsChanged()
+		server.start( bridgeID: config.settings.bridgeID )
 	}
 
 	private func updateMirror( _ id: String, _ change: ( inout DeviceSettings ) -> Void ) {

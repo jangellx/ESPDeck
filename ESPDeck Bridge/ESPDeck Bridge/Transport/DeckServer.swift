@@ -124,6 +124,10 @@ final class DeckServer {
 		restartTask?.cancel()
 		sweepTask?.cancel()
 		sweepTask = nil
+		// Its last state changes mustn't reach a listener started after it (a bridge imported
+		// from another Mac starts over at once; see DeckController.restartAsReplacedBridge).
+		listener?.stateUpdateHandler   = nil
+		listener?.newConnectionHandler = nil
 		listener?.cancel()
 		listener = nil
 		for id in Array( clients.keys ) {

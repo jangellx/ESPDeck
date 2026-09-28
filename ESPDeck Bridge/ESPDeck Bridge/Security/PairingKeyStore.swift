@@ -74,6 +74,36 @@ enum PairingKeyStore {
 		}
 	}
 
+	/// Every device ID with a key, in either keychain: for moving the bridge to another Mac.
+	static func storedDeviceIDs() -> Set<String> {
+		var ids = Set<String>()
+		for dataProtection in [ true, false ] {
+			var query = base( "", dataProtection: dataProtection )
+			query[kSecAttrAccount as String]      = nil
+			query[kSecReturnAttributes as String] = true
+			query[kSecMatchLimit as String]       = kSecMatchLimitAll
+
+			var result: AnyObject?
+			if SecItemCopyMatching( query as CFDictionary, &result ) == errSecSuccess, let items = result as? [[String: Any]] {
+				ids.formUnion( items.compactMap { $0[kSecAttrAccount as String] as? String } )
+			}
+		}
+		return ids
+	}
+
+	/// Replaces every key with `keys` (device ID → key). False if one couldn't be stored.
+	@discardableResult
+	static func replaceAll( with keys: [String: Data] ) -> Bool {
+		for deviceID in storedDeviceIDs() where keys[deviceID] == nil {
+			delete( deviceID )
+		}
+		var stored = true
+		for ( deviceID, key ) in keys {
+			stored = store( key, for: deviceID ) && stored
+		}
+		return stored
+	}
+
 	private static func base( _ deviceID: String, dataProtection: Bool ) -> [String: Any] {
 		[
 			kSecClass as String:                     kSecClassGenericPassword,

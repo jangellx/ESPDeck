@@ -4,8 +4,10 @@
 //
 //  Checks GitHub Releases for new firmware (tags `firmware-vX.Y.Z`, see PROTOCOL.md) and
 //  installs it according to the firmware UpdatePolicy. The repository comes from
-//  Info.plist's ESPDeckGitHubRepository (set in Config/Signing.xcconfig). The app itself
-//  is updated by the App Store.
+//  Info.plist's ESPDeckGitHubRepository (set in Config/Signing.xcconfig). Only releases
+//  signed with the firmware key are offered, and every download is checked against its
+//  signature (FirmwareSignature) before it's installed. The app itself is updated by the
+//  App Store.
 //
 
 import CryptoKit
@@ -14,11 +16,13 @@ import Observation
 
 struct UpdateRelease: Equatable {
 	struct Asset: Equatable {
-		var name   : String
-		var url    : URL
-		var size   : Int
+		var name      : String
+		var url       : URL
+		var size      : Int
 		/// Lowercase hex, from GitHub's asset digest or a `<name>.sha256` asset.
-		var sha256 : String?
+		var sha256    : String?
+		/// The `<name>.sig` asset: its Ed25519 signature (FirmwareSignature).
+		var signature : URL?
 	}
 
 	var version   : Version
@@ -35,9 +39,11 @@ struct UpdateRelease: Equatable {
 final class UpdateManager {
 	@ObservationIgnored private weak var controller: DeckController?
 
-	private(set) var latestFirmware : UpdateRelease?
-	private(set) var checking       = false
-	private(set) var checkError     : String?
+	private(set) var latestFirmware   : UpdateRelease?
+	/// A release newer than latestFirmware that isn't signed, so it isn't offered.
+	private(set) var unsignedFirmware : Version?
+	private(set) var checking         = false
+	private(set) var checkError       : String?
 
 	@ObservationIgnored private var schedule      : Task<Void, Never>?
 	@ObservationIgnored private var firmwareCache : [String: Data] = [:]
@@ -122,8 +128,12 @@ final class UpdateManager {
 		defer { checking = false }
 
 		do {
-			let releases   = try await fetchReleases( repository )
-			latestFirmware = releases.filter { $0.tag.hasPrefix( "firmware-v" ) }.compactMap( \.release ).max { $0.version < $1.version }
+			let releases     = try await fetchReleases( repository ).filter { $0.tag.hasPrefix( "firmware-v" ) }
+			latestFirmware   = releases.compactMap( \.release ).max { $0.version < $1.version }
+			// The newest unsigned release, when it's newer than every signed one: the Updates
+			// page explains why it isn't offered.
+			let unsigned     = releases.filter { $0.release == nil }.compactMap( \.unsignedVersion ).max()
+			unsignedFirmware = unsigned.flatMap { version in latestFirmware.map( { $0.version < version } ) ?? true ? version : nil }
 			settings.lastCheck = Date()
 		} catch {
 			checkError = error is UpdateError ? error.localizedDescription : "Couldn't check for updates: \(error.localizedDescription)"
@@ -152,13 +162,10 @@ final class UpdateManager {
 
 		var tag: String { tag_name }
 
-		/// The release's OTA firmware image, and its full image for USB.
+		/// The release's OTA firmware image, and its full image for USB. Nil for a release
+		/// without a signature for its OTA image (all before 4.1.0).
 		var release: UpdateRelease? {
-			guard !draft, !prerelease, let version = Version( tag_name ) else { return nil }
-			let match = assets.first { asset in
-				asset.name.hasPrefix( "espdeck-firmware-" ) && asset.name.hasSuffix( ".bin" ) && !asset.name.hasSuffix( "-merged.bin" )
-			}
-			guard let match else { return nil }
+			guard !draft, !prerelease, let version = Version( tag_name ), let match = otaImage, signature( of: match ) != nil else { return nil }
 
 			var release = UpdateRelease( version: version, title: name ?? tag_name, notes: body ?? "", page: html_url, published: published_at,
 										 asset: asset( match ) )
@@ -168,10 +175,28 @@ final class UpdateManager {
 			return release
 		}
 
-		/// GitHub's own digest if present, else a companion "<name>.sha256" asset (fetched later).
+		/// A published firmware release that has no signature, so it isn't offered.
+		var unsignedVersion: Version? {
+			guard !draft, !prerelease, otaImage != nil else { return nil }
+			return Version( tag_name )
+		}
+
+		private var otaImage: Asset? {
+			assets.first { asset in
+				asset.name.hasPrefix( "espdeck-firmware-" ) && asset.name.hasSuffix( ".bin" ) && !asset.name.hasSuffix( "-merged.bin" )
+			}
+		}
+
+		private func signature( of match: Asset ) -> URL? {
+			assets.first( where: { $0.name == match.name + FirmwareSignature.fileSuffix } )?.browser_download_url
+		}
+
+		/// GitHub's own digest if present, else a companion "<name>.sha256" asset (fetched
+		/// later), and the companion "<name>.sig".
 		private func asset( _ match: Asset ) -> UpdateRelease.Asset {
 			let digest = match.digest.flatMap { $0.hasPrefix( "sha256:" ) ? String( $0.dropFirst( 7 ) ).lowercased() : nil }
-			var asset  = UpdateRelease.Asset( name: match.name, url: match.browser_download_url, size: match.size, sha256: digest )
+			var asset  = UpdateRelease.Asset( name: match.name, url: match.browser_download_url, size: match.size, sha256: digest,
+											  signature: signature( of: match ) )
 			if digest == nil, let companion = assets.first( where: { $0.name == match.name + ".sha256" } ) {
 				asset.sha256 = "url:" + companion.browser_download_url.absoluteString
 			}
@@ -205,10 +230,11 @@ final class UpdateManager {
 	/// Larger than any firmware image, full or OTA, can be: the app partition is smaller.
 	static let maximumFirmwareSize = 8 * 1024 * 1024
 
-	/// Downloads an asset and checks its size and SHA-256. Refuses assets without a
-	/// published digest.
+	/// Downloads an asset and checks its size, SHA-256 and signature. Refuses assets without
+	/// a published digest or signature.
 	private func download( _ asset: UpdateRelease.Asset ) async throws -> Data {
 		guard var expected = asset.sha256 else { throw UpdateError.noDigest }
+		guard let signatureURL = asset.signature else { throw UpdateError.noSignature }
 		guard asset.size > 0, asset.size <= Self.maximumFirmwareSize else { throw UpdateError.badSize }
 		if expected.hasPrefix( "url:" ) {
 			guard let url = URL( string: String( expected.dropFirst( 4 ) ) ) else { throw UpdateError.noDigest }
@@ -222,6 +248,11 @@ final class UpdateManager {
 		guard ( response as? HTTPURLResponse )?.statusCode == 200 else { throw URLError( .badServerResponse ) }
 		guard data.count == asset.size else { throw UpdateError.badSize }
 		guard Data( SHA256.hash( data: data ) ).hex == expected else { throw UpdateError.digestMismatch }
+
+		// The signature covers exactly the bytes that get installed.
+		let ( signature, signatureResponse ) = try await URLSession.shared.data( from: signatureURL )
+		guard ( signatureResponse as? HTTPURLResponse )?.statusCode == 200 else { throw UpdateError.signatureUnavailable }
+		guard FirmwareSignature.isValid( signature, for: data ) else { throw UpdateError.badSignature }
 		return data
 	}
 
@@ -229,6 +260,9 @@ final class UpdateManager {
 		case noDigest
 		case digestUnavailable
 		case digestMismatch
+		case noSignature
+		case signatureUnavailable
+		case badSignature
 		case badSize
 		case repositoryNotFound( String )
 		case rateLimited
@@ -240,11 +274,14 @@ final class UpdateManager {
 				case .noDigest:                    "The release doesn't publish a SHA-256 for its download."
 				case .digestUnavailable:           "Couldn't get the SHA-256 the release publishes for its download."
 				case .digestMismatch:              "The download didn't match the release's SHA-256."
+				case .noSignature:                 "The release isn't signed, so ESPDeck Bridge won't install it. Releases are signed from \(FirmwareSignature.firstSignedRelease) on."
+				case .signatureUnavailable:        "Couldn't get the release's signature."
+				case .badSignature:                "The download isn't signed by ESPDeck's release key, so it wasn't installed."
 				case .badSize:                     "The download isn't the size the release lists, or is too large to be firmware."
 				case .repositoryNotFound( let r ): "GitHub doesn't show \(r). Update checks need the repository to be public."
 				case .rateLimited:                 "GitHub's rate limit was reached; the app will try again later."
 				case .noFullImage:                 "The latest firmware release has no full image for installing over USB."
-				case .noRelease( let problem ):    problem ?? "GitHub doesn't list a firmware release."
+				case .noRelease( let problem ):    problem ?? "GitHub doesn't list a signed firmware release (\(FirmwareSignature.firstSignedRelease) or later)."
 			}
 		}
 	}
@@ -293,7 +330,7 @@ final class UpdateManager {
 	}
 
 	/// The latest release's full flash image, for installing over USB, checked against its
-	/// published SHA-256. Checks for updates first if that hasn't happened yet.
+	/// published SHA-256 and signature. Checks for updates first if that hasn't happened yet.
 	func downloadFullFirmware() async throws -> ( image: Data, version: String ) {
 		if latestFirmware == nil {
 			await check( userInitiated: true )

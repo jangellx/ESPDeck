@@ -27,6 +27,11 @@ struct UpdatesView: View {
 				if let latest = updates.latestFirmware {
 					LabeledContent( "Latest", value: latest.version.description )
 				}
+				if let unsigned = updates.unsignedFirmware {
+					Text( "Firmware \(unsigned.description) on GitHub isn't signed, so it isn't offered. Releases are signed from \(FirmwareSignature.firstSignedRelease) on; an unsigned one can only be installed from a file, on the Mac." )
+						.font( .caption )
+						.foregroundStyle( .secondary )
+				}
 				Picker( "Updates", selection: Binding( get: { updates.firmwarePolicy }, set: { updates.firmwarePolicy = $0 } ) ) {
 					ForEach( UpdatePolicy.allCases ) { Text( $0.title ).tag( $0 ) }
 				}
@@ -36,7 +41,7 @@ struct UpdatesView: View {
 			} header: {
 				SectionHeader( "ESPDeck Firmware" )
 			} footer: {
-				Text( "Firmware is sent to each ESPDeck over its paired connection. Automatic updates wait until a deck is asleep or hasn't been used for 5 minutes. If new firmware can't reconnect, the device goes back to its previous firmware on its own." )
+				Text( "Firmware from GitHub is installed only if it's signed with ESPDeck's release key, and is sent to each ESPDeck over its paired connection. Automatic updates wait until a deck is asleep or hasn't been used for 5 minutes. If new firmware can't reconnect, the device goes back to its previous firmware on its own." )
 			}
 
 			Section {
@@ -128,7 +133,7 @@ struct FirmwareRow: View {
 				let older = isDowngrade( pending )
 					? "This is older than the \(device.firmware ?? "") it's running, and ESPDeck Bridge may expect things it can't do. "
 					: ""
-				Text( "\(older)From \(pending.source), built \(pending.info.built). The device restarts into it; if it can't reconnect, it goes back to the firmware it runs now." )
+				Text( "\(older)From \(pending.source), built \(pending.info.built). Firmware from a file isn't checked against the release signature, so only install builds you trust. The device restarts into it; if it can't reconnect, it goes back to the firmware it runs now." )
 			}
 		}
 		.alert( "Can't Install That Firmware", isPresented: Binding( get: { problem != nil }, set: { if !$0 { problem = nil } } ) ) {
@@ -161,7 +166,13 @@ struct FirmwareRow: View {
 	private func prepare( source: String, _ read: () throws -> Data ) {
 		do {
 			let image = try read()
-			pending = PendingInstall( image: image, info: try FirmwareImage.espDeckApp( image ), source: source )
+			let info  = try FirmwareImage.espDeckApp( image )
+			// sendFirmware refuses it too; say so now rather than after confirming.
+			if device.status.storage == "encrypted", let version = Version( info.version ), version < DeckController.storageEncryptionFirmware {
+				problem = "This is firmware \(info.version). This device's stored secrets are encrypted, which firmware before \(DeckController.storageEncryptionFirmware) can't read, so it can't be installed here."
+				return
+			}
+			pending = PendingInstall( image: image, info: info, source: source )
 		} catch {
 			problem = error.localizedDescription
 		}

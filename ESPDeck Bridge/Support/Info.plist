@@ -35,6 +35,23 @@
 			<key>UTTypeIdentifier</key>
 			<string>com.tmproductions.espdeck.key</string>
 		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>ESPDeck Bridge Export</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.tmproductions.espdeck.bridge-export</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>espdeckbridge</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>

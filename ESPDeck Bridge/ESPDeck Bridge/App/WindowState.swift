@@ -38,6 +38,8 @@ final class WindowState {
 	var confirmingForget    = false
 	/// Key ▸ Assign Accessory/Scene/Shortcut: the mode the key's picker switches to.
 	var requestedTargetMode : TargetMode?
+	/// Export Bridge or Import Bridge, from the File menu or the About page.
+	var bridgeTransfer      : BridgeTransferSheet?
 
 	/// Set while the configuration window is on screen.
 	var isShowing   = false

@@ -180,13 +180,22 @@ struct AboutView: View {
 				}
 
 				section( "Requirements" ) {
-					bullet( "A Mac running macOS 27 or later, signed in to an iCloud account that's a member of the Home. The Mac must stay on and logged in (turn on automatic login and Launch at Login for an always-on panel)." )
+					bullet( "A Mac running macOS 14 Sonoma or later, signed in to an iCloud account that's a member of the Home. The Mac must stay on and logged in (turn on automatic login and Launch at Login for an always-on panel)." )
 					bullet( "An ESP32-S3 with 16 MB flash and 8 MB PSRAM (ESP32-S3-DevKitC-1 N16R8), running ESPDeck firmware." )
 					bullet( "An Elgato Stream Deck (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module)." )
 					bullet( "A 5 V USB power supply rated 2 A or more, and its cable. It powers both the ESP32-S3 and the Stream Deck." )
 					bullet( "A passive USB-C OTG adapter with a power input: a USB-C plug for the board's native USB port, a USB-A port for the Stream Deck, and a USB-C port for the power supply. Adapters that need USB-PD negotiation may never switch on power to the Stream Deck." )
 					bullet( "If the Stream Deck's cable ends in USB-C: a USB-A (male) to USB-C (female) adapter that includes the CC pull-up resistor. Choose one labeled for charging and sync (data), not charge-only; one that mentions a 56 kΩ resistor is the surest bet. Not needed if the cable ends in USB-A." )
 					bullet( "A 2.4 GHz Wi-Fi network shared by the Mac and the ESP32." )
+				}
+
+				section( "Moving to Another Mac" ) {
+					Text( "Decks only work with the bridge they're paired with. To move this bridge to another Mac with its devices, pairings and keys, export it here and import the file there; the decks don't need pairing again." )
+						.font( .callout )
+					HStack {
+						Button( "Export Bridge…" ) { controller.window.bridgeTransfer = .export }
+						Button( "Import Bridge…" ) { controller.window.bridgeTransfer = .import }
+					}
 				}
 
 				section( "Acknowledgments" ) {

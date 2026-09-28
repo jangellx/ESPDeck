@@ -92,6 +92,13 @@ nonisolated enum DevOTAPassword {
 		return false
 	}
 
+	/// This Mac no longer has a password: moving the bridge away, or importing one without.
+	static func delete() {
+		for dataProtection in [ true, false ] {
+			SecItemDelete( base( dataProtection: dataProtection ) as CFDictionary )
+		}
+	}
+
 	private static func base( dataProtection: Bool ) -> [String: Any] {
 		[
 			kSecClass as String:                     kSecClassGenericPassword,

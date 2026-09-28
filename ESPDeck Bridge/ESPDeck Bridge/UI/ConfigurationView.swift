@@ -6,7 +6,8 @@
 //  selected key's settings) and a Device page. New devices waiting to be paired, and
 //  the app's Getting Started, USB Setup (Mac only), Updates and About pages, and the
 //  Status section with Launch at Login, are in the sidebar too. The selection lives in
-//  the controller's WindowState, which the app's menus also drive.
+//  the controller's WindowState, which the app's menus also drive, as they do the Export
+//  and Import Bridge sheets shown here.
 //
 
 import HomeKit
@@ -62,8 +63,19 @@ struct ConfigurationView: View {
 				} actions: {
 					if controller.devices.isEmpty {
 						AddDemoDeckMenu( controller: controller, selection: selection )
+						// Setting up this Mac in place of another one.
+						Button( "Import Bridge from Another Mac…" ) {
+							window.bridgeTransfer = .import
+						}
+						.buttonStyle( .borderless )
 					}
 				}
+			}
+		}
+		.sheet( item: Binding { window.bridgeTransfer } set: { window.bridgeTransfer = $0 } ) { sheet in
+			switch sheet {
+				case .export: ExportBridgeSheet( controller: controller )
+				case .import: ImportBridgeSheet( controller: controller )
 			}
 		}
 		.onAppear {

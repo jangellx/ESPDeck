@@ -56,7 +56,13 @@ extension AppDelegate {
 			file.append( UIKeyCommand( title: "Set Up Device over USB…", action: #selector( showUSBSetup ), input: "u",
 									   modifierFlags: [ .command, .shift ] ) )
 		}
-		builder.insertChild( UIMenu( options: .displayInline, children: file ), atStartOfMenu: .file )
+		let fileItems = UIMenu( identifier: UIMenu.Identifier( "com.tmproductions.espdeck.file" ), options: .displayInline, children: file )
+		builder.insertChild( fileItems, atStartOfMenu: .file )
+		// Moving the bridge to another Mac; the About page opens the same sheets.
+		builder.insertSibling( UIMenu( options: .displayInline, children: [
+			UICommand( title: "Export Bridge…", action: #selector( showExportBridge ) ),
+			UICommand( title: "Import Bridge…", action: #selector( showImportBridge ) ),
+		] ), afterMenu: fileItems.identifier )
 
 		// Edit: Copy and Paste are the standard items, which the configuration window
 		// answers for the selected key.
@@ -179,6 +185,8 @@ extension AppDelegate {
 				onlineDevice.map { controller.updates.firmwareUpdateAvailable( for: $0 ) && $0.firmwareProgress?.isActive != true && !$0.status.setupMode } ?? false
 			case #selector( forgetDevice ):
 				currentDevice != nil
+			case #selector( showExportBridge ), #selector( showImportBridge ):
+				window.bridgeTransfer == nil
 			default:
 				super.canPerformAction( action, withSender: sender )
 		}
@@ -261,6 +269,17 @@ extension AppDelegate {
 	@objc func findYourDevice() {
 		window.guideSheet = .find
 		show( SidebarItem.parts )
+	}
+
+	/// The sheets show over the configuration window, which opens for them.
+	@objc func showExportBridge() {
+		window.bridgeTransfer = .export
+		menuBarOpenConfiguration()
+	}
+
+	@objc func showImportBridge() {
+		window.bridgeTransfer = .import
+		menuBarOpenConfiguration()
 	}
 
 	@objc func openHelp() {

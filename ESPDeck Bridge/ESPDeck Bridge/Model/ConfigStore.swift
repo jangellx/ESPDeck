@@ -116,9 +116,7 @@ final class ConfigStore {
 
 		let data: Data
 		do {
-			let encoder = JSONEncoder()
-			encoder.outputFormatting = [ .prettyPrinted, .sortedKeys ]
-			data = try encoder.encode( settings )
+			data = try settingsData()
 		} catch {
 			print( "[ConfigStore] Failed to encode settings: \(error)" )
 			return
@@ -133,6 +131,61 @@ final class ConfigStore {
 		}
 		if waiting {
 			Self.writer.sync {}
+		}
+	}
+
+	/// The settings as Settings.json has them.
+	func settingsData() throws -> Data {
+		let encoder = JSONEncoder()
+		encoder.outputFormatting = [ .prettyPrinted, .sortedKeys ]
+		return try encoder.encode( settings )
+	}
+
+	// MARK: - Moving the bridge
+
+	/// The Icons folder's files by name, for an export to another Mac.
+	func iconFiles() -> [String: Data] {
+		Self.files( in: iconDirectory )
+	}
+
+	func shortcutIconFiles() -> [String: Data] {
+		Self.files( in: shortcutIconDirectory )
+	}
+
+	/// Replaces the settings and both icon folders, and keeps the bridge ID outside the
+	/// settings too (BridgeIdentity): importing a bridge from another Mac, or starting over as
+	/// a new one. Written now, not after the usual delay.
+	func replaceAll( settings new: BridgeSettings, icons: [String: Data], shortcutIcons: [String: Data] ) {
+		Self.replaceFiles( in: iconDirectory, with: icons )
+		Self.replaceFiles( in: shortcutIconDirectory, with: shortcutIcons )
+		iconCache = [:]
+		settings  = new
+		scheduleSave()
+		saveNow( waiting: true )
+		BridgeIdentity.store( new.bridgeID, fileIn: directory )
+	}
+
+	/// Only names an export may carry, which leaves out things like .DS_Store.
+	private static func files( in directory: URL ) -> [String: Data] {
+		let names = ( try? FileManager.default.contentsOfDirectory( atPath: directory.path( percentEncoded: false ) ) ) ?? []
+		var files: [String: Data] = [:]
+		for name in names where BridgeArchive.isSafeFileName( name ) {
+			files[name] = try? Data( contentsOf: directory.appending( path: name ) )
+		}
+		return files
+	}
+
+	private static func replaceFiles( in directory: URL, with files: [String: Data] ) {
+		let names = ( try? FileManager.default.contentsOfDirectory( atPath: directory.path( percentEncoded: false ) ) ) ?? []
+		for name in names where files[name] == nil {
+			try? FileManager.default.removeItem( at: directory.appending( path: name ) )
+		}
+		for ( name, data ) in files where BridgeArchive.isSafeFileName( name ) {
+			do {
+				try data.write( to: directory.appending( path: name ), options: .atomic )
+			} catch {
+				print( "[ConfigStore] Failed to write \(name): \(error)" )
+			}
 		}
 	}
 
