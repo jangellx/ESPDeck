@@ -1,22 +1,30 @@
-# ESPDeck wire protocol (version 3)
+# ESPDeck wire protocol (version 4)
 
 The Mac app (ESPDeck Bridge) runs a WebSocket server. Any number of ESP32s (ESPDeck Device) connect to it as clients; each is identified by its Wi-Fi MAC address.
 
 ## Discovery
 
-- Bonjour service type `_deckbridge._tcp`, fixed port **48620**. TXT record: `id` (the bridge ID, a lowercase UUID the Mac generates once) and `proto` (`3`).
-- Each ESP32 resolves the service with mDNS. A paired ESP32 connects to the bridge whose `id` matches the one it paired with, if it finds one; otherwise (or if it's unpaired) it connects to the first bridge found, where it can only offer pairing. It connects to `ws://<host>:<port>/`.
+- Bonjour service type `_deckbridge._tcp`, fixed port **48620**. TXT record: `id` (the bridge ID, a lowercase UUID the Mac generates once) and `proto` (`4`).
+- Each ESP32 resolves the service with mDNS and connects to `ws://<host>:<port>/`.
+  - A paired ESP32 only connects to a bridge whose `id` is the one it paired with. Of its addresses it prefers the one where it last authenticated, then one on its own subnet.
+  - An unpaired ESP32 connects to the first bridge found, where it can only offer pairing.
+  - An address where a paired ESP32's handshake failed (the bridge's `auth` didn't verify, or didn't come within 10 seconds of connecting) is skipped for 10 minutes, unless it's the address where it last authenticated. So something else on the network advertising the bridge's `id` can't keep the device from its real bridge.
 - If a device reconnects, its new connection replaces its old one on the Mac.
 - Liveness: the ESP32 sends a WebSocket ping every 5 s and closes the connection if no pong arrives within 10 s, so the Mac must answer pings promptly (its Network framework does, on the queue its app logic runs on, so that queue must not stall). The Mac also enables TCP keepalive.
 - While a paired device has no authenticated session (Wi-Fi or the bridge unreachable, for 3 s after a drop and from boot until the first session), its deck shows "Connecting / to Wi-Fi" or "Connecting / to Mac" on the top-centre key with a row of blue dots below that fill in left to right and then empty left to right, instead of keys that wouldn't do anything.
 
 ## Security
 
-Every ESP32 is paired with one bridge. Pairing uses an X25519 key agreement confirmed by a 6-digit code shown on both the Mac and the deck, and needs a key press on the deck, so it requires physical access. The result is a 32-byte pairing key `K` that both sides store: the ESP32 in NVS, the Mac in the Keychain.
+Every ESP32 is paired with one bridge. Pairing uses an X25519 key agreement confirmed by comparing a 6-digit code shown on both the Mac and the deck (numeric comparison with a commitment, as in Bluetooth LE Secure Connections). The user confirms on the Mac and holds a key on the deck, so pairing requires physical access. The result is a 32-byte pairing key `K` that both sides store: the ESP32 in NVS, the Mac in the Keychain.
 
 Every connection starts **unauthenticated**. Until the handshake below succeeds:
-- The ESP32 sends only `hello`, `auth`, `pairResponse`, `pairConfirm` and `pairCancel`, and accepts only `auth`, `pairRequest` and `pairCancel`. It forwards no key presses and obeys no commands.
-- The Mac acts on nothing from the device, and shows it as a new device that can be paired.
+- The ESP32 sends only `hello`, `auth`, `pairResponse`, `pairReveal`, `pairConfirm` and `pairCancel`, and accepts only `auth`, `pairRequest`, `pairNonce` and `pairCancel`. It forwards no key presses and obeys no commands.
+- The Mac acts on nothing from the device, and shows it as a new device that can be paired (or, for a device that says it's paired with this bridge but whose key the Mac doesn't have, explains how to unpair it). What an unauthenticated connection sends doesn't go into any device's log until it authenticates, and nothing about the device ID it claims is remembered.
+
+Limits before authentication:
+- ESP32: text frames longer than 2 KB are ignored, binary frames are ignored, and a paired ESP32 closes the connection if the bridge's `auth` hasn't verified within 10 seconds of connecting (and avoids that address; see Discovery).
+- ESP32, always: JSON nested deeper than 8 arrays or objects is ignored before it's parsed.
+- Mac: at most 8 unauthenticated connections, and 2 from any one address; beyond 8, the oldest one that isn't pairing is closed. A connection that hasn't sent `hello` within 15 seconds, or doesn't finish the handshake within 15 seconds of `auth`, is closed (one listed as a new device waits for the user without a limit; one pairing has about 2 minutes). Before authentication, a binary frame, a frame over 4 KB (32 KB for the `hello`, which lists cached images), more than 12 frames in 10 seconds, or a second `hello` closes the connection.
 
 Notation:
 - `HMAC(k, …)` is HMAC-SHA256 over the concatenation of the listed byte strings.
@@ -26,23 +34,33 @@ Notation:
 
 ### Pairing
 
-1. The user clicks Pair on the Mac, which sends `pairRequest` with `bridgeID`, `bridgeName`, and `publicKey`: a fresh X25519 public key.
-2. The ESP32 generates its own fresh X25519 key pair and answers `pairResponse` with `publicKey`. Both sides compute the shared secret `Z` and the code:
-   - `code` = the first 4 bytes of `SHA256( "espdeck-pair-code" ‖ Z )` as a big-endian unsigned integer, mod 1,000,000, written as 6 digits with leading zeros.
-3. The Mac shows the code. The ESP32 shows it on the deck:
-   - top row: `Pair?`, the first 3 digits, the last 3 digits;
-   - bottom row: **Cancel** at the left, **Confirm** at the right; other keys are black;
-   - decks without displays (the Pedal) show nothing, and any key confirms.
-4. The user compares the codes and presses Confirm on the deck. The ESP32 then:
-   - derives `K = HMAC( Z, "espdeck-pairing-key" ‖ bridgeID ‖ deviceID )`, where `deviceID` is the device's `id` as sent in `hello`;
-   - stores `K` and `bridgeID`, replacing any earlier pairing;
-   - sends `pairConfirm` with `proof` = `HMAC( K, "espdeck-pair-confirm" )`.
-5. The Mac checks `proof`, stores `K`, and continues with the authentication handshake using the nonce from the device's original `hello`.
-   - Either side can send `pairCancel` at any time before this.
-   - The ESP32 cancels by itself after 120 seconds.
-   - The ESP32 also answers a `pairRequest` with `pairCancel` to refuse it, e.g. in setup mode or when key agreement fails.
+Pairing needs protocol 4 on both sides. `PKm`, `PKd` are the Mac's and the ESP32's fresh X25519 public keys, `Nm`, `Nd` their fresh 16-byte nonces, and `Z` the X25519 shared secret.
 
-A pairing request arriving while the ESP32 is already paired can still complete, because it needs the Confirm press. That's how a device moves to a new Mac. But a paired device connects to its own bridge whenever that bridge is online, so the new Mac never gets a chance to pair. Forget the device on the old Mac first (which sends `unpair`), or use Unpair on the device's setup page.
+1. The user clicks Pair on the Mac. If the Mac already has a pairing key or settings for this device ID, it first asks "Replace the existing pairing for <name>?", and pairs only if the user agrees. The Mac sends `pairRequest` with `bridgeID`, `bridgeName` and `publicKey` (`PKm`).
+2. The ESP32 accepts it only if it isn't paired, isn't in setup mode, and isn't installing firmware; otherwise it answers `pairCancel` with a `reason`. It generates its key pair and `Nd`, and answers `pairResponse` with:
+   - `publicKey`: `PKd`;
+   - `commitment`: `C = HMAC( Nd, "espdeck-pair-commit" ‖ PKd ‖ PKm )`.
+3. The Mac sends `pairNonce` with `nonce`: `Nm`. It sends it only after it has `C`.
+4. The ESP32 answers `pairReveal` with `nonce`: `Nd`. It reveals it only after it has `Nm`.
+5. The Mac checks `C` against `Nd`, `PKd` and `PKm`; if it doesn't match, it stops (and sends `pairCancel`). Both sides compute:
+   - `code` = the first 4 bytes of `SHA256( "espdeck-pair-code-v4" ‖ PKm ‖ PKd ‖ Nm ‖ Nd )` as a big-endian unsigned integer, mod 1,000,000, written as 6 digits with leading zeros;
+   - `K = HMAC( Z, "espdeck-pairing-key-v4" ‖ PKm ‖ PKd ‖ Nm ‖ Nd ‖ bridgeID ‖ deviceID )`, where `deviceID` is the device's `id` as sent in `hello`.
+6. Both show the code. The ESP32 shows it on the deck:
+   - top row: `Pair?`, the first 3 digits, the last 3 digits;
+   - bottom row: **Cancel** at the left, **Hold to Confirm** at the right; other keys are black;
+   - key presses are ignored for 1 second after the code appears;
+   - decks without displays (the Pedal) show nothing: the status LED blinks magenta, and holding any key confirms.
+7. The user compares the codes:
+   - On the deck, holding Confirm for 1.5 seconds confirms (Cancel cancels at a press). The ESP32 then sends `pairConfirm` with `proof` = `HMAC( K, "espdeck-pair-confirm" )`, shows "Waiting for Mac" on the Confirm key (the Pedal's LED stays magenta), and keeps `K` in memory, not yet stored.
+   - On the Mac, the user answers "The deck shows this code" or "It doesn't match" (which sends `pairCancel`).
+   - These can happen in either order. The Mac checks `proof` when it arrives.
+8. Once both have confirmed, the Mac runs the authentication handshake below with the new `K`, using the nonce from the device's original `hello`. The ESP32 checks the Mac's proof against the new `K`, and only then stores `K` and `bridgeID` (and turns uploads from PlatformIO off). The Mac stores `K` when the ESP32's `auth` verifies.
+
+Either side can send `pairCancel` at any time before that. The ESP32 cancels by itself 120 seconds after the `pairRequest`, the Mac about 5 seconds later. The ESP32's `pairCancel` carries `reason`: `deck` (Cancel pressed), `timeout`, `setupMode`, `paired` (it's paired; see below), `busy` (installing firmware), or `failed` (a malformed message or a failed computation). The Mac's `pairCancel` has no fields. A repeated `pairRequest` starts over with new keys and nonces.
+
+A paired ESP32 refuses pairing, and only connects to its own bridge. To move it to another Mac, forget it on the old Mac (which sends `unpair`), or use Unpair on the device's setup page; it's then unpaired and connects to whichever bridge it finds.
+
+Test vectors for all of this, and for the handshake, session and `devOTA` below, are in `ESPDeck Device/tools/crypto_test/vectors.txt`; `run.sh` there checks the firmware's mbedTLS code and the app's CryptoKit code against them.
 
 ### Authentication handshake
 
@@ -57,6 +75,8 @@ A pairing request arriving while the ESP32 is already paired can still complete,
    - That binds the `hello` contents to the key.
 4. The Mac checks `proof`; on a mismatch it closes the connection. Both sides derive the session key `S = HMAC( K, "espdeck-session" ‖ deviceNonce ‖ bridgeNonce )`, and the session is authenticated.
 
+A `hello` inside the session whose `id` isn't the session's device closes the connection.
+
 Every frame after that, in both directions, carries a MAC:
 - **Text frames:** 32 hex characters, then the JSON: `9f86d081884c7d659a2feaa0c55ad015{"type":"show",…}`.
 - **Binary frames:** 16 raw MAC bytes, then the payload.
@@ -66,6 +86,7 @@ Every frame after that, in both directions, carries a MAC:
   - `payload` is the JSON bytes or the binary payload.
 - A frame whose MAC doesn't verify closes the connection.
 - WebSocket ping/pong frames aren't covered.
+- Any cryptographic operation that fails (an mbedTLS error) counts as a mismatch: the ESP32 fails closed.
 
 When the Mac forgets a device, it sends `unpair`, and the ESP32 deletes its key. The ESP32's setup page can also delete it.
 
@@ -98,21 +119,22 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 
 | type | fields | when |
 |---|---|---|
-| `hello` | `protocol` (3), `id` (MAC), `name`, `firmware`, `elfSHA256` (firmware 3.1.0 and later), `nonce`, `pairedBridge`, `cached` (hashes), `deck` (deck object), `settings` (settings object), `status` (status object) | **Unauthenticated.** Sent right after connecting, and again (inside the session, with a MAC) after leaving setup mode, since the setup page may have renamed the device. Also resent inside the session after Improv renames the device (see USB below). The Mac treats every authenticated `hello` as a full resync; one sent inside the session needs no new handshake, and carries the session's original `nonce`. |
+| `hello` | `protocol` (4), `id` (MAC), `name`, `firmware`, `elfSHA256` (firmware 3.1.0 and later), `nonce`, `pairedBridge`, `cached` (hashes), `deck` (deck object), `settings` (settings object), `status` (status object) | **Unauthenticated.** Sent right after connecting, and again (inside the session, with a MAC) after leaving setup mode, since the setup page may have renamed the device. Also resent inside the session after Improv renames the device (see USB below). The Mac treats every authenticated `hello` as a full resync; one sent inside the session needs no new handshake, carries the session's original `nonce`, and must have the session's `id`. |
 | `auth` | `proof` | **Unauthenticated.** Handshake step 3 |
-| `pairResponse` | `publicKey` | **Unauthenticated.** Pairing step 2 |
-| `pairConfirm` | `proof` | **Unauthenticated.** Pairing step 4 |
-| `pairCancel` | | **Unauthenticated.** Pairing cancelled on the deck, or timed out |
+| `pairResponse` | `publicKey`, `commitment` | **Unauthenticated.** Pairing step 2 |
+| `pairReveal` | `nonce` | **Unauthenticated.** Pairing step 4 |
+| `pairConfirm` | `proof` | **Unauthenticated.** Pairing step 7: confirmed on the deck |
+| `pairCancel` | `reason` | **Unauthenticated.** Pairing cancelled on the deck, timed out, or refused; see Pairing |
 | `firmwareStatus` | `state` (`ready`, `progress`, `installed`, `error`), `received` (bytes, for `progress`), `message` (for `error`) | answers to a firmware update |
 | `deck` | `deck` | the Stream Deck is plugged in or unplugged, or its transform changed |
-| `status` | `status`, `reason` | sleep or setup mode changed. `reason` sits beside `status`, not inside it: `timer` (sleep timeout), `key` (woken by a key press), `bridge` (commanded by the Mac), `chord` (setup mode from the corner hold), `boot` (setup mode at boot, no Wi-Fi credentials), `setupPage`, `exitKey`, `improv` (left setup mode), `pairing` (woken for a pairing request) |
+| `status` | `status`, `reason` | sleep or setup mode changed. `reason` sits beside `status`, not inside it: `timer` (sleep timeout), `key` (woken by a key press), `bridge` (commanded by the Mac), `chord` (setup mode from the corner hold), `boot` (setup mode at boot, no Wi-Fi credentials), `setupPage`, `exitKey`, `improv` (left setup mode), `timeout` (left setup mode after 15 minutes without a phone on its network), `pairing` (woken to show a pairing code) |
 | `need` | `hash` | told to `show` a hash it doesn't have |
 | `shown` | `key`, `hash` | the key now shows that cached image on the deck: just uploaded, or it already did. Drives the Mac's progress bar; firmware without it is handled by a timeout. |
 | `keyDown`, `keyUp` | `key` | key pressed or released (not sent while asleep or in setup mode, nor for the key press that wakes the deck) |
 
 `elfSHA256` is the running app's `app_elf_sha256` from its app description (`esp_app_desc_t`), as 64 lowercase hex digits: the SHA-256 of the ELF file it was built from. Two builds with the same `firmware` version have different values.
 
-**Deck object:** `connected` (bool). When connected, it also has:
+**Deck object:** `connected` (bool). When connected, it also has (the Mac ignores a layout outside 1–8 rows, 1–8 columns and 16–256 px keys):
 - `model` (string) and `pid` (int)
 - `serial` and `firmware` (strings)
 - `rows` and `cols` (int)
@@ -132,7 +154,7 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 - `devOTA` (bool, firmware 3.2.0 and later): uploads from PlatformIO (ArduinoOTA) are allowed, i.e. the device has a password for them
 
 ```json
-{"type":"hello","protocol":3,"id":"f4:12:fa:00:00:00","name":"Office Deck","firmware":"3.1.0","elfSHA256":"29b53312…","nonce":"5f1c…","pairedBridge":"0c6e0a52-…","cached":["9f86d081884c7d659a2feaa0c55ad015"],
+{"type":"hello","protocol":4,"id":"f4:12:fa:00:00:00","name":"Office Deck","firmware":"4.0.0","elfSHA256":"29b53312…","nonce":"5f1c…","pairedBridge":"0c6e0a52-…","cached":["9f86d081884c7d659a2feaa0c55ad015"],
  "deck":{"connected":true,"model":"Stream Deck Mini","pid":99,"serial":"BL12H1A12345","firmware":"1.00.004","rows":2,"cols":3,"keySize":80,"format":"bmp","transform":"transpose"},
  "settings":{"orientation":"auto","sleepTimeout":600,"brightness":80,"ip":"192.168.1.44"},
  "status":{"asleep":false,"setupMode":false,"devOTA":false}}
@@ -144,15 +166,15 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 |---|---|---|
 | `show` | `key`, `hash` | display a cached image on a key; it's also the key's boot image |
 | `brightness` | `value` (0–100) | backlight brightness while awake |
-| `setName` | `name` | device name |
+| `setName` | `name` | device name: 1 to 32 bytes of UTF-8 without control characters (including line separators, bidirectional overrides and the byte-order mark), not only spaces; anything else is ignored |
 | `orientation` | `value` (`"auto"` or a transform) | the ESP32 answers with a `deck` message |
 | `sleepTimeout` | `seconds` (0 = never, at most 30 days) | sleep after this long without a key press |
 | `sleep`, `wake` | | sleep or wake the deck now |
 | `setupMode` | `enabled` (bool) | enter or leave setup mode |
 | `unpair` | | delete the pairing key; the connection then closes |
-| `devOTA` | `passwordHash`: the SHA-256 of the upload password as 64 hex digits, or `""` | firmware 3.2.0 and later. Allows uploads from PlatformIO over Wi-Fi (ArduinoOTA, UDP port 3232) with that password, or with `""` turns them off; the listener starts or stops at once. Only the hash is stored, and it's what ArduinoOTA's `setPasswordHash()` takes and espota derives from the password. The device answers with `status` (reason `bridge`), whose `devOTA` shows the result. While allowed, a new image is marked valid once it's on Wi-Fi instead of after the first authenticated session. A factory reset removes the password. |
-| `factoryReset` | | erase NVS (Wi-Fi, name, pairing, settings, the setup network's password) and the image cache, then restart; the device comes back in setup mode. The firmware stays. The setup page offers the same reset. |
-| `firmwareBegin` | `version`, `size` (bytes), `sha256` (hex of the whole image) | start a firmware update; answered with `firmwareStatus` `ready` or `error`. A `firmwareBegin` during an update abandons that update and starts over (firmware 3.0.3 and later; earlier firmware answers `error`) |
+| `devOTA` | `sealedHash` (to allow), or `passwordHash`: `""` (to turn off) | Allows uploads from PlatformIO over Wi-Fi (ArduinoOTA, UDP port 3232), or turns them off; the listener starts or stops at once. See **devOTA** below. The device answers with `status` (reason `bridge`), whose `devOTA` shows the result. While allowed, a new image is marked valid once it's on Wi-Fi instead of after the first authenticated session. Pairing again, unpairing, and a factory reset turn uploads off. |
+| `factoryReset` | | erase NVS (Wi-Fi, name, pairing, settings) first, then the image cache (once its writer has stopped), then restart; the device comes back in setup mode. The firmware stays. The setup page offers the same reset. |
+| `firmwareBegin` | `version`, `size` (bytes), `sha256` (hex of the whole image), `allowDowngrade` (bool, optional) | start a firmware update; answered with `firmwareStatus` `ready` or `error`. A `firmwareBegin` during an update abandons that update and starts over (firmware 3.0.3 and later; earlier firmware answers `error`). Refused while an installed update waits to restart, or during an upload from PlatformIO. Firmware 4.0.0 and later refuses an image older than the running version unless `allowDowngrade` is `true`; see Firmware frame. |
 | `firmwareEnd` | | all data sent; the ESP32 verifies the SHA-256, answers `installed` or `error`, and on success restarts about 1 second later |
 
 These are the unauthenticated messages from the Mac:
@@ -161,7 +183,18 @@ These are the unauthenticated messages from the Mac:
 |---|---|---|
 | `auth` | `nonce`, `proof` | handshake step 2 |
 | `pairRequest` | `bridgeID`, `bridgeName`, `publicKey` | pairing step 1 |
-| `pairCancel` | | pairing cancelled on the Mac |
+| `pairNonce` | `nonce` | pairing step 3 |
+| `pairCancel` | | pairing cancelled on the Mac (or the codes didn't match) |
+
+### devOTA
+
+The password's SHA-256 works as the password (espota derives its response from it, and it's what ArduinoOTA's `setPasswordHash()` takes), so it never travels in the clear:
+- `sealedHash` = hex of the 32-byte SHA-256 of the password's UTF-8 bytes, encrypted with AES-256-GCM, then the 16-byte tag: 96 hex digits.
+- Key: `HMAC( S, "espdeck-devota" )`.
+- Nonce (12 bytes): `0x01`, three zero bytes, then the 64-bit big-endian counter of the Mac → ESP32 frame that carries the message (the same counter as its MAC). Counters never repeat within a session, and each session has its own `S`.
+- No additional data.
+
+The ESP32 stores the hash (as 64 hex digits) only if the tag verifies. It refuses a non-empty `passwordHash` (the unencrypted form of firmware 3.2.x). Each Mac has one developer password for all its devices, which the developer keeps in `ota_password.txt` for PlatformIO.
 
 Once the session is authenticated, the Mac sends `show` for every key, preceded by any images the ESP32 doesn't have.
 
@@ -187,6 +220,10 @@ The image is added to the cache. It isn't displayed until a `show` names its has
 
 Chunks are sent in order, one at a time: the Mac waits for a `firmwareStatus` `progress` covering each chunk before sending the next.
 
+Before writing the first chunk, the ESP32 (firmware 4.0.0 and later) reads the image's app description (`esp_app_desc_t`, right after the image header and the first segment header): its project name must be the running one's (`ESPDeck`), and its version (`X.Y.Z`) must not be older than the running one unless `firmwareBegin` had `allowDowngrade: true`. The Mac sets that only for an image the user chose from a file and confirmed; release updates only go forward. Otherwise it answers `error` ("Firmware X is older than the running Y.").
+
+The Mac requires each `progress` to report exactly the end of the chunk it sent last, and stops the update otherwise.
+
 The ESP32 writes the image to its inactive OTA slot. After the restart it runs the new image in pending-verify mode, and marks it valid once it has completed an authenticated handshake with its bridge. If that hasn't happened within 10 minutes of boot, it restarts, and the bootloader rolls back to the previous image. `hello`'s `firmware` then reports the version actually running.
 
 After the restart, the Mac decides whether the new image is running by comparing `hello`'s `elfSHA256` with the `app_elf_sha256` in the image it sent, since a development build can carry the same version as the one it replaces. Firmware without `elfSHA256` is compared by version.
@@ -206,7 +243,7 @@ Over USB, a device speaks [Improv Wi-Fi serial](https://www.improv-wifi.com/seri
 - Commands: `0x01` send Wi-Fi settings, `0x02` request current state, `0x03` request device information, `0x04` request scanned Wi-Fi networks, and `0x06` get or set the device name. Others answer error `0x02` (unknown command); ESPDeck has no hostname command (`0x05`), since its hostname is fixed.
 - Device information is `ESPDeck`, the firmware version, `ESP32-S3`, and the device name.
 - Send Wi-Fi settings saves the credentials only once they work (within 20 s): the answer is state Provisioned and a result with no URL, since the device's only web page is its setup page. Otherwise it's error `0x03` (unable to connect), and the device goes back to its previous network. In setup mode, joining leaves setup mode (`status` reason `improv`).
-- `0x06`, the spec's standard device name command (firmware 3.1.0 and later): with no data it answers the name; with data, the data is the new name itself (UTF-8, 1 to 32 bytes, no NUL), not a length-prefixed string. The name is stored as `setName` stores it, and the result carries the name in effect. A name that isn't allowed gets error `0x01`. If the device has an authenticated session, it then resends `hello` there, so the bridge shows the new name.
+- `0x06`, the spec's standard device name command (firmware 3.1.0 and later): with no data it answers the name; with data, the data is the new name itself (UTF-8, 1 to 32 bytes, no NUL, and valid as for `setName`), not a length-prefixed string. The name is stored as `setName` stores it, and the result carries the name in effect. A name that isn't allowed gets error `0x01`. If the device has an authenticated session, it then resends `hello` there, so the bridge shows the new name.
 
 ## Sleep
 
@@ -220,11 +257,20 @@ The ESP32 enters setup mode:
 - or when the Mac sends `setupMode`.
 
 In setup mode it:
-- runs a WPA2 access point named `ESPDeck-XXXX`, with a random password generated once and stored;
-- runs a captive-portal web page at `http://192.168.4.1/` for the device name and Wi-Fi network;
+- runs a WPA2/WPA3 (transition mode) access point named `ESPDeck-XXXX`, with a new random 12-character password each time setup mode starts (kept only in RAM; the Wi-Fi QR code carries it);
+- runs a captive-portal web page at `http://192.168.4.1/` for the device name and Wi-Fi network, and a DNS server that answers every name with 192.168.4.1;
 - shows these on the deck, each QR code above a key describing it: a Wi-Fi-join QR code in the left column, a setup-page QR code in the right column, and an Exit key at the bottom center if the device was already set up.
+
+The page and the DNS server only answer phones on the access point: requests arriving from the home network are refused. The page's own requests must carry `Host: 192.168.4.1` (others are redirected to the page, so a web page elsewhere can't reach it by DNS tricks), and a `POST` whose `Origin` isn't `http://192.168.4.1` is refused. A network saved on the page is only stored once the device has joined it (within 30 seconds); otherwise the page shows why, and the previous network stays.
 
 It leaves setup mode when:
 - it joins a network saved on the setup page (8 seconds later, so the page can show the result),
 - Exit is pressed on the deck or on the web page,
+- no phone has been on its network for 15 minutes, if it has a network that works (`status` reason `timeout`),
 - or the Mac sends `setupMode` with `enabled: false`.
+
+## Compatibility
+
+- **Protocol 3 devices (firmware 3.x)** still authenticate with the pairing key they have: the handshake, session MACs, images, firmware frames and every other message are unchanged, so they keep working and can be updated to 4.0.0 from the bridge (`firmwareBegin`'s `allowDowngrade` is ignored by them). They can't pair with a protocol 4 bridge (the Mac shows them as needing a firmware update over USB), and the Mac only ever sends them `devOTA` to turn uploads off.
+- **Firmware 4.0.0** drops an upload password stored by earlier firmware (which received it in the clear), so uploads from PlatformIO are off after the update until they're allowed again. It also removes the setup network's stored password.
+- A protocol 3 bridge can't pair with firmware 4.0.0: the device waits for `pairNonce`, which an older bridge never sends, and times out. A device it paired earlier keeps authenticating with it.

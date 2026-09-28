@@ -16,7 +16,7 @@ public:
 	const char *deviceNonceHex() const { return deviceNonceHex_; }
 
 	// The exact bytes of the unauthenticated hello, for the device proof.
-	void recordHello( const char *text, size_t length );
+	bool recordHello( const char *text, size_t length );
 
 	// Handshake step 3: checks the bridge's proof against K and, if it holds, fills in the
 	// device proof and starts the session. False (and still unauthenticated) otherwise.
@@ -25,12 +25,15 @@ public:
 	bool authenticated() const { return authenticated_; }
 
 	// The MAC (32 hex characters) of the next outgoing text frame; the frame is this
-	// followed by the JSON. Counts the frame as sent.
-	void sealText( const char *json, size_t length, char mac[33] );
+	// followed by the JSON. Counts the frame as sent. False if it couldn't be computed.
+	bool sealText( const char *json, size_t length, char mac[33] );
 
 	// Verify and strip the MAC of an incoming frame. False means the connection must close.
 	bool openText( const char *frame, size_t length, const char *&json );
 	bool openBinary( const uint8_t *frame, size_t length, const uint8_t *&payload, size_t &payloadLength );
+
+	// devOTA's sealed password hash, from the frame openText() opened last.
+	bool openDevOTA( const uint8_t sealed[Crypto::kSealedHash], uint8_t hash[32] ) const;
 
 private:
 	bool     authenticated_                              = false;

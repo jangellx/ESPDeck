@@ -41,6 +41,7 @@
 #include "SetupPortal.h"
 #include "StatusLed.h"
 #include "StreamDeck.h"
+#include "Text.h"
 
 static const char *TAG = "ESPDeck";
 
@@ -104,20 +105,43 @@ static uint32_t         chordSince     = 0;       // …since this millis()
 static uint8_t          countdownShown = 0;       // seconds on the countdown key, 0 if none
 static bool             setupExitShown = false;   // the setup display includes the Exit key
 
-// A pairing waiting for Confirm on the deck.
+// Pairing (PROTOCOL.md, "Pairing"). The deck shows the code from Comparing on, and the user
+// holds Confirm; K is only stored once the bridge proves it has K too, with its auth.
+enum class PairingStage : uint8_t {
+	None,
+	Committed,   // pairResponse sent; waiting for the Mac's nonce
+	Comparing,   // the code is on the deck
+	Confirmed,   // confirmed on the deck; waiting for the Mac's auth
+};
+
 static struct {
-	bool     active;
-	uint8_t  shared[Crypto::kKeySize];
-	char     code[7];
-	char     bridgeID[Settings::kMaxBridgeID + 1];
-	uint32_t deadline;
+	PairingStage stage;
+	uint8_t      shared[Crypto::kKeySize];
+	uint8_t      macPublic[Crypto::kKeySize];
+	uint8_t      devicePublic[Crypto::kKeySize];
+	uint8_t      macNonce[Crypto::kNonceSize];
+	uint8_t      deviceNonce[Crypto::kNonceSize];
+	uint8_t      key[Crypto::kKeySize];
+	char         code[7];
+	char         bridgeID[Settings::kMaxBridgeID + 1];
+	uint32_t     deadline;
+	uint32_t     shownAt;     // millis() when the code appeared; keys are ignored for kPairingKeyGuard
+	int          holdKey;     // the key being held to confirm, or -1
+	uint32_t     holdSince;
 } pairing = {};
+
+static bool pairingShown() {
+	return pairing.stage == PairingStage::Comparing || pairing.stage == PairingStage::Confirmed;
+}
 
 static bool             pendingVerify  = false;   // this image is new and hasn't authenticated yet
 static bool             restartPending = false;   // a firmware update is installed
 static uint32_t         restartAt      = 0;
 
 static volatile bool    wifiJoined     = false;   // set on the Wi-Fi event task
+
+// A paired device that connects must authenticate within kAuthTimeout.
+static uint32_t         connectedAt    = 0;
 
 static void refreshScreen( bool redraw = false );
 static void dropBridge( bool retrySoon );
@@ -148,9 +172,9 @@ static void sendPlain( cJSON *json, bool isHello = false ) {
 	char *text = cJSON_PrintUnformatted( json );
 	if( text ) {
 		size_t length = strlen( text );
-		if( isHello )
-			session.recordHello( text, length );
-		bridge.sendText( text, length );
+		// Without the hello's hash the handshake can't succeed; the bridge's auth then fails.
+		if( !isHello || session.recordHello( text, length ) )
+			bridge.sendText( text, length );
 		statusLed.activity();
 		cJSON_free( text );
 	}
@@ -168,9 +192,11 @@ static void sendJSON( cJSON *json ) {
 	constexpr size_t kHexMAC = Crypto::kMACSize * 2;
 	size_t length = strlen( text );
 	char  *frame  = (char *)malloc( kHexMAC + length + 1 );
-	if( frame ) {
-		session.sealText( text, length, frame );
+	if( frame && session.sealText( text, length, frame ) ) {
 		memcpy( frame + kHexMAC, text, length + 1 );
+	} else {
+		free( frame );
+		frame = nullptr;
 	}
 	cJSON_free( text );
 
@@ -246,15 +272,6 @@ static void sendHello() {
 		sendPlain( json, true );
 }
 
-static void sendType( const char *type, bool plain ) {
-	cJSON *json = cJSON_CreateObject();
-	cJSON_AddStringToObject( json, "type", type );
-	if( plain )
-		sendPlain( json );
-	else
-		sendJSON( json );
-}
-
 static void sendDeck() {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", "deck" );
@@ -263,7 +280,7 @@ static void sendDeck() {
 }
 
 // reason: what changed it ("timer", "key", "bridge", "chord", "setupPage", "exitKey",
-// "improv", "pairing", "boot"), for the Mac's log.
+// "improv", "pairing", "boot", "timeout"), for the Mac's log.
 static void sendStatus( const char *reason ) {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", "status" );
@@ -297,12 +314,16 @@ static void sendNeed( const char *hex ) {
 	sendJSON( json );
 }
 
-static void sendHexField( const char *type, const char *field, const uint8_t *data, size_t length ) {
+static void addHex( cJSON *json, const char *field, const uint8_t *data, size_t length ) {
 	char hex[Crypto::kKeySize * 2 + 1];
 	Crypto::toHex( data, length, hex );
+	cJSON_AddStringToObject( json, field, hex );
+}
+
+static void sendHexField( const char *type, const char *field, const uint8_t *data, size_t length ) {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", type );
-	cJSON_AddStringToObject( json, field, hex );
+	addHex( json, field, data, length );
 	sendPlain( json );
 }
 
@@ -449,7 +470,7 @@ static void showSetupKeys() {
 	String wifi = "WIFI:T:WPA;S:";
 	appendEscaped( wifi, portal.apSSID() );
 	wifi += ";P:";
-	appendEscaped( wifi, settings.apPassword() );
+	appendEscaped( wifi, portal.apPassword() );
 	wifi += ";;";
 
 	static const char *const kJoinLines[]  = { "1. Scan", "to join", "Wi-Fi" };
@@ -486,8 +507,9 @@ static void showSetupKeys() {
 	} );
 }
 
-// Top row: "Pair?" and the code in two halves; bottom row: Cancel at the left, Confirm at
-// the right. Decks without the layout show nothing, and any key confirms.
+// Top row: "Pair?" and the code in two halves; bottom row: Cancel at the left, "Hold to
+// Confirm" at the right ("Waiting for Mac" once confirmed). Decks without the layout show
+// nothing; holding any key confirms, and the status LED blinks magenta.
 static uint8_t pairingFirstKey() {
 	return ( deckInfo.cols - 3 ) / 2;
 }
@@ -509,7 +531,10 @@ static void showPairingKeys() {
 	memcpy( last, pairing.code + 3, 3 );
 	first[3] = last[3] = '\0';
 
-	uint8_t start = pairingFirstKey();
+	static const char *const kHold[]    = { "Hold to", "Confirm" };
+	static const char *const kWaiting[] = { "Waiting", "for Mac" };
+	bool    confirmed = pairing.stage == PairingStage::Confirmed;
+	uint8_t start     = pairingFirstKey();
 	drawKeys( [&]( uint8_t key ) {
 		if( key == start )
 			drawLine( "Pair?" );
@@ -520,7 +545,7 @@ static void showPairingKeys() {
 		else if( key == cancelKey() )
 			drawLine( "Cancel", 0xA01020 );
 		else if( key == confirmKey() )
-			drawLine( "Confirm", 0x14803C );
+			keyImage.drawText( confirmed ? kWaiting : kHold, 2, confirmed ? 0x0A3D1E : 0x14803C );
 		else
 			keyImage.fill( 0, 0, 0 );
 	} );
@@ -657,7 +682,7 @@ static void showCountdownKeys( bool digitOnly ) {
 static Screen desiredScreen() {
 	if( portal.active() )
 		return Screen::Setup;
-	if( pairing.active )
+	if( pairingShown() )
 		return Screen::Pairing;
 	if( firmware.active() || restartPending || DevOTA::active() )
 		return Screen::Updating;
@@ -704,74 +729,142 @@ static void refreshScreen( bool redraw ) {
 // MARK: - Pairing
 
 static void endPairing() {
-	memset( pairing.shared, 0, sizeof( pairing.shared ) );
-	pairing.active = false;
-	swallowKeys    = keysDown != 0;
+	memset( &pairing, 0, sizeof( pairing ) );
+	pairing.stage   = PairingStage::None;
+	pairing.holdKey = -1;
+	swallowKeys     = keysDown != 0;
 	refreshScreen();
 }
 
-static void cancelPairing( bool notifyBridge ) {
-	ESP_LOGI( TAG, "Pairing cancelled" );
-	if( notifyBridge )
-		sendType( "pairCancel", true );
+// reason: "deck" (Cancel pressed), "timeout", "setupMode", or why a pairRequest was refused:
+// "paired", "busy", "failed". The bridge explains it to the user.
+static void cancelPairing( bool notifyBridge, const char *reason ) {
+	ESP_LOGI( TAG, "Pairing cancelled (%s)", reason );
+	if( notifyBridge ) {
+		cJSON *json = cJSON_CreateObject();
+		cJSON_AddStringToObject( json, "type", "pairCancel" );
+		cJSON_AddStringToObject( json, "reason", reason );
+		sendPlain( json );
+	}
 	endPairing();
 }
 
+// Pairing step 2. Only an unpaired device pairs: moving a paired one to another Mac starts
+// on the device (Unpair on its setup page) or on its own Mac (Forget Device).
 static void startPairing( cJSON *json ) {
-	const char *bridgeID   = cJSON_GetStringValue( cJSON_GetObjectItem( json, "bridgeID" ) );
-	const char *bridgeName = cJSON_GetStringValue( cJSON_GetObjectItem( json, "bridgeName" ) );
-	const char *peerHex    = cJSON_GetStringValue( cJSON_GetObjectItem( json, "publicKey" ) );
+	const char *bridgeID   = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "bridgeID" ) );
+	const char *bridgeName = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "bridgeName" ) );
+	const char *peerHex    = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "publicKey" ) );
 	uint8_t     peer[Crypto::kKeySize];
 	if( !bridgeID || !bridgeID[0] || strlen( bridgeID ) > Settings::kMaxBridgeID || !Crypto::fromHex( peerHex, peer, sizeof( peer ) ) ) {
 		ESP_LOGW( TAG, "Bad pairRequest" );
+		cancelPairing( true, "failed" );
 		return;
 	}
-	if( portal.active() ) {
-		ESP_LOGI( TAG, "Not pairing during setup mode" );
-		sendType( "pairCancel", true );
+	const char *refusal = nullptr;
+	if( settings.isPaired() )
+		refusal = "paired";
+	else if( portal.active() )
+		refusal = "setupMode";
+	else if( firmware.active() || restartPending || DevOTA::active() )
+		refusal = "busy";
+	if( refusal ) {
+		ESP_LOGI( TAG, "Refusing a pairRequest (%s)", refusal );
+		cancelPairing( true, refusal );
 		return;
 	}
 
-	uint8_t privateKey[Crypto::kKeySize], publicKey[Crypto::kKeySize];
-	bool    ok = Crypto::makeKeyPair( privateKey, publicKey, randomBytes, nullptr )
-	             && Crypto::sharedSecret( privateKey, peer, pairing.shared, randomBytes, nullptr );
+	// A repeated request starts over with fresh keys and nonces.
+	endPairing();
+	uint8_t privateKey[Crypto::kKeySize], commitment[Crypto::kKeySize];
+	memcpy( pairing.macPublic, peer, sizeof( peer ) );
+	randomBytes( nullptr, pairing.deviceNonce, sizeof( pairing.deviceNonce ) );
+	bool ok = Crypto::makeKeyPair( privateKey, pairing.devicePublic, randomBytes, nullptr )
+	          && Crypto::sharedSecret( privateKey, peer, pairing.shared, randomBytes, nullptr )
+	          && Crypto::pairCommitment( pairing.deviceNonce, pairing.devicePublic, pairing.macPublic, commitment );
 	memset( privateKey, 0, sizeof( privateKey ) );
 	if( !ok ) {
 		ESP_LOGW( TAG, "Key agreement failed" );
-		sendType( "pairCancel", true );
+		cancelPairing( true, "failed" );
 		return;
 	}
 
-	Crypto::pairingCode( pairing.shared, pairing.code );
 	strlcpy( pairing.bridgeID, bridgeID, sizeof( pairing.bridgeID ) );
-	pairing.active   = true;
+	pairing.stage    = PairingStage::Committed;
 	pairing.deadline = millis() + kPairingTimeout;
-	sendHexField( "pairResponse", "publicKey", publicKey, sizeof( publicKey ) );
-	ESP_LOGI( TAG, "Pairing with %s (%s); code %s", bridgeName ? bridgeName : "?", bridgeID, pairing.code );
+
+	cJSON *reply = cJSON_CreateObject();
+	cJSON_AddStringToObject( reply, "type", "pairResponse" );
+	addHex( reply, "publicKey", pairing.devicePublic, sizeof( pairing.devicePublic ) );
+	addHex( reply, "commitment", commitment, sizeof( commitment ) );
+	sendPlain( reply );
+
+	char name[40], id[48];
+	ESP_LOGI( TAG, "Pairing requested by %s (%s)", Text::printable( bridgeName, name, sizeof( name ) ), Text::printable( bridgeID, id, sizeof( id ) ) );
+}
+
+// Pairing step 4: the Mac's nonce. The device reveals its own, and both show the code.
+static void handlePairNonce( cJSON *json ) {
+	if( pairing.stage != PairingStage::Committed
+	    || !Crypto::fromHex( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "nonce" ) ), pairing.macNonce, sizeof( pairing.macNonce ) )
+	    || !Crypto::pairingCode( pairing.macPublic, pairing.devicePublic, pairing.macNonce, pairing.deviceNonce, pairing.code ) ) {
+		ESP_LOGW( TAG, "Unexpected pairNonce" );
+		cancelPairing( true, "failed" );
+		return;
+	}
+
+	sendHexField( "pairReveal", "nonce", pairing.deviceNonce, sizeof( pairing.deviceNonce ) );
+	pairing.stage   = PairingStage::Comparing;
+	pairing.shownAt = millis();
+	pairing.holdKey = -1;
+	ESP_LOGI( TAG, "Pairing code %s", pairing.code );
 
 	wake( "pairing" );
-	refreshScreen( true );   // a repeated request brings a new code
+	refreshScreen( true );
 }
 
+// Held long enough: derive K and tell the bridge. K is stored once the bridge's auth proves
+// it has K too (handleAuth), which it only sends after the user confirmed on the Mac.
 static void confirmPairing() {
-	uint8_t key[Crypto::kKeySize], proof[Crypto::kKeySize];
-	Crypto::pairingKey( pairing.shared, pairing.bridgeID, settings.id(), key );
-	Crypto::pairConfirmProof( key, proof );
-	settings.setPairing( key, pairing.bridgeID );
-	memset( key, 0, sizeof( key ) );
+	uint8_t proof[Crypto::kKeySize];
+	bool    ok = Crypto::pairingKey( pairing.shared, pairing.macPublic, pairing.devicePublic, pairing.macNonce, pairing.deviceNonce,
+	                                 pairing.bridgeID, settings.id(), pairing.key )
+	             && Crypto::pairConfirmProof( pairing.key, proof );
+	memset( pairing.shared, 0, sizeof( pairing.shared ) );
+	if( !ok ) {
+		cancelPairing( true, "failed" );
+		return;
+	}
 
-	ESP_LOGI( TAG, "Paired with %s", pairing.bridgeID );
+	ESP_LOGI( TAG, "Pairing confirmed on the deck; waiting for the Mac" );
 	sendHexField( "pairConfirm", "proof", proof, sizeof( proof ) );
-	endPairing();   // the bridge continues with auth
+	pairing.stage = PairingStage::Confirmed;
+	refreshScreen( true );
 }
 
+// Keys are ignored for kPairingKeyGuard after the code appears, so a press that was already
+// on its way doesn't count. Confirm has to be held for kConfirmHold (any key on decks
+// without a display); Cancel works on a press.
 static void handlePairingKey( uint8_t key ) {
-	if( !deckHasLayout() )
+	if( millis() - pairing.shownAt < kPairingKeyGuard )
+		return;
+	if( deckHasLayout() && key == cancelKey() ) {
+		cancelPairing( true, "deck" );
+	} else if( pairing.stage == PairingStage::Comparing && ( !deckHasLayout() || key == confirmKey() ) ) {
+		pairing.holdKey   = key;
+		pairing.holdSince = millis();
+	}
+}
+
+static void checkPairingHold() {
+	if( pairing.stage != PairingStage::Comparing || pairing.holdKey < 0 )
+		return;
+	if( !( keysDown & keyBit( (uint8_t)pairing.holdKey ) ) ) {
+		pairing.holdKey = -1;   // let go too soon
+	} else if( millis() - pairing.holdSince >= kConfirmHold ) {
+		pairing.holdKey = -1;
 		confirmPairing();
-	else if( key == confirmKey() )
-		confirmPairing();
-	else if( key == cancelKey() )
-		cancelPairing( true );
+	}
 }
 
 // MARK: - Connection and authentication
@@ -780,7 +873,7 @@ static void onBridgeDown() {
 	if( session.authenticated() )
 		sessionLostAt = millis();   // the connecting screen follows after kConnectingGrace
 	firmware.abort();
-	if( pairing.active )
+	if( pairing.stage != PairingStage::None )
 		endPairing();
 	keysForwarded = 0;
 	swallowKeys   = keysDown != 0;
@@ -793,13 +886,19 @@ static void dropBridge( bool retrySoon ) {
 	onBridgeDown();
 }
 
-// Handshake step 3.
+// Handshake step 3, with the stored K, or during pairing with the new K once it's been
+// confirmed on the deck (which the bridge's proof then shows it has too).
 static void handleAuth( cJSON *json ) {
-	uint8_t nonce[Crypto::kNonceSize], proof[Crypto::kKeySize], deviceProof[Crypto::kKeySize];
-	bool    wellFormed = Crypto::fromHex( cJSON_GetStringValue( cJSON_GetObjectItem( json, "nonce" ) ), nonce, sizeof( nonce ) )
-	                     && Crypto::fromHex( cJSON_GetStringValue( cJSON_GetObjectItem( json, "proof" ) ), proof, sizeof( proof ) );
-	if( !wellFormed || !settings.isPaired() || !session.authenticate( settings.pairingKey(), nonce, proof, deviceProof ) ) {
+	bool           pairingAuth = pairing.stage == PairingStage::Confirmed;
+	const uint8_t *key         = pairingAuth ? pairing.key : settings.pairingKey();
+	uint8_t        nonce[Crypto::kNonceSize], proof[Crypto::kKeySize], deviceProof[Crypto::kKeySize];
+	bool           wellFormed  = Crypto::fromHex( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "nonce" ) ), nonce, sizeof( nonce ) )
+	                             && Crypto::fromHex( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "proof" ) ), proof, sizeof( proof ) );
+	bool           expected    = pairingAuth || ( settings.isPaired() && pairing.stage == PairingStage::None );
+	if( !wellFormed || !expected || !session.authenticate( key, nonce, proof, deviceProof ) ) {
 		ESP_LOGW( TAG, "Bridge authentication failed; closing the connection" );
+		if( settings.isPaired() )
+			bridge.avoidCurrent();
 		dropBridge( false );
 		return;
 	}
@@ -811,15 +910,21 @@ static void handleAuth( cJSON *json ) {
 	cJSON_AddStringToObject( reply, "type", "auth" );
 	cJSON_AddStringToObject( reply, "proof", hex );
 	sendPlain( reply );
-	ESP_LOGI( TAG, "Authenticated with %s", settings.pairedBridge() );
+
+	if( pairingAuth ) {
+		settings.setPairing( pairing.key, pairing.bridgeID );
+		endPairing();
+	}
+	char id[48];
+	ESP_LOGI( TAG, "%s %s", pairingAuth ? "Paired and authenticated with" : "Authenticated with",
+			  Text::printable( settings.pairedBridge(), id, sizeof( id ) ) );
+	bridge.markAuthenticated();
 	hadSession = true;
 
 	if( pendingVerify ) {
 		FirmwareUpdate::markValid();
 		pendingVerify = false;
 	}
-	if( pairing.active )
-		endPairing();
 	keysForwarded = 0;
 	swallowKeys   = keysDown != 0;
 	refreshScreen();
@@ -838,8 +943,8 @@ static void enterSetupMode( const char *reason ) {
 		status.message = "Setup mode started.";
 		sendFirmwareStatus( status );
 	}
-	if( pairing.active )
-		cancelPairing( true );
+	if( pairing.stage != PairingStage::None )
+		cancelPairing( true, "setupMode" );
 
 	releaseForwardedKeys();
 	asleep    = false;
@@ -876,6 +981,7 @@ static void leaveSetupMode( const char *reason ) {
 // The firmware itself stays.
 static void factoryReset( const char *reason ) {
 	ESP_LOGW( TAG, "Factory reset (%s)", reason );
+	disableLoopWDT();   // erasing the image cache takes longer than the watchdog allows
 
 	uint8_t center = deckInfo.cols / 2;
 	drawKeys( [&]( uint8_t key ) {
@@ -891,12 +997,20 @@ static void factoryReset( const char *reason ) {
 		dropBridge( false );
 	WiFi.disconnect( true, true );   // also forgets the station config the Wi-Fi driver keeps
 
-	cache.stop();   // no writes into the filesystem while it's erased
-	esp_vfs_littlefs_unregister( "littlefs" );
-	const esp_partition_t *partition = esp_partition_find_first( ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "littlefs" );
-	if( partition )
-		esp_partition_erase_range( partition, 0, partition->size );   // remounted and formatted at boot
-	nvs_flash_erase();
+	// NVS first: the pairing, Wi-Fi and name must go even if the image cache can't.
+	esp_err_t err = nvs_flash_erase();
+	if( err != ESP_OK )
+		ESP_LOGE( TAG, "Erasing NVS failed: %s", esp_err_to_name( err ) );
+
+	// The cache's writer must have stopped before its filesystem goes away underneath it.
+	if( cache.stop() ) {
+		esp_vfs_littlefs_unregister( "littlefs" );
+		const esp_partition_t *partition = esp_partition_find_first( ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "littlefs" );
+		if( partition )
+			esp_partition_erase_range( partition, 0, partition->size );   // remounted and formatted at boot
+	} else {
+		ESP_LOGE( TAG, "The image cache didn't stop; leaving it" );
+	}
 
 	delay( 200 );
 	esp_restart();
@@ -933,8 +1047,8 @@ static void checkSetupChord() {
 
 static void handleCommand( const char *type, cJSON *json ) {
 	if( strcmp( type, "show" ) == 0 ) {
-		cJSON      *key = cJSON_GetObjectItem( json, "key" );
-		const char *hex = cJSON_GetStringValue( cJSON_GetObjectItem( json, "hash" ) );
+		cJSON      *key = cJSON_GetObjectItemCaseSensitive( json, "key" );
+		const char *hex = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "hash" ) );
 		Hash        hash;
 		if( cJSON_IsNumber( key ) && key->valueint >= 0 && key->valueint < kMaxKeys && hashFromHex( hex, hash ) ) {
 			ImageCache::Lookup lookup = cache.assign( (uint8_t)key->valueint, hash );
@@ -950,29 +1064,47 @@ static void handleCommand( const char *type, cJSON *json ) {
 		}
 
 	} else if( strcmp( type, "brightness" ) == 0 ) {
-		cJSON *value = cJSON_GetObjectItem( json, "value" );
+		cJSON *value = cJSON_GetObjectItemCaseSensitive( json, "value" );
 		if( cJSON_IsNumber( value ) ) {
 			cache.setBrightness( (uint8_t)std::min( std::max( value->valueint, 0 ), 100 ) );
 			applyBrightness();
 		}
 
 	} else if( strcmp( type, "devOTA" ) == 0 ) {
-		// Uploads from PlatformIO: the password's SHA-256, or none to turn them off.
-		const char *hash = cJSON_GetStringValue( cJSON_GetObjectItem( json, "passwordHash" ) );
-		if( settings.setOTAPasswordHash( hash ) ) {
-			DevOTA::setPasswordHash( settings.otaPasswordHash() );
-			ESP_LOGI( TAG, "Uploads from PlatformIO %s", settings.hasOTAPassword() ? "allowed" : "off" );
+		// Uploads from PlatformIO: the password's SHA-256, sealed for this frame, or nothing
+		// (or an empty passwordHash, as older bridges send) to turn them off. A hash in the
+		// clear isn't accepted: it works as the password.
+		const char *sealedHex = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "sealedHash" ) );
+		const char *plain     = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "passwordHash" ) );
+		bool        ok;
+		if( sealedHex && sealedHex[0] ) {
+			uint8_t sealed[Crypto::kSealedHash], hash[32];
+			char    hex[65];
+			ok = Crypto::fromHex( sealedHex, sealed, sizeof( sealed ) ) && session.openDevOTA( sealed, hash );
+			if( ok ) {
+				Crypto::toHex( hash, sizeof( hash ), hex );
+				ok = settings.setOTAPasswordHash( hex );
+			}
+			memset( hash, 0, sizeof( hash ) );
+			memset( hex, 0, sizeof( hex ) );
 		} else {
-			ESP_LOGW( TAG, "Bad devOTA message" );
+			ok = !plain || !plain[0];
+			if( ok )
+				settings.setOTAPasswordHash( nullptr );
 		}
+		if( ok )
+			ESP_LOGI( TAG, "Uploads from PlatformIO %s", settings.hasOTAPassword() ? "allowed" : "off" );
+		else
+			ESP_LOGW( TAG, "Bad devOTA message" );
+		DevOTA::setPasswordHash( settings.otaPasswordHash() );
 		sendStatus( "bridge" );
 
 	} else if( strcmp( type, "setName" ) == 0 ) {
-		if( !settings.setName( cJSON_GetStringValue( cJSON_GetObjectItem( json, "name" ) ) ) )
+		if( !settings.setName( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "name" ) ) ) )
 			ESP_LOGW( TAG, "Bad setName message" );
 
 	} else if( strcmp( type, "orientation" ) == 0 ) {
-		const char           *value = cJSON_GetStringValue( cJSON_GetObjectItem( json, "value" ) );
+		const char           *value = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "value" ) );
 		StreamDeck::Transform transform;
 		if( value && ( strcmp( value, "auto" ) == 0 || StreamDeck::transformFromName( value, transform ) ) ) {
 			settings.setOrientation( value );
@@ -984,7 +1116,7 @@ static void handleCommand( const char *type, cJSON *json ) {
 		sendDeck();   // the Mac re-renders for the transform in effect
 
 	} else if( strcmp( type, "sleepTimeout" ) == 0 ) {
-		cJSON *seconds = cJSON_GetObjectItem( json, "seconds" );
+		cJSON *seconds = cJSON_GetObjectItemCaseSensitive( json, "seconds" );
 		if( cJSON_IsNumber( seconds ) && seconds->valuedouble >= 0 )
 			settings.setSleepTimeout( (uint32_t)std::min( seconds->valuedouble, 30.0 * 24 * 3600 ) );
 
@@ -998,7 +1130,7 @@ static void handleCommand( const char *type, cJSON *json ) {
 		}
 
 	} else if( strcmp( type, "setupMode" ) == 0 ) {
-		if( cJSON_IsTrue( cJSON_GetObjectItem( json, "enabled" ) ) )
+		if( cJSON_IsTrue( cJSON_GetObjectItemCaseSensitive( json, "enabled" ) ) )
 			enterSetupMode( "bridge" );
 		else
 			leaveSetupMode( "bridge" );
@@ -1012,16 +1144,21 @@ static void handleCommand( const char *type, cJSON *json ) {
 		dropBridge( true );
 
 	} else if( strcmp( type, "firmwareBegin" ) == 0 ) {
-		cJSON                 *size = cJSON_GetObjectItem( json, "size" );
+		cJSON                 *size = cJSON_GetObjectItemCaseSensitive( json, "size" );
 		FirmwareUpdate::Status status;
 		status.state = FirmwareUpdate::Status::State::Error;
 		if( portal.active() )
 			status.message = "Setup mode is on.";
+		else if( restartPending )
+			status.message = "An update is installed; the device is restarting.";
+		else if( DevOTA::active() )
+			status.message = "An upload from PlatformIO is running.";
 		else if( !cJSON_IsNumber( size ) || size->valuedouble <= 0 )
 			status.message = "Bad size.";
 		else
-			status = firmware.begin( cJSON_GetStringValue( cJSON_GetObjectItem( json, "version" ) ), (size_t)size->valuedouble,
-			                       cJSON_GetStringValue( cJSON_GetObjectItem( json, "sha256" ) ) );
+			status = firmware.begin( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "version" ) ), (size_t)size->valuedouble,
+			                         cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "sha256" ) ),
+			                         cJSON_IsTrue( cJSON_GetObjectItemCaseSensitive( json, "allowDowngrade" ) ) );
 		sendFirmwareStatus( status );
 		refreshScreen();
 
@@ -1035,36 +1172,53 @@ static void handleCommand( const char *type, cJSON *json ) {
 		refreshScreen();
 
 	} else {
-		ESP_LOGW( TAG, "Unknown message type %s", type );
+		char safe[32];
+		ESP_LOGW( TAG, "Unknown message type %s", Text::printable( type, safe, sizeof( safe ) ) );
 	}
 }
 
 // Before the handshake only auth and pairing messages count.
 static void handleUnauthenticated( const char *type, cJSON *json ) {
-	if( strcmp( type, "auth" ) == 0 )
+	if( strcmp( type, "auth" ) == 0 ) {
 		handleAuth( json );
-	else if( strcmp( type, "pairRequest" ) == 0 )
+	} else if( strcmp( type, "pairRequest" ) == 0 ) {
 		startPairing( json );
-	else if( strcmp( type, "pairCancel" ) == 0 && pairing.active )
-		cancelPairing( false );
-	else
-		ESP_LOGW( TAG, "Ignoring %s before authentication", type );
+	} else if( strcmp( type, "pairNonce" ) == 0 ) {
+		handlePairNonce( json );
+	} else if( strcmp( type, "pairCancel" ) == 0 ) {
+		if( pairing.stage != PairingStage::None )
+			cancelPairing( false, "bridge" );
+	} else {
+		char safe[32];
+		ESP_LOGW( TAG, "Ignoring %s before authentication", Text::printable( type, safe, sizeof( safe ) ) );
+	}
 }
 
 static void handleText( const char *frame, size_t length ) {
 	const char *text = frame;
-	if( session.authenticated() && !session.openText( frame, length, text ) ) {
-		ESP_LOGW( TAG, "Bad MAC; closing the connection" );
-		dropBridge( false );
+	if( session.authenticated() ) {
+		if( !session.openText( frame, length, text ) ) {
+			ESP_LOGW( TAG, "Bad MAC; closing the connection" );
+			dropBridge( false );
+			return;
+		}
+	} else if( length > kMaxPlainText ) {
+		ESP_LOGW( TAG, "Ignoring a %u byte message before authentication", (unsigned)length );
 		return;
 	}
 
-	cJSON *json = cJSON_Parse( text );
+	// cJSON parses recursively on this task's stack; deep nesting would overflow it.
+	size_t jsonLength = length - (size_t)( text - frame );
+	if( !Text::jsonDepthWithin( text, jsonLength, kMaxJSONDepth ) ) {
+		ESP_LOGW( TAG, "Message nested too deeply; ignored" );
+		return;
+	}
+	cJSON *json = cJSON_ParseWithLength( text, jsonLength );
 	if( !json ) {
 		ESP_LOGW( TAG, "Unparseable message" );
 		return;
 	}
-	const char *type = cJSON_GetStringValue( cJSON_GetObjectItem( json, "type" ) );
+	const char *type = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "type" ) );
 	if( !type )
 		type = "";
 
@@ -1089,7 +1243,8 @@ static void handleImage( const uint8_t *data, size_t size ) {
 	size_t         length = size - kHeader;
 
 	int64_t received = esp_timer_get_time();
-	if( hashOf( image, length ) != claimed ) {
+	Hash    actual;
+	if( !hashOf( image, length, actual ) || actual != claimed ) {
 		ESP_LOGW( TAG, "Image hash mismatch; dropped" );
 		return;
 	}
@@ -1253,11 +1408,21 @@ static void uploadPendingKeys() {
 static void checkTimers() {
 	uint32_t now = millis();
 
-	if( pairing.active && (int32_t)( now - pairing.deadline ) >= 0 )
-		cancelPairing( true );
+	if( pairing.stage != PairingStage::None && (int32_t)( now - pairing.deadline ) >= 0 )
+		cancelPairing( true, "timeout" );
+
+	// A paired device gives a bridge kAuthTimeout to authenticate. One that doesn't (a
+	// stand-in advertising our bridge's ID, say) is dropped and its address avoided for a
+	// while, so the device gets back to looking for the real one.
+	if( bridge.isConnected() && !session.authenticated() && settings.isPaired() && now - connectedAt >= kAuthTimeout ) {
+		ESP_LOGW( TAG, "The bridge didn't authenticate within %u s; closing the connection", (unsigned)( kAuthTimeout / 1000 ) );
+		bridge.avoidCurrent();
+		dropBridge( false );
+	}
 
 	if( restartPending && (int32_t)( now - restartAt ) >= 0 ) {
 		ESP_LOGI( TAG, "Restarting into the new firmware" );
+		disableLoopWDT();            // the waits below can add up to more than its timeout
 		uploader.waitIdle( 2000 );   // "Updating" reaches the deck first
 		cache.persistNow();
 		esp_restart();
@@ -1266,6 +1431,7 @@ static void checkTimers() {
 	// A new image that never reached its bridge restarts, and the bootloader rolls it back.
 	if( pendingVerify && now >= kRollbackDeadline ) {
 		ESP_LOGE( TAG, "New firmware didn't authenticate within %u minutes; rolling back", (unsigned)( kRollbackDeadline / 60000 ) );
+		disableLoopWDT();
 		cache.persistNow();
 		esp_restart();
 	}
@@ -1343,18 +1509,27 @@ void setup() {
 
 	lastActivity = millis();
 	if( settings.hasCredentials() ) {
-		ESP_LOGI( TAG, "%s joining %s", settings.name(), settings.ssid() );
+		char name[40], ssid[40];
+		ESP_LOGI( TAG, "%s joining %s", Text::printable( settings.name(), name, sizeof( name ) ), Text::printable( settings.ssid(), ssid, sizeof( ssid ) ) );
 		WiFi.begin( settings.ssid(), settings.password() );
 	} else {
 		ESP_LOGI( TAG, "No Wi-Fi credentials" );
 		enterSetupMode( "boot" );
 	}
+
+	// A loop pass that takes longer than CONFIG_ESP_TASK_WDT_TIMEOUT_S restarts the device.
+	// Nothing in it legitimately does: image uploads take ~320 ms, flash writes happen on
+	// the cache's own task, an upload from PlatformIO feeds the watchdog as it goes, and the
+	// long waits before a restart or a factory reset turn it off first.
+	enableLoopWDT();
 }
 
 void loop() {
-	statusLed.update( portal.active()                 ? StatusLed::Mode::Setup
-					  : WiFi.status() == WL_CONNECTED ? StatusLed::Mode::Connected
-					  :                                 StatusLed::Mode::Searching,
+	statusLed.update( pairing.stage == PairingStage::Confirmed ? StatusLed::Mode::PairingConfirmed
+					  : pairingShown()                         ? StatusLed::Mode::Pairing
+					  : portal.active()                        ? StatusLed::Mode::Setup
+					  : WiFi.status() == WL_CONNECTED          ? StatusLed::Mode::Connected
+					  :                                          StatusLed::Mode::Searching,
 					  keysDown != 0, asleep );
 
 	if( wifiJoined ) {
@@ -1368,11 +1543,15 @@ void loop() {
 			pendingVerify = false;
 		}
 	}
+	// Pairing again or unpairing (here or on the setup page) turns uploads off.
+	DevOTA::setPasswordHash( settings.otaPasswordHash() );
 	DevOTA::loop( firmware.active() || restartPending );
 
 	portal.loop();
 	if( portal.takeExitRequest() )
 		leaveSetupMode( "setupPage" );
+	if( portal.takeIdleTimeout() )
+		leaveSetupMode( "timeout" );
 
 	// Wi-Fi from ESP Web Tools; like the setup page's, a network that works ends setup mode.
 	improv.loop();
@@ -1403,6 +1582,7 @@ void loop() {
 		switch( message.kind ) {
 			case BridgeClient::Message::Kind::Connected:
 				session.reset();
+				connectedAt = millis();
 				sendHello();
 				refreshScreen();
 				break;
@@ -1423,6 +1603,7 @@ void loop() {
 	}
 
 	checkSetupChord();
+	checkPairingHold();
 	checkSleepTimer();
 	checkTimers();
 	refreshScreen();

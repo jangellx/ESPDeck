@@ -3,6 +3,8 @@
 //   looking for Wi-Fi       pulsing yellow
 //   connected               solid green at 25%, pulsing brighter while data moves
 //   a key pressed or held   white, for at least a moment even on a quick tap
+//   pairing                 blinking magenta (the Pedal has no screen for the code), steady
+//                           once confirmed on the deck
 // While the deck is asleep, connected is off and everything else is very dim (pulses keep
 // pulsing), so the light doesn't glow in a dark room.
 #pragma once
@@ -15,6 +17,8 @@ public:
 		Setup,
 		Searching,
 		Connected,
+		Pairing,
+		PairingConfirmed,
 	};
 
 	void begin( uint8_t pin );

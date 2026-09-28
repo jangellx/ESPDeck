@@ -93,13 +93,14 @@ bool ImageCache::begin() {
 	return true;
 }
 
-void ImageCache::stop() {
+bool ImageCache::stop() {
 	if( !writer_ || stopped_ )
-		return;
+		return true;
 	stopping_ = true;
 	xTaskNotifyGive( writer_ );
 	for( uint32_t waited = 0; !stopped_ && waited < kWaitLimit; waited += 10 )
 		vTaskDelay( pdMS_TO_TICKS( 10 ) );
+	return stopped_;
 }
 
 void ImageCache::persistNow() {
@@ -474,7 +475,7 @@ void ImageCache::scanImages() {
 	std::vector<Hash> legacy;   // renamed after the scan, so the directory doesn't change under readdir
 	struct dirent    *item;
 	while( ( item = readdir( dir ) ) != nullptr ) {
-		char path[64];
+		char path[16 + sizeof( item->d_name )];   // the directory, a slash, and any name readdir() can return
 		snprintf( path, sizeof( path ), "%s/%s", kImageDir, item->d_name );
 
 		// "<32 hex>.img" (or a 1.x ".bmp"); anything else, including interrupted .tmp writes,

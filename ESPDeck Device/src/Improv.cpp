@@ -17,6 +17,7 @@
 #include "freertos/semphr.h"
 
 #include "Config.h"
+#include "Text.h"
 
 static const char *TAG = "Improv";
 
@@ -120,18 +121,18 @@ void Improv::loop() {
 }
 
 // Anything that isn't an Improv packet (a terminal's keystrokes, say) is skipped.
-void Improv::receive( Parser &parser, uint8_t byte ) {
+void Improv::receive( Parser &parser, uint8_t value ) {
 	if( parser.length < kHeaderSize ) {
-		if( byte == (uint8_t)kHeader[parser.length] )
-			parser.buffer[parser.length++] = byte;
-		else if( byte == (uint8_t)kHeader[0] )
-			parser.buffer[0] = byte, parser.length = 1;
+		if( value == (uint8_t)kHeader[parser.length] )
+			parser.buffer[parser.length++] = value;
+		else if( value == (uint8_t)kHeader[0] )
+			parser.buffer[0] = value, parser.length = 1;
 		else
 			parser.length = 0;
 		return;
 	}
 
-	parser.buffer[parser.length++] = byte;
+	parser.buffer[parser.length++] = value;
 	if( parser.length < kHeaderSize + 3 )
 		return;
 	size_t dataLength = parser.buffer[kHeaderSize + 2];
@@ -205,8 +206,13 @@ void Improv::handleCommand( uint8_t command, const uint8_t *data, size_t length 
 				}
 				memcpy( name, data, length );
 				name[length] = '\0';
-				if( strcmp( name, settings_.name() ) != 0 && settings_.setName( name ) ) {
-					ESP_LOGI( TAG, "Renamed to %s", name );
+				if( strcmp( name, settings_.name() ) != 0 ) {
+					if( !settings_.setName( name ) ) {
+						sendError( Error::InvalidRPC );
+						return;
+					}
+					char safe[40];
+					ESP_LOGI( TAG, "Renamed to %s", Text::printable( name, safe, sizeof( safe ) ) );
 					renamed_ = true;
 				}
 			}
@@ -241,7 +247,8 @@ Improv::State Improv::currentState() const {
 void Improv::startConnecting( const char *ssid, const char *password ) {
 	strlcpy( ssid_, ssid, sizeof( ssid_ ) );
 	strlcpy( password_, password, sizeof( password_ ) );
-	ESP_LOGI( TAG, "Joining %s", ssid_ );
+	char safe[40];
+	ESP_LOGI( TAG, "Joining %s", Text::printable( ssid_, safe, sizeof( safe ) ) );
 	sendState( State::Provisioning );
 
 	WiFi.disconnect( false, false );
@@ -255,12 +262,14 @@ void Improv::trackConnection() {
 	if( !connecting_ )
 		return;
 
+	char safe[40];
+	Text::printable( ssid_, safe, sizeof( safe ) );
 	if( gotIP ) {
 		connecting_ = false;
 		settings_.setCredentials( ssid_, password_ );
 		settings_.markCredentialsWork();
 		memset( password_, 0, sizeof( password_ ) );
-		ESP_LOGI( TAG, "Joined %s as %s", ssid_, WiFi.localIP().toString().c_str() );
+		ESP_LOGI( TAG, "Joined %s as %s", safe, WiFi.localIP().toString().c_str() );
 		sendState( State::Provisioned );
 		// No URL: the device's only web page is the setup page, which isn't running once
 		// it's on the network.
@@ -269,7 +278,7 @@ void Improv::trackConnection() {
 	} else if( millis() - connectStart_ >= kConnectTimeout ) {
 		connecting_ = false;
 		memset( password_, 0, sizeof( password_ ) );
-		ESP_LOGW( TAG, "Couldn't join %s", ssid_ );
+		ESP_LOGW( TAG, "Couldn't join %s", safe );
 		sendError( Error::UnableToConnect );
 		sendState( State::Ready );
 		if( settings_.hasCredentials() )
@@ -306,18 +315,18 @@ void Improv::trackScan() {
 	scanWanted_ = false;
 
 	// One result per network name, strongest first, then an empty one.
-	struct Network {
+	struct Found {
 		String  ssid;
 		int32_t rssi;
 		bool    secure;
 	};
-	std::vector<Network> networks;
+	std::vector<Found> networks;
 	for( int16_t i = 0; i < count; i++ ) {
 		String ssid = WiFi.SSID( i );
 		if( ssid.isEmpty() )
 			continue;
 		int32_t rssi  = WiFi.RSSI( i );
-		auto    found = std::find_if( networks.begin(), networks.end(), [&]( const Network &n ) { return n.ssid == ssid; } );
+		auto    found = std::find_if( networks.begin(), networks.end(), [&]( const Found &n ) { return n.ssid == ssid; } );
 		if( found == networks.end() )
 			networks.push_back( { ssid, rssi, WiFi.encryptionType( i ) != WIFI_AUTH_OPEN } );
 		else if( rssi > found->rssi )
@@ -325,9 +334,9 @@ void Improv::trackScan() {
 	}
 	if( count >= 0 )
 		WiFi.scanDelete();
-	std::sort( networks.begin(), networks.end(), []( const Network &a, const Network &b ) { return a.rssi > b.rssi; } );
+	std::sort( networks.begin(), networks.end(), []( const Found &a, const Found &b ) { return a.rssi > b.rssi; } );
 
-	for( const Network &network : networks ) {
+	for( const Found &network : networks ) {
 		char rssi[8];
 		snprintf( rssi, sizeof( rssi ), "%d", (int)network.rssi );
 		sendResult( kRequestScan, { network.ssid.c_str(), rssi, network.secure ? "YES" : "NO" } );

@@ -1,6 +1,11 @@
 // Connection to ESPDeck Bridge on the Mac: finds it with mDNS, connects over WebSocket,
 // and reconnects with exponential backoff when it's unreachable.
 //
+// A paired device only connects to bridges whose TXT "id" is the one it paired with, and
+// prefers the address where it last authenticated. An address whose handshake failed or
+// stalled is avoided for kAvoidTime (except that last good one), so something else on the
+// network advertising the bridge's ID can't keep the device from its real bridge.
+//
 // mDNS queries take a few seconds, so they run on a discovery task of their own; loop()
 // hands it requests and picks up the results, and never blocks.
 //
@@ -48,8 +53,15 @@ public:
 
 	bool sendText( const char *text, size_t length );
 
-	// Discovery prefers the bridge whose TXT "id" matches (the one we're paired with).
+	// The bridge we're paired with, or empty. Discovery then only accepts that TXT "id".
 	void setPreferredBridge( const char *bridgeID );
+
+	// The current connection's handshake succeeded: prefer its address from now on.
+	void markAuthenticated();
+
+	// The current connection's handshake failed or stalled: skip its address for a while
+	// (unless it's the last one that authenticated). Call before disconnect().
+	void avoidCurrent();
 
 	// Drops the connection. No Disconnected message follows; the caller resets its own state.
 	// retrySoon skips the backoff (used to start over with a fresh hello).
@@ -68,15 +80,33 @@ private:
 
 	// Discovery task. Only it calls mDNS.
 	static void discoveryTask( void *arg );
+	struct Endpoint {
+		uint32_t address;   // IPv4, network byte order as lwIP keeps it
+		uint16_t port;
+	};
+
+	struct Avoided {
+		Endpoint endpoint;
+		int64_t  until;     // esp_timer_get_time(), which doesn't wrap
+	};
+
+	static constexpr size_t kMaxAvoided = 4;
+
+	struct Request {
+		char     preferred[64];
+		Endpoint lastGood;
+		Avoided  avoided[kMaxAvoided];
+	};
+
 	void runDiscovery();
-	bool discover( const char *preferred, char *uri, size_t size );
+	bool discover( const Request &request, Endpoint &found );
 
 	// Called by loop().
 	void requestDiscovery();
 	void abandonDiscovery();
-	bool takeDiscoveryResult( bool &found, char *uri, size_t size );
+	bool takeDiscoveryResult( bool &found, Endpoint &endpoint );
 
-	void connect( const char *uri );
+	void connect( const Endpoint &endpoint );
 	void teardown();
 	void scheduleRetry();
 
@@ -89,6 +119,9 @@ private:
 	uint32_t                      backoff_              = 1000;
 	char                          hostname_[32]         = {};
 	char                          preferred_[64]        = {};
+	Endpoint                      current_              = {};   // the connection's (or attempt's) address
+	Endpoint                      lastGood_             = {};   // where the last handshake succeeded
+	Avoided                       avoided_[kMaxAvoided] = {};
 
 	// Discovery requests and results, under discoveryMutex_. Results carry the request's id,
 	// so one that arrives after Wi-Fi dropped is ignored.
@@ -96,11 +129,11 @@ private:
 	std::mutex                    discoveryMutex_;
 	bool                          discovering_          = false;   // waiting for a result (loop() only)
 	uint32_t                      requestID_            = 0;
-	char                          requestPreferred_[64] = {};
+	Request                       request_              = {};
 	bool                          resultReady_          = false;
 	uint32_t                      resultID_             = 0;
 	bool                          resultFound_          = false;
-	char                          resultURI_[96]        = {};
+	Endpoint                      resultEndpoint_       = {};
 
 	// Reassembly of messages larger than the client's receive buffer. Only touched on
 	// the WebSocket task, and reset in teardown() after that task has stopped.

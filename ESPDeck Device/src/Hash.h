@@ -15,4 +15,5 @@ void hashToHex( const Hash &hash, char *out );
 // Parses exactly 32 hex characters.
 bool hashFromHex( const char *hex, Hash &out );
 
-Hash hashOf( const uint8_t *data, size_t length );
+// False if it couldn't be computed.
+bool hashOf( const uint8_t *data, size_t length, Hash &out );

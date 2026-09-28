@@ -10,6 +10,8 @@ namespace {
 	constexpr uint8_t  kPulseFloor     = 6;
 	constexpr uint8_t  kConnectedLevel = 64;    // 25%
 	constexpr uint8_t  kKeyLevel       = 140;
+	constexpr uint8_t  kPairingLevel   = 120;
+	constexpr uint32_t kPairingBlink   = 250;   // ms on, then off
 	constexpr uint32_t kPulsePeriod    = 2000;  // ms
 	constexpr uint32_t kKeyFlash       = 150;   // ms of white, at least, per key press
 	constexpr uint32_t kActivityHold   = 300;   // ms the data pulse lasts after the last message
@@ -81,6 +83,15 @@ void StatusLed::update( Mode mode, bool keyDown, bool asleep ) {
 			show( level, (uint8_t)( level * 3 / 4 ), 0 );    // yellow (a touch less green reads as yellow on WS2812s)
 			break;
 		}
+		case Mode::Pairing:
+			if( ( millis() / kPairingBlink ) % 2 == 0 )
+				show( kPairingLevel, 0, kPairingLevel );
+			else
+				show( 0, 0, 0 );
+			break;
+		case Mode::PairingConfirmed:
+			show( kPairingLevel, 0, kPairingLevel );
+			break;
 		case Mode::Connected:
 			if( before( activityUntil_ ) )
 				show( 0, (uint8_t)( kConnectedLevel + ( kActivityPeak - kConnectedLevel ) * pulse( kActivityPeriod ) ), 0 );

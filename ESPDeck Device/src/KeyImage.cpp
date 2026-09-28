@@ -120,7 +120,7 @@ bool KeyImage::drawQR( const char *text ) {
 	config.qrcode_ecc_level   = ESP_QRCODE_ECC_LOW;   // keeps the modules as large as possible
 	qrSize = 0;
 	if( esp_qrcode_generate( &config, text ) != ESP_OK || qrSize == 0 ) {
-		ESP_LOGW( TAG, "Couldn't encode a QR code for \"%s\"", text );
+		ESP_LOGW( TAG, "Couldn't encode a %u-character QR code", (unsigned)strlen( text ) );   // the text may be a password
 		return false;
 	}
 

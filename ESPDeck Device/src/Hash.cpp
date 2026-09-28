@@ -34,11 +34,10 @@ bool hashFromHex( const char *hex, Hash &out ) {
 	return true;
 }
 
-Hash hashOf( const uint8_t *data, size_t length ) {
+bool hashOf( const uint8_t *data, size_t length, Hash &out ) {
 	uint8_t digest[32];
-	mbedtls_sha256( data, length, digest, 0 );
-
-	Hash hash;
-	memcpy( hash.data(), digest, hash.size() );
-	return hash;
+	if( mbedtls_sha256( data, length, digest, 0 ) != 0 )
+		return false;
+	memcpy( out.data(), digest, out.size() );
+	return true;
 }

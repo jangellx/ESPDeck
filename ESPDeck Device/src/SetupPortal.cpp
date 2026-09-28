@@ -1,6 +1,6 @@
 // Arduino headers must precede anything that pulls in lwIP, or INADDR_NONE collides.
 #include <Arduino.h>
-#include <DNSServer.h>
+#include <AsyncUDP.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
@@ -11,8 +11,10 @@
 
 #include "cJSON.h"
 #include "esp_log.h"
+#include "esp_random.h"
 
 #include "Config.h"
+#include "Text.h"
 
 static const char *TAG = "Setup";
 
@@ -20,10 +22,61 @@ namespace {
 	const IPAddress kAddress( 192, 168, 4, 1 );
 	const IPAddress kNetmask( 255, 255, 255, 0 );
 	constexpr const char *kPortalURL      = "http://192.168.4.1/";
-	constexpr uint32_t    kConnectTimeout = 30000;   // ms before the page reports a failure
+	constexpr const char *kPortalOrigin   = "http://192.168.4.1";
+	constexpr uint32_t    kConnectTimeout = 30000;     // ms before the page reports a failure
+	constexpr uint32_t    kIdleTimeout    = 900000;    // ms without a phone on the access point
+	constexpr uint32_t    kStationCheck   = 1000;      // ms between looks for phones
 
-	DNSServer dnsServer;
+	// No 0/O, 1/l/i, in case the password is read off a phone and typed. 12 characters
+	// (59 bits) still fit the smallest keys' QR code (version 3).
+	constexpr const char *kPasswordAlphabet = "abcdefghjkmnpqrstuvwxyz23456789";
+	constexpr size_t      kPasswordLength   = 12;
+
 	WebServer webServer( 80 );
+	AsyncUDP  dnsSocket;
+
+	bool onAccessPoint( const IPAddress &address ) {
+		return ( (uint32_t)address & (uint32_t)kNetmask ) == ( (uint32_t)kAddress & (uint32_t)kNetmask );
+	}
+
+	// The captive-portal DNS server: every name is 192.168.4.1, for queries that arrive on the
+	// access point only. Runs on AsyncUDP's task.
+	void answerDNS( AsyncUDPPacket &packet ) {
+		constexpr size_t kHeader = 12;
+		const uint8_t   *query   = packet.data();
+		size_t           length  = packet.length();
+		if( packet.interface() != TCPIP_ADAPTER_IF_AP || length < kHeader + 5 || length > 512 )
+			return;
+		// A standard query (QR 0, opcode 0) with exactly one question.
+		if( ( query[2] & 0xF8 ) != 0 || query[4] != 0 || query[5] != 1 )
+			return;
+
+		size_t end = kHeader;
+		while( end < length && query[end] != 0 ) {
+			if( query[end] & 0xC0 )
+				return;   // no compression pointers in a question
+			end += query[end] + 1;
+		}
+		if( end + 5 > length )
+			return;
+		size_t   questionEnd = end + 5;   // the name's terminator, type and class
+		uint16_t type        = (uint16_t)( query[end + 1] << 8 | query[end + 2] );
+		bool     answer      = type == 1 || type == 255;   // A or ANY; others get no records
+
+		uint8_t header[kHeader] = {};
+		memcpy( header, query, 2 );                            // ID
+		header[2] = (uint8_t)( 0x84 | ( query[2] & 0x01 ) );   // response, authoritative, RD copied
+		header[5] = 1;                                         // one question
+		header[7] = answer ? 1 : 0;                            // and its answer, if any
+		static const uint8_t kRecord[] = { 0xC0, 0x0C, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4, 192, 168, 4, 1 };
+
+		AsyncUDPMessage reply( questionEnd + sizeof( kRecord ) );
+		reply.write( header, sizeof( header ) );
+		reply.write( query + kHeader, questionEnd - kHeader );
+		if( answer )
+			reply.write( kRecord, sizeof( kRecord ) );
+		packet.send( reply );
+	}
 
 	// The whole setup page: no external resources, since the phone has no internet here.
 	const char kPage[] = R"HTML(<!DOCTYPE html>
@@ -83,7 +136,7 @@ button:disabled{opacity:.5;cursor:default}
 </main>
 <script>
 const $=id=>document.getElementById(id),KEEP='\u0001keep',OTHER='\u0001other',sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let st={},nets=[],keepFor=null,nameEdited=false;
+let st={},nets=[],keepFor=null,nameEdited=false,saveError='';
 function bars(r){const n=r>-60?4:r>-70?3:r>-80?2:1;return '▂▄▆█'.slice(0,n)+'▁'.repeat(4-n)}
 function opt(v,t){const o=document.createElement('option');o.value=v;o.textContent=t;$('net').appendChild(o)}
 function fillNets(){
@@ -122,6 +175,7 @@ function render(){
  $('pairtext').textContent=st.paired?'Paired with ESPDeck Bridge '+st.bridge+'.':'Not paired. Pair it from ESPDeck Bridge on your Mac.';
  $('unpair').classList.toggle('hidden',!st.paired);
  $('fw').textContent='Firmware '+st.firmware;
+ if(st.saveError!==saveError){saveError=st.saveError;err(saveError)}
  if(keepFor!==(st.configured?st.ssid:null))fillNets();
 }
 async function poll(){try{st=await(await fetch('/status')).json();render()}catch(e){}setTimeout(poll,1500)}
@@ -192,23 +246,28 @@ void SetupPortal::start() {
 	WiFi.mode( WIFI_AP_STA );
 	WiFi.setSleep( false );
 	WiFi.softAPConfig( kAddress, kAddress, kNetmask );
-	if( !WiFi.softAP( apSSID_, settings_.apPassword() ) )
+	makePassword();   // after WiFi.mode(): with the radio on, esp_random() is truly random
+	if( !WiFi.softAP( apSSID_, apPassword_, 1, 0, 4, false, WIFI_AUTH_WPA2_WPA3_PSK ) )
 		ESP_LOGE( TAG, "Starting the access point failed" );
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL( 5, 4, 2 )
 	// DHCP option 114 (RFC 8910) points newer phones straight at the page.
 	WiFi.AP.enableDhcpCaptivePortal();
 #endif
 
-	dnsServer.start( 53, "*", kAddress );
+	dnsSocket.onPacket( answerDNS );
+	if( !dnsSocket.listen( 53 ) )
+		ESP_LOGE( TAG, "Starting the DNS server failed" );
 
 	if( !routesAdded_ ) {
-		webServer.on( "/", HTTP_GET, [this]() { handleRoot(); } );
-		webServer.on( "/scan", HTTP_GET, [this]() { handleScan(); } );
-		webServer.on( "/status", HTTP_GET, [this]() { handleStatus(); } );
-		webServer.on( "/save", HTTP_POST, [this]() { handleSave(); } );
-		webServer.on( "/exit", HTTP_POST, [this]() { handleExit(); } );
-		webServer.on( "/unpair", HTTP_POST, [this]() { handleUnpair(); } );
-		webServer.on( "/reset", HTTP_POST, [this]() { handleReset(); } );
+		static const char *kHeaders[] = { "Origin" };
+		webServer.collectHeaders( kHeaders, 1 );
+		webServer.on( "/", HTTP_GET, [this]() { if( allowRequest( false ) ) handleRoot(); } );
+		webServer.on( "/scan", HTTP_GET, [this]() { if( allowRequest( false ) ) handleScan(); } );
+		webServer.on( "/status", HTTP_GET, [this]() { if( allowRequest( false ) ) handleStatus(); } );
+		webServer.on( "/save", HTTP_POST, [this]() { if( allowRequest( true ) ) handleSave(); } );
+		webServer.on( "/exit", HTTP_POST, [this]() { if( allowRequest( true ) ) handleExit(); } );
+		webServer.on( "/unpair", HTTP_POST, [this]() { if( allowRequest( true ) ) handleUnpair(); } );
+		webServer.on( "/reset", HTTP_POST, [this]() { if( allowRequest( true ) ) handleReset(); } );
 		webServer.onNotFound( [this]() { handleNotFound(); } );
 		routesAdded_ = true;
 	}
@@ -216,9 +275,12 @@ void SetupPortal::start() {
 
 	active_        = true;
 	exitRequested_ = false;
+	idleTimedOut_  = false;
+	lastActivity_  = millis();
 	connecting_    = false;
 	joined_        = false;
 	timedOut_      = false;
+	saveError_[0]  = '\0';
 	startScan();
 	ESP_LOGI( TAG, "Setup mode: join %s and open %s", apSSID_, kPortalURL );
 }
@@ -228,7 +290,7 @@ void SetupPortal::stop() {
 		return;
 
 	webServer.stop();
-	dnsServer.stop();
+	dnsSocket.close();
 	WiFi.scanDelete();
 	WiFi.softAPdisconnect( false );
 	WiFi.mode( WIFI_STA );
@@ -236,7 +298,32 @@ void SetupPortal::stop() {
 	networks_.clear();
 	scanning_ = false;
 	active_   = false;
+	memset( apPassword_, 0, sizeof( apPassword_ ) );
+	memset( pendingPassword_, 0, sizeof( pendingPassword_ ) );
+	if( connecting_ ) {
+		connecting_ = false;
+		restoreNetwork();
+	}
 	ESP_LOGI( TAG, "Left setup mode" );
+}
+
+// Rejection sampling keeps every character equally likely.
+void SetupPortal::makePassword() {
+	size_t alphabet = strlen( kPasswordAlphabet );
+	size_t limit    = 256 - 256 % alphabet;
+	for( size_t i = 0; i < kPasswordLength; ) {
+		uint8_t random;
+		esp_fill_random( &random, 1 );
+		if( random < limit )
+			apPassword_[i++] = kPasswordAlphabet[random % alphabet];
+	}
+	apPassword_[kPasswordLength] = '\0';
+}
+
+bool SetupPortal::takeIdleTimeout() {
+	bool timedOut = idleTimedOut_;
+	idleTimedOut_ = false;
+	return timedOut;
 }
 
 bool SetupPortal::takeExitRequest() {
@@ -251,10 +338,20 @@ void SetupPortal::loop() {
 	if( !active_ )
 		return;
 
-	dnsServer.processNextRequest();
 	webServer.handleClient();
 	collectScan();
 	trackConnection();
+
+	uint32_t now = millis();
+	if( now - lastStationCheck_ >= kStationCheck ) {
+		lastStationCheck_ = now;
+		if( WiFi.softAPgetStationNum() > 0 || connecting_ || joined_ )
+			lastActivity_ = now;
+		else if( now - lastActivity_ >= kIdleTimeout && canExit() && !idleTimedOut_ && !exitRequested_ ) {
+			ESP_LOGI( TAG, "No phone on the access point for %u minutes", (unsigned)( kIdleTimeout / 60000 ) );
+			idleTimedOut_ = true;
+		}
+	}
 }
 
 void SetupPortal::beginConnecting() {
@@ -264,21 +361,41 @@ void SetupPortal::beginConnecting() {
 	connecting_   = true;
 	joined_       = false;
 	timedOut_     = false;
+	saveError_[0] = '\0';
 	connectStart_ = millis();
-	WiFi.begin( settings_.ssid(), settings_.password() );
-	ESP_LOGI( TAG, "Joining %s", settings_.ssid() );
+	WiFi.begin( pendingSSID_, pendingPassword_ );
+	char ssid[40];
+	ESP_LOGI( TAG, "Joining %s", Text::printable( pendingSSID_, ssid, sizeof( ssid ) ) );
+}
+
+// Back to the saved network, if there is one, after a failed attempt.
+void SetupPortal::restoreNetwork() {
+	if( settings_.hasCredentials() )
+		WiFi.begin( settings_.ssid(), settings_.password() );
+	else
+		WiFi.disconnect( false, false );
 }
 
 void SetupPortal::trackConnection() {
 	uint32_t now = millis();
 	if( connecting_ ) {
+		char ssid[40];
+		Text::printable( pendingSSID_, ssid, sizeof( ssid ) );
 		if( gotIP_ ) {
 			connecting_ = false;
 			joined_     = true;
 			joinedAt_   = now;
-			ESP_LOGI( TAG, "Joined %s as %s", settings_.ssid(), WiFi.localIP().toString().c_str() );
+			settings_.setCredentials( pendingSSID_, pendingPassword_ );
+			settings_.markCredentialsWork();
+			memset( pendingPassword_, 0, sizeof( pendingPassword_ ) );
+			ESP_LOGI( TAG, "Joined %s as %s", ssid, WiFi.localIP().toString().c_str() );
 		} else if( now - connectStart_ >= kConnectTimeout ) {
-			timedOut_ = true;
+			timedOut_   = true;
+			connecting_ = false;
+			snprintf( saveError_, sizeof( saveError_ ), "Couldn't join that network: %s The previous settings are kept.", errorText() );
+			memset( pendingPassword_, 0, sizeof( pendingPassword_ ) );
+			ESP_LOGW( TAG, "Couldn't join %s; back to the saved network", ssid );
+			restoreNetwork();
 		}
 	}
 	if( joined_ && now - joinedAt_ >= kSetupExitDelay ) {
@@ -288,13 +405,13 @@ void SetupPortal::trackConnection() {
 }
 
 const char *SetupPortal::errorText() const {
-	if( WiFi.status() == WL_CONNECTED && !connecting_ )
+	if( WiFi.status() == WL_CONNECTED && !connecting_ && !timedOut_ )
 		return "";
 
 	switch( lastReason_ ) {
 		case 0:
 		case WIFI_REASON_ASSOC_LEAVE:   // our own disconnect before joining another network
-			return timedOut_ ? "Couldn't connect. Check the network name and password." : "";
+			return timedOut_ ? "Check the network name and password." : "";
 		case WIFI_REASON_AUTH_FAIL:
 		case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
 		case WIFI_REASON_HANDSHAKE_TIMEOUT:
@@ -358,6 +475,34 @@ void SetupPortal::collectScan() {
 
 // MARK: - HTTP
 
+// Requests from the home network, from pages that reached 192.168.4.1 by another name, and
+// POSTs from other origins get an error. Answers them itself when it returns false.
+bool SetupPortal::allowRequest( bool post ) {
+	NetworkClient &client = webServer.client();
+	if( client.localIP() != kAddress || !onAccessPoint( client.remoteIP() ) ) {
+		webServer.send( 403, "text/plain", "" );
+		return false;
+	}
+	lastActivity_ = millis();
+
+	String host = webServer.hostHeader();
+	if( host != "192.168.4.1" && host != "192.168.4.1:80" ) {
+		if( post ) {
+			webServer.send( 403, "text/plain", "" );
+		} else {
+			webServer.sendHeader( "Location", kPortalURL, true );
+			webServer.sendHeader( "Cache-Control", "no-store" );
+			webServer.send( 302, "text/plain", "" );
+		}
+		return false;
+	}
+	if( post && webServer.hasHeader( "Origin" ) && webServer.header( "Origin" ) != kPortalOrigin ) {
+		webServer.send( 403, "text/plain", "" );
+		return false;
+	}
+	return true;
+}
+
 void SetupPortal::sendJSON( int code, const char *json ) {
 	webServer.sendHeader( "Cache-Control", "no-store" );
 	webServer.send( code, "application/json", json );
@@ -395,7 +540,8 @@ void SetupPortal::handleStatus() {
 	cJSON_AddBoolToObject( json, "configured", settings_.hasCredentials() );
 	cJSON_AddBoolToObject( json, "connecting", connecting_ );
 	cJSON_AddBoolToObject( json, "connected", connected );
-	addString( json, "ssid", settings_.ssid() );
+	addString( json, "ssid", connecting_ ? pendingSSID_ : settings_.ssid() );
+	addString( json, "saveError", saveError_ );
 	addString( json, "ip", connected ? WiFi.localIP().toString().c_str() : "" );
 	addString( json, "name", settings_.name() );
 	addString( json, "error", errorText() );
@@ -417,8 +563,10 @@ void SetupPortal::handleSave() {
 	name.trim();
 
 	const char *error = nullptr;
-	if( name.isEmpty() || name.length() > Settings::kMaxName )
-		error = "Names have 1 to 32 characters.";
+	if( name.isEmpty() )
+		error = "Enter a device name.";
+	else if( !Text::isValidName( name.c_str(), Settings::kMaxName ) )
+		error = "That name is too long, or has characters that aren't allowed.";
 	else if( ssid.length() > 32 )
 		error = "Network names have at most 32 characters.";
 	else if( !ssid.isEmpty() && !password.isEmpty() && ( password.length() < 8 || password.length() > 63 ) )
@@ -436,7 +584,8 @@ void SetupPortal::handleSave() {
 
 	settings_.setName( name.c_str() );
 	if( !ssid.isEmpty() ) {
-		settings_.setCredentials( ssid.c_str(), password.c_str() );
+		strlcpy( pendingSSID_, ssid.c_str(), sizeof( pendingSSID_ ) );
+		strlcpy( pendingPassword_, password.c_str(), sizeof( pendingPassword_ ) );
 		beginConnecting();
 	}
 	sendJSON( 200, "{\"ok\":true}" );
@@ -473,6 +622,12 @@ bool SetupPortal::takeResetRequest() {
 // Captive-network probes (/hotspot-detect.html, /generate_204, /ncsi.txt, …) get a redirect
 // instead of the answer they expect, which makes phones open the page.
 void SetupPortal::handleNotFound() {
+	NetworkClient &client = webServer.client();
+	if( client.localIP() != kAddress || !onAccessPoint( client.remoteIP() ) ) {
+		webServer.send( 403, "text/plain", "" );
+		return;
+	}
+	lastActivity_ = millis();
 	webServer.sendHeader( "Location", kPortalURL, true );
 	webServer.sendHeader( "Cache-Control", "no-store" );
 	webServer.send( 302, "text/plain", "" );

@@ -69,11 +69,11 @@ void KeyUploader::run() {
 	uint8_t next = 0;   // round-robin, so one busy key can't starve the others
 	while( true ) {
 		ImagePtr image;
-		bool     hasHash;
-		Hash     hash;
-		uint32_t queuedAt;
-		uint32_t generation;
-		uint8_t  key;
+		bool     hasHash    = false;
+		Hash     hash       = {};
+		uint32_t queuedAt   = 0;
+		uint32_t generation = 0;
+		uint8_t  key        = 0;
 		{
 			std::lock_guard<std::mutex> lock( mutex_ );
 			if( !pending_ ) {

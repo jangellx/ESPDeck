@@ -5,20 +5,22 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 
-#include "bootloader_random.h"
 #include "esp_log.h"
 #include "esp_mac.h"
-#include "esp_random.h"
+
+#include "Text.h"
 
 static const char *TAG = "Settings";
 
 namespace {
 	constexpr const char *kNamespace = "espdeck";
 
-	// No 0/O, 1/l/i: the password is read off a phone screen or typed by hand.
-	constexpr const char *kPasswordAlphabet = "abcdefghjkmnpqrstuvwxyz23456789";
-	constexpr size_t      kPasswordLength   = 8;
+	// The upload password hash. Firmware before 4.0.0 got it from the bridge in the clear and
+	// kept it under "otaHash"; that one is dropped, so updating turns uploads off once.
+	constexpr const char *kOTAHashKey    = "otaHash4";
+	constexpr const char *kOldOTAHashKey = "otaHash";
 
 	Preferences preferences;
 
@@ -44,30 +46,25 @@ void Settings::begin() {
 	loadString( "password", password_, sizeof( password_ ) );
 	verified_ = preferences.getBool( "verified", false );
 	loadString( "name", name_, sizeof( name_ ) );
-	loadString( "apPassword", apPassword_, sizeof( apPassword_ ) );
 	loadString( "orientation", orientation_, sizeof( orientation_ ) );
 	sleepTimeout_ = preferences.getUInt( "sleepTimeout", 0 );
 	loadString( "bridgeID", bridgeID_, sizeof( bridgeID_ ) );
-	loadString( "otaHash", otaPasswordHash_, sizeof( otaPasswordHash_ ) );
+	loadString( kOTAHashKey, otaPasswordHash_, sizeof( otaPasswordHash_ ) );
 	if( strlen( otaPasswordHash_ ) != 64 )
 		otaPasswordHash_[0] = '\0';
 	paired_ = bridgeID_[0] && preferences.isKey( "pairingKey" )
 	          && preferences.getBytes( "pairingKey", pairingKey_, sizeof( pairingKey_ ) ) == sizeof( pairingKey_ );
 
-	if( !name_[0] ) {
-		snprintf( name_, sizeof( name_ ), "ESPDeck %s", suffix_ );
-		preferences.putString( "name", name_ );
+	// Left behind by older firmware: the setup password (now made fresh each time) and the
+	// upload password hash that travelled in the clear.
+	for( const char *key : { "apPassword", kOldOTAHashKey } ) {
+		if( preferences.isKey( key ) )
+			preferences.remove( key );
 	}
 
-	if( strlen( apPassword_ ) != kPasswordLength ) {
-		// Wi-Fi isn't running yet, so esp_random() needs another entropy source to be random.
-		bootloader_random_enable();
-		size_t alphabet = strlen( kPasswordAlphabet );
-		for( size_t i = 0; i < kPasswordLength; i++ )
-			apPassword_[i] = kPasswordAlphabet[esp_random() % alphabet];
-		apPassword_[kPasswordLength] = '\0';
-		bootloader_random_disable();
-		preferences.putString( "apPassword", apPassword_ );
+	if( !Text::isValidName( name_, kMaxName ) ) {
+		snprintf( name_, sizeof( name_ ), "ESPDeck %s", suffix_ );
+		preferences.putString( "name", name_ );
 	}
 }
 
@@ -88,7 +85,7 @@ void Settings::markCredentialsWork() {
 }
 
 bool Settings::setName( const char *name ) {
-	if( !name || !name[0] || strlen( name ) > kMaxName )
+	if( !Text::isValidName( name, kMaxName ) )
 		return false;
 	if( strcmp( name, name_ ) != 0 ) {
 		strlcpy( name_, name, sizeof( name_ ) );
@@ -101,7 +98,7 @@ bool Settings::setOTAPasswordHash( const char *hash ) {
 	if( !hash || !hash[0] ) {
 		if( hasOTAPassword() ) {
 			otaPasswordHash_[0] = '\0';
-			preferences.remove( "otaHash" );
+			preferences.remove( kOTAHashKey );
 		}
 		return true;
 	}
@@ -110,7 +107,7 @@ bool Settings::setOTAPasswordHash( const char *hash ) {
 	strlcpy( otaPasswordHash_, hash, sizeof( otaPasswordHash_ ) );
 	for( char *c = otaPasswordHash_; *c; c++ )
 		*c = (char)tolower( *c );
-	preferences.putString( "otaHash", otaPasswordHash_ );
+	preferences.putString( kOTAHashKey, otaPasswordHash_ );
 	return true;
 }
 
@@ -136,6 +133,7 @@ bool Settings::setPairing( const uint8_t key[32], const char *bridgeID ) {
 	paired_ = true;
 	preferences.putBytes( "pairingKey", pairingKey_, sizeof( pairingKey_ ) );
 	preferences.putString( "bridgeID", bridgeID_ );
+	setOTAPasswordHash( nullptr );   // a new bridge decides about uploads afresh
 	return true;
 }
 
@@ -145,4 +143,5 @@ void Settings::clearPairing() {
 	paired_      = false;
 	preferences.remove( "pairingKey" );
 	preferences.remove( "bridgeID" );
+	setOTAPasswordHash( nullptr );
 }

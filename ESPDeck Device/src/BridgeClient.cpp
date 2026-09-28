@@ -10,9 +10,11 @@
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "mdns.h"
 
 #include "Config.h"
+#include "Text.h"
 
 static const char *TAG = "Bridge";
 
@@ -26,6 +28,7 @@ namespace {
 
 	constexpr uint32_t kQueryTimeout    = 3000;    // ms per mDNS query
 	constexpr size_t   kMaxResults      = 20;
+	constexpr uint32_t kAvoidTime       = 600000;  // ms an address that failed a handshake is skipped
 
 	constexpr uint8_t  kOpcodeText      = 0x01;
 	constexpr uint8_t  kOpcodeBinary    = 0x02;
@@ -66,11 +69,11 @@ void BridgeClient::loop() {
 	switch( state_ ) {
 		case State::Idle:
 			if( discovering_ ) {
-				char uri[96];
-				bool found;
-				if( takeDiscoveryResult( found, uri, sizeof( uri ) ) ) {
+				Endpoint endpoint;
+				bool     found;
+				if( takeDiscoveryResult( found, endpoint ) ) {
 					if( found )
-						connect( uri );
+						connect( endpoint );
 					else
 						scheduleRetry();
 				}
@@ -98,7 +101,9 @@ void BridgeClient::requestDiscovery() {
 	{
 		std::lock_guard<std::mutex> lock( discoveryMutex_ );
 		requestID_++;
-		strlcpy( requestPreferred_, preferred_, sizeof( requestPreferred_ ) );
+		strlcpy( request_.preferred, preferred_, sizeof( request_.preferred ) );
+		request_.lastGood = lastGood_;
+		memcpy( request_.avoided, avoided_, sizeof( avoided_ ) );
 	}
 	discovering_ = true;
 	xTaskNotifyGive( discoveryTask_ );
@@ -111,14 +116,14 @@ void BridgeClient::abandonDiscovery() {
 	discovering_ = false;
 }
 
-bool BridgeClient::takeDiscoveryResult( bool &found, char *uri, size_t size ) {
+bool BridgeClient::takeDiscoveryResult( bool &found, Endpoint &endpoint ) {
 	std::lock_guard<std::mutex> lock( discoveryMutex_ );
 	if( !resultReady_ || resultID_ != requestID_ )
 		return false;
 	resultReady_ = false;
 	discovering_ = false;
 	found        = resultFound_;
-	strlcpy( uri, resultURI_, size );
+	endpoint     = resultEndpoint_;
 	return true;
 }
 
@@ -132,11 +137,11 @@ void BridgeClient::runDiscovery() {
 		ulTaskNotifyTake( pdTRUE, portMAX_DELAY );
 
 		uint32_t id;
-		char     preferred[64];
+		Request  request;
 		{
 			std::lock_guard<std::mutex> lock( discoveryMutex_ );
-			id = requestID_;
-			strlcpy( preferred, requestPreferred_, sizeof( preferred ) );
+			id      = requestID_;
+			request = request_;
 		}
 
 		if( !started ) {
@@ -144,14 +149,14 @@ void BridgeClient::runDiscovery() {
 			if( !started )
 				ESP_LOGW( TAG, "mDNS failed to start" );
 		}
-		char uri[96] = {};
-		bool found   = started && discover( preferred, uri, sizeof( uri ) );
+		Endpoint endpoint = {};
+		bool     found    = started && discover( request, endpoint );
 
 		std::lock_guard<std::mutex> lock( discoveryMutex_ );
-		resultReady_ = true;
-		resultID_    = id;
-		resultFound_ = found;
-		strlcpy( resultURI_, uri, sizeof( resultURI_ ) );
+		resultReady_    = true;
+		resultID_       = id;
+		resultFound_    = found;
+		resultEndpoint_ = endpoint;
 	}
 }
 
@@ -169,10 +174,11 @@ namespace {
 	}
 }
 
-// The bridge we're paired with if it's there (TXT "id"), otherwise the first one found.
-// A Mac on both Ethernet and Wi-Fi answers with several addresses; one on our own subnet
-// is preferred.
-bool BridgeClient::discover( const char *preferred, char *uri, size_t size ) {
+// Paired: only the bridge we're paired with (TXT "id"), preferably at the address where it
+// last authenticated. Unpaired: the first one found. A Mac on both Ethernet and Wi-Fi
+// answers with several addresses; one on our own subnet is preferred. Addresses being
+// avoided are skipped.
+bool BridgeClient::discover( const Request &request, Endpoint &found ) {
 	mdns_result_t *results = nullptr;
 	esp_err_t      err     = mdns_query_ptr( "_deckbridge", "_tcp", kQueryTimeout, kMaxResults, &results );
 	if( err != ESP_OK ) {
@@ -183,16 +189,27 @@ bool BridgeClient::discover( const char *preferred, char *uri, size_t size ) {
 	uint32_t local = (uint32_t)WiFi.localIP();
 	uint32_t mask  = (uint32_t)WiFi.subnetMask();
 
-	// Score each IPv4 address: the paired bridge counts most, then being on our subnet.
-	const mdns_result_t *bestResult = nullptr;
+	// Score each IPv4 address: the last good one counts most, then being on our subnet.
+	const mdns_result_t *bestResult  = nullptr;
 	esp_ip4_addr_t       bestAddress = {};
 	int                  bestScore   = -1;
+	int64_t              now         = esp_timer_get_time();
 	for( const mdns_result_t *result = results; result; result = result->next ) {
-		bool paired = preferred[0] && strcasecmp( txtValue( result, "id" ), preferred ) == 0;
+		if( request.preferred[0] && strcasecmp( txtValue( result, "id" ), request.preferred ) != 0 )
+			continue;
 		for( const mdns_ip_addr_t *address = result->addr; address; address = address->next ) {
 			if( address->addr.type != ESP_IPADDR_TYPE_V4 || address->addr.u_addr.ip4.addr == 0 )
 				continue;
-			int score = ( paired ? 2 : 0 ) + ( sameSubnet( address->addr.u_addr.ip4, local, mask ) ? 1 : 0 );
+			uint32_t ip      = address->addr.u_addr.ip4.addr;
+			bool     avoided = false;
+			for( const Avoided &entry : request.avoided ) {
+				if( entry.endpoint.address == ip && entry.endpoint.port == result->port && entry.until > now )
+					avoided = true;
+			}
+			if( avoided )
+				continue;
+			bool lastGood = request.lastGood.address == ip && request.lastGood.port == result->port;
+			int  score    = ( lastGood ? 2 : 0 ) + ( sameSubnet( address->addr.u_addr.ip4, local, mask ) ? 1 : 0 );
 			if( score > bestScore ) {
 				bestScore   = score;
 				bestResult  = result;
@@ -201,21 +218,26 @@ bool BridgeClient::discover( const char *preferred, char *uri, size_t size ) {
 		}
 	}
 
-	bool found = bestResult != nullptr;
-	if( found ) {
-		char address[16];
-		snprintf( address, sizeof( address ), IPSTR, IP2STR( &bestAddress ) );
-		snprintf( uri, size, "ws://%s:%u/", address, bestResult->port );
-		ESP_LOGI( TAG, "Found %s (id %s) at %s%s", bestResult->hostname ? bestResult->hostname : "?", txtValue( bestResult, "id" ), uri,
+	bool ok = bestResult != nullptr;
+	if( ok ) {
+		found = { bestAddress.addr, bestResult->port };
+		char host[40], id[48];
+		ESP_LOGI( TAG, "Found %s (id %s) at " IPSTR ":%u%s", Text::printable( bestResult->hostname, host, sizeof( host ) ),
+				  Text::printable( txtValue( bestResult, "id" ), id, sizeof( id ) ), IP2STR( &bestAddress ), bestResult->port,
 				  sameSubnet( bestAddress, local, mask ) ? "" : " (not on our subnet)" );
 	} else {
-		ESP_LOGI( TAG, "ESPDeck Bridge not found" );
+		ESP_LOGI( TAG, "%s not found", request.preferred[0] ? "Our ESPDeck Bridge" : "ESPDeck Bridge" );
 	}
 	mdns_query_results_free( results );
-	return found;
+	return ok;
 }
 
-void BridgeClient::connect( const char *uri ) {
+void BridgeClient::connect( const Endpoint &endpoint ) {
+	esp_ip4_addr_t address = { endpoint.address };
+	char           uri[40];
+	snprintf( uri, sizeof( uri ), "ws://" IPSTR ":%u/", IP2STR( &address ), endpoint.port );
+	current_ = endpoint;
+
 	esp_websocket_client_config_t config = {};
 	config.uri                    = uri;
 	config.buffer_size            = 4096;
@@ -268,6 +290,26 @@ void BridgeClient::scheduleRetry() {
 
 void BridgeClient::setPreferredBridge( const char *bridgeID ) {
 	strlcpy( preferred_, bridgeID ? bridgeID : "", sizeof( preferred_ ) );
+}
+
+void BridgeClient::markAuthenticated() {
+	lastGood_ = current_;
+}
+
+void BridgeClient::avoidCurrent() {
+	if( current_.address == 0 || ( current_.address == lastGood_.address && current_.port == lastGood_.port ) )
+		return;
+
+	// Replace the entry that expires first.
+	Avoided *slot = &avoided_[0];
+	for( Avoided &entry : avoided_ ) {
+		if( entry.until < slot->until )
+			slot = &entry;
+	}
+	esp_ip4_addr_t address = { current_.address };
+	ESP_LOGW( TAG, "Avoiding " IPSTR ":%u for %u minutes", IP2STR( &address ), current_.port, (unsigned)( kAvoidTime / 60000 ) );
+	slot->endpoint = current_;
+	slot->until    = esp_timer_get_time() + (int64_t)kAvoidTime * 1000;
 }
 
 void BridgeClient::disconnect( bool retrySoon ) {

@@ -39,7 +39,8 @@ public:
 	bool begin();
 
 	// Stops the writer task after its current operation (before erasing the filesystem).
-	void stop();
+	// False if it didn't stop in time; the filesystem is still in use then.
+	bool stop();
 
 	bool has( const Hash &hash ) const;
 

@@ -26,3 +26,11 @@ CONFIG_COMPILER_HIDE_PATHS_MACROS=n
 # OTA updates: a new image must mark itself valid (after authenticating with its bridge) or
 # the bootloader rolls back to the previous one
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Stack smashing protection for functions with arrays on the stack (the network parsers)
+CONFIG_COMPILER_STACK_CHECK_MODE_NORM=y
+
+# The loop task is subscribed to the task watchdog (enableLoopWDT()); a loop pass stuck for
+# this long restarts the device
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=20
+CONFIG_ESP_TASK_WDT_PANIC=y

@@ -19,7 +19,7 @@ inline const char *firmwareBuild() {
 	return hex;
 }
 
-constexpr int         kProtocolVersion = 3;
+constexpr int         kProtocolVersion = 4;
 
 // Bonjour service advertised by ESPDeck Bridge on the Mac (without the leading underscores;
 // ESPmDNS adds them).
@@ -48,6 +48,11 @@ constexpr uint32_t kConnectingDotColor = 0x0A84FF;   // system blue          // 
 
 // Security and firmware updates
 constexpr uint32_t kPairingTimeout    = 120000;      // ms before the deck cancels a pairing
+constexpr uint32_t kPairingKeyGuard   = 1000;        // ms after the code appears before keys count
+constexpr uint32_t kConfirmHold       = 1500;        // ms Confirm is held to confirm a pairing
+constexpr uint32_t kAuthTimeout       = 10000;       // ms a paired device waits for the bridge's auth
+constexpr size_t   kMaxPlainText      = 2048;        // bytes; longer unauthenticated messages are ignored
+constexpr int      kMaxJSONDepth      = 8;           // arrays and objects; deeper messages are ignored
 constexpr uint32_t kRollbackDeadline  = 600000;      // ms after boot for a new image to authenticate
 constexpr uint32_t kRestartDelay      = 1000;        // ms after `installed` before restarting
 constexpr size_t   kMaxFirmwareChunk  = 16 * 1024;
