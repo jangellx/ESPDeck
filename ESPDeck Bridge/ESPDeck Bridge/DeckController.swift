@@ -237,6 +237,12 @@ final class DeckController {
 		send( .setupMode( enabled ), to: id )
 	}
 
+	/// Allows uploads from PlatformIO with this password, or turns them off (nil). Only its
+	/// hash is sent, and nothing is kept: PlatformIO reads the password from ota_password.txt.
+	func setDevOTA( device id: String, password: String? ) {
+		send( .devOTA( passwordHash: password.map( DevOTAPassword.hash ) ), to: id )
+	}
+
 	// MARK: - Demo decks
 
 	/// Adds a virtual deck of the given model and returns its ID.

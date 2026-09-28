@@ -129,12 +129,13 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 **Status object:**
 - `asleep` (bool)
 - `setupMode` (bool)
+- `devOTA` (bool, firmware 3.2.0 and later): uploads from PlatformIO (ArduinoOTA) are allowed, i.e. the device has a password for them
 
 ```json
 {"type":"hello","protocol":3,"id":"f4:12:fa:00:00:00","name":"Office Deck","firmware":"3.1.0","elfSHA256":"29b53312…","nonce":"5f1c…","pairedBridge":"0c6e0a52-…","cached":["9f86d081884c7d659a2feaa0c55ad015"],
  "deck":{"connected":true,"model":"Stream Deck Mini","pid":99,"serial":"BL12H1A12345","firmware":"1.00.004","rows":2,"cols":3,"keySize":80,"format":"bmp","transform":"transpose"},
  "settings":{"orientation":"auto","sleepTimeout":600,"brightness":80,"ip":"192.168.1.44"},
- "status":{"asleep":false,"setupMode":false}}
+ "status":{"asleep":false,"setupMode":false,"devOTA":false}}
 ```
 
 ### Mac → ESP32
@@ -149,6 +150,7 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 | `sleep`, `wake` | | sleep or wake the deck now |
 | `setupMode` | `enabled` (bool) | enter or leave setup mode |
 | `unpair` | | delete the pairing key; the connection then closes |
+| `devOTA` | `passwordHash`: the SHA-256 of the upload password as 64 hex digits, or `""` | firmware 3.2.0 and later. Allows uploads from PlatformIO over Wi-Fi (ArduinoOTA, UDP port 3232) with that password, or with `""` turns them off; the listener starts or stops at once. Only the hash is stored, and it's what ArduinoOTA's `setPasswordHash()` takes and espota derives from the password. The device answers with `status` (reason `bridge`), whose `devOTA` shows the result. While allowed, a new image is marked valid once it's on Wi-Fi instead of after the first authenticated session. A factory reset removes the password. |
 | `factoryReset` | | erase NVS (Wi-Fi, name, pairing, settings, the setup network's password) and the image cache, then restart; the device comes back in setup mode. The firmware stays. The setup page offers the same reset. |
 | `firmwareBegin` | `version`, `size` (bytes), `sha256` (hex of the whole image) | start a firmware update; answered with `firmwareStatus` `ready` or `error`. A `firmwareBegin` during an update abandons that update and starts over (firmware 3.0.3 and later; earlier firmware answers `error`) |
 | `firmwareEnd` | | all data sent; the ESP32 verifies the SHA-256, answers `installed` or `error`, and on success restarts about 1 second later |

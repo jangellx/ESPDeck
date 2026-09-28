@@ -222,6 +222,8 @@ struct DeviceSettingsView: View {
 			} footer: {
 				Text( "Setup mode shows QR codes on the deck for joining the device's own Wi-Fi network and opening its setup page, where you can change its Wi-Fi network and name. You can also enter it by holding the top-left and bottom-right keys for 5 seconds.\n\nFactory Reset erases the device itself. Forget Device removes it from ESPDeck Bridge (and unpairs it) but leaves its Wi-Fi settings alone." )
 			}
+
+			DeveloperSection( controller: controller, device: device )
 		}
 		.formStyle( .grouped )
 	}
@@ -256,6 +258,56 @@ struct DeviceSettingsView: View {
 		} set: {
 			controller.setSleepTimeout( device: deviceID, seconds: $0 )
 		}
+	}
+}
+
+/// Uploads from PlatformIO over Wi-Fi (ArduinoOTA), off until a password is set. The
+/// password goes to the device only as its SHA-256, and isn't kept here.
+private struct DeveloperSection: View {
+	let controller : DeckController
+	let device     : DeckDevice
+
+	@State private var password = ""
+
+	private static let firstVersion = Version( "3.2.0" )!
+
+	var body: some View {
+		let supported = device.firmware.flatMap( Version.init ).map { $0 >= Self.firstVersion } ?? false
+		let enabled   = device.status.devOTA ?? false
+		let problem   = DevOTAPassword.problem( password )
+
+		Section {
+			Toggle( "Allow uploads from PlatformIO", isOn: Binding {
+				enabled
+			} set: { on in
+				if !on {
+					controller.setDevOTA( device: device.id, password: nil )
+				} else if problem == nil {
+					controller.setDevOTA( device: device.id, password: password )
+					password = ""
+				}
+			} )
+			.disabled( !enabled && problem != nil )
+
+			if !enabled {
+				SecureField( "Password", text: $password, prompt: Text( "At least 8 characters" ) )
+				if let problem, !password.isEmpty {
+					Text( problem )
+						.font( .caption )
+						.foregroundStyle( .secondary )
+				}
+			}
+			if device.isOnline && !supported {
+				Text( "Needs firmware 3.2.0 or later." )
+					.font( .caption )
+					.foregroundStyle( .secondary )
+			}
+		} header: {
+			SectionHeader( "Developer" )
+		} footer: {
+			Text( "Lets `pio run -t upload` send firmware to this device over Wi-Fi, with the same password in ota_password.txt. It's for development: anyone on your network with the password can replace the firmware, so it's off by default." )
+		}
+		.disabled( !device.isOnline || !supported )
 	}
 }
 

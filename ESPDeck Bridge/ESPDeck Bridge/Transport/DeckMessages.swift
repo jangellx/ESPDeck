@@ -42,6 +42,8 @@ struct DeviceReportedSettings: Codable, Equatable {
 struct DeviceStatus: Codable, Equatable {
 	var asleep    = false
 	var setupMode = false
+	/// Uploads from PlatformIO are allowed (firmware 3.2.0 and later; nil before).
+	var devOTA    : Bool?
 	/// Why it last changed: "timer", "key", "bridge", "chord", "setupPage", "exitKey", "boot".
 	var reason    : String?
 
@@ -198,6 +200,8 @@ enum HostMessage: Encodable {
 	case setupMode( Bool )
 	case unpair
 	case factoryReset
+	/// Uploads from PlatformIO: the SHA-256 hex of their password, or nil to turn them off.
+	case devOTA( passwordHash: String? )
 	case firmwareBegin( version: String, size: Int, sha256: String )
 	case firmwareEnd
 	// Unauthenticated handshake messages
@@ -207,7 +211,7 @@ enum HostMessage: Encodable {
 
 	private enum CodingKeys: String, CodingKey {
 		case type, key, hash, value, name, seconds, enabled
-		case version, size, sha256, nonce, proof, bridgeID, bridgeName, publicKey
+		case version, size, sha256, nonce, proof, bridgeID, bridgeName, publicKey, passwordHash
 	}
 
 	func encode( to encoder: Encoder ) throws {
@@ -240,6 +244,9 @@ enum HostMessage: Encodable {
 				try container.encode( "unpair", forKey: .type )
 			case .factoryReset:
 				try container.encode( "factoryReset", forKey: .type )
+			case .devOTA( let passwordHash ):
+				try container.encode( "devOTA", forKey: .type )
+				try container.encode( passwordHash ?? "", forKey: .passwordHash )
 			case .firmwareBegin( let version, let size, let sha256 ):
 				try container.encode( "firmwareBegin", forKey: .type )
 				try container.encode( version, forKey: .version )
