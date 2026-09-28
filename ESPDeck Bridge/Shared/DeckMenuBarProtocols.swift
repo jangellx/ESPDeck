@@ -14,6 +14,15 @@ import Foundation
 public protocol DeckMenuBarHost: NSObjectProtocol {
 	/// The user picked "Configure…" from the menu.
 	func menuBarOpenConfiguration()
+
+	/// The user picked "Set Up a Device over USB…": the configuration window's USB Setup page.
+	func menuBarOpenUSBSetup()
+
+	/// The user picked a deck: the configuration window with that deck's Keys page.
+	func menuBarShowDevice( id: String )
+
+	/// Launch at Login changed from the menu; the app's own controls follow.
+	func menuBarLaunchAtLoginChanged()
 }
 
 /// Implemented by the menu bar bundle's principal class.
@@ -25,6 +34,16 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// Replaces the informational lines at the top of the menu and the icon's connected state.
 	/// `levels` has one entry per line: 0 waiting (yellow), 1 OK (green check), 2 problem (red).
 	func update( statusLines: [String], levels: [Int], connected: Bool )
+
+	/// The decks at the top of the menu, under `heading` (the Home's name, or "HomeKit"
+	/// with several). `levels` as in update(statusLines:); 3 is a demo deck.
+	func updateDecks( heading: String, ids: [String], titles: [String], levels: [Int] )
+
+	/// Launch at Login (SMAppService.mainApp, which Catalyst can't reach): 0 off, 1 on,
+	/// 2 waiting for approval in System Settings.
+	func launchAtLoginStatus() -> Int
+	/// Turns it on or off, opening System Settings if macOS wants approval.
+	func setLaunchAtLogin( _ enabled: Bool )
 
 	/// Brings the app to the front; Catalyst can't do this for an LSUIElement app on its own.
 	func activateApp()
@@ -39,9 +58,9 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 
 	// MARK: Shortcuts
 	//
-	// All asynchronous: they run the `shortcuts` command-line tool (or osascript, for icons)
-	// in the background and call back on the main thread, so a slow Shortcuts never stalls
-	// the app (and with it the WebSocket heartbeat).
+	// All asynchronous: they send Apple Events to Shortcuts Events in the background and
+	// call back on the main thread, so a slow Shortcuts never stalls the app (and with it
+	// the WebSocket heartbeat).
 
 	/// The user's shortcuts as [id, name, folder] triples (folder "" when not in one), or an
 	/// error message.
@@ -54,10 +73,35 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// the shortcut's output as text ("" for none) when it finished, or an error message.
 	func startShortcut( id: String, input: String?, completion: @escaping ( _ error: String?, _ output: String ) -> Void )
 
-	// MARK: Updates
+	// MARK: USB setup
+	//
+	// For setting up a board plugged into the Mac: its serial ports, installing firmware
+	// through the ESP32-S3's ROM bootloader, and Improv Wi-Fi. The serial work runs in the
+	// background; callbacks come on the main thread.
 
-	/// Installs a downloaded app update (a zip holding the .app): checks that it's signed
-	/// by the same team with the same bundle ID, replaces this app, and relaunches.
-	/// Returns an error message; on success the app quits instead of returning.
-	func installAppUpdate( archivePath: String ) -> String?
+	/// Calls `changed` with every serial port now, and again whenever one comes or goes.
+	/// Each is [path, product, vendor, vendor ID, product ID, USB location, serial number],
+	/// with "" for what isn't known.
+	func watchSerialPorts( changed: @escaping ( [[String]] ) -> Void )
+	func stopWatchingSerialPorts()
+
+	/// Writes `images[i]` at flash offset `offsets[i]` on the ESP32-S3 at `port` (erasing
+	/// only what they cover), checks them, and restarts the board. First, in the
+	/// bootloader, it refuses a board with less flash than `minimumFlashSize` bytes or
+	/// without the PSRAM ESPDeck needs; `identified` gets what it found, like "ESP32-S3,
+	/// 16 MB flash, 8 MB PSRAM". `progress` gets a stage and the fraction done.
+	/// `completion` gets an error message or nil, and the port the board is on now:
+	/// restarting into its bootloader can give it a new one.
+	func installFirmware( port: String, offsets: [Int], images: [Data], minimumFlashSize: Int, identified: @escaping ( String ) -> Void,
+						  progress: @escaping ( String, Double ) -> Void, completion: @escaping ( _ error: String?, _ port: String ) -> Void )
+	func cancelFirmwareInstall()
+
+	/// Opens `port` for Improv Wi-Fi. `received` gets each packet: its type, then the
+	/// state or error code, or for an RPC result the command and its strings. `log` gets
+	/// the device's log lines. `stopped` gets an error message, or nil after stopImprov().
+	func startImprov( port: String, received: @escaping ( _ type: Int, _ value: Int, _ strings: [String] ) -> Void,
+					  log: @escaping ( String ) -> Void, stopped: @escaping ( String? ) -> Void )
+	/// Sends an RPC command with its data; returns an error message.
+	func sendImprov( command: Int, data: Data ) -> String?
+	func stopImprov()
 }

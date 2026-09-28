@@ -34,6 +34,16 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 
 	override var canBecomeFirstResponder: Bool { true }
 
+	/// Arrow keys move the key selection while the deck preview has focus: clicking a key
+	/// makes this controller first responder, and a focused text field keeps them.
+	override var keyCommands: [UIKeyCommand]? {
+		[ UIKeyCommand.inputLeftArrow, UIKeyCommand.inputRightArrow, UIKeyCommand.inputUpArrow, UIKeyCommand.inputDownArrow ].map { input in
+			let command = UIKeyCommand( input: input, modifierFlags: [], action: #selector( AppDelegate.moveKeySelection( _: ) ) )
+			command.wantsPriorityOverSystemBehavior = true
+			return command
+		}
+	}
+
 	override func viewDidAppear( _ animated: Bool ) {
 		super.viewDidAppear( animated )
 		becomeFirstResponder()

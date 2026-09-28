@@ -2,10 +2,12 @@
 //  UpdatesView.swift
 //  ESPDeck Bridge
 //
-//  Update policies and status for the app and for every device's firmware.
+//  Firmware update policy and status for every device. The app itself is updated by the
+//  App Store.
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct UpdatesView: View {
 	let controller: DeckController
@@ -16,27 +18,9 @@ struct UpdatesView: View {
 		Form {
 			if updates.repository == nil {
 				Section {
-					Label( "Updates are off in this build: no GitHub repository is set (ESPDECK_GITHUB_REPOSITORY in Config/Signing.xcconfig).", systemImage: "info.circle" )
+					Label( "Firmware updates are off in this build: no GitHub repository is set (ESPDECK_GITHUB_REPOSITORY in Config/Signing.xcconfig).", systemImage: "info.circle" )
 						.foregroundStyle( .secondary )
 				}
-			}
-
-			Section {
-				LabeledContent( "Installed", value: updates.currentAppVersion )
-				if let latest = updates.latestApp {
-					LabeledContent( "Latest", value: latest.version.description )
-				}
-				appInstallRow
-				Picker( "Updates", selection: Binding( get: { updates.appPolicy }, set: { updates.appPolicy = $0 } ) ) {
-					ForEach( UpdatePolicy.allCases ) { Text( $0.title ).tag( $0 ) }
-				}
-				if let latest = updates.latestApp, updates.appUpdateAvailable {
-					releaseNotes( latest )
-				}
-			} header: {
-				SectionHeader( "ESPDeck Bridge" )
-			} footer: {
-				Text( "Updates come from the project's GitHub Releases. Before installing, the app checks the download's SHA-256 and that it's signed by the same developer." )
 			}
 
 			Section {
@@ -76,63 +60,47 @@ struct UpdatesView: View {
 		.formStyle( .grouped )
 		.navigationTitle( "Updates" )
 	}
-
-	@ViewBuilder private var appInstallRow: some View {
-		switch updates.appInstall {
-			case .idle:
-				if updates.appUpdateAvailable {
-					Button( "Install and Relaunch" ) { Task { await updates.installApp() } }
-				} else if updates.latestApp != nil {
-					Text( "ESPDeck Bridge is up to date." ).foregroundStyle( .secondary )
-				}
-			case .downloading:
-				ProgressView( "Downloading…" )
-			case .installing:
-				ProgressView( "Installing…" )
-			case .failed( let message ):
-				Label( message, systemImage: "exclamationmark.triangle.fill" )
-					.foregroundStyle( .orange )
-				Button( "Try Again" ) { Task { await updates.installApp() } }
-		}
-	}
-
-	@ViewBuilder
-	private func releaseNotes( _ release: UpdateRelease ) -> some View {
-		if !release.notes.isEmpty {
-			DisclosureGroup( "What's New in \(release.version.description)" ) {
-				Text( ( try? AttributedString( markdown: release.notes, options: .init( interpretedSyntax: .inlineOnlyPreservingWhitespace ) ) ) ?? AttributedString( release.notes ) )
-					.font( .callout )
-					.frame( maxWidth: .infinity, alignment: .leading )
-			}
-		}
-		if let page = release.page {
-			Link( "View Release on GitHub", destination: page )
-		}
-	}
 }
 
-/// One device's firmware version and update control; also used on the Device page.
+/// One device's firmware version and update control; also used on the Device page. On
+/// the Mac, a menu installs development firmware from a file.
 struct FirmwareRow: View {
 	let controller : DeckController
 	let device     : DeckDevice
 	/// Replaces the device's name, e.g. with its default name on the Device page.
 	var title      : String?
 
+	/// An image checked and waiting for the user to confirm.
+	private struct PendingInstall {
+		var image  : Data
+		var info   : FirmwareImage.AppInfo
+		var source : String
+	}
+
+	@State private var pickingFile = false
+	@State private var pending     : PendingInstall?
+	@State private var problem     : String?
+
 	var body: some View {
 		let updates = controller.updates
 		let name    = title ?? controller.settings( device.id )?.name ?? device.id
 
 		LabeledContent {
-			if let progress = device.firmwareProgress {
-				progressView( progress )
-			} else if updates.firmwareUpdateAvailable( for: device ), let latest = updates.latestFirmware {
-				Button( "Update to \(latest.version.description)" ) {
-					Task { await updates.installFirmware( on: device.id ) }
+			HStack {
+				if let progress = device.firmwareProgress {
+					progressView( progress )
+				} else if updates.firmwareUpdateAvailable( for: device ), let latest = updates.latestFirmware {
+					Button( "Update to \(latest.version.description)" ) {
+						Task { await updates.installFirmware( on: device.id ) }
+					}
+					.disabled( !device.isOnline || device.status.setupMode )
+				} else if device.firmware != nil {
+					Text( updates.latestFirmware == nil ? "" : "Up to date" )
+						.foregroundStyle( .secondary )
 				}
-				.disabled( !device.isOnline || device.status.setupMode )
-			} else if device.firmware != nil {
-				Text( updates.latestFirmware == nil ? "" : "Up to date" )
-					.foregroundStyle( .secondary )
+				if controller.macBridge != nil {
+					developmentMenu
+				}
 			}
 		} label: {
 			VStack( alignment: .leading, spacing: 2 ) {
@@ -141,6 +109,52 @@ struct FirmwareRow: View {
 					.font( .caption )
 					.foregroundStyle( .secondary )
 			}
+		}
+		.fileImporter( isPresented: $pickingFile, allowedContentTypes: [ .data ] ) { result in
+			if case .success( let url ) = result {
+				prepare( source: url.lastPathComponent ) { try USBSetup.read( url ) }
+			}
+		}
+		.confirmationDialog( pending.map { "Install firmware \($0.info.version) on \(name)?" } ?? "",
+							 isPresented: Binding( get: { pending != nil }, set: { if !$0 { pending = nil } } ), titleVisibility: .visible ) {
+			Button( "Install" ) {
+				if let pending {
+					controller.sendLocalFirmware( device: device.id, image: pending.image, info: pending.info )
+				}
+				pending = nil
+			}
+		} message: {
+			if let pending {
+				Text( "From \(pending.source), built \(pending.info.built). The device restarts into it; if it can't reconnect, it goes back to the firmware it runs now." )
+			}
+		}
+		.alert( "Can't Install That Firmware", isPresented: Binding( get: { problem != nil }, set: { if !$0 { problem = nil } } ) ) {
+			Button( "OK" ) {}
+		} message: {
+			Text( problem ?? "" )
+		}
+	}
+
+	/// For development: any ESPDeck app image, whatever its version.
+	private var developmentMenu: some View {
+		Menu {
+			Button( "Install Firmware from File…" ) { pickingFile = true }
+		} label: {
+			Image( systemName: "ellipsis.circle" )
+		}
+		.menuStyle( .borderlessButton )
+		.menuIndicator( .hidden )
+		.fixedSize()
+		.help( "Install development firmware" )
+		.disabled( !device.isOnline || device.status.setupMode || device.firmwareProgress?.isActive == true )
+	}
+
+	private func prepare( source: String, _ read: () throws -> Data ) {
+		do {
+			let image = try read()
+			pending = PendingInstall( image: image, info: try FirmwareImage.espDeckApp( image ), source: source )
+		} catch {
+			problem = error.localizedDescription
 		}
 	}
 

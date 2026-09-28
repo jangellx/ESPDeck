@@ -14,12 +14,14 @@ final class DeckDevice: Identifiable {
 	let id: String
 
 	/// The WebSocket client, or nil while the device is offline.
-	var client   : ClientID?
-	var endpoint : String?
-	var firmware : String?
-	var ip       : String?
-	var deck     = DeckInfo.disconnected
-	var status   = DeviceStatus()
+	var client        : ClientID?
+	var endpoint      : String?
+	var firmware      : String?
+	/// Identifies the running build; see DeviceHello.elfSHA256.
+	var firmwareBuild : String?
+	var ip            : String?
+	var deck          = DeckInfo.disconnected
+	var status        = DeviceStatus()
 
 	/// What each key currently shows; the configuration UI draws these.
 	var keys     : [RenderedKey?] = []
@@ -97,10 +99,28 @@ struct FirmwareProgress: Equatable {
 	}
 
 	var version : String
+	/// The image's ELF SHA-256, to recognize it after the restart even when its version
+	/// number is the one the device ran before (a development build).
+	var build   : String?
 	var phase   : Phase
 
 	var isActive: Bool {
 		if case .failed = phase { return false }
 		return true
+	}
+
+	init( version: String, build: String? = nil, phase: Phase ) {
+		self.version = version
+		self.build   = build
+		self.phase   = phase
+	}
+
+	/// Whether the device runs this image: by build when the device reports its build,
+	/// by version otherwise.
+	func isRunning( on device: DeckDevice ) -> Bool {
+		if let build, let running = device.firmwareBuild {
+			return build == running
+		}
+		return device.firmware == version
 	}
 }

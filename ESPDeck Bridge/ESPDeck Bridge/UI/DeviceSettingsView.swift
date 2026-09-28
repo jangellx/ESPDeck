@@ -14,7 +14,6 @@ struct DeviceSettingsView: View {
 
 	@State private var nameDraft        = ""
 	@State private var brightness       = 80.0
-	@State private var confirmingForget = false
 	@State private var confirmingReset  = false
 	@FocusState private var nameFocused: Bool
 
@@ -37,6 +36,11 @@ struct DeviceSettingsView: View {
 				.onChange( of: settings.name ) { nameDraft = settings.name }
 				.onChange( of: settings.brightness ) { brightness = Double( settings.brightness ) }
 		}
+	}
+
+	/// Shared with Device ▸ Forget Device.
+	private var confirmingForget: Binding<Bool> {
+		Binding { controller.window.confirmingForget } set: { controller.window.confirmingForget = $0 }
 	}
 
 	private func syncDrafts( _ settings: DeviceSettings? ) {
@@ -74,8 +78,8 @@ struct DeviceSettingsView: View {
 
 			Section {
 				CopyKeysMenu( controller: controller, deviceID: deviceID )
-				Button( "Delete Demo Deck…", role: .destructive ) { confirmingForget = true }
-					.confirmationDialog( "Delete \(settings.name)?", isPresented: $confirmingForget ) {
+				Button( "Delete Demo Deck…", role: .destructive ) { controller.window.confirmingForget = true }
+					.confirmationDialog( "Delete \(settings.name)?", isPresented: confirmingForget ) {
 						Button( "Delete Demo Deck", role: .destructive ) { controller.forget( device: deviceID ) }
 					} message: {
 						Text( "This removes its key assignments." )
@@ -207,8 +211,8 @@ struct DeviceSettingsView: View {
 					} message: {
 						Text( "The ESPDeck erases its Wi-Fi settings, name, pairing, and stored key images, and restarts in setup mode as if new. Its key layout stays in ESPDeck Bridge and returns once you set it up and pair it again." )
 					}
-				Button( "Forget Device…", role: .destructive ) { confirmingForget = true }
-					.confirmationDialog( "Forget \(settings.name)?", isPresented: $confirmingForget ) {
+				Button( "Forget Device…", role: .destructive ) { controller.window.confirmingForget = true }
+					.confirmationDialog( "Forget \(settings.name)?", isPresented: confirmingForget ) {
 						Button( "Forget Device", role: .destructive ) { controller.forget( device: deviceID ) }
 					} message: {
 						Text( "This removes its key assignments and settings from ESPDeck Bridge. If it connects again, it appears as a new device." )
@@ -318,7 +322,7 @@ private struct TriggerSection: View {
 			.pickerStyle( .segmented )
 
 			if let opposite = trigger.state.opposite {
-				Toggle( "\(trigger.effect.opposite.title) the deck when it changes to \(opposite.title)", isOn: binding( \.reverse ) )
+				Toggle( "\(trigger.effect.opposite.title) the deck when the accessory changes to \(opposite.title)", isOn: binding( \.reverse ) )
 			}
 		} header: {
 			HStack {

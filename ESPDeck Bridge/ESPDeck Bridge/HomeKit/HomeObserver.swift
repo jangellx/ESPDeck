@@ -3,7 +3,9 @@
 //  ESPDeck Bridge
 //
 //  Controller-side HomeKit: lists what keys can be bound to, observes the characteristics
-//  the key assignments name, and performs key actions.
+//  the key assignments name, and performs key actions. It covers every Home at once:
+//  accessory, service and scene IDs are unique across Homes, so a key finds its target
+//  wherever it is, and one key can control accessories from different Homes.
 //
 
 import HomeKit
@@ -19,6 +21,8 @@ struct HomeTarget: Identifiable, Hashable {
 	var name        : String
 	/// Room for accessories, folder for shortcuts.
 	var room        : String?
+	/// The Home an accessory or scene is in.
+	var home        : String? = nil
 
 	var id: String {
 		[ kind.rawValue, accessoryID?.uuidString, serviceID?.uuidString, actionSetID?.uuidString, shortcutID ]
@@ -68,21 +72,13 @@ final class HomeObserver: NSObject {
 	@ObservationIgnored var onReady        : ( () -> Void )?
 	private(set) var isReady = false
 
-	/// The home whose accessories the keys refer to; nil picks the first home.
-	var selectedHomeID: UUID? {
-		didSet {
-			if selectedHomeID != oldValue { requestRebuild() }
-		}
-	}
-
-	var home: HMHome? {
-		homes.first { $0.uniqueIdentifier == selectedHomeID } ?? homes.first
-	}
+	/// Several Homes: pickers and subtitles then name the Home too.
+	var hasSeveralHomes: Bool { homes.count > 1 }
 
 	@ObservationIgnored private var wanted              : Set<CharacteristicRef> = []
 	@ObservationIgnored private var watched             : [( ref: CharacteristicRef, characteristic: HMCharacteristic )] = []
 	@ObservationIgnored private var observedAccessories : [HMAccessory] = []
-	@ObservationIgnored private var observedHome        : HMHome?
+	@ObservationIgnored private var observedHomes       : [HMHome] = []
 	@ObservationIgnored private var rebuildTask         : Task<Void, Never>?
 	@ObservationIgnored private var rebuildPending      = false
 
@@ -102,7 +98,25 @@ final class HomeObserver: NSObject {
 	}
 
 	func isReachable( _ ref: CharacteristicRef ) -> Bool {
-		home?.accessories.first { $0.uniqueIdentifier == ref.accessoryID }?.isReachable ?? false
+		accessory( ref.accessoryID )?.isReachable ?? false
+	}
+
+	/// An accessory in any Home.
+	func accessory( _ id: UUID? ) -> HMAccessory? {
+		guard let id else { return nil }
+		for home in homes {
+			if let accessory = home.accessories.first( where: { $0.uniqueIdentifier == id } ) { return accessory }
+		}
+		return nil
+	}
+
+	/// A scene, and the Home that runs it.
+	func actionSet( _ id: UUID? ) -> ( home: HMHome, actionSet: HMActionSet )? {
+		guard let id else { return nil }
+		for home in homes {
+			if let actionSet = home.actionSets.first( where: { $0.uniqueIdentifier == id } ) { return ( home, actionSet ) }
+		}
+		return nil
 	}
 
 	/// Rebuilds run one at a time, and requests made while one is waiting collapse into it.
@@ -123,12 +137,13 @@ final class HomeObserver: NSObject {
 		// as "unknown", and that image would be sent to the deck too.
 		await stopWatching( keepingValues: true )
 
-		guard let home else { return }
-		home.delegate = self
-		observedHome  = home
+		for home in homes {
+			home.delegate = self
+			observedHomes.append( home )
+		}
 
 		for ref in wanted {
-			guard let accessory      = home.accessories.first( where: { $0.uniqueIdentifier == ref.accessoryID } ),
+			guard let accessory      = self.accessory( ref.accessoryID ),
 				  let characteristic = Self.characteristic( ref.characteristicType, serviceID: ref.serviceID, in: accessory ) else {
 				print( "[HomeObserver] Not found: \(ref)" )
 				continue
@@ -171,8 +186,10 @@ final class HomeObserver: NSObject {
 			accessory.delegate = nil
 		}
 		observedAccessories.removeAll()
-		observedHome?.delegate = nil
-		observedHome = nil
+		for home in observedHomes {
+			home.delegate = nil
+		}
+		observedHomes.removeAll()
 	}
 
 	private static func characteristic( _ type: String, serviceID: UUID?, in accessory: HMAccessory ) -> HMCharacteristic? {
@@ -185,9 +202,16 @@ final class HomeObserver: NSObject {
 
 	// MARK: - Targets
 
-	/// Everything in the current home a key can be bound to.
+	/// Everything in every Home a key can be bound to, by Home, then room, then name.
 	func targets() -> [HomeTarget] {
-		guard let home else { return [] }
+		var result: [HomeTarget] = []
+		for home in homes.sorted( by: { $0.name.localizedStandardCompare( $1.name ) == .orderedAscending } ) {
+			result += targets( in: home )
+		}
+		return result
+	}
+
+	private func targets( in home: HMHome ) -> [HomeTarget] {
 		var result: [HomeTarget] = []
 
 		for accessory in home.accessories {
@@ -206,13 +230,13 @@ final class HomeObserver: NSObject {
 					} else {
 						name = "\(accessory.name) – \(serviceName)"
 					}
-					result.append( HomeTarget( kind: kind, accessoryID: accessory.uniqueIdentifier, serviceID: service.uniqueIdentifier, actionSetID: nil, name: name, room: accessory.room?.name ) )
+					result.append( HomeTarget( kind: kind, accessoryID: accessory.uniqueIdentifier, serviceID: service.uniqueIdentifier, actionSetID: nil, name: name, room: accessory.room?.name, home: home.name ) )
 				}
 			}
 		}
 
 		for actionSet in home.actionSets {
-			result.append( HomeTarget( kind: .scene, accessoryID: nil, serviceID: nil, actionSetID: actionSet.uniqueIdentifier, name: actionSet.name, room: nil ) )
+			result.append( HomeTarget( kind: .scene, accessoryID: nil, serviceID: nil, actionSetID: actionSet.uniqueIdentifier, name: actionSet.name, room: nil, home: home.name ) )
 		}
 
 		return result.sorted { ( $0.room ?? "~", $0.name ) < ( $1.room ?? "~", $1.name ) }
@@ -220,11 +244,10 @@ final class HomeObserver: NSObject {
 
 	/// Accessory or scene name for a key, used when the key has no custom label.
 	func name( for assignment: KeyAssignment ) -> String? {
-		guard let home else { return nil }
 		if let actionSetID = assignment.actionSetID {
-			return home.actionSets.first { $0.uniqueIdentifier == actionSetID }?.name
+			return actionSet( actionSetID )?.actionSet.name
 		}
-		guard let accessory = home.accessories.first( where: { $0.uniqueIdentifier == assignment.accessoryID } ) else { return nil }
+		guard let accessory = self.accessory( assignment.accessoryID ) else { return nil }
 		if let service = accessory.services.first( where: { $0.uniqueIdentifier == assignment.serviceID } ), !service.name.isEmpty {
 			return service.name
 		}
@@ -239,14 +262,14 @@ final class HomeObserver: NSObject {
 	@discardableResult
 	func perform( _ assignment: KeyAssignment ) async throws -> String {
 		guard let kind = assignment.kind, assignment.action != .none else { return "Nothing to do" }
-		guard let home else { throw HomeActionError.noHome }
+		guard !homes.isEmpty else { throw HomeActionError.noHome }
 
 		if kind == .scene {
-			guard let actionSet = home.actionSets.first( where: { $0.uniqueIdentifier == assignment.actionSetID } ) else { throw HomeActionError.notFound }
-			try await home.executeActionSet( actionSet )
+			guard let scene = actionSet( assignment.actionSetID ) else { throw HomeActionError.notFound }
+			try await scene.home.executeActionSet( scene.actionSet )
 			// A scene's changes come from this app, so HomeKit doesn't report them back.
 			refreshWatched( after: .milliseconds( 1500 ) )
-			return "Ran scene \u{201C}\(actionSet.name)\u{201D}"
+			return "Ran scene \u{201C}\(scene.actionSet.name)\u{201D}"
 		}
 
 		let members = assignment.members.filter { $0.kind.targetCharacteristicType != nil }
@@ -259,7 +282,7 @@ final class HomeObserver: NSObject {
 		var failures: [String] = []
 		for member in members {
 			guard let targetType = member.kind.targetCharacteristicType, let value = member.kind.targetValue( activate: activate ),
-				  let accessory = home.accessories.first( where: { $0.uniqueIdentifier == member.accessoryID } ),
+				  let accessory = self.accessory( member.accessoryID ),
 				  let target    = Self.characteristic( targetType, serviceID: member.serviceID, in: accessory ) else {
 				failures.append( "an accessory that no longer exists" )
 				continue

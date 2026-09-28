@@ -2,42 +2,15 @@
 //  UpdateManager.swift
 //  ESPDeck Bridge
 //
-//  Checks GitHub Releases for new versions of the app (tags `bridge-vX.Y.Z`, a zipped
-//  app) and the firmware (tags `firmware-vX.Y.Z`, see PROTOCOL.md), and installs them
-//  according to each one's UpdatePolicy. The repository comes from Info.plist's
-//  ESPDeckGitHubRepository (set in Config/Signing.xcconfig).
+//  Checks GitHub Releases for new firmware (tags `firmware-vX.Y.Z`, see PROTOCOL.md) and
+//  installs it according to the firmware UpdatePolicy. The repository comes from
+//  Info.plist's ESPDeckGitHubRepository (set in Config/Signing.xcconfig). The app itself
+//  is updated by the App Store.
 //
 
 import CryptoKit
 import Foundation
 import Observation
-
-struct Version: Comparable, CustomStringConvertible {
-	let parts: [Int]
-
-	/// "1.2.3", "v1.2.3" or "firmware-v1.2.3"; anything after a "-" in the version itself
-	/// (like "-beta") is ignored.
-	init?( _ string: String ) {
-		let trimmed = string.split( separator: "v" ).last.map( String.init ) ?? string
-		let core    = trimmed.split( separator: "-" ).first.map( String.init ) ?? trimmed
-		let parts   = core.split( separator: "." ).compactMap { Int( $0 ) }
-		guard !parts.isEmpty else { return nil }
-		self.parts = parts
-	}
-
-	static func < ( lhs: Version, rhs: Version ) -> Bool {
-		for index in 0..<max( lhs.parts.count, rhs.parts.count ) {
-			let left  = index < lhs.parts.count ? lhs.parts[index] : 0
-			let right = index < rhs.parts.count ? rhs.parts[index] : 0
-			if left != right { return left < right }
-		}
-		return false
-	}
-
-	static func == ( lhs: Version, rhs: Version ) -> Bool { !( lhs < rhs ) && !( rhs < lhs ) }
-
-	var description: String { parts.map( String.init ).joined( separator: "." ) }
-}
 
 struct UpdateRelease: Equatable {
 	struct Asset: Equatable {
@@ -54,24 +27,17 @@ struct UpdateRelease: Equatable {
 	var page      : URL?
 	var published : Date?
 	var asset     : Asset
+	/// For firmware, the full flash image (`-merged.bin`) for installing over USB.
+	var fullImage : Asset?
 }
 
 @Observable
 final class UpdateManager {
-	enum AppInstall: Equatable {
-		case idle
-		case downloading
-		case installing
-		case failed( String )
-	}
-
 	@ObservationIgnored private weak var controller: DeckController?
 
-	private(set) var latestApp      : UpdateRelease?
 	private(set) var latestFirmware : UpdateRelease?
 	private(set) var checking       = false
 	private(set) var checkError     : String?
-	private(set) var appInstall     = AppInstall.idle
 
 	@ObservationIgnored private var schedule      : Task<Void, Never>?
 	@ObservationIgnored private var firmwareCache : [String: Data] = [:]
@@ -94,11 +60,6 @@ final class UpdateManager {
 		Bundle.main.object( forInfoDictionaryKey: "CFBundleShortVersionString" ) as? String ?? "0"
 	}
 
-	var appUpdateAvailable: Bool {
-		guard let latest = latestApp?.version, let current = Version( currentAppVersion ) else { return false }
-		return current < latest
-	}
-
 	func firmwareUpdateAvailable( for device: DeckDevice ) -> Bool {
 		guard let latest = latestFirmware?.version, let running = device.firmware.flatMap( Version.init ) else { return false }
 		return running < latest
@@ -107,11 +68,6 @@ final class UpdateManager {
 	private var settings: UpdateSettings {
 		get { controller?.config.settings.updates ?? UpdateSettings() }
 		set { controller?.config.settings.updates = newValue }
-	}
-
-	var appPolicy: UpdatePolicy {
-		get { settings.appPolicy }
-		set { settings.appPolicy = newValue; reschedule() }
 	}
 
 	var firmwarePolicy: UpdatePolicy {
@@ -127,11 +83,11 @@ final class UpdateManager {
 		reschedule()
 	}
 
-	/// Checks a minute after launch, then every few hours, unless both are manual.
+	/// Checks a minute after launch, then every few hours, unless updates are manual.
 	/// Automatic firmware installs are retried more often, since they wait for idle decks.
 	private func reschedule() {
 		schedule?.cancel()
-		guard repository != nil, appPolicy != .manual || firmwarePolicy != .manual else { return }
+		guard repository != nil, firmwarePolicy != .manual else { return }
 
 		schedule = Task { [weak self] in
 			try? await Task.sleep( for: .seconds( 60 ) )
@@ -164,7 +120,6 @@ final class UpdateManager {
 
 		do {
 			let releases   = try await fetchReleases( repository )
-			latestApp      = releases.filter { $0.tag.hasPrefix( "bridge-v" ) }.compactMap( \.release ).max { $0.version < $1.version }
 			latestFirmware = releases.filter { $0.tag.hasPrefix( "firmware-v" ) }.compactMap( \.release ).max { $0.version < $1.version }
 			settings.lastCheck = Date()
 		} catch {
@@ -172,9 +127,6 @@ final class UpdateManager {
 			return
 		}
 
-		if appUpdateAvailable && appPolicy == .automatic && !userInitiated {
-			await installApp()
-		}
 		installFirmwareWhereIdle()
 	}
 
@@ -197,24 +149,30 @@ final class UpdateManager {
 
 		var tag: String { tag_name }
 
-		/// The release's installable asset: the zipped app, or the OTA firmware image.
+		/// The release's OTA firmware image, and its full image for USB.
 		var release: UpdateRelease? {
 			guard !draft, !prerelease, let version = Version( tag_name ) else { return nil }
-			let isApp = tag_name.hasPrefix( "bridge-v" )
 			let match = assets.first { asset in
-				isApp ? asset.name.hasSuffix( ".zip" )
-					  : asset.name.hasPrefix( "espdeck-firmware-" ) && asset.name.hasSuffix( ".bin" ) && !asset.name.hasSuffix( "-merged.bin" )
+				asset.name.hasPrefix( "espdeck-firmware-" ) && asset.name.hasSuffix( ".bin" ) && !asset.name.hasSuffix( "-merged.bin" )
 			}
 			guard let match else { return nil }
 
-			// GitHub's own digest if present, else a companion "<name>.sha256" asset (fetched later).
-			let digest = match.digest.flatMap { $0.hasPrefix( "sha256:" ) ? String( $0.dropFirst( 7 ) ).lowercased() : nil }
-			let asset  = UpdateRelease.Asset( name: match.name, url: match.browser_download_url, size: match.size, sha256: digest )
-			var release = UpdateRelease( version: version, title: name ?? tag_name, notes: body ?? "", page: html_url, published: published_at, asset: asset )
-			if digest == nil, let companion = assets.first( where: { $0.name == match.name + ".sha256" } ) {
-				release.asset.sha256 = "url:" + companion.browser_download_url.absoluteString
+			var release = UpdateRelease( version: version, title: name ?? tag_name, notes: body ?? "", page: html_url, published: published_at,
+										 asset: asset( match ) )
+			if let merged = assets.first( where: { $0.name.hasPrefix( "espdeck-firmware-" ) && $0.name.hasSuffix( "-merged.bin" ) } ) {
+				release.fullImage = asset( merged )
 			}
 			return release
+		}
+
+		/// GitHub's own digest if present, else a companion "<name>.sha256" asset (fetched later).
+		private func asset( _ match: Asset ) -> UpdateRelease.Asset {
+			let digest = match.digest.flatMap { $0.hasPrefix( "sha256:" ) ? String( $0.dropFirst( 7 ) ).lowercased() : nil }
+			var asset  = UpdateRelease.Asset( name: match.name, url: match.browser_download_url, size: match.size, sha256: digest )
+			if digest == nil, let companion = assets.first( where: { $0.name == match.name + ".sha256" } ) {
+				asset.sha256 = "url:" + companion.browser_download_url.absoluteString
+			}
+			return asset
 		}
 	}
 
@@ -260,6 +218,8 @@ final class UpdateManager {
 		case digestMismatch
 		case repositoryNotFound( String )
 		case rateLimited
+		case noFullImage
+		case noRelease( String? )
 
 		var errorDescription: String? {
 			switch self {
@@ -267,33 +227,9 @@ final class UpdateManager {
 				case .digestMismatch:              "The download didn't match the release's SHA-256."
 				case .repositoryNotFound( let r ): "GitHub doesn't show \(r). Update checks need the repository to be public."
 				case .rateLimited:                 "GitHub's rate limit was reached; the app will try again later."
+				case .noFullImage:                 "The latest firmware release has no full image for installing over USB."
+				case .noRelease( let problem ):    problem ?? "GitHub doesn't list a firmware release."
 			}
-		}
-	}
-
-	// MARK: - App
-
-	/// Downloads the new app and hands it to the AppKit bundle, which checks its code
-	/// signature (same Team ID and bundle ID), swaps it in, and relaunches.
-	func installApp() async {
-		guard let release = latestApp, appUpdateAvailable else { return }
-		guard let bridge = controller?.macBridge else {
-			appInstall = .failed( "Updates install only on the Mac." )
-			return
-		}
-
-		appInstall = .downloading
-		do {
-			let data    = try await download( release.asset )
-			let archive = FileManager.default.temporaryDirectory.appending( path: release.asset.name )
-			try data.write( to: archive, options: .atomic )
-			appInstall = .installing
-			if let message = bridge.installAppUpdate( archivePath: archive.path( percentEncoded: false ) ) {
-				appInstall = .failed( message )
-			}
-			// On success the app quits and the new version launches.
-		} catch {
-			appInstall = .failed( error.localizedDescription )
 		}
 	}
 
@@ -322,6 +258,17 @@ final class UpdateManager {
 		}
 	}
 
+	/// The latest release's full flash image, for installing over USB, checked against its
+	/// published SHA-256. Checks for updates first if that hasn't happened yet.
+	func downloadFullFirmware() async throws -> ( image: Data, version: String ) {
+		if latestFirmware == nil {
+			await check( userInitiated: true )
+		}
+		guard let release = latestFirmware else { throw UpdateError.noRelease( checkError ) }
+		guard let asset = release.fullImage else { throw UpdateError.noFullImage }
+		return ( try await download( asset ), release.version.description )
+	}
+
 	/// With automatic firmware updates, updates each connected deck that's asleep or has
 	/// been left alone for a while.
 	private func installFirmwareWhereIdle() {
@@ -343,9 +290,6 @@ final class UpdateManager {
 
 	var statusItems: [DeckController.StatusItem] {
 		var items: [DeckController.StatusItem] = []
-		if appUpdateAvailable, let latest = latestApp {
-			items.append( .init( text: "ESPDeck Bridge \(latest.version) is available", level: .waiting ) )
-		}
 		if let controller, let latest = latestFirmware {
 			let count = controller.devices.filter { firmwareUpdateAvailable( for: $0 ) }.count
 			if count > 0 {

@@ -15,7 +15,8 @@ final class DeckController {
 	let config = ConfigStore()
 	let home   = HomeObserver()
 	let server = DeckServer()
-	@ObservationIgnored private(set) lazy var updates = UpdateManager( controller: self )
+	@ObservationIgnored private(set) lazy var updates  = UpdateManager( controller: self )
+	@ObservationIgnored private(set) lazy var usbSetup = USBSetup( controller: self )
 
 	/// One per configured device, in the same order as `config.settings.devices`.
 	private(set) var devices   : [DeckDevice] = []
@@ -25,9 +26,16 @@ final class DeckController {
 	var focusedKey       : ( device: String, key: Int )?
 	/// A copied key is on the clipboard; see DeckController+Clipboard.
 	var clipboardHasKey  = false
+	/// The configuration window's selection and page, shared with the menus.
+	let window           = WindowState()
 
 	/// Called whenever the menu bar summary may have changed.
 	@ObservationIgnored var onStatusChange: ( ( _ items: [StatusItem], _ connected: Bool ) -> Void )?
+	/// Called whenever the menu bar's deck list may have changed.
+	@ObservationIgnored var onDecksChange : ( ( _ heading: String, _ decks: [DeckMenuEntry] ) -> Void )?
+
+	/// Launch at Login, as the AppKit bundle reports it.
+	private(set) var launchAtLogin = LaunchAtLogin.off
 
 	/// The AppKit bundle, which runs shortcuts. nil outside Mac Catalyst.
 	@ObservationIgnored var macBridge: DeckMenuBarPlugin?
@@ -55,7 +63,6 @@ final class DeckController {
 	private static let recentLimit = 96
 
 	func start() {
-		home.selectedHomeID = config.settings.homeID
 		home.onChange = { [weak self] ref in
 			self?.valueChanged( ref )
 		}
@@ -87,6 +94,7 @@ final class DeckController {
 		assignmentsChanged()
 		observeStatus()
 		updates.start()
+		usbSetup.start()
 
 		home.onReady = { [weak self] in
 			self?.releasePushes()
@@ -189,12 +197,6 @@ final class DeckController {
 		guard let index = config.settings.deviceIndex( id ) else { return }
 		change( &config.settings.devices[index] )
 		assignmentsChanged( device: id )
-	}
-
-	func setHome( _ id: UUID? ) {
-		config.settings.homeID = id
-		home.selectedHomeID    = id
-		renderEverything()
 	}
 
 	// MARK: - Device settings (owned by the ESP32)
@@ -654,16 +656,17 @@ final class DeckController {
 		}
 
 		guard let device = device( hello.id ) else { return }
-		device.client      = client
-		device.endpoint    = server.endpoint( of: client )
-		device.firmware    = hello.firmware
-		device.ip          = hello.settings.ip ?? device.endpoint
-		device.deck        = hello.deck
-		device.status      = hello.status
-		device.pressed     = []
-		device.chord       = false
-		device.knownHashes = Set( hello.cached )
-		device.shown       = [:]
+		device.client        = client
+		device.endpoint      = server.endpoint( of: client )
+		device.firmware      = hello.firmware
+		device.firmwareBuild = hello.elfSHA256
+		device.ip            = hello.settings.ip ?? device.endpoint
+		device.deck          = hello.deck
+		device.status        = hello.status
+		device.pressed       = []
+		device.chord         = false
+		device.knownHashes   = Set( hello.cached )
+		device.shown         = [:]
 		device.clearPending()
 
 		// `shown` was just reset, so rendering sends every key once (a second forced pass
@@ -921,8 +924,8 @@ final class DeckController {
 
 	var homeStatus: StatusItem {
 		let authorization = home.authorization
-		if let current = home.home {
-			return StatusItem( text: "Home: \(current.name)", level: .ok )
+		if !home.homes.isEmpty {
+			return StatusItem( text: home.hasSeveralHomes ? "HomeKit: Connected (\(home.homes.count) Homes)" : "HomeKit: Connected", level: .ok )
 		} else if authorization.contains( .determined ) && !authorization.contains( .authorized ) {
 			return StatusItem( text: "HomeKit access denied", level: .problem )
 		} else if authorization.contains( .authorized ) {
@@ -931,21 +934,65 @@ final class DeckController {
 		return StatusItem( text: "Waiting for HomeKit…", level: .waiting )
 	}
 
+	/// The menu bar's lines under its deck list (which shows each deck's own status).
 	var statusItems: [StatusItem] {
-		// Demo decks are for the configuration window only.
-		let real    = devices.filter { settings( $0.id )?.isDemo != true }
 		let pending = newDevices.map { StatusItem( text: "\($0.hello.name): waiting to be paired", level: .waiting ) }
-		return [ serverStatus ].compactMap { $0 } + real.map { status( device: $0 ) } + pending + [ homeStatus ] + updates.statusItems
+		return [ serverStatus ].compactMap { $0 } + pending + [ homeStatus ] + updates.statusItems
+	}
+
+	struct DeckMenuEntry: Equatable {
+		var id    : String
+		var title : String
+		var level : StatusItem.Level
+	}
+
+	/// The Home's name, "HomeKit" with several Homes, or HomeKit's state before it's ready.
+	var deckMenuHeading: String {
+		switch home.homes.count {
+			case 0:  homeStatus.text
+			case 1:  home.homes[0].name
+			default: "HomeKit"
+		}
+	}
+
+	/// Real decks in sidebar order, then demo decks.
+	var deckMenuEntries: [DeckMenuEntry] {
+		let entries = devices.map { device in
+			let status = status( device: device )
+			let name   = settings( device.id )?.name ?? device.id
+			let state  = status.text.components( separatedBy: ": " ).last ?? ""
+			return DeckMenuEntry( id: device.id, title: status.level == .demo ? "\(name) (demo)" : "\(name): \(state)", level: status.level )
+		}
+		return entries.filter { $0.level != .demo } + entries.filter { $0.level == .demo }
+	}
+
+	// MARK: - Launch at Login
+
+	enum LaunchAtLogin: Int {
+		case off           = 0
+		case on            = 1
+		case needsApproval = 2
+	}
+
+	/// Re-reads it; the user can also change it in System Settings.
+	func refreshLaunchAtLogin() {
+		launchAtLogin = macBridge.flatMap { LaunchAtLogin( rawValue: $0.launchAtLoginStatus() ) } ?? .off
+	}
+
+	func setLaunchAtLogin( _ enabled: Bool ) {
+		macBridge?.setLaunchAtLogin( enabled )
+		refreshLaunchAtLogin()
 	}
 
 	/// Pushes the menu bar summary now and again whenever anything it reads changes, so
 	/// the menu always matches the configuration window.
 	private func observeStatus() {
-		let ( items, connected ) = withObservationTracking {
-			( statusItems, devices.contains { $0.isOnline && $0.deck.connected } )
+		let ( items, connected, heading, decks ) = withObservationTracking {
+			( statusItems, devices.contains { $0.isOnline && $0.deck.connected }, deckMenuHeading, deckMenuEntries )
 		} onChange: { [weak self] in
 			Task { @MainActor in self?.observeStatus() }
 		}
 		onStatusChange?( items, connected )
+		onDecksChange?( heading, decks )
 	}
 }

@@ -174,6 +174,9 @@ struct AboutView: View {
 
 				if let repository = controller.updates.repository, let url = URL( string: "https://github.com/\(repository)" ) {
 					Link( "Source code and releases on GitHub", destination: url )
+					if let notices = URL( string: "https://github.com/\(repository)/blob/main/THIRD-PARTY-NOTICES.md" ) {
+						Link( "Third-party notices", destination: notices )
+					}
 				}
 
 				section( "Requirements" ) {

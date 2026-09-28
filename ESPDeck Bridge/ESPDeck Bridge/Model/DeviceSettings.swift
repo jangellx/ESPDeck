@@ -164,6 +164,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 }
 
 struct BridgeSettings: Codable, Equatable {
+	/// The Home picked before the app covered every Home. Unused; kept so it round-trips.
 	var homeID     : UUID?
 	var devices    : [DeviceSettings] = []
 	/// Keys from the single-deck version, given to the first device that connects.
@@ -171,11 +172,13 @@ struct BridgeSettings: Codable, Equatable {
 	/// This bridge's identity in the Bonjour TXT record and in pairings.
 	var bridgeID   = UUID().uuidString.lowercased()
 	var updates    = UpdateSettings()
+	/// USB Setup watches for boards plugged into the Mac.
+	var usbScanning = true
 
 	init() {}
 
 	private enum CodingKeys: String, CodingKey {
-		case homeID, devices, legacyKeys, bridgeID, updates
+		case homeID, devices, legacyKeys, bridgeID, updates, usbScanning
 		case keys   // single-deck version
 	}
 
@@ -185,6 +188,7 @@ struct BridgeSettings: Codable, Equatable {
 		devices    = try container.decodeIfPresent( [DeviceSettings].self, forKey: .devices ) ?? []
 		bridgeID   = try container.decodeIfPresent( String.self, forKey: .bridgeID ) ?? UUID().uuidString.lowercased()
 		updates    = try container.decodeIfPresent( UpdateSettings.self, forKey: .updates ) ?? UpdateSettings()
+		usbScanning = try container.decodeIfPresent( Bool.self, forKey: .usbScanning ) ?? true
 		legacyKeys = try container.decodeIfPresent( [KeyAssignment].self, forKey: .legacyKeys )
 					 ?? container.decodeIfPresent( [KeyAssignment].self, forKey: .keys )
 		if !devices.isEmpty { legacyKeys = nil }
@@ -197,6 +201,7 @@ struct BridgeSettings: Codable, Equatable {
 		try container.encodeIfPresent( legacyKeys, forKey: .legacyKeys )
 		try container.encode( bridgeID, forKey: .bridgeID )
 		try container.encode( updates, forKey: .updates )
+		try container.encode( usbScanning, forKey: .usbScanning )
 	}
 
 	func deviceIndex( _ id: String ) -> Int? {
@@ -221,7 +226,6 @@ enum UpdatePolicy: String, Codable, CaseIterable, Identifiable {
 }
 
 struct UpdateSettings: Codable, Equatable {
-	var appPolicy      = UpdatePolicy.notify
 	var firmwarePolicy = UpdatePolicy.notify
 	var lastCheck      : Date?
 
@@ -229,7 +233,6 @@ struct UpdateSettings: Codable, Equatable {
 
 	init( from decoder: Decoder ) throws {
 		let container  = try decoder.container( keyedBy: CodingKeys.self )
-		appPolicy      = try container.decodeIfPresent( UpdatePolicy.self, forKey: .appPolicy ) ?? .notify
 		firmwarePolicy = try container.decodeIfPresent( UpdatePolicy.self, forKey: .firmwarePolicy ) ?? .notify
 		lastCheck      = try container.decodeIfPresent( Date.self, forKey: .lastCheck )
 	}

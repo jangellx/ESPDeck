@@ -4,7 +4,9 @@
 //
 //  Devices in the sidebar; each device has a Keys page (simulated deck plus the
 //  selected key's settings) and a Device page. New devices waiting to be paired, and
-//  the app's Updates and About pages, are in the sidebar too.
+//  the app's USB Setup (Mac only), Updates, Hardware and About pages, and the
+//  Status section with Launch at Login, are in the sidebar too. The selection lives in
+//  the controller's WindowState, which the app's menus also drive.
 //
 
 import HomeKit
@@ -12,7 +14,9 @@ import SwiftUI
 
 /// Sidebar selections that aren't device IDs.
 enum SidebarItem {
+	static let usbSetup  = "app:usb"
 	static let updates   = "app:updates"
+	static let parts     = "app:parts"
 	static let about     = "app:about"
 	static let newPrefix = "new:"
 
@@ -22,22 +26,30 @@ enum SidebarItem {
 struct ConfigurationView: View {
 	let controller: DeckController
 
-	@State private var selectedDevice: String?
+	private var window: WindowState { controller.window }
+
+	private var selection: Binding<String?> {
+		Binding { controller.window.selection } set: { controller.window.selection = $0 }
+	}
 
 	var body: some View {
 		NavigationSplitView {
-			Sidebar( controller: controller, selection: $selectedDevice )
+			Sidebar( controller: controller, selection: selection )
 				.navigationSplitViewColumnWidth( min: 220, ideal: 250, max: 320 )
 		} detail: {
-			if selectedDevice == SidebarItem.updates {
+			if window.selection == SidebarItem.usbSetup {
+				USBSetupView( controller: controller, selection: selection )
+			} else if window.selection == SidebarItem.updates {
 				UpdatesView( controller: controller )
-			} else if selectedDevice == SidebarItem.about {
+			} else if window.selection == SidebarItem.parts {
+				PartsView()
+			} else if window.selection == SidebarItem.about {
 				AboutView( controller: controller )
-			} else if let selection = selectedDevice, selection.hasPrefix( SidebarItem.newPrefix ),
-					  let client = UUID( uuidString: String( selection.dropFirst( SidebarItem.newPrefix.count ) ) ) {
+			} else if let item = window.selection, item.hasPrefix( SidebarItem.newPrefix ),
+					  let client = UUID( uuidString: String( item.dropFirst( SidebarItem.newPrefix.count ) ) ) {
 				NewDeviceView( controller: controller, client: client )
 					.id( client )
-			} else if let id = selectedDevice, controller.device( id ) != nil {
+			} else if let id = window.selection, controller.device( id ) != nil {
 				DeviceDetailView( controller: controller, deviceID: id )
 					.id( id )
 			} else {
@@ -49,20 +61,23 @@ struct ConfigurationView: View {
 						  : "Choose a device in the sidebar." )
 				} actions: {
 					if controller.devices.isEmpty {
-						AddDemoDeckMenu( controller: controller, selection: $selectedDevice )
+						AddDemoDeckMenu( controller: controller, selection: selection )
 					}
 				}
 			}
 		}
 		.onAppear {
-			if selectedDevice == nil { selectedDevice = controller.devices.first?.id }
+			window.isShowing = true
+			if window.selection == nil { window.selection = controller.devices.first?.id }
 		}
+		.onDisappear { window.isShowing = false }
 		.onChange( of: controller.devices.map( \.id ) ) { old, new in
 			// Follow a device that just finished pairing.
-			if let added = new.first( where: { !old.contains( $0 ) } ), selectedDevice?.hasPrefix( SidebarItem.newPrefix ) == true {
-				selectedDevice = added
-			} else if selectedDevice == nil || ( controller.device( selectedDevice ?? "" ) == nil && !( selectedDevice ?? "" ).contains( ":" ) ) {
-				selectedDevice = controller.devices.first?.id
+			let current = window.selection
+			if let added = new.first( where: { !old.contains( $0 ) } ), current?.hasPrefix( SidebarItem.newPrefix ) == true {
+				window.selection = added
+			} else if current == nil || ( controller.device( current ?? "" ) == nil && !( current ?? "" ).contains( ":" ) ) {
+				window.selection = controller.devices.first?.id
 			}
 		}
 	}
@@ -120,6 +135,27 @@ private struct Sidebar: View {
 			}
 
 			Section( "ESPDeck Bridge" ) {
+				if controller.usbSetup.isAvailable {
+					Label {
+						HStack {
+							Text( "USB Setup" )
+							if controller.usbSetup.boardCount > 0 {
+								Spacer()
+								Text( "\(controller.usbSetup.boardCount)" )
+									.font( .caption.weight( .semibold ).monospacedDigit() )
+									.foregroundStyle( .secondary )
+									.padding( .horizontal, 6 )
+									.padding( .vertical, 1 )
+									.background( Capsule().fill( Color.secondary.opacity( 0.18 ) ) )
+									.accessibilityLabel( controller.usbSetup.boardCount == 1 ? "1 board plugged in" : "\(controller.usbSetup.boardCount) boards plugged in" )
+							}
+						}
+					} icon: {
+						Image( systemName: "cable.connector" )
+					}
+					.tag( SidebarItem.usbSetup )
+				}
+
 				Label {
 					HStack {
 						Text( "Updates" )
@@ -133,6 +169,9 @@ private struct Sidebar: View {
 				}
 				.tag( SidebarItem.updates )
 
+				Label( "Hardware", systemImage: "shippingbox" )
+					.tag( SidebarItem.parts )
+
 				Label( "About", systemImage: "info.circle" )
 					.tag( SidebarItem.about )
 			}
@@ -145,12 +184,8 @@ private struct Sidebar: View {
 						StatusIndicator( level: item.level )
 					}
 				}
-				if controller.home.homes.count > 1 {
-					Picker( "Home", selection: homeBinding ) {
-						ForEach( controller.home.homes, id: \.uniqueIdentifier ) { home in
-							Text( home.name ).tag( Optional( home.uniqueIdentifier ) )
-						}
-					}
+				if controller.macBridge != nil {
+					LaunchAtLoginRow( controller: controller )
 				}
 				if let error = controller.lastError {
 					Label( error, systemImage: "exclamationmark.triangle.fill" )
@@ -161,13 +196,47 @@ private struct Sidebar: View {
 		}
 		.listStyle( .sidebar )
 	}
+}
 
-	private var homeBinding: Binding<UUID?> {
-		Binding {
-			controller.home.home?.uniqueIdentifier
-		} set: {
-			controller.setHome( $0 )
+/// A checkmark row that turns Launch at Login on and off, orange while it's off, with
+/// an explanation in a popover.
+private struct LaunchAtLoginRow: View {
+	let controller : DeckController
+
+	@State private var explaining = false
+
+	var body: some View {
+		let state = controller.launchAtLogin
+		HStack {
+			Button {
+				controller.setLaunchAtLogin( state != .on )
+			} label: {
+				Label {
+					Text( state == .needsApproval ? "Launch at Login (needs approval)" : "Launch at Login" )
+				} icon: {
+					Image( systemName: state == .on ? "checkmark.circle.fill" : "circle" )
+				}
+				.foregroundStyle( state == .on ? AnyShapeStyle( .primary ) : AnyShapeStyle( .orange ) )
+			}
+			.buttonStyle( .plain )
+
+			Spacer()
+
+			Button {
+				explaining = true
+			} label: {
+				Image( systemName: "info.circle" )
+			}
+			.buttonStyle( .borderless )
+			.help( "About Launch at Login" )
+			.popover( isPresented: $explaining ) {
+				Text( "ESPDeck Bridge is what connects your decks to HomeKit. If it isn't running, the keys can't control anything and the decks show Connecting. Launching at login keeps it running after a restart." )
+					.frame( width: 280 )
+					.fixedSize( horizontal: false, vertical: true )
+					.padding()
+			}
 		}
+		.onAppear { controller.refreshLaunchAtLogin() }
 	}
 }
 
@@ -194,20 +263,22 @@ private struct DeviceDetailView: View {
 	let controller : DeckController
 	let deviceID   : String
 
-	private enum Page: String, CaseIterable, Identifiable {
-		case keys   = "Keys"
-		case device = "Device"
-		case log    = "Log"
-		var id: String { rawValue }
+	// Shared with the View and Key menus.
+	private var page: WindowState.Page { controller.window.page }
+	private var selectedKey: Int { controller.window.selectedKey }
+
+	private var pageBinding: Binding<WindowState.Page> {
+		Binding { controller.window.page } set: { controller.window.page = $0 }
 	}
 
-	@State private var page        = Page.keys
-	@State private var selectedKey = 0
+	private var keyBinding: Binding<Int> {
+		Binding { controller.window.selectedKey } set: { controller.window.selectedKey = $0 }
+	}
 
 	var body: some View {
 		VStack( spacing: 0 ) {
-			Picker( "Page", selection: $page ) {
-				ForEach( Page.allCases ) { page in
+			Picker( "Page", selection: pageBinding ) {
+				ForEach( WindowState.Page.allCases ) { page in
 					Text( page.rawValue ).tag( page )
 				}
 			}
@@ -223,7 +294,7 @@ private struct DeviceDetailView: View {
 					HStack( spacing: 0 ) {
 						ScrollView( [ .vertical, .horizontal ] ) {
 							VStack( spacing: 14 ) {
-								DeckGridView( controller: controller, deviceID: deviceID, selection: $selectedKey )
+								DeckGridView( controller: controller, deviceID: deviceID, selection: keyBinding )
 								LabelPositionControl( controller: controller, deviceID: deviceID )
 								if let device = controller.device( deviceID ), controller.settings( deviceID )?.isDemo != true {
 									TransferStatusView( device: device )
@@ -255,7 +326,7 @@ private struct DeviceDetailView: View {
 			if controller.focusedKey?.device == deviceID { controller.focusedKey = nil }
 		}
 		.onChange( of: controller.layout( deviceID ).keyCount ) {
-			selectedKey = min( selectedKey, controller.layout( deviceID ).keyCount - 1 )
+			controller.window.selectedKey = min( selectedKey, controller.layout( deviceID ).keyCount - 1 )
 		}
 	}
 

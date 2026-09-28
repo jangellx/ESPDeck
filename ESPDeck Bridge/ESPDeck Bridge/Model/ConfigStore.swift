@@ -3,7 +3,7 @@
 //  ESPDeck Bridge
 //
 //  Persists BridgeSettings as JSON and the user's source icons as PNG files, both in
-//  Application Support.
+//  Application Support: inside the app's container, since the app is sandboxed.
 //
 
 import Observation
@@ -35,36 +35,12 @@ final class ConfigStore {
 		try? FileManager.default.createDirectory( at: iconDirectory, withIntermediateDirectories: true )
 		try? FileManager.default.createDirectory( at: shortcutIconDirectory, withIntermediateDirectories: true )
 
-		Self.migrateFromSandboxContainer( to: support )
-
 		let url = support.appending( path: "Settings.json" )
 		if let data    = try? Data( contentsOf: url ),
 		   let decoded = try? JSONDecoder().decode( BridgeSettings.self, from: data ) {
 			settings = decoded
 		} else {
 			settings = BridgeSettings()
-		}
-	}
-
-	/// Early builds were sandboxed (under an older bundle ID), so their settings and icons
-	/// live in that app's container. Copy them once if this install has none yet. macOS
-	/// may ask for permission to access the other app's data.
-	private static func migrateFromSandboxContainer( to support: URL ) {
-		let files = FileManager.default
-		guard !files.fileExists( atPath: support.appending( path: "Settings.json" ).path( percentEncoded: false ) ) else { return }
-
-		let home = URL( fileURLWithPath: NSHomeDirectory() )
-		for bundleID in [ "com.openreelsoftware.ESPDeck-Bridge", "com.tmproductions.ESPDeck-Bridge" ] {
-			let old = home.appending( path: "Library/Containers/\(bundleID)/Data/Library/Application Support/ESPDeck Bridge", directoryHint: .isDirectory )
-			guard let items = try? files.contentsOfDirectory( at: old, includingPropertiesForKeys: nil ) else { continue }
-
-			for item in items {
-				let destination = support.appending( path: item.lastPathComponent )
-				try? files.removeItem( at: destination )
-				try? files.copyItem( at: item, to: destination )
-			}
-			print( "[ConfigStore] Copied settings from \(bundleID)'s sandbox container" )
-			return
 		}
 	}
 

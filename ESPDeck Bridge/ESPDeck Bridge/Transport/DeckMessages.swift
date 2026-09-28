@@ -65,13 +65,15 @@ struct DeviceHello {
 	var nonce           : Data?
 	/// Bridge ID the device is paired with; empty when unpaired.
 	var pairedBridge    : String
-	var id       : String
-	var name     : String
-	var firmware : String
-	var cached   : [String]
-	var deck     : DeckInfo
-	var settings : DeviceReportedSettings
-	var status   : DeviceStatus
+	var id        : String
+	var name      : String
+	var firmware  : String
+	/// Hex SHA-256 of the running app's ELF file (firmware 3.1.0 and later).
+	var elfSHA256 : String?
+	var cached    : [String]
+	var deck      : DeckInfo
+	var settings  : DeviceReportedSettings
+	var status    : DeviceStatus
 }
 
 /// ESP32 → Mac
@@ -117,16 +119,17 @@ enum DeviceMessage {
 		var state        : String?
 		var received     : Int?
 		var message      : String?
-		var id       : String?
-		var name     : String?
-		var firmware : String?
-		var cached   : [String]?
-		var deck     : DeckInfo?
-		var settings : DeviceReportedSettings?
-		var status   : DeviceStatus?
-		var reason   : String?        // beside `status`, not inside it
-		var hash     : String?
-		var key      : Int?
+		var id        : String?
+		var name      : String?
+		var firmware  : String?
+		var elfSHA256 : String?
+		var cached    : [String]?
+		var deck      : DeckInfo?
+		var settings  : DeviceReportedSettings?
+		var status    : DeviceStatus?
+		var reason    : String?        // beside `status`, not inside it
+		var hash      : String?
+		var key       : Int?
 	}
 
 	/// Keys beyond this are ignored; no Stream Deck has more.
@@ -141,6 +144,7 @@ enum DeviceMessage {
 				self = .hello( DeviceHello( protocolVersion: envelope.protocol ?? 2, nonce: envelope.nonce.flatMap { Data( hex: $0 ) },
 											pairedBridge: envelope.pairedBridge ?? "",
 											id: id.lowercased(), name: envelope.name ?? id, firmware: envelope.firmware ?? "?",
+											elfSHA256: envelope.elfSHA256?.lowercased(),
 											cached: envelope.cached ?? [], deck: envelope.deck ?? .disconnected,
 											settings: envelope.settings ?? DeviceReportedSettings(), status: envelope.status ?? DeviceStatus() ) )
 			case "deck":

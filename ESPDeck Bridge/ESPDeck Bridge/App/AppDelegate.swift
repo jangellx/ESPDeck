@@ -19,6 +19,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 	private var configurationRequested   = false
 	/// Launch windows showing the splash screen; never reused for configuration.
 	var splashSessions                   : Set<String> = []
+	/// The names the Device menu was built with.
+	private var deviceMenuNames          : [String] = []
 
 	func application( _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? ) -> Bool {
 		// App Nap would throttle HomeKit notifications and the server while no window is open.
@@ -30,6 +32,17 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		controller.onStatusChange = { [weak self] items, connected in
 			self?.menuBar?.update( statusLines: items.map( \.text ), levels: items.map { $0.level.rawValue }, connected: connected )
 		}
+		controller.onDecksChange = { [weak self] heading, decks in
+			guard let self else { return }
+			menuBar?.updateDecks( heading: heading, ids: decks.map( \.id ), titles: decks.map( \.title ), levels: decks.map { $0.level.rawValue } )
+			// The Device menu lists the devices by name.
+			let names = controller.devices.map { controller.settings( $0.id )?.name ?? $0.id }
+			if names != deviceMenuNames {
+				deviceMenuNames = names
+				UIMenuSystem.main.setNeedsRebuild()
+			}
+		}
+		controller.refreshLaunchAtLogin()
 		controller.start()
 
 		return true
@@ -73,6 +86,21 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 				menuBar?.bringWindowsToFront( excluding: SceneDelegate.splashTitle )
 			}
 		}
+	}
+
+	func menuBarShowDevice( id: String ) {
+		controller.window.selection = id
+		controller.window.page      = .keys
+		menuBarOpenConfiguration()
+	}
+
+	func menuBarLaunchAtLoginChanged() {
+		controller.refreshLaunchAtLogin()
+	}
+
+	func menuBarOpenUSBSetup() {
+		controller.window.selection = SidebarItem.usbSetup
+		menuBarOpenConfiguration()
 	}
 
 	func menuBarOpenConfiguration() {

@@ -12,15 +12,14 @@ struct KeyInspectorView: View {
 	let deviceID   : String
 	let key        : Int
 
-	@State private var confirmingClear = false
-
 	private var assignment: KeyAssignment { controller.assignment( deviceID, key: key ) }
 
 	var body: some View {
 		Form {
 			Section {
 				TargetPicker( controller: controller, assignment: assignment,
-							  edit: { change in controller.update( device: deviceID, key: key, change ) } ) { target in
+							  edit: { change in controller.update( device: deviceID, key: key, change ) },
+							  modeRequest: modeRequest ) { target in
 					controller.update( device: deviceID, key: key ) { $0.bind( to: target ) }
 				}
 				.id( "\(deviceID)/\(key)" )   // fresh mode and search for each key
@@ -43,16 +42,18 @@ struct KeyInspectorView: View {
 			} header: {
 				SectionHeader( "Key \(key + 1)" )
 			} footer: {
-				if assignment.isToggleShortcut {
-					Text( "Each press runs the shortcut with \u{201C}on\u{201D} or \u{201C}off\u{201D} as its Shortcut Input: the state the key is switching to. If the shortcut ends with Stop and Output of \u{201C}on\u{201D} or \u{201C}off\u{201D}, the key shows that state instead." )
+				// In the footer, so the button sits right under the section it tests.
+				VStack( alignment: .leading, spacing: 10 ) {
+					Pill {
+						Button( "Test Action" ) { controller.press( device: deviceID, key: key ) }
+							.disabled( assignment.kind == nil || assignment.action == .none )
+					}
+					.frame( maxWidth: .infinity )
+					if assignment.isToggleShortcut {
+						Text( "Each press runs the shortcut with \u{201C}on\u{201D} or \u{201C}off\u{201D} as its Shortcut Input: the state the key is switching to. If the shortcut ends with Stop and Output of \u{201C}on\u{201D} or \u{201C}off\u{201D}, the key shows that state instead." )
+					}
 				}
-			}
-
-			PillRow {
-				Pill {
-					Button( "Test Action" ) { controller.press( device: deviceID, key: key ) }
-						.disabled( assignment.kind == nil || assignment.action == .none )
-				}
+				.padding( .top, 4 )
 			}
 
 			Section {
@@ -104,8 +105,8 @@ struct KeyInspectorView: View {
 						.frame( maxWidth: 240 )
 
 					Pill {
-						Button( "Clear Key", role: .destructive ) { confirmingClear = true }
-							.confirmationDialog( "Clear Key \(key + 1)?", isPresented: $confirmingClear ) {
+						Button( "Clear Key", role: .destructive ) { controller.window.confirmingClearKey = true }
+							.confirmationDialog( "Clear Key \(key + 1)?", isPresented: confirmingClear ) {
 								Button( "Clear Key", role: .destructive ) { controller.clear( device: deviceID, key: key ) }
 							} message: {
 								Text( "This removes the key's accessory, action, label, background color, and icons." )
@@ -115,6 +116,16 @@ struct KeyInspectorView: View {
 			}
 		}
 		.formStyle( .grouped )
+	}
+
+	/// Shared with Edit ▸ Clear Key.
+	private var confirmingClear: Binding<Bool> {
+		Binding { controller.window.confirmingClearKey } set: { controller.window.confirmingClearKey = $0 }
+	}
+
+	/// Key ▸ Assign Accessory/Scene/Shortcut.
+	private var modeRequest: Binding<TargetMode?> {
+		Binding { controller.window.requestedTargetMode } set: { controller.window.requestedTargetMode = $0 }
 	}
 
 	/// The current state has its own icon, or falls back to Default.

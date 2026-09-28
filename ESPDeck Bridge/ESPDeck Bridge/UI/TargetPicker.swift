@@ -3,8 +3,9 @@
 //  ESPDeck Bridge
 //
 //  Chooses what an assignment controls: an accessory (room submenus), a scene, or a
-//  shortcut (folder submenus), with search. Used for keys, sleep/wake commands, and
-//  sleep triggers. Produces Form rows; put it inside a Section.
+//  shortcut (folder submenus), with search. With several Homes, accessories and scenes
+//  are grouped by Home first. Used for keys, sleep/wake commands, and sleep triggers.
+//  Produces Form rows; put it inside a Section.
 //
 
 import HomeKit
@@ -79,6 +80,8 @@ struct TargetPicker: View {
 	/// Several accessories at once, with one "key accessory": applies a change to the
 	/// assignment. Without it, accessories are picked one at a time through onSelect.
 	var edit       : ( ( ( inout KeyAssignment ) -> Void ) -> Void )?
+	/// A mode to switch to, from the Key menu; cleared once taken.
+	var modeRequest: Binding<TargetMode?>?
 	let onSelect   : ( HomeTarget? ) -> Void
 
 	private var multiple: Bool { edit != nil && mode == .accessory }
@@ -162,8 +165,12 @@ struct TargetPicker: View {
 					.foregroundStyle( .secondary )
 			}
 		}
-		.onAppear { syncMode() }
+		.onAppear {
+			syncMode()
+			takeModeRequest()
+		}
 		.onChange( of: assignment.kind ) { syncMode() }
+		.onChange( of: modeRequest?.wrappedValue ) { takeModeRequest() }
 		.onChange( of: mode ) {
 			search = ""
 			if mode == .shortcut && !controller.shortcutsLoaded {
@@ -188,21 +195,24 @@ struct TargetPicker: View {
 
 		ForEach( Array( members.enumerated() ), id: \.element ) { index, member in
 			HStack( spacing: 10 ) {
-				Button {
-					makeKey( member )
-				} label: {
-					Image( systemName: index == 0 ? "star.fill" : "star" )
-						.foregroundStyle( index == 0 ? Color.yellow : Color.secondary )
+				// The star picks the key accessory, which only means something with two or more.
+				if members.count > 1 {
+					Button {
+						makeKey( member )
+					} label: {
+						Image( systemName: index == 0 ? "star.fill" : "star" )
+							.foregroundStyle( index == 0 ? Color.yellow : Color.secondary )
+					}
+					.buttonStyle( .borderless )
+					.disabled( index == 0 )
+					.help( index == 0 ? "The key accessory: its state is the key's state" : "Make this the key accessory" )
 				}
-				.buttonStyle( .borderless )
-				.disabled( index == 0 || members.count < 2 )
-				.help( index == 0 ? "The key accessory: its state is the key's state" : "Make this the key accessory" )
 
 				VStack( alignment: .leading, spacing: 1 ) {
 					Text( name( of: member, in: targets ) )
 						.lineLimit( 1 )
 						.truncationMode( .middle )
-					Text( [ room( of: member, in: targets ), member.kind.title, index == 0 && members.count > 1 ? "key accessory" : nil ].compactMap { $0 }.joined( separator: " · " ) )
+					Text( [ place( of: member, in: targets ), member.kind.title, index == 0 && members.count > 1 ? "key accessory" : nil ].compactMap { $0 }.joined( separator: " · " ) )
 						.font( .caption )
 						.foregroundStyle( .secondary )
 						.lineLimit( 1 )
@@ -237,11 +247,9 @@ struct TargetPicker: View {
 
 		if canAddMore {
 			Menu {
-				ForEach( groups( in: addable( targets, members: members ) ), id: \.self ) { room in
-					Menu( room ) {
-						ForEach( addable( targets, members: members ).filter { ( $0.room ?? mode.ungroupedTitle ) == room } ) { target in
-							Button( "\(target.name) (\(target.kind.title))" ) { add( target ) }
-						}
+				byHome( addable( targets, members: members ) ) { targets in
+					roomMenus( targets ) { target in
+						Button( "\(target.name) (\(target.kind.title))" ) { add( target ) }
 					}
 				}
 			} label: {
@@ -306,8 +314,11 @@ struct TargetPicker: View {
 		targets.first { $0.accessoryID == member.accessoryID && $0.serviceID == member.serviceID && $0.kind == member.kind }?.name ?? "Missing Accessory"
 	}
 
-	private func room( of member: KeyMember, in targets: [HomeTarget] ) -> String? {
-		targets.first { $0.accessoryID == member.accessoryID && $0.serviceID == member.serviceID }?.room
+	/// "Room", or "Home · Room" with several Homes.
+	private func place( of member: KeyMember, in targets: [HomeTarget] ) -> String? {
+		guard let target = targets.first( where: { $0.accessoryID == member.accessoryID && $0.serviceID == member.serviceID } ) else { return nil }
+		let parts = [ severalHomes ? target.home : nil, target.room ].compactMap { $0 }
+		return parts.isEmpty ? nil : parts.joined( separator: " · " )
 	}
 
 	/// Room submenus for accessories, folder submenus for shortcuts, a flat list for scenes.
@@ -318,8 +329,10 @@ struct TargetPicker: View {
 
 			switch mode {
 				case .scene:
-					ForEach( targets ) { target in
-						menuItem( target, title: target.name )
+					byHome( targets ) { targets in
+						ForEach( targets ) { target in
+							menuItem( target, title: target.name )
+						}
 					}
 				case .shortcut:
 					// Folders as submenus, unfiled shortcuts at the top level.
@@ -334,11 +347,9 @@ struct TargetPicker: View {
 						menuItem( target, title: target.name )
 					}
 				case .accessory:
-					ForEach( groups( in: targets ), id: \.self ) { room in
-						Menu( room ) {
-							ForEach( targets.filter { ( $0.room ?? mode.ungroupedTitle ) == room } ) { target in
-								menuItem( target, title: "\(target.name) (\(target.kind.title))" )
-							}
+					byHome( targets ) { targets in
+						roomMenus( targets ) { target in
+							menuItem( target, title: "\(target.name) (\(target.kind.title))" )
 						}
 					}
 			}
@@ -358,11 +369,41 @@ struct TargetPicker: View {
 	}
 
 	private func groups( in targets: [HomeTarget] ) -> [String] {
+		Self.ordered( targets.map { $0.room ?? mode.ungroupedTitle } )
+	}
+
+	private static func ordered( _ values: [String] ) -> [String] {
 		var seen: [String] = []
-		for group in targets.map( { $0.room ?? mode.ungroupedTitle } ) where !seen.contains( group ) {
-			seen.append( group )
+		for value in values where !seen.contains( value ) {
+			seen.append( value )
 		}
 		return seen
+	}
+
+	private var severalHomes: Bool { controller.home.hasSeveralHomes }
+
+	/// A submenu per Home when there are several; otherwise the content itself.
+	@ViewBuilder
+	private func byHome<Content: View>( _ targets: [HomeTarget], @ViewBuilder content: @escaping ( [HomeTarget] ) -> Content ) -> some View {
+		if severalHomes {
+			ForEach( Self.ordered( targets.map { $0.home ?? "" } ), id: \.self ) { home in
+				Menu( home ) {
+					content( targets.filter { ( $0.home ?? "" ) == home } )
+				}
+			}
+		} else {
+			content( targets )
+		}
+	}
+
+	private func roomMenus<Item: View>( _ targets: [HomeTarget], @ViewBuilder item: @escaping ( HomeTarget ) -> Item ) -> some View {
+		ForEach( groups( in: targets ), id: \.self ) { room in
+			Menu( room ) {
+				ForEach( targets.filter { ( $0.room ?? mode.ungroupedTitle ) == room } ) { target in
+					item( target )
+				}
+			}
+		}
 	}
 
 	private func menuItem( _ target: HomeTarget, title: String ) -> some View {
@@ -389,23 +430,32 @@ struct TargetPicker: View {
 					return controller.shortcutsLoaded ? "Missing Shortcut" : ( assignment.shortcutName ?? "Shortcut" )
 			}
 		}
-		if kind == .scene || kind == .shortcut { return target.name }
+		let home = severalHomes ? target.home.map { "\($0) › " } ?? "" : ""
+		if kind == .shortcut { return target.name }
+		if kind == .scene { return home + target.name }
 		let place = target.room.map { "\($0) › " } ?? ""
-		return "\(place)\(target.name) (\(kind.title))"
+		return "\(home)\(place)\(target.name) (\(kind.title))"
 	}
 
 	private func detail( for target: HomeTarget ) -> String? {
-		switch target.kind {
+		let home = severalHomes ? target.home : nil
+		return switch target.kind {
 			case .shortcut: target.room
-			case .scene:    nil
-			default:        [ target.room, target.kind.title ].compactMap { $0 }.joined( separator: " · " )
+			case .scene:    home
+			default:        [ home, target.room, target.kind.title ].compactMap { $0 }.joined( separator: " · " )
 		}
 	}
 
 	private func matchesSearch( _ target: HomeTarget ) -> Bool {
 		let terms = search.split( separator: " " ).map( String.init )
-		let text  = [ target.name, target.room ?? "", target.kind.title ].joined( separator: " " )
+		let text  = [ target.name, target.room ?? "", target.kind.title, severalHomes ? target.home ?? "" : "" ].joined( separator: " " )
 		return terms.allSatisfy { text.localizedStandardContains( $0 ) }
+	}
+
+	private func takeModeRequest() {
+		guard let request = modeRequest?.wrappedValue else { return }
+		if modes.contains( request ) { mode = request }
+		modeRequest?.wrappedValue = nil
 	}
 
 	private func syncMode() {
@@ -418,7 +468,7 @@ struct TargetPicker: View {
 
 	private var searchPrompt: String {
 		switch mode {
-			case .accessory: "Search accessories, rooms, or types"
+			case .accessory: severalHomes ? "Search accessories, rooms, Homes, or types" : "Search accessories, rooms, or types"
 			case .scene:     "Search scenes"
 			case .shortcut:  "Search shortcuts or folders"
 		}
@@ -429,6 +479,7 @@ struct TargetPicker: View {
 		if !status.contains( .determined ) { return "Waiting for HomeKit access…" }
 		if !status.contains( .authorized ) { return "ESPDeck Bridge doesn't have HomeKit access. Allow it in System Settings → Privacy & Security → HomeKit." }
 		if controller.home.homes.isEmpty    { return "No HomeKit homes found for this iCloud account." }
+		if severalHomes { return mode == .scene ? "No scenes in your Homes." : "No supported accessories in your Homes." }
 		return mode == .scene ? "No scenes in this home." : "No supported accessories in this home."
 	}
 }

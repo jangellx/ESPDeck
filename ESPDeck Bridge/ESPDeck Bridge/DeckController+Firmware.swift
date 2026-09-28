@@ -3,7 +3,8 @@
 //  ESPDeck Bridge
 //
 //  Streams a firmware image to an ESP32 over its authenticated connection, one chunk
-//  at a time (PROTOCOL.md, Firmware frame). UpdateManager downloads and verifies it.
+//  at a time (PROTOCOL.md, Firmware frame). UpdateManager downloads and verifies release
+//  images; development images come from a file the user picks.
 //
 
 import CryptoKit
@@ -20,8 +21,9 @@ extension DeckController {
 		}
 
 		print( "[DeckController] Updating \(id) to firmware \(version) (\(image.count) bytes)" )
+		let build = ( try? FirmwareImage.appInfo( image ) )?.elfSHA256
 		device.firmwareImage    = image
-		device.firmwareProgress = FirmwareProgress( version: version, phase: .sending( sent: 0, total: image.count ) )
+		device.firmwareProgress = FirmwareProgress( version: version, build: build, phase: .sending( sent: 0, total: image.count ) )
 		let digest = Data( SHA256.hash( data: image ) ).hex
 		server.send( .firmwareBegin( version: version, size: image.count, sha256: digest ), to: client )
 	}
@@ -56,13 +58,24 @@ extension DeckController {
 		server.sendFirmwareChunk( offset: offset, chunk: image.subdata( in: offset..<end ), to: client )
 	}
 
-	/// After an update restarts the device: success if it now runs the new version.
+	/// Sends a development image (from a file) that FirmwareImage has
+	/// checked is ESPDeck's.
+	func sendLocalFirmware( device id: String, image: Data, info: FirmwareImage.AppInfo ) {
+		guard device( id )?.firmwareProgress?.isActive != true else { return }
+		sendFirmware( device: id, image: image, version: info.version )
+	}
+
+	/// After an update restarts the device: success if it now runs the new image. A
+	/// development build can have the version the device ran before, so when the device
+	/// reports its build, that decides.
 	func firmwareReconnected( _ device: DeckDevice ) {
 		guard let progress = device.firmwareProgress else { return }
 		switch progress.phase {
 			case .restarting, .installing:
-				if device.firmware == progress.version {
+				if progress.isRunning( on: device ) {
 					device.firmwareProgress = nil
+				} else if device.firmware == progress.version {
+					device.firmwareProgress?.phase = .failed( "The device restarted on its previous build of \(progress.version); the update was rolled back." )
 				} else {
 					device.firmwareProgress?.phase = .failed( "The device restarted on firmware \(device.firmware ?? "?"); the update was rolled back." )
 				}
