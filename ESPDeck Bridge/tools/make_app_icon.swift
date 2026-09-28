@@ -141,3 +141,25 @@ let contents = """
 """
 try! contents.write( to: output.appendingPathComponent( "Contents.json" ), atomically: true, encoding: .utf8 )
 print( "Wrote \(output.path)" )
+
+// The same art as an ordinary image, for showing the icon inside the app (the About page):
+// an app icon set can't be loaded by name.
+let art = output.deletingLastPathComponent().appendingPathComponent( "AppIconArt.imageset" )
+try! FileManager.default.createDirectory( at: art, withIntermediateDirectories: true )
+for name in [ "AppIcon.png", "AppIcon-Dark.png" ] {
+	let target = art.appendingPathComponent( name )
+	try? FileManager.default.removeItem( at: target )
+	try! FileManager.default.copyItem( at: output.appendingPathComponent( name ), to: target )
+}
+let artContents = """
+{
+  "images" : [
+    { "filename" : "AppIcon.png", "idiom" : "universal" },
+    { "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ], "filename" : "AppIcon-Dark.png", "idiom" : "universal" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}
+
+"""
+try! artContents.write( to: art.appendingPathComponent( "Contents.json" ), atomically: true, encoding: .utf8 )
+print( "Wrote \(art.path)" )

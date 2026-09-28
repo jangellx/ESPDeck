@@ -91,10 +91,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	}
 
 	private func rebuild() {
-		let symbol = connected ? "square.grid.3x2.fill" : "square.grid.3x2"
-		let image  = NSImage( systemSymbolName: symbol, accessibilityDescription: "ESPDeck" )
-		image?.isTemplate = true
-		statusItem?.button?.image = image
+		statusItem?.button?.image = Self.statusIcon( connected: connected )
 
 		menu.removeAllItems()
 
@@ -143,6 +140,17 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	/// Matches the configuration window: yellow circle while waiting, white check on
 	/// green when found, white exclamation mark on red for a problem, dashed circle for a
 	/// demo deck.
+	/// The app's own icon, menu-bar sized; faded while no deck is connected.
+	private static func statusIcon( connected: Bool ) -> NSImage {
+		let icon  = NSWorkspace.shared.icon( forFile: Bundle.main.bundlePath )
+		let image = NSImage( size: NSSize( width: 18, height: 18 ), flipped: false ) { rect in
+			icon.draw( in: rect, from: .zero, operation: .sourceOver, fraction: connected ? 1 : 0.45 )
+			return true
+		}
+		image.accessibilityDescription = connected ? "ESPDeck Bridge, connected" : "ESPDeck Bridge, no deck connected"
+		return image
+	}
+
 	private static func statusImage( level: Int ) -> NSImage? {
 		let ( name, colors ): ( String, [NSColor] ) = switch level {
 			case 1:  ( "checkmark.circle.fill", [ .white, .systemGreen ] )

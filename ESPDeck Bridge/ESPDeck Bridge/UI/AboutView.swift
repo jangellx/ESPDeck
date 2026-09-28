@@ -159,9 +159,12 @@ struct AboutView: View {
 		ScrollView {
 			VStack( alignment: .leading, spacing: 24 ) {
 				HStack( spacing: 16 ) {
-					Image( systemName: "square.grid.3x2.fill" )
-						.font( .system( size: 48 ) )
-						.foregroundStyle( .tint )
+					// The app icon's art is full-bleed; round it the way the system does.
+					Image( "AppIconArt" )
+						.resizable()
+						.frame( width: 64, height: 64 )
+						.clipShape( RoundedRectangle( cornerRadius: 64 * 0.2237, style: .continuous ) )
+						.accessibilityHidden( true )
 					VStack( alignment: .leading, spacing: 4 ) {
 						Text( "ESPDeck Bridge" )
 							.font( .largeTitle.bold() )
@@ -180,13 +183,15 @@ struct AboutView: View {
 				}
 
 				section( "Requirements" ) {
-					bullet( "A Mac running macOS 14 Sonoma or later, signed in to an iCloud account that's a member of the Home. The Mac must stay on and logged in (turn on automatic login and Launch at Login for an always-on panel)." )
-					bullet( "An ESP32-S3 with 16 MB flash and 8 MB PSRAM (ESP32-S3-DevKitC-1 N16R8), running ESPDeck firmware." )
-					bullet( "An Elgato Stream Deck (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module)." )
-					bullet( "A 5 V USB power supply rated 2 A or more, and its cable. It powers both the ESP32-S3 and the Stream Deck." )
-					bullet( "A passive USB-C OTG adapter with a power input: a USB-C plug for the board's native USB port, a USB-A port for the Stream Deck, and a USB-C port for the power supply. Adapters that need USB-PD negotiation may never switch on power to the Stream Deck." )
-					bullet( "If the Stream Deck's cable ends in USB-C: a USB-A (male) to USB-C (female) adapter that includes the CC pull-up resistor. Choose one labeled for charging and sync (data), not charge-only; one that mentions a 56 kΩ resistor is the surest bet. Not needed if the cable ends in USB-A." )
-					bullet( "A 2.4 GHz Wi-Fi network shared by the Mac and the ESP32." )
+					// **Bold** marks what to look for: versions, parts and specs.
+					bullet( "A Mac running **macOS 14 Sonoma or later**, signed in to an iCloud account that's a **member of the Home**. The Mac must **stay on and logged in** (turn on automatic login and Launch at Login for an always-on panel)." )
+					bullet( "An **ESP32-S3 dev kit with 16 MB flash and 8 MB PSRAM** (ESP32-S3-DevKitC-1 **N16R8**), running ESPDeck firmware." )
+					bullet( "An **Elgato Stream Deck** (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module)." )
+					bullet( "A **5 V USB-C power supply rated 2 A or more**. Through the OTG adapter, it powers both the dev kit and the Stream Deck." )
+					bullet( "A **passive USB-C OTG adapter with a power input**: a USB-C plug for the dev kit's **USB** port, a USB-A port for the Stream Deck, and a USB-C port for power. Adapters that need USB-PD negotiation may never switch on power to the Stream Deck." )
+					bullet( "If the Stream Deck's cable ends in USB-C: a **USB-A (male) to USB-C (female) adapter**, labeled for **charging and data** (not charge-only). Not needed if the cable ends in USB-A." )
+					bullet( "A **USB-C cable that carries data**, for the power supply and for setting up the dev kit from this Mac." )
+					bullet( "A **2.4 GHz Wi-Fi network** shared by the Mac and the dev kit." )
 				}
 
 				section( "Moving to Another Mac" ) {
@@ -264,7 +269,7 @@ struct AboutView: View {
 	private func bullet( _ text: String ) -> some View {
 		HStack( alignment: .firstTextBaseline, spacing: 8 ) {
 			Text( "•" )
-			Text( text )
+			Text( LocalizedStringKey( text ) )   // **bold** marks the key facts
 		}
 		.font( .callout )
 	}

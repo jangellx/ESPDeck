@@ -9,14 +9,14 @@ A Stream Deck on an ESP32-S3, used as a HomeKit panel. The Mac app does all the 
 
 ## Requirements
 
-- A Mac on macOS 14 (Sonoma) or later, signed in to an iCloud account that's a member of the Home. It has to stay on and logged in; for an always-on panel, turn on automatic login and the app's **Launch at Login**.
-- An ESP32-S3 with 16 MB flash and 8 MB PSRAM (ESP32-S3-DevKitC-1 N16R8) running ESPDeck firmware.
-- An Elgato Stream Deck (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module).
+- A Mac on **macOS 14 (Sonoma) or later**, signed in to an iCloud account that's a **member of the Home**. It has to **stay on and logged in**; for an always-on panel, turn on automatic login and the app's **Launch at Login**.
+- An **ESP32-S3 dev kit with 16 MB flash and 8 MB PSRAM** (ESP32-S3-DevKitC-1 **N16R8**) running ESPDeck firmware.
+- An **Elgato Stream Deck** (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module).
 - A **5 V USB-C power supply rated 2 A or more**. Through the OTG adapter, it powers both the ESP32-S3 and the Stream Deck.
 - A **passive USB-C OTG adapter with a power input**: a USB-C plug for the board's native **USB** port, a USB-A port for the Stream Deck, and a USB-C port for the power supply. It must be passive; adapters that need USB-PD negotiation may never switch on power to the Stream Deck.
 - If the Stream Deck's cable ends in USB-C: a **USB-A (male) to USB-C (female) adapter** that includes the CC pull-up resistor, so the Stream Deck sees a power source. Choose one labeled for **charging and data** (sometimes "sync"), not charge-only; one whose listing mentions a **56 kΩ resistor** is the surest bet. To check an adapter before building, plug the Stream Deck through it into a Mac: if the deck lights up and appears in System Information → USB, it will work. If the deck's cable already ends in USB-A, you don't need this adapter.
-- A **USB-C cable** that carries data (not a charge-only one). It connects the power supply to the OTG adapter, and the board's **USB** port to the Mac when installing firmware.
-- A 2.4 GHz Wi-Fi network that the Mac and the ESP32 share.
+- A **USB-C cable that carries data** (not a charge-only one). It connects the power supply to the OTG adapter, and the board's **USB** port to the Mac when installing firmware.
+- A **2.4 GHz Wi-Fi network** that the Mac and the ESP32 share.
 
 ## Firmware
 
