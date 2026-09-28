@@ -98,7 +98,7 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 
 | type | fields | when |
 |---|---|---|
-| `hello` | `protocol` (3), `id` (MAC), `name`, `firmware`, `nonce`, `pairedBridge`, `cached` (hashes), `deck` (deck object), `settings` (settings object), `status` (status object) | **Unauthenticated.** Sent right after connecting, and again (inside the session, with a MAC) after leaving setup mode, since the setup page may have renamed the device. The Mac treats every authenticated `hello` as a full resync; one sent inside the session needs no new handshake, and carries the session's original `nonce`. |
+| `hello` | `protocol` (3), `id` (MAC), `name`, `firmware`, `elfSHA256` (firmware 3.1.0 and later), `nonce`, `pairedBridge`, `cached` (hashes), `deck` (deck object), `settings` (settings object), `status` (status object) | **Unauthenticated.** Sent right after connecting, and again (inside the session, with a MAC) after leaving setup mode, since the setup page may have renamed the device. Also resent inside the session after Improv renames the device (see USB below). The Mac treats every authenticated `hello` as a full resync; one sent inside the session needs no new handshake, and carries the session's original `nonce`. |
 | `auth` | `proof` | **Unauthenticated.** Handshake step 3 |
 | `pairResponse` | `publicKey` | **Unauthenticated.** Pairing step 2 |
 | `pairConfirm` | `proof` | **Unauthenticated.** Pairing step 4 |
@@ -109,6 +109,8 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 | `need` | `hash` | told to `show` a hash it doesn't have |
 | `shown` | `key`, `hash` | the key now shows that cached image on the deck: just uploaded, or it already did. Drives the Mac's progress bar; firmware without it is handled by a timeout. |
 | `keyDown`, `keyUp` | `key` | key pressed or released (not sent while asleep or in setup mode, nor for the key press that wakes the deck) |
+
+`elfSHA256` is the running app's `app_elf_sha256` from its app description (`esp_app_desc_t`), as 64 lowercase hex digits: the SHA-256 of the ELF file it was built from. Two builds with the same `firmware` version have different values.
 
 **Deck object:** `connected` (bool). When connected, it also has:
 - `model` (string) and `pid` (int)
@@ -129,7 +131,7 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 - `setupMode` (bool)
 
 ```json
-{"type":"hello","protocol":3,"id":"f4:12:fa:00:00:00","name":"Office Deck","firmware":"3.0.0","nonce":"5f1c…","pairedBridge":"0c6e0a52-…","cached":["9f86d081884c7d659a2feaa0c55ad015"],
+{"type":"hello","protocol":3,"id":"f4:12:fa:00:00:00","name":"Office Deck","firmware":"3.1.0","elfSHA256":"29b53312…","nonce":"5f1c…","pairedBridge":"0c6e0a52-…","cached":["9f86d081884c7d659a2feaa0c55ad015"],
  "deck":{"connected":true,"model":"Stream Deck Mini","pid":99,"serial":"BL12H1A12345","firmware":"1.00.004","rows":2,"cols":3,"keySize":80,"format":"bmp","transform":"transpose"},
  "settings":{"orientation":"auto","sleepTimeout":600,"brightness":80,"ip":"192.168.1.44"},
  "status":{"asleep":false,"setupMode":false}}
@@ -185,12 +187,24 @@ Chunks are sent in order, one at a time: the Mac waits for a `firmwareStatus` `p
 
 The ESP32 writes the image to its inactive OTA slot. After the restart it runs the new image in pending-verify mode, and marks it valid once it has completed an authenticated handshake with its bridge. If that hasn't happened within 10 minutes of boot, it restarts, and the bootloader rolls back to the previous image. `hello`'s `firmware` then reports the version actually running.
 
+After the restart, the Mac decides whether the new image is running by comparing `hello`'s `elfSHA256` with the `app_elf_sha256` in the image it sent, since a development build can carry the same version as the one it replaces. Firmware without `elfSHA256` is compared by version.
+
 The Mac downloads firmware from GitHub Releases:
 - tags `firmware-vX.Y.Z`;
 - asset `espdeck-firmware-X.Y.Z.bin` is the OTA app image;
 - asset `espdeck-firmware-X.Y.Z-merged.bin` is the full flash image for USB installs.
 
 The Mac checks the image against the asset's published SHA-256 before sending it.
+
+## USB (Improv serial)
+
+Over USB, a device speaks [Improv Wi-Fi serial](https://www.improv-wifi.com/serial/) (version 1) at 115200 baud: on the UART/COM port always, and on the native USB port's USB-Serial/JTAG when a computer is on it at boot. ESP Web Tools and ESPDeck Bridge's USB Setup page use it.
+
+- The firmware's log lines share the port. A lock keeps each log line and each packet whole, and every packet the device sends ends with a newline, so a client reads lines of text and finds packets by their `IMPROV` header, version 1 and a packet type from 1 to 4, then checks the checksum.
+- Commands: `0x01` send Wi-Fi settings, `0x02` request current state, `0x03` request device information, `0x04` request scanned Wi-Fi networks, and `0x06` get or set the device name. Others answer error `0x02` (unknown command); ESPDeck has no hostname command (`0x05`), since its hostname is fixed.
+- Device information is `ESPDeck`, the firmware version, `ESP32-S3`, and the device name.
+- Send Wi-Fi settings saves the credentials only once they work (within 20 s): the answer is state Provisioned and a result with no URL, since the device's only web page is its setup page. Otherwise it's error `0x03` (unable to connect), and the device goes back to its previous network. In setup mode, joining leaves setup mode (`status` reason `improv`).
+- `0x06`, the spec's standard device name command (firmware 3.1.0 and later): with no data it answers the name; with data, the data is the new name itself (UTF-8, 1 to 32 bytes, no NUL), not a length-prefixed string. The name is stored as `setName` stores it, and the result carries the name in effect. A name that isn't allowed gets error `0x01`. If the device has an authenticated session, it then resends `hello` there, so the bridge shows the new name.
 
 ## Sleep
 

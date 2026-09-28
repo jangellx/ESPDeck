@@ -12,15 +12,15 @@ A Stream Deck on an ESP32-S3, used as a HomeKit panel. The Mac app does all the 
 - A Mac on macOS 27 or later, signed in to an iCloud account that's a member of the Home. It has to stay on and logged in; for an always-on panel, turn on automatic login and the app's **Launch at Login**.
 - An ESP32-S3 with 16 MB flash and 8 MB PSRAM (ESP32-S3-DevKitC-1 N16R8) running ESPDeck firmware.
 - An Elgato Stream Deck (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module).
-- A **5 V USB power supply rated 2 A or more**, and its cable. It powers both the ESP32-S3 and the Stream Deck.
+- A **5 V USB-C power supply rated 2 A or more**. Through the OTG adapter, it powers both the ESP32-S3 and the Stream Deck.
 - A **passive USB-C OTG adapter with a power input**: a USB-C plug for the board's native **USB** port, a USB-A port for the Stream Deck, and a USB-C port for the power supply. It must be passive; adapters that need USB-PD negotiation may never switch on power to the Stream Deck.
-- If the Stream Deck's cable ends in USB-C: a **USB-A (male) to USB-C (female) adapter** that includes the CC pull-up resistor, so the Stream Deck sees a power source. Choose one labeled for **charging and sync** (data), not charge-only; one whose listing mentions a **56 kΩ resistor** is the surest bet. To check an adapter before building, plug the Stream Deck through it into a Mac: if the deck lights up and appears in System Information → USB, it will work. If the deck's cable already ends in USB-A, you don't need this adapter.
-- For installing firmware: a USB **data** cable (not a charge-only one) from the computer to the board's **USB** port.
+- If the Stream Deck's cable ends in USB-C: a **USB-A (male) to USB-C (female) adapter** that includes the CC pull-up resistor, so the Stream Deck sees a power source. Choose one labeled for **charging and data** (sometimes "sync"), not charge-only; one whose listing mentions a **56 kΩ resistor** is the surest bet. To check an adapter before building, plug the Stream Deck through it into a Mac: if the deck lights up and appears in System Information → USB, it will work. If the deck's cable already ends in USB-A, you don't need this adapter.
+- A **USB-C cable** that carries data (not a charge-only one). It connects the power supply to the OTG adapter, and the board's **USB** port to the Mac when installing firmware.
 - A 2.4 GHz Wi-Fi network that the Mac and the ESP32 share.
 
 ## Firmware
 
-1. Install the firmware (below), with `pio run -t upload` or, without a build setup, the web installer.
+1. Install the firmware (below): from ESPDeck Bridge's **USB Setup** page, with the web installer, or with `pio run -t upload`.
 2. Plug in a Stream Deck. Every model with keys works (Mini, Original, MK.2, XL, Neo, +, Pedal, and the modules); the firmware reports its layout and image format to the Mac.
 3. Set up Wi-Fi in setup mode (below). There's nothing to configure at build time.
 
@@ -35,9 +35,13 @@ A Stream Deck on an ESP32-S3, used as a HomeKit panel. The Mac app does all the 
 **Steps:**
 1. Connect the board's **USB** port to the computer with a data cable.
 2. **Put the board in flashing mode** if it's running other firmware; a new board's demo firmware usually is. Hold **BOOT** (also labeled B0 or IO0), press and release **RST** (also labeled EN or RESET), then release BOOT. A new serial port appears (`/dev/cu.usbmodem…` on a Mac).
-3. Install with the web installer, or run `pio run -t upload --upload-port /dev/cu.usbmodem…`.
+3. Install with ESPDeck Bridge (next paragraph), the web installer, or `pio run -t upload --upload-port /dev/cu.usbmodem…`.
 4. If the board doesn't start ESPDeck afterward (its serial port is still there), press **RST** or unplug and replug it.
-5. With the web installer, stay on the page: once ESPDeck starts, the installer offers to **connect it to Wi-Fi** right there (over the serial port, with the [Improv](https://www.improv-wifi.com/serial/) protocol). Pick your network and enter its password. If you skip this, set up Wi-Fi later with the QR codes on the deck (setup mode, below).
+5. With ESPDeck Bridge or the web installer, stay there: once ESPDeck starts, you can **connect it to Wi-Fi** over the same cable (with the [Improv](https://www.improv-wifi.com/serial/) protocol). Pick your network and enter its password. If you skip this, set up Wi-Fi later with the QR codes on the deck (setup mode, below).
+
+**With ESPDeck Bridge (Mac):** open **USB Setup** in the configuration window's sidebar (or choose **Set Up a Device over USB…** in the menu bar menu). With **Look for boards plugged in over USB** on (the default; turn it off if you use this Mac for other ESP32 work), the page lists the boards plugged in, and the sidebar entry shows how many. When an ESP32 appears on its own USB port, the app opens that port once, asks what it's running (Improv device information), and closes it again; opening it doesn't restart the board. A board on a USB serial chip (a COM or UART port) is asked only when you click **Check**, since opening such a port can restart the board. For an ESPDeck board the page shows its version against the latest release: up to date, an update available, or newer (a development build). With several boards, click the one to set up. Choose the firmware (the latest release from GitHub, checked against its SHA-256, or a file) and click **Install Firmware**; installing an older version than the board runs asks first. The app puts the board into flashing mode itself: through the reset lines of the USB-Serial/JTAG port or a COM port's serial chip, or, for firmware with its own USB serial port, the 1200 bps signal that Arduino sketches honor. Other firmware (ESP-IDF's USB examples, say) ignores that, and then it asks you to hold BOOT and press RST; the board comes back as a new port in the same USB socket, which the page follows. In the bootloader, before writing anything, it checks the chip (ESP32-S3), the flash size (the flash chip's JEDEC ID, against what the image's partition table needs: 16 MB) and the built-in PSRAM (from the eFuses: 8 or 16 MB of octal PSRAM, which the firmware needs; without it the firmware stops at startup), and shows what it found, like "ESP32-S3, 16 MB flash, 8 MB PSRAM". It writes the bootloader, partition table and app, but not the data partitions, so a reinstall keeps the Wi-Fi settings, name and pairing (the web installer erases everything). After the board restarts, the page asks it again what it runs. **Find Networks**, **Join Network** and **Rename** each open the port for that one action. Once on Wi-Fi the board finds the bridge by itself; a new device then appears under **New Devices** for pairing, which needs the Stream Deck attached to press Confirm.
+
+The app writes the flash through the ESP32-S3's ROM bootloader protocol itself (no esptool), so it would also work sandboxed with the `com.apple.security.device.serial` entitlement, which the Catalyst entitlements already include.
 
 **Computer or Stream Deck.** At startup ESPDeck looks at its USB port for about 1.5 seconds. If a computer is on the other end, the port stays a serial port: it shows up on the computer, logs appear there, Improv works, and reinstalling needs no BOOT/RST. Wi-Fi, setup mode and the bridge connection work as usual, but there's no Stream Deck. Only when there's no computer, as with the OTG adapter and a Stream Deck, does the port become the deck's USB host. The decision is made once per boot, so after switching cables, press **RST** or power-cycle the board.
 
@@ -68,6 +72,13 @@ ESPDeck Bridge updates the firmware over Wi-Fi from GitHub Releases. A new image
 
 - **Partition change (3.0.0):** 3.0.0 switches to two 3 MB OTA app slots. Moving an older device to 3.0.0 needs one USB flash (`pio run -t upload`, or the web installer). It moves the image cache, so the cache starts empty and refills from the Mac. Wi-Fi settings survive a `pio run -t upload`; the web installer erases the whole flash, settings included.
 - **Releasing:** set `PROJECT_VER` in `ESPDeck Device/CMakeLists.txt`, then run `ESPDeck Device/tools/release.sh X.Y.Z`. It builds `dist/espdeck-firmware-X.Y.Z.bin` (the OTA image) and `-merged.bin` (the full flash image), each with a `.sha256`, and points the web installer at the new version. Pushing the tag `firmware-vX.Y.Z` makes `.github/workflows/firmware.yml` do the same on GitHub, attach the files to a release, and deploy `web/` to Pages.
+- **Development builds:** on a device's **Device** page (or under **Updates**), the **…** menu next to its firmware has **Install Firmware from File…** (choose `firmware.bin` in `~/.platformio/build/ESPDeck/espdeck/`). It sends the app image over Wi-Fi like a release update, after checking that it's ESPDeck's (the project name in its app description) and showing its version and build time. A development build can carry the version the device already runs, so the Mac tells the new image apart by its ELF SHA-256, which the device reports in `hello`. For USB, choose a full image with **Choose File…** on the USB Setup page: PlatformIO's `firmware.factory.bin` in that build folder is one (bootloader, partition table, otadata and app from offset 0).
+- **Uploading over Wi-Fi from PlatformIO (ArduinoOTA):** the `espdeck-dev` environment is the release firmware plus ArduinoOTA, for pushing builds to a dev kit without the bridge. It's never released: `tools/release.sh`, the GitHub workflow and the web installer build `espdeck`, which is also what a plain `pio run` builds.
+  1. Put a password (8 or more characters, no spaces or quotes) in `ESPDeck Device/ota_password.txt`, which is git-ignored, or set `ESPDECK_OTA_PASSWORD`. The dev build stops without one. It's compiled into the firmware and given to espota when uploading.
+  2. Install a dev build once over USB (`pio run -e espdeck-dev -t upload --upload-port /dev/cu.usbmodem…`) and give the board Wi-Fi.
+  3. From then on: `pio run -e espdeck-dev -t upload --upload-port espdeck-eeff.local` (the device's mDNS name: `espdeck-` and the last four hex digits of its MAC address) or its IP address. A `.local` name or an IP address makes PlatformIO use espota. To skip typing it, put `[env:espdeck-dev]` with `upload_port = …` in `ESPDeck Device/platformio.local.ini` (git-ignored).
+  - The deck shows "Updating firmware" during the upload. A dev build ignores uploads while an update from ESPDeck Bridge is running or waiting to restart.
+  - Rollback: a release image stays pending until its first authenticated session with the bridge, and rolls back after 10 minutes without one. A dev build instead keeps a new image (from espota or from the bridge) as soon as it's on Wi-Fi, where the next upload comes from, so testing without the bridge doesn't roll back. A build that crashes before reaching Wi-Fi still rolls back.
 - **Crypto test vectors:** `ESPDeck Device/tools/crypto_test/run.sh` checks the pairing and session crypto against RFC 7748 and CryptoKit; `vectors.txt` there is the reference for the Mac side.
 
 Notes:
@@ -79,27 +90,35 @@ Notes:
 ## Mac app
 
 1. Open `ESPDeck Bridge.xcodeproj`, choose the **My Mac (Mac Catalyst)** destination, and let automatic signing register the App ID. The app ID needs the HomeKit capability.
-   - Team, bundle ID prefix, and the GitHub repository used for updates are in `ESPDeck Bridge/Config/Signing.xcconfig`. To build under your own team, create `Config/Signing.local.xcconfig` (git-ignored) and override `DEVELOPMENT_TEAM` and `BUNDLE_ID_PREFIX` there.
-2. Run it. It has no Dock icon; use the grid icon in the menu bar and choose **Configure…**. **Launch at Login** is in the same menu.
+   - Team, bundle ID prefix, and the GitHub repository used for firmware updates are in `ESPDeck Bridge/Config/Signing.xcconfig`. To build under your own team, create `Config/Signing.local.xcconfig` (git-ignored) and override `DEVELOPMENT_TEAM` and `BUNDLE_ID_PREFIX` there.
+2. Run it. It has no Dock icon; use the grid icon in the menu bar and choose **Configure…**, or choose a deck listed at the top of that menu to open its keys. **Launch at Login** is in the same menu, in the app menu, and in the sidebar's Status section.
 3. For unattended use: turn on auto-login for an account that's a member of the Home.
 
 Every ESPDeck that connects appears in the window's sidebar, keyed by its MAC address. Each has:
 - **Keys**: a simulated deck in the device's own layout, and the selected key's accessory, scene or shortcut, action, label, background color, and per-state icons (dropped images or SF Symbols). Drag keys onto each other to swap them.
 - **Device**: name, brightness, image orientation, sleep timer, sleep/wake triggers from HomeKit accessories, commands to run on sleep and wake, setup mode, and Forget Device.
 
+Keys can use accessories and scenes from every Home the account belongs to, even several Homes on one key. With more than one Home, the pickers group accessories and scenes by Home first.
+
+The menus cover the window: File ▸ New Demo Deck (⌘N), View ▸ Keys, Device and Log (⌘1–⌘3), the Device menu (⌘] and ⌘[ step through devices, ⌃⌘1–9 pick one, plus sleep, wake, setup mode, firmware update and Forget), and the Key menu (⌥-arrows move the selected key, or plain arrows after clicking the deck preview; ⌘T tests its action; Assign Accessory, Scene or Shortcut). Delete clears the selected key, after the same confirmation as the button.
+
+**What You Need** in the sidebar lists the parts for one ESPDeck.
+
+**USB Setup** (Mac only) installs firmware on a board plugged into the Mac and sets up its Wi-Fi and name; see Installing above.
+
 Key actions run when a key is released, and not when it was part of a multi-key press (so the setup-mode corner hold doesn't trigger keys).
 
-Shortcuts run through Shortcuts Events. The first time the app lists or runs one, macOS asks to let it control Shortcuts Events. If you declined, turn it on in System Settings → Privacy & Security → Automation, or reset the decision with `tccutil reset AppleEvents com.tmproductions.ESPDeck-Bridge` and ask again.
+Shortcuts run through Shortcuts Events, with Apple Events sent from within the app (it launches no helper tools, so it works sandboxed). The first time the app lists or runs one, macOS asks to let it control Shortcuts Events. If you declined, turn it on in System Settings → Privacy & Security → Automation, or reset the decision with `tccutil reset AppleEvents com.tmproductions.ESPDeck-Bridge` and ask again.
 
 New ESPDecks appear under **New Devices** until they're paired (see Pairing above). Pairing keys are stored in the Keychain.
 
-**Updates** (in the sidebar) checks GitHub Releases for the app (tags `bridge-vX.Y.Z`) and the firmware (`firmware-vX.Y.Z`). Each can install automatically, ask first, or only check when you click Check Now. The app checks the download's SHA-256 and that it's signed by the same Team ID before replacing itself. The repository must be public for update checks to work.
+**Updates** (in the sidebar) checks GitHub Releases for firmware (tags `firmware-vX.Y.Z`). It can install automatically, ask first, or only check when you click Check Now. The repository must be public for update checks to work. The app itself is distributed and updated through the Mac App Store.
 
-**Releasing the app:** set the version (MARKETING_VERSION), then run `ESPDeck Bridge/tools/release-app.sh X.Y.Z`. It archives, exports with Developer ID, notarizes (one-time setup: `xcrun notarytool store-credentials ESPDeck …`, see the script), staples, and writes to `dist/` a disk image for first-time downloads (also signed, notarized and stapled) and a zip for the app's updater, each with a `.sha256`. Attach all four to a GitHub release tagged `bridge-vX.Y.Z`.
+**Sandbox.** The Mac app runs in the App Sandbox (`Support/ESPDeck Bridge Catalyst.entitlements`), with: network client and server (the WebSocket server on port 48620, Bonjour `_deckbridge._tcp`, GitHub downloads), HomeKit, USB serial ports (`com.apple.security.device.serial`, for USB Setup), read access to files you pick (Install Firmware from File…), and Apple Events to Shortcuts Events (`com.apple.security.scripting-targets` for `com.apple.shortcuts.events`, access group `com.apple.shortcuts.run`, plus the hardened runtime's `com.apple.security.automation.apple-events`). Pairing keys stay in the Keychain, and Launch at Login uses `SMAppService`, both of which work sandboxed.
 
-The app isn't sandboxed (it's distributed outside the App Store, and it has to replace itself when updating); it uses the hardened runtime and is notarized. Its data is in `~/Library/Application Support/ESPDeck Bridge`.
+**Moving from an unsandboxed build.** Earlier builds kept their data in `~/Library/Application Support/ESPDeck Bridge`, which the sandboxed app can't read. To keep your key layouts and icons: quit ESPDeck Bridge, then in Finder move that `ESPDeck Bridge` folder into `~/Library/Containers/com.tmproductions.ESPDeck-Bridge/Data/Library/Application Support/` (the container exists once the sandboxed app has run; replace the `ESPDeck Bridge` folder it made), and open the app again. Pairings are in the Keychain and carry over.
 
-The app is a Catalyst target (iPad + Mac) with a small macOS bundle target, `ESPDeckMenuBar`, embedded in `Contents/PlugIns`. That bundle owns the `NSStatusItem` (which Catalyst can't create) and runs the AppleScript for Shortcuts (which Catalyst can't either). `Shared/DeckMenuBarProtocols.swift` is compiled into both targets.
+The app is a Catalyst target (iPad + Mac) with a small macOS bundle target, `ESPDeckMenuBar`, embedded in `Contents/PlugIns`. That bundle owns the `NSStatusItem` (which Catalyst can't create), sends the Apple Events for Shortcuts (which Catalyst can't either), and does USB Setup's serial work: the port list (IOKit), the ROM bootloader protocol (`ESPLoader`), and Improv. `Shared/DeckMenuBarProtocols.swift` is compiled into both targets.
 
 ## Check on first hardware run
 
@@ -110,7 +129,7 @@ The app is a Catalyst target (iPad + Mac) with a small macOS bundle target, `ESP
 
 ## Credits
 
-ESPDeck uses or includes:
+ESPDeck uses or includes the following; [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) has the full notices and license details.
 
 - [python-elgato-streamdeck](https://github.com/abcminiuser/python-elgato-streamdeck) by Dean Camera (MIT license): the Stream Deck model layouts and USB report formats in the firmware are derived from it.
 - [Elgato's Stream Deck HID documentation](https://docs.elgato.com/streamdeck/hid/).
