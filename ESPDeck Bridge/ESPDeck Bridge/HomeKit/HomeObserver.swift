@@ -62,7 +62,13 @@ final class HomeObserver: NSObject {
 	private(set) var homes         : [HMHome] = []
 	private(set) var authorization : HMHomeManagerAuthorizationStatus = []
 	/// Latest known value of each watched characteristic.
-	private(set) var values        : [CharacteristicRef: Any] = [:]
+	private(set) var values        : [CharacteristicRef: Any] = [:] {
+		didSet { noteDoorMotion() }
+	}
+	/// For each garage door, whether it was last seen going up (opening or open) rather than
+	/// down. HomeKit reports a door stopped mid-way as just "stopped", so Toggle uses this to
+	/// reverse it, as a garage remote's button does.
+	@ObservationIgnored private var doorWasOpening: [CharacteristicRef: Bool] = [:]
 
 	/// Called when a watched value or reachability changes.
 	@ObservationIgnored var onChange       : ( ( CharacteristicRef ) -> Void )?
@@ -276,7 +282,14 @@ final class HomeObserver: NSObject {
 		guard !members.isEmpty, let ref = assignment.characteristicRef else { throw HomeActionError.unsupported }
 
 		let keyState = kind.state( for: values[ref] )
-		let activate = KeyKind.activates( assignment.action ) ?? !kind.isActive( keyState )
+		let activate: Bool
+		if let explicit = KeyKind.activates( assignment.action ) {
+			activate = explicit
+		} else if kind == .garageDoor && keyState == .stopped {
+			activate = !( doorWasOpening[ref] ?? true )   // reverse; closing if we never saw it move
+		} else {
+			activate = !kind.isActive( keyState )
+		}
 
 		var done: [String] = []
 		var failures: [String] = []
@@ -307,6 +320,18 @@ final class HomeObserver: NSObject {
 		var summary = "\(verb): \(done.joined( separator: ", " ))"
 		if !failures.isEmpty { summary += "; failed: \(failures.joined( separator: ", " ))" }
 		return summary
+	}
+
+	/// Remembers each door's direction from its current state (HMCharacteristicValueDoorState:
+	/// 0 open, 1 closed, 2 opening, 3 closing, 4 stopped).
+	private func noteDoorMotion() {
+		for ( ref, value ) in values where ref.characteristicType == HMCharacteristicTypeCurrentDoorState {
+			switch ( value as? NSNumber )?.intValue {
+				case 0, 2: doorWasOpening[ref] = true
+				case 1, 3: doorWasOpening[ref] = false
+				default:   break
+			}
+		}
 	}
 
 	/// HomeKit doesn't tell an app about changes it made itself, so record what was written
