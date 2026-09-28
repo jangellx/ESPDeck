@@ -56,10 +56,11 @@ enum DockPresence {
 
 	static var hasOpenWindow: Bool { !openWindows.isEmpty }
 
-	/// A window is about to open: become regular now, so activating for it works.
+	/// A window is about to open. Stay an accessory until it's on screen: WindowServer denies
+	/// activation to a regular app that has no windows ("presents 0 windows… Denying the
+	/// request"), and that would be the one request that carries the click's permission.
 	static func windowWillOpen() {
 		expectingWindowUntil = Date( timeIntervalSinceNow: 5 )
-		update()
 	}
 
 	/// UIKit builds the window asynchronously, sometimes well after the click that asked for
@@ -68,6 +69,7 @@ enum DockPresence {
 	private static func focusExpectedWindow() {
 		guard Date() < expectingWindowUntil, let window = openWindows.first( where: \.isVisible ) else { return }
 		expectingWindowUntil = .distantPast
+		update()   // regular now that a window is on screen
 		NSApp.activate()
 		NSApp.activate( ignoringOtherApps: true )
 		window.makeKeyAndOrderFront( nil )
@@ -80,10 +82,9 @@ enum DockPresence {
 		}
 	}
 
-	/// Regular while a window is open (minimized counts) or about to open, an accessory otherwise.
+	/// Regular while a window is open (minimized counts), an accessory otherwise.
 	static func update() {
-		let open = hasOpenWindow || Date() < expectingWindowUntil
-		let policy: NSApplication.ActivationPolicy = open ? .regular : .accessory
+		let policy: NSApplication.ActivationPolicy = hasOpenWindow ? .regular : .accessory
 		if NSApp.activationPolicy() != policy {
 			NSApp.setActivationPolicy( policy )
 		}

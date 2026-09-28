@@ -56,8 +56,8 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		rebuild()
 	}
 
-	/// Called while handling the click that opens the window: become a regular app now, before
-	/// the window exists, so this activation (the one macOS credits to the click) sticks.
+	/// Called while handling the click that opens the window, and still an accessory, which
+	/// WindowServer lets activate; DockPresence goes regular once the window is on screen.
 	func activateApp() {
 		DockPresence.windowWillOpen()
 		Self.forceActivate()
