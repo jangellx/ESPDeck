@@ -43,6 +43,7 @@ struct USBSetupView: View {
 					nextSection( network, joined )
 				}
 			}
+			assemblySection
 		}
 		.formStyle( .grouped )
 		.navigationTitle( "USB Setup" )
@@ -535,6 +536,27 @@ struct USBSetupView: View {
 			return "The device connects to ESPDeck Bridge over Wi-Fi within a few seconds. Pairing needs the Stream Deck, so unplug the board from this Mac and connect it to the deck and power, as in \(guide). \(pairing)"
 		}
 		return "The device connects to ESPDeck Bridge over Wi-Fi within a few seconds. \(pairing) The deck needs to be connected; see \(guide)."
+	}
+
+	/// What comes after USB Setup, as on Getting Started's Connect to This Mac, and the way
+	/// to the sheet about it.
+	private var assemblySection: some View {
+		Section {
+			VStack( alignment: .leading, spacing: 14 ) {
+				GuideStepText( step: PartsView.unplugStep )
+				Button {
+					showAssembly()
+				} label: {
+					HStack( spacing: 6 ) {
+						Text( GuideSheet.assembly.rawValue )
+						Image( systemName: "chevron.right" )
+					}
+				}
+				.buttonStyle( .bordered )   // only the button, not the whole row, is clickable
+				.frame( maxWidth: .infinity )
+			}
+			.padding( .vertical, 6 )
+		}
 	}
 
 	/// Getting Started's Putting It Together sheet, on the USB path.

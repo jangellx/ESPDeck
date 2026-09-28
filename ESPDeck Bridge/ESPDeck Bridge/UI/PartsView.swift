@@ -4,7 +4,8 @@
 //
 //  The Getting Started page, sheets like a product manual's: "What You Need" (the parts, as
 //  the "in the box" page, and how the dev kit will be set up), "Connect to This Mac" (for
-//  setting it up over USB), "Putting It Together" (the parts assembled), and "Find Your
+//  setting it up over USB), "Putting It Together" (the parts assembled), "Set Up over
+//  Wi-Fi" (the setup codes on the deck, for setting it up from a phone), and "Find Your
 //  Device" (devices waiting to be set up, as they appear). The switcher and pager follow
 //  the chosen way of setting up. The illustrations are two-colour line drawings (ink and
 //  the app icon's amber) drawn in code, so they stay sharp and follow light and dark mode.
@@ -17,20 +18,22 @@ enum GuideSheet: String, CaseIterable, Identifiable {
 	case parts    = "What You Need"
 	case connect  = "Connect to This Mac"
 	case assembly = "Putting It Together"
+	case wifi     = "Set Up over Wi-Fi"
 	case find     = "Find Your Device"
 
 	var id: Self { self }
 }
 
-/// How the dev kit gets its Wi-Fi: from the setup codes on the deck, or over USB from this
-/// Mac (Mac only), which comes before putting it together.
+/// How the dev kit gets its Wi-Fi: from the setup codes on the deck, which it shows once
+/// it's put together and powered, or over USB from this Mac (Mac only), which comes before
+/// putting it together.
 enum GuidePath {
 	case wifi
 	case usb
 
 	var sheets: [GuideSheet] {
 		switch self {
-			case .wifi: [ .parts, .assembly, .find ]
+			case .wifi: [ .parts, .assembly, .wifi, .find ]
 			case .usb:  [ .parts, .connect, .assembly, .find ]
 		}
 	}
@@ -89,6 +92,7 @@ struct PartsView: View {
 			case .parts:    parts
 			case .connect:  connect
 			case .assembly: assembly
+			case .wifi:     wifi
 			case .find:     FindDevicesSheet( controller: controller, selection: $selection )
 		}
 	}
@@ -171,16 +175,22 @@ struct PartsView: View {
 					window.guidePath = .wifi
 				}
 			}
+			.fixedSize( horizontal: false, vertical: true )   // both cards as tall as the taller one
 		}
 	}
 
 	// MARK: - Connect to This Mac
 
 	private static let connectSteps = [
-		"Connect the dev kit's port labelled **USB** to this Mac with the USB-C cable. The Mac powers the dev kit; nothing else needs to be plugged in yet.",
-		"Open USB Setup. It finds the dev kit, installs ESPDeck on it, and gives it your Wi-Fi network and a name.",
-		"When USB Setup says it has joined your network, unplug it from this Mac and put it together with the Stream Deck.",
+		GuideStep( title: "Connect the dev kit to this Mac.",
+				   detail: "Use the USB-C cable, in the dev kit's port labelled **USB**. The Mac powers the dev kit; nothing else needs to be plugged in yet." ),
+		GuideStep( title: "Open USB Setup.",
+				   detail: "Once it finds the dev kit, install ESPDeck on it, set your Wi-Fi network, and give it a name." ),
 	]
+
+	/// After USB Setup, here and at the end of USB Setup.
+	static let unplugStep = GuideStep( title: "Unplug it and put it together.",
+									   detail: "When USB Setup says the dev kit has joined your network, unplug it from this Mac and connect it to the Stream Deck and power." )
 
 	private var connect: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
@@ -198,26 +208,40 @@ struct PartsView: View {
 
 			steps( Self.connectSteps )
 
+			// Between the step that opens USB Setup and the one after it.
 			Button {
 				selection = SidebarItem.usbSetup
 			} label: {
-				Label( "Open USB Setup", systemImage: "cable.connector" )
+				HStack( spacing: 6 ) {
+					Text( "Open USB Setup" )
+					Image( systemName: "chevron.right" )
+				}
 			}
+			.frame( maxWidth: .infinity )
+
+			steps( [ Self.unplugStep ], from: Self.connectSteps.count + 1 )
 		}
 	}
 
 	// MARK: - Putting It Together
 
 	private static let assemblySteps = [
-		"Plug the OTG adapter into the dev kit's port labelled **USB** (not the one labelled UART or COM).",
-		"Plug the Stream Deck into the OTG adapter's USB-A socket. If the deck's cable ends in USB-C, put the USB-A to USB-C adapter in between.",
-		"Connect the power supply to the OTG adapter's USB-C socket with the USB-C cable. The Stream Deck lights up.",
+		GuideStep( title: "Plug the OTG adapter into the dev kit.",
+				   detail: "Use the port labelled **USB**, not the one labelled UART or COM." ),
+		GuideStep( title: "Plug in the Stream Deck.",
+				   detail: "It goes in the OTG adapter's USB-A socket. If the deck's cable ends in USB-C, put the USB-A to USB-C adapter in between." ),
+		GuideStep( title: "Connect the power supply.",
+				   detail: "Use the USB-C cable, into the OTG adapter's USB-C socket. The Stream Deck lights up." ),
 	]
 
-	private var lastAssemblyStep: String {
+	private var lastAssemblyStep: GuideStep {
 		switch path {
-			case .usb:  "It joins the Wi-Fi network you gave it in USB Setup and finds ESPDeck Bridge on this Mac. Pair it under New Devices, then hold Confirm on the deck."
-			case .wifi: "Scan the setup codes on the deck's keys to join the dev kit's own network, and give it your Wi-Fi. It then finds ESPDeck Bridge on this Mac: pair it under New Devices, then hold Confirm on the deck."
+			case .usb:
+				GuideStep( title: "Pair it with this Mac.",
+						   detail: "It joins the Wi-Fi network you gave it in USB Setup and finds ESPDeck Bridge on this Mac. Pair it under New Devices, then hold Confirm on the deck." )
+			case .wifi:
+				GuideStep( title: "Look for the setup codes.",
+						   detail: "A dev kit with no Wi-Fi set up starts in setup mode, and the deck's keys show two QR codes. Set Up over Wi-Fi, next, gives it your network from an iPhone or iPad." )
 		}
 	}
 
@@ -239,18 +263,99 @@ struct PartsView: View {
 		}
 	}
 
-	/// Numbered in amber; **bold** marks what to look for.
-	private func steps( _ steps: [String] ) -> some View {
-		VStack( alignment: .leading, spacing: 12 ) {
+	// MARK: - Set Up over Wi-Fi
+
+	private static let wifiSteps = [
+		GuideStep( title: "Join the deck's Wi-Fi network.",
+				   detail: "Scan the code on the top-left key with the iPhone's Camera, and join the network it offers. It's named **ESPDeck-XXXX**, ending in the last four characters of the deck's ID, as shown on the top-centre key." ),
+		GuideStep( title: "Open the setup page.",
+				   detail: "Scan the code on the top-right key, or open **http://192.168.4.1** in Safari. It often opens by itself once the iPhone has joined." ),
+		GuideStep( title: "Choose your Wi-Fi network.",
+				   detail: "Pick it on the setup page, enter its password, and tap **Save & Connect**. It needs a 2.4 GHz network, the one this Mac is on. You can name the deck there too." ),
+		GuideStep( title: "Find it in ESPDeck Bridge.",
+				   detail: "The deck joins your network, leaves setup mode, and finds ESPDeck Bridge on this Mac. It then appears under Find Your Device and New Devices, to be paired." ),
+	]
+
+	private var wifi: some View {
+		VStack( alignment: .leading, spacing: 28 ) {
+			VStack( alignment: .leading, spacing: 6 ) {
+				Text( "Set Up over Wi-Fi" )
+					.font( .largeTitle.weight( .bold ) )
+				Text( "Put together and powered, the dev kit shows setup codes on the deck's keys. Scan them with an iPhone or iPad to join the dev kit's own network and give it your Wi-Fi." )
+					.foregroundStyle( .secondary )
+			}
+
+			PartIllustration( space: Sketch.wifiSetupSpace, draw: Sketch.wifiSetup )
+				.aspectRatio( Sketch.wifiSetupSpace.width / Sketch.wifiSetupSpace.height, contentMode: .fit )
+				.padding( 18 )
+				.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+
+			steps( Self.wifiSteps )
+
+			VStack( alignment: .leading, spacing: 12 ) {
+				tip( icon: "wifi.exclamationmark", title: "If the iPhone Leaves the Deck's Network",
+					 detail: "The deck's network has no internet, so iOS may join it and then drop back to your usual Wi-Fi. If that happens, join it directly: on the iPhone (or iPad) open **Settings ▸ Wi-Fi** and choose **ESPDeck-XXXX**, the name on the top-centre key. The deck doesn't show the password; it's in the top-left code, and scanning that code saves it on the iPhone, so if Settings asks for it, scan the code again. The password changes each time setup mode starts (firmware 4.0 and later), so scan again after it restarts. The setup page only opens while the iPhone is on the deck's network." )
+				tip( icon: "square.grid.3x2", title: "Not Showing the Codes?",
+					 detail: "A dev kit that already has Wi-Fi starts normally. To enter setup mode, hold the top-left and bottom-right keys together for 5 seconds: after 2 seconds the other keys go dark and a countdown shows. Letting go of either key cancels. A paired deck can also start setup mode from its Device page in ESPDeck Bridge." )
+			}
+		}
+	}
+
+	/// Something that could go wrong, set off in amber so it's seen.
+	private func tip( icon: String, title: String, detail: String ) -> some View {
+		HStack( alignment: .top, spacing: 12 ) {
+			Image( systemName: icon )
+				.font( .title2 )
+				.foregroundStyle( PartIllustration.accent )
+				.frame( width: 30 )
+			VStack( alignment: .leading, spacing: 4 ) {
+				Text( title )
+					.font( .headline )
+				Text( LocalizedStringKey( detail ) )
+					.foregroundStyle( .secondary )
+					.fixedSize( horizontal: false, vertical: true )
+			}
+			Spacer( minLength: 0 )
+		}
+		.padding( 14 )
+		.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( PartIllustration.accent.opacity( 0.12 ) ) )
+		.overlay( RoundedRectangle( cornerRadius: 14, style: .continuous ).strokeBorder( PartIllustration.accent.opacity( 0.5 ), lineWidth: 1 ) )
+	}
+
+	/// Numbered in amber, from `first`, each with its title over the rest.
+	private func steps( _ steps: [GuideStep], from first: Int = 1 ) -> some View {
+		VStack( alignment: .leading, spacing: 16 ) {
 			ForEach( Array( steps.enumerated() ), id: \.offset ) { index, step in
 				HStack( alignment: .firstTextBaseline, spacing: 10 ) {
-					Text( "\( index + 1 )" )
+					Text( "\( first + index )" )
 						.font( .headline.monospacedDigit() )
 						.foregroundStyle( PartIllustration.accent )
-					Text( LocalizedStringKey( step ) )
-						.fixedSize( horizontal: false, vertical: true )
+					GuideStepText( step: step )
 				}
 			}
+		}
+	}
+}
+
+/// A step in Getting Started, as in Apple's guides: its first sentence as a short title,
+/// the rest under it. **bold** marks what to look for.
+struct GuideStep {
+	let title  : String
+	let detail : String
+}
+
+/// A step's title, and the rest under it in the body font.
+struct GuideStepText: View {
+	let step: GuideStep
+
+	var body: some View {
+		VStack( alignment: .leading, spacing: 3 ) {
+			Text( LocalizedStringKey( step.title ) )
+				.font( .headline )
+				.fixedSize( horizontal: false, vertical: true )
+			Text( LocalizedStringKey( step.detail ) )
+				.foregroundStyle( .secondary )
+				.fixedSize( horizontal: false, vertical: true )
 		}
 	}
 }
@@ -284,7 +389,7 @@ private struct PathCard: View {
 					.foregroundStyle( chosen ? Color.accentColor : Color.secondary )
 			}
 			.padding( 14 )
-			.frame( maxWidth: .infinity, alignment: .leading )
+			.frame( maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading )
 			.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
 			.overlay( RoundedRectangle( cornerRadius: 14, style: .continuous ).strokeBorder( chosen ? Color.accentColor : .clear, lineWidth: 2 ) )
 			.contentShape( Rectangle() )
@@ -300,12 +405,18 @@ private struct FindDevicesSheet: View {
 	let controller          : DeckController
 	@Binding var selection  : String?
 
+	/// Leaves out boards that are already set up and on the network (USB Setup still shows
+	/// them): ones this bridge knows, paired or under New Devices, and ones that say they're
+	/// connected to the Wi-Fi network they're set up for.
 	private var usbBoards: [USBSetup.Board] {
 		guard controller.usbSetup.isAvailable, controller.usbSetup.scanning else { return [] }
-		let names = Set( controller.devices.compactMap { controller.settings( $0.id )?.name } )
+		let names = Set( controller.devices.compactMap { controller.settings( $0.id )?.name } + controller.newDevices.map( \.hello.name ) )
 		return controller.usbSetup.boards.filter { board in
+			if let network = board.espDeck?.network, !network.ssid.isEmpty, network.connected { return false }
 			// By its MAC address where the USB port gives it, by name otherwise.
-			if let id = board.port.deviceID { return controller.device( id ) == nil }
+			if let id = board.port.deviceID {
+				return controller.device( id ) == nil && !controller.newDevices.contains { $0.hello.id == id }
+			}
 			return board.espDeck.map { !names.contains( $0.name ) } ?? true
 		}
 	}
@@ -821,5 +932,101 @@ fileprivate nonisolated struct Sketch {
 		cable.addCurve( to: to, control1: CGPoint( x: from.x + 60, y: from.y ), control2: CGPoint( x: to.x - 60, y: to.y ) )
 		s.stroke( cable )
 		s.label( "USB-C cable\n(data, not charge-only)", ( from.x + to.x ) / 2, portY + 38 )
+	}
+
+	// MARK: Wi-Fi Setup
+
+	static let wifiSetupSpace = CGSize( width: 600, height: 262 )
+
+	/// A Stream Deck Mini in setup mode, keyed as the firmware draws it, and an iPhone
+	/// joining its network, in a `wifiSetupSpace`. Top row: the code that joins the deck's
+	/// network, the network's name, and the code that opens the setup page; the bottom row
+	/// says which is which, with the middle key dark (Exit setup, once it has Wi-Fi that works).
+	static func wifiSetup( _ s: inout Sketch ) {
+		// The deck: body, the recessed faceplate, and its 3 × 2 keys.
+		s.stroke( box( 24, 22, 272, 196, 24 ) )
+		s.thin( box( 32, 30, 256, 180, 17 ) )
+		let key: CGFloat = 70, gap: CGFloat = 12
+		let x0 = 24 + ( 272 - ( key * 3 + gap * 2 ) ) / 2, y0 = 22 + ( 196 - ( key * 2 + gap ) ) / 2
+		func keyFrame( _ index: Int ) -> CGRect {
+			CGRect( x: x0 + CGFloat( index % 3 ) * ( key + gap ), y: y0 + CGFloat( index / 3 ) * ( key + gap ), width: key, height: key )
+		}
+		for index in 0..<6 {
+			let frame = keyFrame( index )
+			let path  = box( frame.minX, frame.minY, key, key, 8 )
+			switch index {
+				case 0, 2:
+					s.highlight( path )
+					qrCode( s, in: frame.insetBy( dx: 7, dy: 7 ), seed: index == 0 ? 0x5EED : 0xC0DE )
+				case 4:
+					s.thin( path )
+				default:
+					s.stroke( path )
+					let text = [ 1: "Wi-Fi:\nESPDeck-\nXXXX", 3: "1. Scan\nto join\nWi-Fi", 5: "2. Scan\nto open\nsetup" ][index] ?? ""
+					s.label( text, frame.midX, frame.midY, size: 10.5 )
+			}
+		}
+		s.label( "Stream Deck Mini in setup mode", 160, 246 )
+
+		// Wi-Fi from the deck to the iPhone.
+		for radius in [ 7 as CGFloat, 13, 19 ] {
+			var arc = Path()
+			arc.addArc( center: CGPoint( x: 364, y: 124 ), radius: radius, startAngle: .degrees( -135 ), endAngle: .degrees( -45 ), clockwise: false )
+			s.context.stroke( arc, with: .color( accentColor ), style: StrokeStyle( lineWidth: 2.6, lineCap: .round ) )
+		}
+		s.context.fill( Path( ellipseIn: CGRect( x: 361, y: 121, width: 6, height: 6 ) ), with: .color( accentColor ) )
+		s.label( "ESPDeck-XXXX", 364, 142, size: 8.5 )
+
+		// The iPhone, its Camera on the join code and offering the network.
+		s.stroke( box( 430, 14, 112, 216, 20 ) )
+		s.thin( box( 437, 21, 98, 202, 14 ) )
+		s.solid( box( 472, 28, 28, 8, 4 ) )
+		let finder = CGRect( x: 459, y: 62, width: 54, height: 54 )
+		s.highlight( box( finder.minX + 5, finder.minY + 5, 44, 44, 5 ) )
+		qrCode( s, in: finder.insetBy( dx: 9, dy: 9 ), seed: 0x5EED )
+		var brackets = Path()
+		for ( x, y, dx, dy ) in [ ( finder.minX, finder.minY, 1, 1 ), ( finder.maxX, finder.minY, -1, 1 ),
+								  ( finder.minX, finder.maxY, 1, -1 ), ( finder.maxX, finder.maxY, -1, -1 ) ] as [( CGFloat, CGFloat, CGFloat, CGFloat )] {
+			brackets.move( to: CGPoint( x: x, y: y + 10 * dy ) )
+			brackets.addLine( to: CGPoint( x: x, y: y ) )
+			brackets.addLine( to: CGPoint( x: x + 10 * dx, y: y ) )
+		}
+		s.stroke( brackets )
+		s.highlight( box( 440, 146, 92, 30, 15 ) )
+		s.label( "Join network\n“ESPDeck-XXXX”", 486, 161, size: 7.5 )
+		s.label( "iPhone", 486, 246 )
+	}
+
+	/// A QR code's look, not a real one: the three finder squares in its corners and a
+	/// scatter of modules, 21 × 21 (version 1), in ink.
+	static func qrCode( _ s: Sketch, in frame: CGRect, seed: UInt32 ) {
+		let count  = 21
+		let module = min( frame.width, frame.height ) / CGFloat( count )
+		var modules = Path()
+		func add( _ x: Int, _ y: Int, _ w: Int = 1, _ h: Int = 1 ) {
+			modules.addRect( CGRect( x: frame.minX + CGFloat( x ) * module, y: frame.minY + CGFloat( y ) * module,
+									 width: CGFloat( w ) * module, height: CGFloat( h ) * module ) )
+		}
+
+		// Finder squares: a ring seven modules across round a solid three.
+		for ( x, y ) in [ ( 0, 0 ), ( count - 7, 0 ), ( 0, count - 7 ) ] {
+			add( x, y, 7, 1 )
+			add( x, y + 6, 7, 1 )
+			add( x, y + 1, 1, 5 )
+			add( x + 6, y + 1, 1, 5 )
+			add( x + 2, y + 2, 3, 3 )
+		}
+
+		// Everything else, clear of the finders and the gap round them, from a fixed sequence.
+		var state = seed
+		for y in 0..<count {
+			for x in 0..<count {
+				let nearFinder = ( x < 8 && y < 8 ) || ( x >= count - 8 && y < 8 ) || ( x < 8 && y >= count - 8 )
+				guard !nearFinder else { continue }
+				state = state &* 1_664_525 &+ 1_013_904_223
+				if ( state >> 16 ) & 1 == 1 { add( x, y ) }
+			}
+		}
+		s.solid( modules )
 	}
 }

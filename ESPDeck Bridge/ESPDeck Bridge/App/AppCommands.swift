@@ -258,10 +258,12 @@ extension AppDelegate {
 		window.page = page
 	}
 
-	/// A sheet of Getting Started; Connect to This Mac is on the USB path.
+	/// A sheet of Getting Started; Connect to This Mac is on the USB path, Set Up over Wi-Fi
+	/// on the Wi-Fi path.
 	@objc func showGuideSheet( _ sender: UICommand ) {
 		guard let raw = sender.propertyList as? String, let sheet = GuideSheet( rawValue: raw ) else { return }
 		if sheet == .connect { window.guidePath = .usb }
+		if sheet == .wifi { window.guidePath = .wifi }
 		window.guideSheet = sheet
 		show( SidebarItem.parts )
 	}

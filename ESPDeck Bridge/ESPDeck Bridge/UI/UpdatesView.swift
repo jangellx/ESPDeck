@@ -97,8 +97,7 @@ struct FirmwareRow: View {
 	@State private var chosen      : PendingInstall?
 
 	var body: some View {
-		let updates = controller.updates
-		let name    = title ?? controller.settings( device.id )?.name ?? device.id
+		let name = title ?? controller.settings( device.id )?.name ?? device.id
 
 		LabeledContent {
 			HStack {
