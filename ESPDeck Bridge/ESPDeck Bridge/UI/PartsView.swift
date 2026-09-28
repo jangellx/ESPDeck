@@ -756,7 +756,7 @@ fileprivate nonisolated struct Sketch {
 
 	static func otgAdapter( _ s: inout Sketch ) {
 		// Body, with the USB-C plug for the dev kit on a short lead to the left.
-		s.stroke( box( 80, 48, 72, 48, 12 ) )
+		s.stroke( box( 80, 48, 72, 48, 6 ) )
 		let scale: CGFloat = 0.9
 		let end = s.placed( at: CGPoint( x: 16, y: 72 ), degrees: 180, scale: scale ).usbCPlug()
 		var lead = Path()
@@ -786,7 +786,7 @@ fileprivate nonisolated struct Sketch {
 		// USB-A plug out of the left of the body, USB-C socket in its right end.
 		let scale: CGFloat = 1.4
 		let body = 52 - s.placed( at: CGPoint( x: 52, y: 70 ), degrees: 180, scale: scale ).usbAPlug( grip: false ) * scale
-		s.stroke( box( body, 54, 42, 32, 9 ) )
+		s.stroke( box( body, 54, 42, 32, 4.5 ) )
 		s.placed( at: CGPoint( x: body + 42, y: 70 ), scale: 1.3 ).usbCSocket()
 
 		s.label( "USB-A\nplug", 66, 106 )
@@ -831,7 +831,7 @@ fileprivate nonisolated struct Sketch {
 
 		// The OTG adapter: its lead seated in the dev kit's USB port, USB-A socket on the left,
 		// USB-C socket for power on top. Plugs are seated, so only the cables show.
-		s.stroke( box( 286, 142, 64, 48, 12 ) )
+		s.stroke( box( 286, 142, 64, 48, 6 ) )
 		let plugScale: CGFloat = 0.9
 		let plugEnd = s.placed( at: CGPoint( x: 404, y: 166 ), scale: plugScale ).usbCPlug( seated: true )
 		var lead = Path()
