@@ -90,7 +90,7 @@ private struct Sidebar: View {
 	var body: some View {
 		List( selection: $selection ) {
 			if !controller.newDevices.isEmpty {
-				Section( "New Devices" ) {
+				Section {
 					ForEach( controller.newDevices ) { device in
 						Label {
 							VStack( alignment: .leading, spacing: 1 ) {
@@ -105,10 +105,12 @@ private struct Sidebar: View {
 						}
 						.tag( SidebarItem.newDevice( device.client ) )
 					}
+				} header: {
+					SectionHeader( "New Devices", sidebar: true )
 				}
 			}
 
-			Section( "Devices" ) {
+			Section {
 				if controller.devices.isEmpty {
 					Text( "No devices yet" )
 						.foregroundStyle( .secondary )
@@ -141,6 +143,8 @@ private struct Sidebar: View {
 					}
 					.tag( device.id )
 				}
+			} header: {
+				SectionHeader( "Devices", sidebar: true )
 			}
 
 			Section {
@@ -148,20 +152,30 @@ private struct Sidebar: View {
 					.buttonStyle( .borderless )
 			}
 
-			Section( "ESPDeck Bridge" ) {
+			Section {
 				if controller.usbSetup.isAvailable {
 					Label {
 						HStack {
 							Text( "USB Setup" )
+							// White count on blue with boards found; an empty blue ring while looking.
+							// No animation, so it doesn't pull the eye.
 							if controller.usbSetup.boardCount > 0 {
 								Spacer()
 								Text( "\(controller.usbSetup.boardCount)" )
-									.font( .caption.weight( .semibold ).monospacedDigit() )
-									.foregroundStyle( .secondary )
-									.padding( .horizontal, 6 )
-									.padding( .vertical, 1 )
-									.background( Capsule().fill( Color.secondary.opacity( 0.18 ) ) )
+									.font( .caption.weight( .bold ).monospacedDigit() )
+									.foregroundStyle( .white )
+									.frame( minWidth: 18, minHeight: 18 )
+									.padding( .horizontal, controller.usbSetup.boardCount > 9 ? 3 : 0 )
+									.background( Capsule().fill( Color.accentColor ) )
 									.accessibilityLabel( controller.usbSetup.boardCount == 1 ? "1 board plugged in" : "\(controller.usbSetup.boardCount) boards plugged in" )
+							} else if controller.usbSetup.scanning {
+								Spacer()
+								Circle()
+									.strokeBorder( Color.accentColor, lineWidth: 1.5 )
+									.frame( width: 14, height: 14 )
+									.padding( .trailing, 2 )
+									.accessibilityLabel( "Looking for boards" )
+									.help( "Looking for boards plugged in over USB" )
 							}
 						}
 					} icon: {
@@ -188,9 +202,11 @@ private struct Sidebar: View {
 
 				Label( "About", systemImage: "info.circle" )
 					.tag( SidebarItem.about )
+			} header: {
+				SectionHeader( "ESPDeck Bridge", sidebar: true )
 			}
 
-			Section( "Status" ) {
+			Section {
 				ForEach( [ controller.serverStatus, controller.homeStatus ].compactMap { $0 }, id: \.self ) { item in
 					Label {
 						Text( item.text )
@@ -206,6 +222,8 @@ private struct Sidebar: View {
 						.foregroundStyle( .orange )
 						.font( .caption )
 				}
+			} header: {
+				SectionHeader( "Status", sidebar: true )
 			}
 		}
 		.listStyle( .sidebar )

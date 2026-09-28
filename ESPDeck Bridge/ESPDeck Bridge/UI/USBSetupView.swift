@@ -93,13 +93,14 @@ struct USBSetupView: View {
 			}
 			ForEach( setup.boards ) { board in
 				boardRow( board )
+					.padding( .vertical, 8 )
+					.padding( .horizontal, 4 )
 			}
 		} header: {
-			SectionHeader( setup.boards.count > 1 ? "Boards" : "Board" )
+			SectionHeader( "Board Info" )
 		} footer: {
-			Text( setup.boards.count > 1
-				  ? "Click the board to set up. Use a USB data cable (not a charge-only one) and the board's port labeled USB."
-				  : "Use a USB data cable (not a charge-only one) and the board's port labeled USB. Boards with a second port labeled COM or UART work through that one too." )
+			Text( ( setup.boards.count > 1 ? "Click the board to set up. " : "" )
+				  + "Connect a USB data cable (not a charge-only one) to the board's port labeled USB. On some boards the second port, labeled COM or UART, doesn't power the board." )
 		}
 		.disabled( setup.install.isBusy )
 	}
@@ -201,7 +202,7 @@ struct USBSetupView: View {
 
 			installStatus
 		} header: {
-			SectionHeader( "Firmware" )
+			SectionHeader( "1. Install Firmware" )
 		} footer: {
 			Text( "Installing keeps the board's Wi-Fi settings, name, and pairing. Before writing anything, it checks that the board is an ESP32-S3 with enough flash and the PSRAM ESPDeck needs. If the board can't be switched to flashing mode by itself, hold BOOT, press and release RST, release BOOT, then click Install Firmware again." )
 		}
@@ -299,7 +300,7 @@ struct USBSetupView: View {
 					EmptyView()
 			}
 		} header: {
-			SectionHeader( "Wi-Fi" )
+			SectionHeader( "2. Set Up Wi-Fi" )
 		} footer: {
 			Text( "The board needs a 2.4 GHz network, the same one this Mac is on. It keeps the network once it has joined it." )
 		}
@@ -349,7 +350,7 @@ struct USBSetupView: View {
 					.foregroundStyle( .orange )
 			}
 		} header: {
-			SectionHeader( "Name" )
+			SectionHeader( "3. Name Your Device" )
 		} footer: {
 			Text( "The device keeps its name. If it's connected to ESPDeck Bridge, the new name shows up there right away." )
 		}
@@ -392,7 +393,7 @@ struct USBSetupView: View {
 					.foregroundStyle( .secondary )
 			}
 		} header: {
-			SectionHeader( "Next" )
+			SectionHeader( "4. Pair It with This Mac" )
 		} footer: {
 			Text( nextSteps )
 		}
