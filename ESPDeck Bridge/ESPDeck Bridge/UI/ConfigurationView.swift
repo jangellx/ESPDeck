@@ -95,7 +95,7 @@ private struct Sidebar: View {
 						Label {
 							VStack( alignment: .leading, spacing: 1 ) {
 								Text( device.hello.name )
-								Text( device.reason == .oldFirmware ? "needs a firmware update" : "waiting to be paired" )
+								Text( device.reason.status )
 									.font( .caption )
 									.foregroundStyle( .secondary )
 							}
@@ -219,6 +219,12 @@ private struct Sidebar: View {
 				}
 				if let error = controller.lastError {
 					Label( error, systemImage: "exclamationmark.triangle.fill" )
+						.foregroundStyle( .orange )
+						.font( .caption )
+				}
+				if let file = controller.config.unreadableSettings {
+					Label( "The settings couldn't be read, so ESPDeck Bridge started over. The old file is kept as \(file) in its Application Support folder.",
+						   systemImage: "exclamationmark.triangle.fill" )
 						.foregroundStyle( .orange )
 						.font( .caption )
 				}
@@ -389,6 +395,35 @@ private struct LabelPositionControl: View {
 			.pickerStyle( .segmented )
 			.labelsHidden()
 			.fixedSize()
+		}
+	}
+}
+
+extension NewDevice.Reason {
+	/// Under the device's name in the sidebar.
+	var status: String {
+		switch self {
+			case .unpaired:                     "waiting to be paired"
+			case .oldFirmware:                  "needs a firmware update"
+			case .pairedElsewhere, .keyMissing: "needs unpairing on the deck first"
+		}
+	}
+
+	/// In Find Your Device.
+	var detail: String {
+		switch self {
+			case .unpaired:                     "Waiting to be paired"
+			case .oldFirmware:                  "Needs a firmware update before it can be paired"
+			case .pairedElsewhere, .keyMissing: "Needs unpairing on the deck first"
+		}
+	}
+
+	/// What Find Your Device's button does: pairing only for a deck that accepts it.
+	var action: String {
+		switch self {
+			case .unpaired:                     "Pair…"
+			case .oldFirmware:                  "Update…"
+			case .pairedElsewhere, .keyMissing: "Details…"
 		}
 	}
 }

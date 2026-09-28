@@ -48,6 +48,7 @@ struct KeyInspectorView: View {
 						Button( "Test Action" ) { controller.press( device: deviceID, key: key ) }
 							.disabled( assignment.kind == nil || assignment.action == .none )
 					}
+					.font( .body )   // footers use a smaller font; match the other pills
 					.frame( maxWidth: .infinity )
 					if assignment.isToggleShortcut {
 						Text( "Each press runs the shortcut with \u{201C}on\u{201D} or \u{201C}off\u{201D} as its Shortcut Input: the state the key is switching to. If the shortcut ends with Stop and Output of \u{201C}on\u{201D} or \u{201C}off\u{201D}, the key shows that state instead." )
@@ -76,7 +77,7 @@ struct KeyInspectorView: View {
 								  hasCustomIcon: assignment.icons[state.rawValue] != nil,
 								  customSymbol: assignment.symbol( for: state ),
 								  isCurrent: isShowing( state ),
-								  onDrop: { controller.setIcon( data: $0, device: deviceID, key: key, state: state ) },
+								  onDrop: { controller.setIcon( dropped: $0, device: deviceID, key: key, state: state ) },
 								  onPickSymbol: { controller.setSymbol( $0, device: deviceID, key: key, state: state ) },
 								  onRemove: { controller.removeIcon( device: deviceID, key: key, state: state ) } )
 					}

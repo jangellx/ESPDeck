@@ -104,9 +104,9 @@ private struct DeckKeyView: View {
 					guard source != index else { return false }
 					controller.swapKeys( device: deviceID, source, index )
 					selection = index   // the selection follows the dragged key
-				case .image( let data ):
+				case .image( let image ):
 					selection = index
-					controller.setIcon( data: data, device: deviceID, key: index, state: .standard )
+					controller.setIcon( dropped: image, device: deviceID, key: index, state: .standard )
 				case nil:
 					return false
 			}

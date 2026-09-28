@@ -404,40 +404,53 @@ extension HomeObserver: @MainActor HMHomeDelegate {
 	}
 }
 
-// HMAccessoryDelegate can't take an isolated conformance, so its methods are nonisolated
-// and assert the main actor; HomeKit calls delegates on the main thread.
+// HMAccessoryDelegate can't take an isolated conformance, so its methods are nonisolated.
+// HomeKit calls them on the main thread in practice, but neither its headers nor its
+// documentation promise a queue, so anything else hops to the main queue (in order)
+// instead of asserting. Only Sendable values cross; HomeKit objects are looked up again.
 extension HomeObserver: HMAccessoryDelegate {
+	nonisolated private func onMain( _ work: @escaping @MainActor @Sendable () -> Void ) {
+		if Thread.isMainThread {
+			MainActor.assumeIsolated { work() }
+		} else {
+			DispatchQueue.main.async { MainActor.assumeIsolated { work() } }
+		}
+	}
+
 	nonisolated func accessory( _ accessory: HMAccessory, service: HMService, didUpdateValueFor characteristic: HMCharacteristic ) {
-		MainActor.assumeIsolated {
-			for entry in watched where entry.characteristic == characteristic {
-				values[entry.ref] = characteristic.value
-				onChange?( entry.ref )
+		let changed = ObjectIdentifier( characteristic )
+		onMain {
+			for entry in self.watched where ObjectIdentifier( entry.characteristic ) == changed {
+				self.values[entry.ref] = entry.characteristic.value
+				self.onChange?( entry.ref )
 			}
 		}
 	}
 
 	nonisolated func accessoryDidUpdateReachability( _ accessory: HMAccessory ) {
-		MainActor.assumeIsolated {
-			for entry in watched where entry.ref.accessoryID == accessory.uniqueIdentifier {
-				onChange?( entry.ref )
+		let id        = accessory.uniqueIdentifier
+		let reachable = accessory.isReachable
+		onMain {
+			for entry in self.watched where entry.ref.accessoryID == id {
+				self.onChange?( entry.ref )
 			}
 			// Values missed while unreachable arrive with a fresh read.
-			if accessory.isReachable { requestRebuild() }
+			if reachable { self.requestRebuild() }
 		}
 	}
 
 	nonisolated func accessoryDidUpdateName( _ accessory: HMAccessory ) {
-		MainActor.assumeIsolated { onHomesChanged?() }
+		onMain { self.onHomesChanged?() }
 	}
 
 	nonisolated func accessory( _ accessory: HMAccessory, didUpdateNameFor service: HMService ) {
-		MainActor.assumeIsolated { onHomesChanged?() }
+		onMain { self.onHomesChanged?() }
 	}
 
 	nonisolated func accessoryDidUpdateServices( _ accessory: HMAccessory ) {
-		MainActor.assumeIsolated {
-			requestRebuild()
-			onHomesChanged?()
+		onMain {
+			self.requestRebuild()
+			self.onHomesChanged?()
 		}
 	}
 }

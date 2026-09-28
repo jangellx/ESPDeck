@@ -5,6 +5,8 @@
 # One-time setup: Settings → Pages → Source: GitHub Actions.
 name: Firmware release
 
+# Actions are pinned to commit SHAs (the version in each comment); all run on Node 24.
+
 on:
   push:
     tags:
@@ -23,9 +25,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
 
@@ -33,7 +35,7 @@ jobs:
       - name: Install PlatformIO
         run: pip install "platformio>=6.2,<6.3" esptool
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: platformio-${{ runner.os }}-${{ hashFiles('ESPDeck Device/platformio.ini', 'ESPDeck Device/src/idf_component.yml') }}
@@ -44,18 +46,28 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           "ESPDeck Device/tools/release.sh" "$VERSION"
 
+      # GitHub sometimes runs the workflow twice for one tag. The second run finds the
+      # release already there and replaces its assets instead of failing.
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           DIST="ESPDeck Device/dist"
-          gh release create "$GITHUB_REF_NAME" --title "Firmware $VERSION" --notes "ESPDeck firmware $VERSION" \
-            "$DIST/espdeck-firmware-$VERSION.bin" "$DIST/espdeck-firmware-$VERSION.bin.sha256" \
+          ASSETS=(
+            "$DIST/espdeck-firmware-$VERSION.bin" "$DIST/espdeck-firmware-$VERSION.bin.sha256"
             "$DIST/espdeck-firmware-$VERSION-merged.bin" "$DIST/espdeck-firmware-$VERSION-merged.bin.sha256"
+          )
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --clobber "${ASSETS[@]}"
+          elif ! gh release create "$GITHUB_REF_NAME" --title "Firmware $VERSION" --notes "ESPDeck firmware $VERSION" "${ASSETS[@]}"; then
+            # Created by another run in the meantime.
+            gh release view "$GITHUB_REF_NAME" > /dev/null
+            gh release upload "$GITHUB_REF_NAME" --clobber "${ASSETS[@]}"
+          fi
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: web
 
@@ -67,4 +79,4 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -19,7 +19,6 @@ struct USBSetupView: View {
 	@State private var otherSSID        = ""
 	@State private var password         = ""
 	@State private var pickingFile      = false
-	@State private var chosenFile       : ( url: URL, version: String )?
 	@State private var fileProblem      : String?
 	@State private var confirmingOlder  = false
 
@@ -62,10 +61,16 @@ struct USBSetupView: View {
 		}
 	}
 
+	/// Releases found a while ago may not be the latest any more, so the page checks again
+	/// when it has been a few minutes.
+	private static let recheckAfter: TimeInterval = 5 * 60
+
 	private func appeared() {
-		nameDraft  = setup.selectedBoard?.espDeck?.name ?? ""
-		if controller.updates.latestFirmware == nil && controller.updates.repository != nil {
-			Task { await controller.updates.check( userInitiated: true ) }
+		nameDraft   = setup.selectedBoard?.espDeck?.name ?? ""
+		let updates = controller.updates
+		let stale   = updates.lastCheck.map { Date().timeIntervalSince( $0 ) > Self.recheckAfter } ?? true
+		if updates.repository != nil && ( updates.latestFirmware == nil || stale ) {
+			Task { await updates.check( userInitiated: true ) }
 		}
 	}
 
@@ -176,12 +181,15 @@ struct USBSetupView: View {
 			Picker( "Firmware", selection: Binding( get: { setup.source }, set: { setup.source = $0 } ) ) {
 				Text( controller.updates.latestFirmware.map { "Latest release (\($0.version.description))" } ?? "Latest release" )
 					.tag( USBSetup.Source.release )
-				if let chosenFile {
+				if let chosenFile = setup.chosenFile {
 					Text( "\(chosenFile.url.lastPathComponent) (\(chosenFile.version))" )
 						.tag( USBSetup.Source.file( chosenFile.url ) )
 				}
 			}
 			.disabled( setup.install.isBusy )
+			if setup.source == .release && controller.updates.repository != nil {
+				releaseCheck
+			}
 
 			HStack {
 				Button( "Choose File…" ) { pickingFile = true }
@@ -206,6 +214,28 @@ struct USBSetupView: View {
 		} footer: {
 			Text( "Installing keeps the board's Wi-Fi settings, name, and pairing. Before writing anything, it checks that the board is an ESP32-S3 with enough flash and the PSRAM ESPDeck needs. If the board can't be switched to flashing mode by itself, hold BOOT, press and release RST, release BOOT, then click Install Firmware again." )
 		}
+	}
+
+	/// When releases were last looked for, and a way to look again.
+	private var releaseCheck: some View {
+		let updates = controller.updates
+		return HStack {
+			if updates.checking {
+				Text( "Checking for new releases…" )
+			} else if let error = updates.checkError {
+				Label( error, systemImage: "exclamationmark.triangle.fill" )
+					.foregroundStyle( .orange )
+			} else if let date = updates.lastCheck {
+				Text( "Last checked \( date.formatted( .relative( presentation: .named ) ) )" )
+			}
+			Spacer()
+			Button( "Check Now" ) {
+				Task { await updates.check( userInitiated: true ) }
+			}
+			.disabled( updates.checking || setup.install.isBusy )
+		}
+		.font( .caption )
+		.foregroundStyle( .secondary )
 	}
 
 	private var olderTitle: String {
@@ -244,10 +274,7 @@ struct USBSetupView: View {
 
 	private func choose( _ url: URL ) {
 		do {
-			let image = try USBSetup.read( url )
-			let app   = try FirmwareImage.regions( fullImage: image ).app
-			chosenFile   = ( url, app.version )
-			setup.source = .file( url )
+			try setup.choose( url )
 		} catch {
 			fileProblem = error.localizedDescription
 		}

@@ -187,8 +187,7 @@ private struct FindDevicesSheet: View {
 						.font( .headline )
 					ForEach( controller.newDevices ) { device in
 						row( icon: "lock.shield", title: device.hello.name,
-							 detail: device.reason == .oldFirmware ? "Needs a firmware update before it can be paired" : "Waiting to be paired",
-							 action: device.reason == .oldFirmware ? "Update…" : "Pair…" ) {
+							 detail: device.reason.detail, action: device.reason.action ) {
 							selection = SidebarItem.newDevice( device.client )
 						}
 					}

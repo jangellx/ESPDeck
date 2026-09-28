@@ -41,6 +41,9 @@ final class UpdateManager {
 
 	@ObservationIgnored private var schedule      : Task<Void, Never>?
 	@ObservationIgnored private var firmwareCache : [String: Data] = [:]
+	/// The development image last installed from a file on each device, so Retry sends it
+	/// again rather than the latest release.
+	@ObservationIgnored private var localImages   : [String: ( image: Data, info: FirmwareImage.AppInfo )] = [:]
 
 	private static let checkInterval: Duration     = .seconds( 6 * 3600 )
 	private static let firmwareRetry: Duration     = .seconds( 10 * 60 )
@@ -199,23 +202,34 @@ final class UpdateManager {
 		return try decoder.decode( [GitHubRelease].self, from: data )
 	}
 
-	/// Downloads an asset and checks its SHA-256. Refuses assets without a published digest.
+	/// Larger than any firmware image, full or OTA, can be: the app partition is smaller.
+	static let maximumFirmwareSize = 8 * 1024 * 1024
+
+	/// Downloads an asset and checks its size and SHA-256. Refuses assets without a
+	/// published digest.
 	private func download( _ asset: UpdateRelease.Asset ) async throws -> Data {
 		guard var expected = asset.sha256 else { throw UpdateError.noDigest }
-		if expected.hasPrefix( "url:" ), let url = URL( string: String( expected.dropFirst( 4 ) ) ) {
-			let ( text, _ ) = try await URLSession.shared.data( from: url )
+		guard asset.size > 0, asset.size <= Self.maximumFirmwareSize else { throw UpdateError.badSize }
+		if expected.hasPrefix( "url:" ) {
+			guard let url = URL( string: String( expected.dropFirst( 4 ) ) ) else { throw UpdateError.noDigest }
+			let ( text, response ) = try await URLSession.shared.data( from: url )
+			guard ( response as? HTTPURLResponse )?.statusCode == 200 else { throw UpdateError.digestUnavailable }
 			expected = String( decoding: text, as: UTF8.self ).split( whereSeparator: \.isWhitespace ).first.map { String( $0 ).lowercased() } ?? ""
 		}
+		guard expected.count == 64, expected.allSatisfy( \.isHexDigit ) else { throw UpdateError.digestUnavailable }
 
 		let ( data, response ) = try await URLSession.shared.data( from: asset.url )
 		guard ( response as? HTTPURLResponse )?.statusCode == 200 else { throw URLError( .badServerResponse ) }
+		guard data.count == asset.size else { throw UpdateError.badSize }
 		guard Data( SHA256.hash( data: data ) ).hex == expected else { throw UpdateError.digestMismatch }
 		return data
 	}
 
 	enum UpdateError: LocalizedError {
 		case noDigest
+		case digestUnavailable
 		case digestMismatch
+		case badSize
 		case repositoryNotFound( String )
 		case rateLimited
 		case noFullImage
@@ -224,7 +238,9 @@ final class UpdateManager {
 		var errorDescription: String? {
 			switch self {
 				case .noDigest:                    "The release doesn't publish a SHA-256 for its download."
+				case .digestUnavailable:           "Couldn't get the SHA-256 the release publishes for its download."
 				case .digestMismatch:              "The download didn't match the release's SHA-256."
+				case .badSize:                     "The download isn't the size the release lists, or is too large to be firmware."
 				case .repositoryNotFound( let r ): "GitHub doesn't show \(r). Update checks need the repository to be public."
 				case .rateLimited:                 "GitHub's rate limit was reached; the app will try again later."
 				case .noFullImage:                 "The latest firmware release has no full image for installing over USB."
@@ -242,6 +258,7 @@ final class UpdateManager {
 		// set below before anything awaits, so a second request always sees the first.
 		guard device.firmwareProgress?.isActive != true else { return }
 		let version = release.version.description
+		localImages[id] = nil
 
 		do {
 			let image: Data
@@ -255,6 +272,23 @@ final class UpdateManager {
 			controller.sendFirmware( device: id, image: image, version: version )
 		} catch {
 			device.firmwareProgress = FirmwareProgress( version: version, phase: .failed( error.localizedDescription ) )
+		}
+	}
+
+	/// A development image from a file, checked by FirmwareImage to be ESPDeck's.
+	func installLocalFirmware( on id: String, image: Data, info: FirmwareImage.AppInfo ) {
+		guard let controller, controller.device( id )?.firmwareProgress?.isActive != true else { return }
+		localImages[id] = ( image, info )
+		controller.sendLocalFirmware( device: id, image: image, info: info )
+	}
+
+	/// After a failed install: the same file again if that's what failed, else the latest
+	/// release.
+	func retryFirmware( on id: String ) async {
+		if let local = localImages[id], let progress = controller?.device( id )?.firmwareProgress, progress.build == local.info.elfSHA256 {
+			installLocalFirmware( on: id, image: local.image, info: local.info )
+		} else {
+			await installFirmware( on: id )
 		}
 	}
 

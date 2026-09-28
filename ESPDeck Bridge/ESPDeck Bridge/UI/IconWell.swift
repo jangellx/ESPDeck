@@ -17,7 +17,7 @@ struct IconWell: View {
 	/// The state's own symbol, if it has one; highlighted in the picker.
 	let customSymbol  : String?
 	let isCurrent     : Bool
-	let onDrop        : ( Data ) -> Void
+	let onDrop        : ( DroppedImage ) -> Void
 	let onPickSymbol  : ( String ) -> Void
 	let onRemove      : () -> Void
 
@@ -52,7 +52,7 @@ struct IconWell: View {
 				}
 				.dropDestination( for: DroppedImage.self ) { items, _ in
 					guard let item = items.first else { return false }
-					onDrop( item.data )
+					onDrop( item )
 					return true
 				} isTargeted: { isTargeted = $0 }
 				.contextMenu {

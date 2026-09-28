@@ -76,9 +76,40 @@ nonisolated struct SerialPortInfo: Equatable, Sendable {
 /// Calls `changed` on the main thread with the full list, now and after every change.
 final class SerialPortWatcher {
 	private let changed      : ( [SerialPortInfo] ) -> Void
-	private var notifyPort   : IONotificationPortRef?
-	private var iterators    : [io_iterator_t] = []
+	private let notifications = Notifications()
 	private var pendingList  : Task<Void, Never>?
+
+	/// What IOKit holds on to, apart from the watcher: its callbacks get a retained Relay
+	/// that only points weakly at the watcher, so a late callback can't reach a freed one.
+	/// Torn down by stop(), or when the watcher goes away.
+	private nonisolated final class Notifications: @unchecked Sendable {
+		var port      : IONotificationPortRef?
+		var iterators : [io_iterator_t] = []
+		var relay     : Unmanaged<Relay>?
+
+		func tearDown() {
+			iterators.forEach { IOObjectRelease( $0 ) }
+			iterators = []
+			if let port {
+				IONotificationPortDestroy( port )
+			}
+			port = nil
+			relay?.release()
+			relay = nil
+		}
+
+		deinit {
+			tearDown()
+		}
+	}
+
+	private nonisolated final class Relay: @unchecked Sendable {
+		weak var watcher: SerialPortWatcher?
+
+		init( _ watcher: SerialPortWatcher ) {
+			self.watcher = watcher
+		}
+	}
 
 	init( changed: @escaping ( [SerialPortInfo] ) -> Void ) {
 		self.changed = changed
@@ -88,37 +119,35 @@ final class SerialPortWatcher {
 
 	func stop() {
 		pendingList?.cancel()
-		iterators.forEach { IOObjectRelease( $0 ) }
-		iterators = []
-		if let notifyPort {
-			IONotificationPortDestroy( notifyPort )
-		}
-		notifyPort = nil
+		pendingList = nil
+		notifications.tearDown()
 	}
 
 	private func start() {
 		guard let port = IONotificationPortCreate( kIOMainPortDefault ) else { return }
-		notifyPort = port
+		let relay = Unmanaged.passRetained( Relay( self ) )
+		notifications.port  = port
+		notifications.relay = relay
 		CFRunLoopAddSource( CFRunLoopGetMain(), IONotificationPortGetRunLoopSource( port ).takeUnretainedValue(), .defaultMode )
 
+		// Delivered on the main run loop, which the port's source was added to.
 		let callback: IOServiceMatchingCallback = { refcon, iterator in
 			// Drain the iterator to re-arm the notification.
 			while case let service = IOIteratorNext( iterator ), service != 0 {
 				IOObjectRelease( service )
 			}
 			guard let refcon else { return }
-			let watcher = Unmanaged<SerialPortWatcher>.fromOpaque( refcon ).takeUnretainedValue()
-			MainActor.assumeIsolated { watcher.scheduleList() }
+			let relay = Unmanaged<Relay>.fromOpaque( refcon ).takeUnretainedValue()
+			MainActor.assumeIsolated { relay.watcher?.scheduleList() }
 		}
-		let refcon = Unmanaged.passUnretained( self ).toOpaque()
 		for type in [ kIOFirstMatchNotification, kIOTerminatedNotification ] {
 			var iterator: io_iterator_t = 0
 			guard let matching = IOServiceMatching( kIOSerialBSDServiceValue ),
-				  IOServiceAddMatchingNotification( port, type, matching, callback, refcon, &iterator ) == KERN_SUCCESS else { continue }
+				  IOServiceAddMatchingNotification( port, type, matching, callback, relay.toOpaque(), &iterator ) == KERN_SUCCESS else { continue }
 			while case let service = IOIteratorNext( iterator ), service != 0 {
 				IOObjectRelease( service )
 			}
-			iterators.append( iterator )
+			notifications.iterators.append( iterator )
 		}
 	}
 

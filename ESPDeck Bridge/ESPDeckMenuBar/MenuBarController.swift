@@ -28,6 +28,9 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	var improvReader       : Task<String?, Never>?
 	var improvTask         : Task<Void, Never>?
 
+	/// Shortcuts running or waiting to run, by ID.
+	private var runningShortcuts: Set<String> = []
+
 	func install( host: DeckMenuBarHost ) {
 		self.host = host
 		keepRunningWithoutWindows()
@@ -169,137 +172,54 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 	// MARK: - Shortcuts
 	//
-	// Through Shortcuts Events' Apple Events, in-process: nothing to launch, so it works in
-	// the App Sandbox (with the scripting-targets entitlement for com.apple.shortcuts.run).
-	// Each script runs in a detached task, one at a time, and calls back on the main thread.
+	// Through Shortcuts Events' Apple Events, in-process (ShortcutsEvents): nothing to
+	// launch, so it works in the App Sandbox (with the scripting-targets entitlement for
+	// com.apple.shortcuts.run). Callbacks come on the main thread.
 
 	func loadShortcuts( completion: @escaping ( [[String]], String? ) -> Void ) {
 		Task {
-			let ( list, message ) = await Task.detached( priority: .userInitiated ) { Self.readShortcuts() }.value
-			completion( list, message )
+			switch await ShortcutsEvents.shortcuts() {
+				case .success( let list ):   completion( list, nil )
+				case .failure( let error ):  completion( [], error.message )
+			}
 		}
 	}
 
 	func loadShortcutIcon( id: String, size: Int, completion: @escaping ( Data? ) -> Void ) {
 		Task {
-			let png = await Task.detached( priority: .userInitiated ) { Self.readShortcutIcon( id: id, size: size ) }.value
-			completion( png )
-		}
-	}
-
-	func startShortcut( id: String, input: String?, completion: @escaping ( String?, String ) -> Void ) {
-		Task {
-			let ( message, output ) = await Task.detached( priority: .userInitiated ) { Self.runShortcut( id: id, input: input ) }.value
-			completion( message, output )
-		}
-	}
-
-	/// The shortcut's output as text: a list's items on separate lines, nothing for none.
-	nonisolated private static func runShortcut( id: String, input: String? ) -> ( String?, String ) {
-		let with = input.map { " with input \(quoted( $0 ))" } ?? ""
-		// A shortcut can take a while; AppleScript's default is 2 minutes.
-		let script = """
-			with timeout of 3600 seconds
-				tell application "Shortcuts Events" to run shortcut id \(quoted( id ))\(with)
-			end timeout
-			"""
-		switch execute( script ) {
-			case .success( let result ): return ( nil, text( result ).trimmingCharacters( in: .whitespacesAndNewlines ) )
-			case .failure( let error ):  return ( error.message, "" )
-		}
-	}
-
-	/// [id, name, folder] for each shortcut, folder "" when it isn't in one.
-	nonisolated private static func readShortcuts() -> ( [[String]], String? ) {
-		let script = """
-			tell application "Shortcuts Events"
-				set folderList to {}
-				repeat with theFolder in folders
-					set end of folderList to {name of theFolder, id of every shortcut of theFolder}
-				end repeat
-				return {id of every shortcut, name of every shortcut, folderList}
-			end tell
-			"""
-		let result: NSAppleEventDescriptor
-		switch execute( script ) {
-			case .success( let value ): result = value
-			case .failure( let error ): return ( [], error.message )
-		}
-		guard result.numberOfItems == 3 else { return ( [], "Shortcuts Events answered in an unexpected way." ) }
-
-		var folderByID: [String: String] = [:]
-		for folder in items( result.atIndex( 3 ) ) where folder.numberOfItems == 2 {
-			let name = folder.atIndex( 1 )?.stringValue ?? ""
-			for id in items( folder.atIndex( 2 ) ).compactMap( \.stringValue ) {
-				folderByID[id] = name
+			switch await ShortcutsEvents.icon( id: id, size: size ) {
+				case .success( let png ):
+					completion( png )
+				case .failure( let error ):
+					print( "[MenuBar] Shortcut icon: \(error.message)" )
+					completion( nil )
 			}
 		}
-		let ids   = items( result.atIndex( 1 ) ).map { $0.stringValue ?? "" }
-		let names = items( result.atIndex( 2 ) ).map { $0.stringValue ?? "" }
-		return ( zip( ids, names ).map { [ $0, $1, folderByID[$0] ?? "" ] }, nil )
 	}
 
-	/// The icon property is TIFF data.
-	nonisolated private static func readShortcutIcon( id: String, size: Int ) -> Data? {
-		switch execute( "tell application \"Shortcuts Events\" to return icon of shortcut id \(quoted( id ))" ) {
-			case .success( let result ):
-				guard let image = NSImage( data: result.data ) else { return nil }
-				return png( image, size: size )
-			case .failure( let error ):
-				print( "[MenuBar] Shortcut icon: \(error.message)" )
-				return nil
+	func isShortcutRunning( id: String ) -> Bool {
+		runningShortcuts.contains( id )
+	}
+
+	/// A shortcut still running (or waiting for another to finish) isn't started again: a
+	/// deck key pressed repeatedly would otherwise queue up a run for every press.
+	func startShortcut( id: String, input: String?, completion: @escaping ( String?, String ) -> Void ) {
+		guard !runningShortcuts.contains( id ) else {
+			completion( Self.shortcutBusy, "" )
+			return
+		}
+		runningShortcuts.insert( id )
+		Task {
+			let result = await ShortcutsEvents.run( id: id, input: input )
+			runningShortcuts.remove( id )
+			switch result {
+				case .success( let output ): completion( nil, output )
+				case .failure( let error ):  completion( error.message, "" )
+			}
 		}
 	}
 
-	private struct ScriptError: Error {
-		let message: String
-	}
-
-	/// NSAppleScript isn't safe to use from several threads at once.
-	nonisolated private static let scriptLock = NSLock()
-
-	nonisolated private static func execute( _ source: String ) -> Result<NSAppleEventDescriptor, ScriptError> {
-		scriptLock.lock()
-		defer { scriptLock.unlock() }
-		guard let script = NSAppleScript( source: source ) else { return .failure( ScriptError( message: "The script couldn't be built." ) ) }
-		var info: NSDictionary?
-		let result = script.executeAndReturnError( &info )
-		guard let info else { return .success( result ) }
-
-		let number = info[NSAppleScript.errorNumber] as? Int ?? 0
-		if number == -1743 {
-			return .failure( ScriptError( message: "ESPDeck Bridge isn't allowed to use Shortcuts. Turn it on in System Settings → Privacy & Security → Automation." ) )
-		}
-		return .failure( ScriptError( message: info[NSAppleScript.errorMessage] as? String ?? "Shortcuts Events reported error \(number)." ) )
-	}
-
-	nonisolated private static func items( _ list: NSAppleEventDescriptor? ) -> [NSAppleEventDescriptor] {
-		guard let list, list.numberOfItems > 0 else { return [] }
-		return ( 1...list.numberOfItems ).compactMap { list.atIndex( $0 ) }
-	}
-
-	/// Text, a list of texts (one per line), or nothing.
-	nonisolated private static func text( _ result: NSAppleEventDescriptor ) -> String {
-		if result.descriptorType == typeAEList {
-			return items( result ).map( text ).joined( separator: "\n" )
-		}
-		return result.stringValue ?? ""
-	}
-
-	nonisolated private static func png( _ image: NSImage, size: Int ) -> Data? {
-		guard let bitmap = NSBitmapImageRep( bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8, samplesPerPixel: 4,
-											 hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0 ) else { return nil }
-		NSGraphicsContext.saveGraphicsState()
-		NSGraphicsContext.current = NSGraphicsContext( bitmapImageRep: bitmap )
-		NSGraphicsContext.current?.imageInterpolation = .high
-		image.draw( in: NSRect( x: 0, y: 0, width: size, height: size ) )
-		NSGraphicsContext.restoreGraphicsState()
-		return bitmap.representation( using: .png, properties: [:] )
-	}
-
-	nonisolated private static func quoted( _ text: String ) -> String {
-		"\"" + text.replacingOccurrences( of: "\\", with: "\\\\" ).replacingOccurrences( of: "\"", with: "\\\"" ) + "\""
-	}
+	static let shortcutBusy = "That shortcut is still running from an earlier press."
 
 	// MARK: - Launch at Login
 
@@ -379,10 +299,28 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	/// Catalyst quits when its last window closes. A menu bar app has to outlive its
 	/// configuration window, so answer NO on the app delegate's behalf.
 	private func keepRunningWithoutWindows() {
-		guard let delegate = NSApp.delegate else { return }
+		guard let delegate = NSApp.delegate else {
+			print( "[MenuBar] There's no application delegate, so closing the last window will quit." )
+			return
+		}
 
 		let selector = #selector( NSApplicationDelegate.applicationShouldTerminateAfterLastWindowClosed( _: ) )
 		let block: @convention( block ) ( AnyObject, NSApplication ) -> Bool = { _, _ in false }
-		class_replaceMethod( type( of: delegate ), selector, imp_implementationWithBlock( block ), "c@:@" )
+		// The protocol's own type encoding, since BOOL is "B" on Apple silicon and "c" on Intel.
+		let described = objc_getProtocol( "NSApplicationDelegate" ).map { protocol_getMethodDescription( $0, selector, false, true ).types }
+		let types     = described.flatMap { $0.map { String( cString: $0 ) } } ?? Self.boolMethodTypes
+		class_replaceMethod( type( of: delegate ), selector, imp_implementationWithBlock( block ), types )
+		if !delegate.responds( to: selector ) {
+			print( "[MenuBar] Couldn't keep running without windows; closing the last window will quit." )
+		}
+	}
+
+	/// A method returning BOOL and taking one object.
+	private static var boolMethodTypes: String {
+		#if arch( arm64 )
+		"B@:@"
+		#else
+		"c@:@"
+		#endif
 	}
 }

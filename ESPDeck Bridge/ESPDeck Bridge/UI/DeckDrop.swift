@@ -25,11 +25,11 @@ struct KeyDrag: Codable, Transferable {
 
 enum DeckDrop: Transferable {
 	case key( Int )
-	case image( Data )
+	case image( DroppedImage )
 
 	static var transferRepresentation: some TransferRepresentation {
 		// Keys first, so a key dragged within the deck is never read as an image.
 		ProxyRepresentation { ( drag: KeyDrag ) in DeckDrop.key( drag.index ) }
-		ProxyRepresentation { ( image: DroppedImage ) in DeckDrop.image( image.data ) }
+		ProxyRepresentation { ( image: DroppedImage ) in DeckDrop.image( image ) }
 	}
 }

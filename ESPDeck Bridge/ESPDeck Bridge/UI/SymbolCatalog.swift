@@ -50,7 +50,9 @@ final class SymbolCatalog {
 			return ( try? PropertyListSerialization.propertyList( from: data, format: nil ) ) as? T
 		}
 
-		names    = plist( "symbol_order.plist", as: [String].self ) ?? Self.fallback
+		// An empty or changed list counts as missing.
+		let ordered = plist( "symbol_order.plist", as: [String].self ) ?? []
+		names    = ordered.isEmpty ? Self.fallback : ordered
 		keywords = plist( "symbol_search.plist", as: [String: [String]].self ) ?? [:]
 
 		var byCategory: [String: [String]] = [:]

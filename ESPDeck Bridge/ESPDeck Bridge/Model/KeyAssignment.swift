@@ -74,6 +74,28 @@ struct KeyAssignment: Codable, Equatable {
 	}
 }
 
+extension KeyAssignment {
+	/// Field by field: what can't be read (a kind or action this version doesn't know) is
+	/// left at its default, so the rest of the key survives.
+	init( from decoder: Decoder ) throws {
+		let container   = try decoder.container( keyedBy: CodingKeys.self )
+		kind            = container.lenient( KeyKind.self, forKey: .kind )
+		accessoryID     = container.lenient( UUID.self, forKey: .accessoryID )
+		serviceID       = container.lenient( UUID.self, forKey: .serviceID )
+		actionSetID     = container.lenient( UUID.self, forKey: .actionSetID )
+		shortcutID      = container.lenient( String.self, forKey: .shortcutID )
+		shortcutName    = container.lenient( String.self, forKey: .shortcutName )
+		shortcutToggles = container.lenient( Bool.self, forKey: .shortcutToggles )
+		shortcutState   = container.lenient( KeyState.self, forKey: .shortcutState )
+		action          = container.lenient( KeyAction.self, forKey: .action ) ?? .none
+		label           = container.lenient( String.self, forKey: .label ) ?? ""
+		showLabel       = container.lenient( Bool.self, forKey: .showLabel ) ?? true
+		others          = container.lenientArray( of: KeyMember.self, forKey: .others )
+		icons           = container.lenient( [String: String].self, forKey: .icons ) ?? [:]
+		backgroundColor = container.lenient( String.self, forKey: .backgroundColor )
+	}
+}
+
 /// Identifies a characteristic across launches.
 struct CharacteristicRef: Hashable {
 	var accessoryID        : UUID

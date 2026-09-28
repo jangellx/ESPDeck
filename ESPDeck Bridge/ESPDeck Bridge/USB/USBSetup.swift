@@ -102,6 +102,13 @@ final class USBSetup {
 		case file( URL )
 	}
 
+	/// A full image picked with Choose File, read and checked once when it was chosen.
+	struct ChosenFile {
+		var url     : URL
+		var regions : [FirmwareImage.Region]
+		var version : String
+	}
+
 	enum Install: Equatable {
 		case idle
 		case preparing( String )
@@ -143,6 +150,7 @@ final class USBSetup {
 	private(set) var boards          : [Board] = []
 	var selectedPath                 : String?
 	var source                       = Source.release
+	private(set) var chosenFile      : ChosenFile?
 	private(set) var install         = Install.idle
 	private(set) var networks        : [Network] = []
 	private(set) var findingNetworks = false
@@ -181,6 +189,11 @@ final class USBSetup {
 		static let deviceName = 0x06
 
 		static let unknownCommand = 0x02
+
+		/// An RPC's data: the packet's length byte also covers the command and its own length.
+		static let maximumData    = 253
+		/// 802.11's limit on a network name.
+		static let maximumSSID    = 32
 	}
 
 	init( controller: DeckController ) {
@@ -368,8 +381,16 @@ final class USBSetup {
 			case .release:
 				controller?.updates.latestFirmware?.version.description
 			case .file( let url ):
-				( try? FirmwareImage.regions( fullImage: Self.read( url ) ) )?.app.version
+				chosenFile.flatMap { $0.url == url ? $0.version : nil }
 		}
+	}
+
+	/// Reads and checks a full image from Choose File, and makes it the source.
+	func choose( _ url: URL ) throws {
+		let image            = try Self.read( url )
+		let ( regions, app ) = try FirmwareImage.regions( fullImage: image )
+		chosenFile = ChosenFile( url: url, regions: regions, version: app.version )
+		source     = .file( url )
 	}
 
 	func installFirmware() {
@@ -453,16 +474,33 @@ final class USBSetup {
 				let ( image, version ) = try await updates.downloadFullFirmware()
 				return ( try FirmwareImage.regions( fullImage: image ).regions, version )
 			case .file( let url ):
-				let image = try Self.read( url )
-				let ( regions, app ) = try FirmwareImage.regions( fullImage: image )
-				return ( regions, app.version )
+				guard let chosenFile, chosenFile.url == url else { throw FileProblem.notChosen }
+				return ( chosenFile.regions, chosenFile.version )
 		}
 	}
+
+	enum FileProblem: LocalizedError {
+		case tooLarge
+		case notChosen
+
+		var errorDescription: String? {
+			switch self {
+				case .tooLarge:  "That file is too large to be ESPDeck firmware."
+				case .notChosen: "Choose the firmware file again."
+			}
+		}
+	}
+
+	/// No ESP32-S3 has more flash than this, so no full image is larger.
+	static let maximumFileSize = 32 * 1024 * 1024
 
 	/// A file from the file picker, which may be outside what the app can read by itself.
 	static func read( _ url: URL ) throws -> Data {
 		let scoped = url.startAccessingSecurityScopedResource()
 		defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+		if let size = try url.resourceValues( forKeys: [ .fileSizeKey ] ).fileSize, size > maximumFileSize {
+			throw FileProblem.tooLarge
+		}
 		return try Data( contentsOf: url )
 	}
 
@@ -499,11 +537,12 @@ final class USBSetup {
 	/// Sends the network and password, and waits for the board to join or give up.
 	func join( ssid: String, password: String ) {
 		guard selectedBoard?.espDeck != nil else { return }
-		var data = Data()
-		for field in [ ssid, password ] {
-			let bytes = Data( field.utf8 )
-			data.append( UInt8( bytes.count ) )
-			data.append( bytes )
+		let data: Data
+		switch Self.wifiSettings( ssid: ssid, password: password ) {
+			case .success( let settings ): data = settings
+			case .failure( let problem ):
+				wifi = .failed( problem.message )
+				return
 		}
 		wifi = .joining( ssid )
 		withSelectedBoard { [weak self] path in
@@ -526,9 +565,36 @@ final class USBSetup {
 		}
 	}
 
+	struct FieldProblem: Error, Equatable {
+		var message: String
+	}
+
+	/// Improv's Wi-Fi settings: the network name and password, each a length byte and its
+	/// bytes, all within one RPC.
+	static func wifiSettings( ssid: String, password: String ) -> Result<Data, FieldProblem> {
+		let name = Data( ssid.utf8 ), secret = Data( password.utf8 )
+		guard !name.isEmpty else { return .failure( FieldProblem( message: "Choose a network to join." ) ) }
+		guard name.count <= Improv.maximumSSID else {
+			return .failure( FieldProblem( message: "A Wi-Fi network name can be at most \(Improv.maximumSSID) bytes long." ) )
+		}
+		guard 2 + name.count + secret.count <= Improv.maximumData else {
+			return .failure( FieldProblem( message: "That password is too long to send to the board." ) )
+		}
+		var data = Data()
+		for bytes in [ name, secret ] {
+			data.append( UInt8( bytes.count ) )
+			data.append( bytes )
+		}
+		return .success( data )
+	}
+
 	/// Improv's device name command, which ESPDeck stores like a rename from the bridge.
 	func setName( _ name: String ) {
 		guard selectedBoard?.espDeck != nil else { return }
+		guard name.utf8.count <= Improv.maximumData else {
+			rename = .failed( "That name is too long." )
+			return
+		}
 		rename = .saving
 		withSelectedBoard { [weak self] path in
 			guard let self else { return }

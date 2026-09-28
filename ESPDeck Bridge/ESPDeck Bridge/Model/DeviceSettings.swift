@@ -61,6 +61,19 @@ struct DeckLayout: Codable, Equatable {
 	]
 }
 
+extension DeckLayout {
+	init( from decoder: Decoder ) throws {
+		let container = try decoder.container( keyedBy: CodingKeys.self )
+		let mini      = DeckLayout.mini
+		model         = container.lenient( String.self, forKey: .model ) ?? mini.model
+		rows          = container.lenient( Int.self, forKey: .rows ).flatMap { $0 > 0 ? $0 : nil } ?? mini.rows
+		cols          = container.lenient( Int.self, forKey: .cols ).flatMap { $0 > 0 ? $0 : nil } ?? mini.cols
+		keySize       = container.lenient( Int.self, forKey: .keySize ).flatMap { $0 > 0 ? $0 : nil } ?? mini.keySize
+		format        = container.lenient( KeyImageFormat.self, forKey: .format ) ?? mini.format
+		transform     = container.lenient( KeyTransform.self, forKey: .transform ) ?? mini.transform
+	}
+}
+
 enum SleepEffect: String, Codable, CaseIterable, Identifiable {
 	case wake
 	case sleep
@@ -85,11 +98,11 @@ struct SleepTrigger: Codable, Equatable, Identifiable {
 
 	init( from decoder: Decoder ) throws {
 		let container = try decoder.container( keyedBy: CodingKeys.self )
-		id      = try container.decodeIfPresent( UUID.self, forKey: .id ) ?? UUID()
-		source  = try container.decodeIfPresent( KeyAssignment.self, forKey: .source ) ?? KeyAssignment()
-		state   = try container.decodeIfPresent( KeyState.self, forKey: .state ) ?? .on
-		effect  = try container.decodeIfPresent( SleepEffect.self, forKey: .effect ) ?? .wake
-		reverse = try container.decodeIfPresent( Bool.self, forKey: .reverse ) ?? false
+		id      = container.lenient( UUID.self, forKey: .id ) ?? UUID()
+		source  = container.lenient( KeyAssignment.self, forKey: .source ) ?? KeyAssignment()
+		state   = container.lenient( KeyState.self, forKey: .state ) ?? .on
+		effect  = container.lenient( SleepEffect.self, forKey: .effect ) ?? .wake
+		reverse = container.lenient( Bool.self, forKey: .reverse ) ?? false
 	}
 }
 
@@ -132,20 +145,23 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	}
 
 	init( from decoder: Decoder ) throws {
+		// Only the ID is required: without it the device is left out.
 		let container = try decoder.container( keyedBy: CodingKeys.self )
 		id            = try container.decode( String.self, forKey: .id )
-		name          = try container.decode( String.self, forKey: .name )
-		isDemo        = try container.decodeIfPresent( Bool.self, forKey: .isDemo ) ?? false
-		keys          = try container.decodeIfPresent( [KeyAssignment].self, forKey: .keys ) ?? []
-		layout        = try container.decodeIfPresent( DeckLayout.self, forKey: .layout ) ?? .mini
-		brightness    = try container.decodeIfPresent( Int.self, forKey: .brightness ) ?? 80
-		orientation   = try container.decodeIfPresent( String.self, forKey: .orientation ) ?? "auto"
-		sleepTimeout  = try container.decodeIfPresent( Int.self, forKey: .sleepTimeout ) ?? 0
-		devOTA        = try container.decodeIfPresent( Bool.self, forKey: .devOTA ) ?? false
-		labelPosition = try container.decodeIfPresent( LabelPosition.self, forKey: .labelPosition ) ?? .bottom
-		sleepTriggers = try container.decodeIfPresent( [SleepTrigger].self, forKey: .sleepTriggers ) ?? []
-		onSleep       = try container.decodeIfPresent( KeyAssignment.self, forKey: .onSleep ) ?? KeyAssignment()
-		onWake        = try container.decodeIfPresent( KeyAssignment.self, forKey: .onWake ) ?? KeyAssignment()
+		name          = container.lenient( String.self, forKey: .name ) ?? ""
+		isDemo        = container.lenient( Bool.self, forKey: .isDemo ) ?? false
+		// A key that can't be read becomes an empty one, so the others keep their places.
+		keys          = container.lenientArray( of: KeyAssignment.self, forKey: .keys, placeholder: KeyAssignment() ) ?? []
+		layout        = container.lenient( DeckLayout.self, forKey: .layout ) ?? .mini
+		brightness    = container.lenient( Int.self, forKey: .brightness ) ?? 80
+		orientation   = container.lenient( String.self, forKey: .orientation ) ?? "auto"
+		sleepTimeout  = container.lenient( Int.self, forKey: .sleepTimeout ) ?? 0
+		devOTA        = container.lenient( Bool.self, forKey: .devOTA ) ?? false
+		labelPosition = container.lenient( LabelPosition.self, forKey: .labelPosition ) ?? .bottom
+		sleepTriggers = container.lenientArray( of: SleepTrigger.self, forKey: .sleepTriggers ) ?? []
+		onSleep       = container.lenient( KeyAssignment.self, forKey: .onSleep ) ?? KeyAssignment()
+		onWake        = container.lenient( KeyAssignment.self, forKey: .onWake ) ?? KeyAssignment()
+		if name.isEmpty { name = defaultName }
 	}
 
 	/// The name the device calls itself until it's renamed: "ESPDeck 67E8", from the last two
@@ -187,13 +203,13 @@ struct BridgeSettings: Codable, Equatable {
 
 	init( from decoder: Decoder ) throws {
 		let container = try decoder.container( keyedBy: CodingKeys.self )
-		homeID     = try container.decodeIfPresent( UUID.self, forKey: .homeID )
-		devices    = try container.decodeIfPresent( [DeviceSettings].self, forKey: .devices ) ?? []
-		bridgeID   = try container.decodeIfPresent( String.self, forKey: .bridgeID ) ?? UUID().uuidString.lowercased()
-		updates    = try container.decodeIfPresent( UpdateSettings.self, forKey: .updates ) ?? UpdateSettings()
-		usbScanning = try container.decodeIfPresent( Bool.self, forKey: .usbScanning ) ?? true
-		legacyKeys = try container.decodeIfPresent( [KeyAssignment].self, forKey: .legacyKeys )
-					 ?? container.decodeIfPresent( [KeyAssignment].self, forKey: .keys )
+		homeID      = container.lenient( UUID.self, forKey: .homeID )
+		devices     = container.lenientArray( of: DeviceSettings.self, forKey: .devices ) ?? []
+		bridgeID    = container.lenient( String.self, forKey: .bridgeID ).flatMap { $0.isEmpty ? nil : $0 } ?? UUID().uuidString.lowercased()
+		updates     = container.lenient( UpdateSettings.self, forKey: .updates ) ?? UpdateSettings()
+		usbScanning = container.lenient( Bool.self, forKey: .usbScanning ) ?? true
+		legacyKeys  = container.lenientArray( of: KeyAssignment.self, forKey: .legacyKeys, placeholder: KeyAssignment() )
+					  ?? container.lenientArray( of: KeyAssignment.self, forKey: .keys, placeholder: KeyAssignment() )
 		if !devices.isEmpty { legacyKeys = nil }
 	}
 
@@ -236,7 +252,7 @@ struct UpdateSettings: Codable, Equatable {
 
 	init( from decoder: Decoder ) throws {
 		let container  = try decoder.container( keyedBy: CodingKeys.self )
-		firmwarePolicy = try container.decodeIfPresent( UpdatePolicy.self, forKey: .firmwarePolicy ) ?? .notify
-		lastCheck      = try container.decodeIfPresent( Date.self, forKey: .lastCheck )
+		firmwarePolicy = container.lenient( UpdatePolicy.self, forKey: .firmwarePolicy ) ?? .notify
+		lastCheck      = container.lenient( Date.self, forKey: .lastCheck )
 	}
 }

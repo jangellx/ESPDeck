@@ -18,21 +18,35 @@ nonisolated enum ImprovPacket {
 	static let typeRPC     : UInt8 = 0x03
 	static let typeResult  : UInt8 = 0x04
 
+	/// A packet's data, and an RPC command's, has a one-byte length.
+	enum Failure: LocalizedError {
+		case tooLong( Int )
+
+		var errorDescription: String? {
+			switch self {
+				case .tooLong( let count ): "That's too much to send to the board (\(count) bytes; Improv allows 255)."
+			}
+		}
+	}
+
 	/// "IMPROV", version, type, length, data, and a checksum: the low byte of the sum of
 	/// every byte before it.
-	static func encode( type: UInt8, data: Data ) -> Data {
+	static func encode( type: UInt8, data: Data ) throws -> Data {
+		guard let length = UInt8( exactly: data.count ) else { throw Failure.tooLong( data.count ) }
 		var packet = Data( header )
-		packet.append( contentsOf: [ version, type, UInt8( data.count ) ] )
+		packet.append( contentsOf: [ version, type, length ] )
 		packet.append( data )
 		packet.append( packet.reduce( UInt8( 0 ) ) { $0 &+ $1 } )
 		return packet
 	}
 
-	/// An RPC command packet: the command, the length of its data, the data.
-	static func command( _ command: UInt8, data: Data ) -> Data {
-		var body = Data( [ command, UInt8( data.count ) ] )
+	/// An RPC command packet: the command, the length of its data, the data. The whole
+	/// body has a one-byte length too, so the data can be at most 253 bytes.
+	static func command( _ command: UInt8, data: Data ) throws -> Data {
+		guard let length = UInt8( exactly: data.count ) else { throw Failure.tooLong( data.count ) }
+		var body = Data( [ command, length ] )
 		body.append( data )
-		return encode( type: typeRPC, data: body )
+		return try encode( type: typeRPC, data: body )
 	}
 
 	/// An RPC result's strings, each a length byte and its bytes, after the command and

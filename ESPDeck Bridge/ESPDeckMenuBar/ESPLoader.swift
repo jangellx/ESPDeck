@@ -538,6 +538,10 @@ nonisolated final class ESPLoader {
 
 	/// Collects frames across reads; bytes outside a frame (the ROM's boot messages) are dropped.
 	struct SLIPDecoder {
+		/// Longer than any response (8 bytes and at most 64 KB of data); past it, the bytes
+		/// can't be a frame, so they're dropped until the next 0xC0.
+		static let maximumFrame = 8 + 0xFFFF
+
 		private var frame   = Data()
 		private var inFrame = false
 		private var escaped = false
@@ -555,7 +559,11 @@ nonisolated final class ESPLoader {
 					frame   = Data()
 					escaped = false
 				} else if inFrame {
-					if escaped {
+					if frame.count >= Self.maximumFrame {
+						frame   = Data()
+						inFrame = false
+						escaped = false
+					} else if escaped {
 						frame.append( byte == 0xDC ? 0xC0 : byte == 0xDD ? 0xDB : byte )
 						escaped = false
 					} else if byte == 0xDB {

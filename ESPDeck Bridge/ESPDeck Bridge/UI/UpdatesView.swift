@@ -115,17 +115,20 @@ struct FirmwareRow: View {
 				prepare( source: url.lastPathComponent ) { try USBSetup.read( url ) }
 			}
 		}
-		.confirmationDialog( pending.map { "Install firmware \($0.info.version) on \(name)?" } ?? "",
+		.confirmationDialog( pending.map { ( isDowngrade( $0 ) ? "Install older firmware \($0.info.version) on \(name)?" : "Install firmware \($0.info.version) on \(name)?" ) } ?? "",
 							 isPresented: Binding( get: { pending != nil }, set: { if !$0 { pending = nil } } ), titleVisibility: .visible ) {
-			Button( "Install" ) {
+			Button( pending.map( isDowngrade ) == true ? "Install Older Firmware" : "Install" ) {
 				if let pending {
-					controller.sendLocalFirmware( device: device.id, image: pending.image, info: pending.info )
+					controller.updates.installLocalFirmware( on: device.id, image: pending.image, info: pending.info )
 				}
 				pending = nil
 			}
 		} message: {
 			if let pending {
-				Text( "From \(pending.source), built \(pending.info.built). The device restarts into it; if it can't reconnect, it goes back to the firmware it runs now." )
+				let older = isDowngrade( pending )
+					? "This is older than the \(device.firmware ?? "") it's running, and ESPDeck Bridge may expect things it can't do. "
+					: ""
+				Text( "\(older)From \(pending.source), built \(pending.info.built). The device restarts into it; if it can't reconnect, it goes back to the firmware it runs now." )
 			}
 		}
 		.alert( "Can't Install That Firmware", isPresented: Binding( get: { problem != nil }, set: { if !$0 { problem = nil } } ) ) {
@@ -147,6 +150,12 @@ struct FirmwareRow: View {
 		.fixedSize()
 		.help( "Install development firmware" )
 		.disabled( !device.isOnline || device.status.setupMode || device.firmwareProgress?.isActive == true )
+	}
+
+	/// A file install may go back to an older version (the device allows it for files),
+	/// so the confirmation says so.
+	private func isDowngrade( _ pending: PendingInstall ) -> Bool {
+		FirmwareStanding.isDowngrade( installing: pending.info.version, over: device.firmware ?? "" )
 	}
 
 	private func prepare( source: String, _ read: () throws -> Data ) {
@@ -179,7 +188,7 @@ struct FirmwareRow: View {
 						.font( .caption )
 						.lineLimit( 2 )
 					Button( "Retry" ) {
-						Task { await controller.updates.installFirmware( on: device.id ) }
+						Task { await controller.updates.retryFirmware( on: device.id ) }
 					}
 					.disabled( !device.isOnline )
 				}

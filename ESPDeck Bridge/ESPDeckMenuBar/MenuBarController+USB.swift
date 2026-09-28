@@ -113,8 +113,9 @@ extension MenuBarController {
 
 	func sendImprov( command: Int, data: Data ) -> String? {
 		guard let improvSession else { return "The board isn't connected." }
+		guard let command = UInt8( exactly: command ) else { return "Improv has no command \(command)." }
 		do {
-			try improvSession.send( command: UInt8( command ), data: data )
+			try improvSession.send( command: command, data: data )
 			return nil
 		} catch {
 			return error.localizedDescription

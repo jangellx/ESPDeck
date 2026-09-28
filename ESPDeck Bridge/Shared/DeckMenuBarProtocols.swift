@@ -62,9 +62,10 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 
 	// MARK: Shortcuts
 	//
-	// All asynchronous: they send Apple Events to Shortcuts Events in the background and
-	// call back on the main thread, so a slow Shortcuts never stalls the app (and with it
-	// the WebSocket heartbeat).
+	// All asynchronous: they send Apple Events to Shortcuts Events on queues of their own
+	// and call back on the main thread, so a slow Shortcuts never stalls the app (and with
+	// it the WebSocket heartbeat). Lookups don't wait for running shortcuts; shortcuts run
+	// one at a time.
 
 	/// The user's shortcuts as [id, name, folder] triples (folder "" when not in one), or an
 	/// error message.
@@ -75,7 +76,12 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 
 	/// Runs a shortcut, with `input` as its text input if given. The completion gets nil and
 	/// the shortcut's output as text ("" for none) when it finished, or an error message.
+	/// While the same shortcut is still running or waiting to run, it isn't started again:
+	/// the completion gets an error at once.
 	func startShortcut( id: String, input: String?, completion: @escaping ( _ error: String?, _ output: String ) -> Void )
+
+	/// The shortcut was started and hasn't finished, so a key press for it can be ignored.
+	func isShortcutRunning( id: String ) -> Bool
 
 	// MARK: USB setup
 	//

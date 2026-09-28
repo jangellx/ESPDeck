@@ -6,26 +6,40 @@
 //  Application Support: inside the app's container, since the app is sandboxed.
 //
 
+import ImageIO
 import Observation
 import UIKit
+import UniformTypeIdentifiers
 
 @Observable
 final class ConfigStore {
 	var settings: BridgeSettings {
 		didSet {
-			if settings != oldValue { save() }
+			if settings != oldValue { scheduleSave() }
 		}
 	}
+
+	/// Set when Settings.json couldn't be read at launch and was set aside under this name.
+	private(set) var unreadableSettings: String?
 
 	@ObservationIgnored private let directory     : URL
 	@ObservationIgnored private let iconDirectory : URL
 	@ObservationIgnored private var iconCache     : [String: UIImage] = [:]
 	@ObservationIgnored private let shortcutIconDirectory : URL
+	@ObservationIgnored private var pendingSave   : Task<Void, Never>?
+	@ObservationIgnored private var observers     : [NSObjectProtocol] = []
 
 	private var settingsURL: URL { directory.appending( path: "Settings.json" ) }
 
 	/// Icons are downscaled to this many pixels on their longest side when imported.
-	private static let iconImportSize: CGFloat = 240
+	nonisolated static let iconImportSize = 240
+	/// Dropped images larger than this aren't read.
+	nonisolated static let iconFileLimit  = 20 * 1024 * 1024
+
+	/// Changes within this long of each other are saved together.
+	private static let saveDelay: Duration = .milliseconds( 500 )
+	/// Writes happen here, in order, off the main thread.
+	private static let writer = DispatchQueue( label: "com.tmproductions.espdeck.settings", qos: .utility )
 
 	init() {
 		let support   = URL.applicationSupportDirectory.appending( path: "ESPDeck Bridge", directoryHint: .isDirectory )
@@ -35,22 +49,90 @@ final class ConfigStore {
 		try? FileManager.default.createDirectory( at: iconDirectory, withIntermediateDirectories: true )
 		try? FileManager.default.createDirectory( at: shortcutIconDirectory, withIntermediateDirectories: true )
 
-		let url = support.appending( path: "Settings.json" )
-		if let data    = try? Data( contentsOf: url ),
-		   let decoded = try? JSONDecoder().decode( BridgeSettings.self, from: data ) {
-			settings = decoded
-		} else {
-			settings = BridgeSettings()
+		let url      = support.appending( path: "Settings.json" )
+		var loaded   : BridgeSettings?
+		var fileID   : String?
+		var setAside : String?
+		if FileManager.default.fileExists( atPath: url.path( percentEncoded: false ) ) {
+			do {
+				let data = try Data( contentsOf: url )
+				loaded   = try JSONDecoder().decode( BridgeSettings.self, from: data )
+				fileID   = ( ( try? JSONSerialization.jsonObject( with: data ) ) as? [String: Any] )?["bridgeID"] as? String
+			} catch {
+				// Kept for the user (or a later version) rather than overwritten by the fresh start.
+				print( "[ConfigStore] Settings.json couldn't be read: \(error)" )
+				setAside = Self.setAside( url )
+			}
+		}
+		settings           = loaded ?? BridgeSettings()
+		unreadableSettings = setAside
+
+		// The bridge ID survives settings that had to start over.
+		if fileID == nil || fileID?.isEmpty == true, let stored = BridgeIdentity.stored( fileIn: support ) {
+			settings.bridgeID = stored
+		}
+		BridgeIdentity.store( settings.bridgeID, fileIn: support )
+
+		// Quitting, or on iPad being suspended, must not lose a change still waiting to be saved.
+		let names = [ UIApplication.willTerminateNotification, UIApplication.didEnterBackgroundNotification ]
+		observers = names.map { name in
+			NotificationCenter.default.addObserver( forName: name, object: nil, queue: .main ) { [weak self] _ in
+				MainActor.assumeIsolated { self?.saveNow( waiting: true ) }
+			}
+		}
+		// A fresh start, or an ID that came from the Keychain, is written out.
+		if loaded == nil || fileID != settings.bridgeID {
+			scheduleSave()
 		}
 	}
 
-	private func save() {
+	/// Moves an unreadable Settings.json to Settings.unreadable-<date>.json; returns that name.
+	private static func setAside( _ url: URL ) -> String? {
+		let stamp = Date().formatted( .iso8601.year().month().day().time( includingFractionalSeconds: false ).timeSeparator( .omitted ) )
+		let name  = "Settings.unreadable-\(stamp).json"
+		do {
+			try FileManager.default.moveItem( at: url, to: url.deletingLastPathComponent().appending( path: name ) )
+			return name
+		} catch {
+			print( "[ConfigStore] Couldn't set the unreadable settings aside: \(error)" )
+			return nil
+		}
+	}
+
+	private func scheduleSave() {
+		pendingSave?.cancel()
+		pendingSave = Task { [weak self] in
+			try? await Task.sleep( for: Self.saveDelay )
+			guard !Task.isCancelled else { return }
+			self?.saveNow( waiting: false )
+		}
+	}
+
+	/// Writes the settings if a save is pending; `waiting` returns only once they're on disk.
+	func saveNow( waiting: Bool ) {
+		guard let pending = pendingSave else { return }
+		pending.cancel()
+		pendingSave = nil
+
+		let data: Data
 		do {
 			let encoder = JSONEncoder()
 			encoder.outputFormatting = [ .prettyPrinted, .sortedKeys ]
-			try encoder.encode( settings ).write( to: settingsURL, options: .atomic )
+			data = try encoder.encode( settings )
 		} catch {
-			print( "[ConfigStore] Failed to save settings: \(error)" )
+			print( "[ConfigStore] Failed to encode settings: \(error)" )
+			return
+		}
+		let url = settingsURL
+		Self.writer.async {
+			do {
+				try data.write( to: url, options: .atomic )
+			} catch {
+				print( "[ConfigStore] Failed to save settings: \(error)" )
+			}
+		}
+		if waiting {
+			Self.writer.sync {}
 		}
 	}
 
@@ -79,20 +161,10 @@ final class ConfigStore {
 		return image
 	}
 
-	/// Stores dropped image data as a PNG and returns its file name.
+	/// Stores image data as a PNG and returns its file name. Dropped images come here
+	/// already made small by `iconPNG( from: )`, off the main thread.
 	func importIcon( _ data: Data ) -> String? {
-		guard let source = UIImage( data: data ) else { return nil }
-
-		let longest = max( source.size.width, source.size.height )
-		let scale   = min( 1, Self.iconImportSize / max( longest, 1 ) )
-		let size    = CGSize( width: ( source.size.width * scale ).rounded(), height: ( source.size.height * scale ).rounded() )
-
-		let format   = UIGraphicsImageRendererFormat()
-		format.scale = 1
-		let image    = UIGraphicsImageRenderer( size: size, format: format ).image { _ in
-			source.draw( in: CGRect( origin: .zero, size: size ) )
-		}
-		guard let png = image.pngData() else { return nil }
+		guard let png = try? Self.iconPNG( from: data ), let image = UIImage( data: png ) else { return nil }
 
 		let name = UUID().uuidString + ".png"
 		do {
@@ -103,6 +175,39 @@ final class ConfigStore {
 		}
 		iconCache[name] = image
 		return name
+	}
+
+	nonisolated enum IconProblem: LocalizedError {
+		case tooLarge
+		case unreadable
+
+		var errorDescription: String? {
+			switch self {
+				case .tooLarge:   "That image is too large. Use one smaller than \(ConfigStore.iconFileLimit / 1024 / 1024) MB."
+				case .unreadable: "That image couldn't be read."
+			}
+		}
+	}
+
+	/// An image as a PNG at most `iconImportSize` pixels on its longest side. ImageIO
+	/// decodes it straight to that size, so a huge image never lands in memory whole; it
+	/// can run on any thread.
+	nonisolated static func iconPNG( from data: Data ) throws -> Data {
+		guard data.count <= iconFileLimit else { throw IconProblem.tooLarge }
+		let options: [CFString: Any] = [
+			kCGImageSourceCreateThumbnailFromImageAlways: true,
+			kCGImageSourceCreateThumbnailWithTransform:   true,
+			kCGImageSourceShouldCacheImmediately:         true,
+			kCGImageSourceThumbnailMaxPixelSize:          iconImportSize,
+		]
+		guard let source = CGImageSourceCreateWithData( data as CFData, [ kCGImageSourceShouldCache: false ] as CFDictionary ),
+			  let image  = CGImageSourceCreateThumbnailAtIndex( source, 0, options as CFDictionary ) else { throw IconProblem.unreadable }
+
+		let png = NSMutableData()
+		guard let destination = CGImageDestinationCreateWithData( png, UTType.png.identifier as CFString, 1, nil ) else { throw IconProblem.unreadable }
+		CGImageDestinationAddImage( destination, image, nil )
+		guard CGImageDestinationFinalize( destination ) else { throw IconProblem.unreadable }
+		return png as Data
 	}
 
 	func setIcon( _ name: String?, device: String, key: Int, state: KeyState ) {

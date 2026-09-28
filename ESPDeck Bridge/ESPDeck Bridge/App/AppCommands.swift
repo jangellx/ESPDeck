@@ -28,8 +28,12 @@ extension AppDelegate {
 			] ), afterMenu: about.identifier )
 		}
 
-		// File
-		builder.remove( menu: .newItem )
+		// File: the system's New item (New Window before 26)
+		if #available( iOS 26.0, * ) {
+			builder.remove( menu: .newItem )
+		} else {
+			builder.remove( menu: .newScene )
+		}
 
 		// Quit asks first, as the status item's Quit does.
 		builder.replaceChildren( ofMenu: .quit ) { _ in
