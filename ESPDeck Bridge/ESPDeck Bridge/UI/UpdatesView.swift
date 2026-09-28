@@ -82,9 +82,19 @@ struct FirmwareRow: View {
 		var source : String
 	}
 
+	/// What the Firmware menu has selected.
+	private enum Choice: Hashable {
+		case release
+		case file
+		case chooseFile
+	}
+
 	@State private var pickingFile = false
 	@State private var pending     : PendingInstall?
 	@State private var problem     : String?
+	@State private var choice      = Choice.release
+	/// The last file chosen, read and checked, ready to install.
+	@State private var chosen      : PendingInstall?
 
 	var body: some View {
 		let updates = controller.updates
@@ -94,17 +104,9 @@ struct FirmwareRow: View {
 			HStack {
 				if let progress = device.firmwareProgress {
 					progressView( progress )
-				} else if updates.firmwareUpdateAvailable( for: device ), let latest = updates.latestFirmware {
-					Button( "Update to \(latest.version.description)" ) {
-						Task { await updates.installFirmware( on: device.id ) }
-					}
-					.disabled( !device.isOnline || device.status.setupMode )
-				} else if device.firmware != nil {
-					Text( updates.latestFirmware == nil ? "" : "Up to date" )
-						.foregroundStyle( .secondary )
-				}
-				if controller.macBridge != nil {
-					developmentMenu
+				} else {
+					firmwareMenu
+					installButton
 				}
 			}
 		} label: {
@@ -118,6 +120,14 @@ struct FirmwareRow: View {
 		.fileImporter( isPresented: $pickingFile, allowedContentTypes: [ .data ] ) { result in
 			if case .success( let url ) = result {
 				prepare( source: url.lastPathComponent ) { try USBSetup.read( url ) }
+			} else if chosen == nil {
+				choice = .release
+			}
+		}
+		.onChange( of: choice ) { _, new in
+			if new == .chooseFile {
+				choice      = chosen == nil ? .release : .file   // a sentinel, not a real choice
+				pickingFile = true
 			}
 		}
 		.confirmationDialog( pending.map { ( isDowngrade( $0 ) ? "Install older firmware \($0.info.version) on \(name)?" : "Install firmware \($0.info.version) on \(name)?" ) } ?? "",
@@ -143,18 +153,47 @@ struct FirmwareRow: View {
 		}
 	}
 
-	/// For development: any ESPDeck app image, whatever its version.
-	private var developmentMenu: some View {
-		Menu {
-			Button( "Install Firmware from File…" ) { pickingFile = true }
-		} label: {
-			Image( systemName: "ellipsis.circle" )
+	/// Like USB Setup's: the latest signed release, the chosen file, then Choose File… after a
+	/// divider (on the Mac, where files can be picked).
+	private var firmwareMenu: some View {
+		let latest = controller.updates.latestFirmware
+		return Picker( "Firmware", selection: $choice ) {
+			Text( latest.map { "Latest release (\($0.version.description))" } ?? "No signed release yet" )
+				.tag( Choice.release )
+			if let chosen {
+				Text( "\(chosen.source) (\(chosen.info.version))" )
+					.tag( Choice.file )
+			}
+			if controller.macBridge != nil {
+				Divider()
+				Text( "Choose File…" )
+					.tag( Choice.chooseFile )
+			}
 		}
-		.menuStyle( .borderlessButton )
-		.menuIndicator( .hidden )
+		.labelsHidden()
 		.fixedSize()
-		.help( "Install development firmware" )
-		.disabled( !device.isOnline || device.status.setupMode || device.firmwareProgress?.isActive == true )
+		.disabled( device.status.setupMode || device.firmwareProgress?.isActive == true )
+	}
+
+	/// Installs the menu's choice: a release only when it's newer than what the device runs.
+	@ViewBuilder
+	private var installButton: some View {
+		let updates = controller.updates
+		switch choice {
+			case .file:
+				Button( "Install" ) { pending = chosen }
+					.disabled( !device.isOnline || device.status.setupMode || chosen == nil )
+			default:
+				if updates.firmwareUpdateAvailable( for: device ) {
+					Button( "Install" ) {
+						Task { await updates.installFirmware( on: device.id ) }
+					}
+					.disabled( !device.isOnline || device.status.setupMode )
+				} else if updates.latestFirmware != nil && device.firmware != nil {
+					Text( "Up to date" )
+						.foregroundStyle( .secondary )
+				}
+		}
 	}
 
 	/// A file install may go back to an older version (the device allows it for files),
@@ -172,9 +211,12 @@ struct FirmwareRow: View {
 				problem = "This is firmware \(info.version). This device's stored secrets are encrypted, which firmware before \(DeckController.storageEncryptionFirmware) can't read, so it can't be installed here."
 				return
 			}
-			pending = PendingInstall( image: image, info: info, source: source )
+			chosen  = PendingInstall( image: image, info: info, source: source )
+			choice  = .file
+			pending = chosen
 		} catch {
 			problem = error.localizedDescription
+			if chosen == nil { choice = .release }
 		}
 	}
 
