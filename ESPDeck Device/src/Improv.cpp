@@ -96,12 +96,6 @@ bool Improv::takeProvisioned() {
 	return provisioned;
 }
 
-bool Improv::takeRenamed() {
-	bool renamed = renamed_;
-	renamed_ = false;
-	return renamed;
-}
-
 // MARK: - Receiving
 
 void Improv::loop() {
@@ -213,7 +207,6 @@ void Improv::handleCommand( uint8_t command, const uint8_t *data, size_t length 
 					}
 					char safe[40];
 					ESP_LOGI( TAG, "Renamed to %s", Text::printable( name, safe, sizeof( safe ) ) );
-					renamed_ = true;
 				}
 			}
 			sendResult( kDeviceName, { settings_.name() } );

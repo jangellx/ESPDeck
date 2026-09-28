@@ -119,13 +119,14 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 
 | type | fields | when |
 |---|---|---|
-| `hello` | `protocol` (4), `id` (MAC), `name`, `firmware`, `elfSHA256` (firmware 3.1.0 and later), `nonce`, `pairedBridge`, `cached` (hashes), `deck` (deck object), `settings` (settings object), `status` (status object) | **Unauthenticated.** Sent right after connecting, and again (inside the session, with a MAC) after leaving setup mode, since the setup page may have renamed the device. Also resent inside the session after Improv renames the device (see USB below). The Mac treats every authenticated `hello` as a full resync; one sent inside the session needs no new handshake, carries the session's original `nonce`, and must have the session's `id`. |
+| `hello` | `protocol` (4), `id` (MAC), `name`, `firmware`, `elfSHA256` (firmware 3.1.0 and later), `nonce`, `pairedBridge`, `cached` (hashes), `deck` (deck object), `settings` (settings object), `status` (status object) | **Unauthenticated.** Sent right after connecting, and again (inside the session, with a MAC) after leaving setup mode. Also resent inside the session as soon as the device is renamed over Improv or on the setup page (see Renaming below). The Mac treats every authenticated `hello` as a full resync; one sent inside the session needs no new handshake, carries the session's original `nonce`, and must have the session's `id`. |
 | `auth` | `proof` | **Unauthenticated.** Handshake step 3 |
 | `pairResponse` | `publicKey`, `commitment` | **Unauthenticated.** Pairing step 2 |
 | `pairReveal` | `nonce` | **Unauthenticated.** Pairing step 4 |
 | `pairConfirm` | `proof` | **Unauthenticated.** Pairing step 7: confirmed on the deck |
 | `pairCancel` | `reason` | **Unauthenticated.** Pairing cancelled on the deck, timed out, or refused; see Pairing |
 | `firmwareStatus` | `state` (`ready`, `progress`, `installed`, `error`), `received` (bytes, for `progress`), `message` (for `error`) | answers to a firmware update |
+| `storageStatus` | `state` (`encrypting`, `error`), `message` (for `error`) | the answer to `encryptStorage` (firmware 4.1.0 and later): `encrypting` just before it starts (the device restarts when it's done), or `error` if it refused and nothing changed. See Storage encryption. |
 | `deck` | `deck` | the Stream Deck is plugged in or unplugged, or its transform changed |
 | `status` | `status`, `reason` | sleep or setup mode changed. `reason` sits beside `status`, not inside it: `timer` (sleep timeout), `key` (woken by a key press), `bridge` (commanded by the Mac), `chord` (setup mode from the corner hold), `boot` (setup mode at boot, no Wi-Fi credentials), `setupPage`, `exitKey`, `improv` (left setup mode), `timeout` (left setup mode after 15 minutes without a phone on its network), `pairing` (woken to show a pairing code) |
 | `need` | `hash` | told to `show` a hash it doesn't have |
@@ -152,12 +153,13 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 - `asleep` (bool)
 - `setupMode` (bool)
 - `devOTA` (bool, firmware 3.2.0 and later): uploads from PlatformIO (ArduinoOTA) are allowed, i.e. the device has a password for them
+- `storage` (string, firmware 4.1.0 and later): how NVS is stored. `plain`: not encrypted, and `encryptStorage` can encrypt it; `encrypted`; `unsupported`: not encrypted, and the chip has no free eFuse key block to do it with. See Storage encryption.
 
 ```json
-{"type":"hello","protocol":4,"id":"f4:12:fa:00:00:00","name":"Office Deck","firmware":"4.0.0","elfSHA256":"29b53312…","nonce":"5f1c…","pairedBridge":"0c6e0a52-…","cached":["9f86d081884c7d659a2feaa0c55ad015"],
+{"type":"hello","protocol":4,"id":"f4:12:fa:00:00:00","name":"Office Deck","firmware":"4.1.0","elfSHA256":"29b53312…","nonce":"5f1c…","pairedBridge":"0c6e0a52-…","cached":["9f86d081884c7d659a2feaa0c55ad015"],
  "deck":{"connected":true,"model":"Stream Deck Mini","pid":99,"serial":"BL12H1A12345","firmware":"1.00.004","rows":2,"cols":3,"keySize":80,"format":"bmp","transform":"transpose"},
  "settings":{"orientation":"auto","sleepTimeout":600,"brightness":80,"ip":"192.168.1.44"},
- "status":{"asleep":false,"setupMode":false,"devOTA":false}}
+ "status":{"asleep":false,"setupMode":false,"devOTA":false,"storage":"plain"}}
 ```
 
 ### Mac → ESP32
@@ -173,7 +175,8 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 | `setupMode` | `enabled` (bool) | enter or leave setup mode |
 | `unpair` | | delete the pairing key; the connection then closes |
 | `devOTA` | `sealedHash` (to allow), or `passwordHash`: `""` (to turn off) | Allows uploads from PlatformIO over Wi-Fi (ArduinoOTA, UDP port 3232), or turns them off; the listener starts or stops at once. See **devOTA** below. The device answers with `status` (reason `bridge`), whose `devOTA` shows the result. While allowed, a new image is marked valid once it's on Wi-Fi instead of after the first authenticated session. Pairing again, unpairing, and a factory reset turn uploads off. |
-| `factoryReset` | | erase NVS (Wi-Fi, name, pairing, settings) first, then the image cache (once its writer has stopped), then restart; the device comes back in setup mode. The firmware stays. The setup page offers the same reset. |
+| `factoryReset` | | erase NVS (Wi-Fi, name, pairing, settings) first, then the image cache (once its writer has stopped), then restart; the device comes back in setup mode. The firmware stays, and so does storage encryption (NVS starts over empty and encrypted). The setup page offers the same reset. |
+| `encryptStorage` | | Firmware 4.1.0 and later: permanently encrypt NVS with a new key burned into the chip's eFuses, then restart. Answered with `storageStatus`. The Mac sends it only after the user confirmed. See Storage encryption. |
 | `firmwareBegin` | `version`, `size` (bytes), `sha256` (hex of the whole image), `allowDowngrade` (bool, optional) | start a firmware update; answered with `firmwareStatus` `ready` or `error`. A `firmwareBegin` during an update abandons that update and starts over (firmware 3.0.3 and later; earlier firmware answers `error`). Refused while an installed update waits to restart, or during an upload from PlatformIO. Firmware 4.0.0 and later refuses an image older than the running version unless `allowDowngrade` is `true`; see Firmware frame. |
 | `firmwareEnd` | | all data sent; the ESP32 verifies the SHA-256, answers `installed` or `error`, and on success restarts about 1 second later |
 
@@ -243,7 +246,33 @@ Over USB, a device speaks [Improv Wi-Fi serial](https://www.improv-wifi.com/seri
 - Commands: `0x01` send Wi-Fi settings, `0x02` request current state, `0x03` request device information, `0x04` request scanned Wi-Fi networks, and `0x06` get or set the device name. Others answer error `0x02` (unknown command); ESPDeck has no hostname command (`0x05`), since its hostname is fixed.
 - Device information is `ESPDeck`, the firmware version, `ESP32-S3`, and the device name.
 - Send Wi-Fi settings saves the credentials only once they work (within 20 s): the answer is state Provisioned and a result with no URL, since the device's only web page is its setup page. Otherwise it's error `0x03` (unable to connect), and the device goes back to its previous network. In setup mode, joining leaves setup mode (`status` reason `improv`).
-- `0x06`, the spec's standard device name command (firmware 3.1.0 and later): with no data it answers the name; with data, the data is the new name itself (UTF-8, 1 to 32 bytes, no NUL, and valid as for `setName`), not a length-prefixed string. The name is stored as `setName` stores it, and the result carries the name in effect. A name that isn't allowed gets error `0x01`. If the device has an authenticated session, it then resends `hello` there, so the bridge shows the new name.
+- `0x06`, the spec's standard device name command (firmware 3.1.0 and later): with no data it answers the name; with data, the data is the new name itself (UTF-8, 1 to 32 bytes, no NUL, and valid as for `setName`), not a length-prefixed string. The name is stored as `setName` stores it, and the result carries the name in effect. A name that isn't allowed gets error `0x01`. The bridge then learns the new name (see Renaming): firmware 3.1.0 to 4.0.x only told a bridge it had an authenticated session with.
+
+## Renaming
+
+The name is in `hello`, which the Mac shows. When the device is renamed over Improv or on the setup page (not by the Mac's `setName`, which the Mac already knows), the firmware (4.1.0 and later) tells the Mac at once:
+- with an authenticated session, by resending `hello` inside it;
+- connected but not authenticated (unpaired and listed under New Devices, say), by closing the connection and reconnecting without the backoff, so the new connection's `hello` has the new name. A pairing in progress isn't interrupted: the device waits for it to end, and once it succeeds, resends `hello` inside the new session.
+
+## Storage encryption
+
+Firmware 4.1.0 and later can encrypt NVS, where the device keeps the Wi-Fi password, the pairing key `K`, the devOTA password hash, the name and settings. Without it, anyone who takes the device can read them from its flash over USB. It uses ESP-IDF's HMAC-based NVS encryption (not flash encryption): the XTS-AES keys that encrypt NVS entries are the ESP32-S3's HMAC peripheral's HMAC-SHA256 of two fixed seeds with a 256-bit key in an eFuse key block whose purpose is `HMAC_UP`. That block is read- and write-protected, so no software can read the key back, and the peripheral only computes with it. Burning it is permanent, so it's opt-in per device:
+
+- A device never burns a key by itself. Without one, NVS stays plain (`storage` is `plain`, or `unsupported` when all six eFuse key blocks are taken). The firmware sets NVS up itself at startup (it takes over Arduino's `nvs_flash_init()` call): encrypted if a key block has the `HMAC_UP` purpose, plain otherwise. ESP-IDF's own `CONFIG_NVS_ENCRYPTION` stays off, since with it `nvs_flash_init()` would burn a key on every device.
+- `encryptStorage` (authenticated, sent after the user confirmed on the Mac) is refused with `storageStatus` `error` when storage isn't `plain`, in setup mode, or during a firmware update. Otherwise the device answers `storageStatus` `encrypting`, shows "Encrypting storage" on the deck, and:
+  1. copies every NVS entry (all namespaces) to RAM;
+  2. burns a new random 256-bit key into the first free key block with purpose `HMAC_UP`, read- and write-protected;
+  3. erases the NVS partition (about 0.2 s);
+  4. sets NVS up encrypted, writes a marker, writes every entry back, reads each one back to check it, and removes the marker (about 0.1 s);
+  5. restarts. Its next `hello` reports `storage` `encrypted`.
+- **Power loss** during the move leaves, at the next start:
+  - before step 2: plain NVS, all settings kept;
+  - after step 2, before step 3: a key and plain NVS. At startup the device looks at NVS's raw pages for entries that are valid as plain text; finding some, it finishes the move itself (steps 3 and 4). Encrypted, all settings kept.
+  - during step 3: the same, with only the entries that weren't erased yet (at worst none);
+  - during step 4: encrypted NVS with the marker. The device erases it: encrypted and empty, so it starts in setup mode, unpaired.
+- **Factory reset** and the **web installer** (which erases the whole flash) leave the key: NVS starts over empty, and encrypted.
+- **Older firmware** (before 4.1.0) on an encrypted device reads NVS as plain; every entry fails its CRC and NVS erases it, so the device starts over in setup mode, unpaired, and stores its new settings unencrypted. Installing 4.1.0 or later again finds those plain entries and encrypts them (as after step 2 above). So the Mac refuses to send an encrypted device (`storage` `encrypted`) firmware older than 4.1.0, even from a file. USB installs and uploads from PlatformIO aren't checked.
+- The key can't be erased or replaced, so an encrypted device can't go back to plain NVS.
 
 ## Sleep
 
@@ -274,3 +303,5 @@ It leaves setup mode when:
 - **Protocol 3 devices (firmware 3.x)** still authenticate with the pairing key they have: the handshake, session MACs, images, firmware frames and every other message are unchanged, so they keep working and can be updated to 4.0.0 from the bridge (`firmwareBegin`'s `allowDowngrade` is ignored by them). They can't pair with a protocol 4 bridge (the Mac shows them as needing a firmware update over USB), and the Mac only ever sends them `devOTA` to turn uploads off.
 - **Firmware 4.0.0** drops an upload password stored by earlier firmware (which received it in the clear), so uploads from PlatformIO are off after the update until they're allowed again. It also removes the setup network's stored password.
 - A protocol 3 bridge can't pair with firmware 4.0.0: the device waits for `pairNonce`, which an older bridge never sends, and times out. A device it paired earlier keeps authenticating with it.
+- **Firmware 4.1.0** adds `storage` to the status object, `encryptStorage` and `storageStatus`; the protocol version stays 4, and a Mac that doesn't know them never sends `encryptStorage`. An encrypted device can't run firmware before 4.1.0 without losing its settings (see Storage encryption).
+- **Rollback before 4.1.0:** Arduino's startup marked a new image valid before the firmware ran, so firmware before 4.1.0 never rolled back an update, whatever happened after it. 4.1.0 and later keep it pending until the first authenticated session, as described under Firmware frame (so an update from 4.0.x to 4.1.0 is the first that can roll back, to 4.0.x).

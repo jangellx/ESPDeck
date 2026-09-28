@@ -2,7 +2,7 @@
 // orientation, the sleep timeout, the pairing (the key K and the bridge ID), and the password
 // hash for uploads from PlatformIO (DevOTA). Brightness lives with the key assignments in
 // ImageCache. The setup access point's password isn't stored; SetupPortal makes a new one
-// each time.
+// each time. NVS is encrypted once the bridge has asked for it (SecureNVS).
 #pragma once
 
 #include <cstddef>

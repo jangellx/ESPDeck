@@ -23,6 +23,11 @@ CONFIG_LITTLEFS_OBJ_NAME_LEN=64
 # The project lives in a path with spaces (iCloud Drive); -fmacro-prefix-map can't take one
 CONFIG_COMPILER_HIDE_PATHS_MACROS=n
 
+# NVS is set up on the main task (initArduino(), before setup()); with encrypted NVS that
+# includes finishing an interrupted move to encryption (SecureNVS). The task ends once the
+# loop task starts, so its stack costs nothing afterwards.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
 # OTA updates: a new image must mark itself valid (after authenticating with its bridge) or
 # the bootloader rolls back to the previous one
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y

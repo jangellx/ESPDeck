@@ -36,6 +36,7 @@
 #include "ImageData.h"
 #include "KeyImage.h"
 #include "KeyUploader.h"
+#include "SecureNVS.h"
 #include "Session.h"
 #include "Settings.h"
 #include "SetupPortal.h"
@@ -143,6 +144,9 @@ static volatile bool    wifiJoined     = false;   // set on the Wi-Fi event task
 // A paired device that connects must authenticate within kAuthTimeout.
 static uint32_t         connectedAt    = 0;
 
+// The name in the last hello, which the bridge shows; see checkRenamed().
+static char             helloName[Settings::kMaxName + 1] = {};
+
 static void refreshScreen( bool redraw = false );
 static void dropBridge( bool retrySoon );
 
@@ -240,6 +244,7 @@ static cJSON *statusJSON() {
 	cJSON_AddBoolToObject( object, "asleep", asleep );
 	cJSON_AddBoolToObject( object, "setupMode", portal.active() );
 	cJSON_AddBoolToObject( object, "devOTA", settings.hasOTAPassword() );
+	cJSON_AddStringToObject( object, "storage", SecureNVS::stateName() );
 	return object;
 }
 
@@ -266,6 +271,7 @@ static void sendHello() {
 	cJSON_AddItemToObject( json, "deck", deckJSON() );
 	cJSON_AddItemToObject( json, "settings", settingsJSON() );
 	cJSON_AddItemToObject( json, "status", statusJSON() );
+	strlcpy( helloName, settings.name(), sizeof( helloName ) );
 	if( session.authenticated() )
 		sendJSON( json );
 	else
@@ -930,6 +936,21 @@ static void handleAuth( cJSON *json ) {
 	refreshScreen();
 }
 
+// Renamed since the last hello (over Improv, or on the setup page) while connected: inside a
+// session a fresh hello resyncs the bridge. Before one, the bridge lists the device under the
+// name its hello had, so reconnect and send a new one; a pairing in progress finishes first
+// (once it succeeds, the session's hello carries the new name).
+static void checkRenamed() {
+	if( !bridge.isConnected() || strcmp( settings.name(), helloName ) == 0 )
+		return;
+	if( session.authenticated() ) {
+		sendHello();
+	} else if( pairing.stage == PairingStage::None ) {
+		ESP_LOGI( TAG, "Renamed before authenticating; reconnecting with a new hello" );
+		dropBridge( true );
+	}
+}
+
 // MARK: - Setup mode
 
 static void enterSetupMode( const char *reason ) {
@@ -1012,6 +1033,73 @@ static void factoryReset( const char *reason ) {
 		ESP_LOGE( TAG, "The image cache didn't stop; leaving it" );
 	}
 
+	delay( 200 );
+	esp_restart();
+}
+
+// MARK: - Storage encryption
+
+// state: "encrypting" (the device restarts once it's done) or "error" (nothing changed).
+static void sendStorageStatus( const char *state, const char *message ) {
+	cJSON *json = cJSON_CreateObject();
+	cJSON_AddStringToObject( json, "type", "storageStatus" );
+	cJSON_AddStringToObject( json, "state", state );
+	if( message )
+		cJSON_AddStringToObject( json, "message", message );
+	sendJSON( json );
+}
+
+// The bridge's encryptStorage, after the user confirmed it there: burns the eFuse key, moves
+// NVS over to encryption (SecureNVS::encrypt()), and restarts. Only between other work, so
+// nothing else writes NVS meanwhile.
+static void encryptStorage() {
+	const char *refusal = nullptr;
+	if( SecureNVS::state() == SecureNVS::State::Encrypted )
+		refusal = "Storage is already encrypted.";
+	else if( SecureNVS::state() == SecureNVS::State::Unsupported )
+		refusal = "This chip has no free eFuse key block.";
+	else if( portal.active() )
+		refusal = "Leave setup mode first.";
+	else if( firmware.active() || restartPending || DevOTA::active() )
+		refusal = "A firmware update is running.";
+	if( refusal ) {
+		ESP_LOGW( TAG, "Not encrypting storage: %s", refusal );
+		sendStorageStatus( "error", refusal );
+		return;
+	}
+
+	ESP_LOGW( TAG, "Encrypting storage (requested by the bridge)" );
+	sendStorageStatus( "encrypting", nullptr );
+	disableLoopWDT();   // the move and the waits add up to more than the watchdog allows
+
+	uint8_t center = deckInfo.cols / 2;
+	drawKeys( [&]( uint8_t key ) {
+		static const char *const kLines[] = { "Encrypting", "storage" };
+		if( key == center )
+			keyImage.drawText( kLines, 2 );
+		else
+			keyImage.fill( 0, 0, 0 );
+	} );
+	uploader.waitIdle( 3000 );
+	cache.persistNow();   // the image cache is on LittleFS, not NVS; nothing of it is lost
+
+	const char        *error   = nullptr;
+	SecureNVS::Outcome outcome = SecureNVS::encrypt( error );
+	if( outcome == SecureNVS::Outcome::Refused ) {
+		ESP_LOGE( TAG, "Not encrypting storage: %s", error );
+		sendStorageStatus( "error", error );
+		enableLoopWDT();
+		keysToUpload = allKeys( kMaxKeys );   // the key images again, instead of "Encrypting"
+		keysToBlank  = allKeys( kMaxKeys );
+		refreshScreen( true );
+		return;
+	}
+	if( outcome == SecureNVS::Outcome::Failed )
+		ESP_LOGE( TAG, "%s Restarting.", error );
+	else
+		ESP_LOGI( TAG, "Storage encrypted; restarting" );
+	if( bridge.isConnected() )
+		dropBridge( false );
 	delay( 200 );
 	esp_restart();
 }
@@ -1100,7 +1188,9 @@ static void handleCommand( const char *type, cJSON *json ) {
 		sendStatus( "bridge" );
 
 	} else if( strcmp( type, "setName" ) == 0 ) {
-		if( !settings.setName( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "name" ) ) ) )
+		if( settings.setName( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "name" ) ) ) )
+			strlcpy( helloName, settings.name(), sizeof( helloName ) );   // the bridge knows it
+		else
 			ESP_LOGW( TAG, "Bad setName message" );
 
 	} else if( strcmp( type, "orientation" ) == 0 ) {
@@ -1137,6 +1227,9 @@ static void handleCommand( const char *type, cJSON *json ) {
 
 	} else if( strcmp( type, "factoryReset" ) == 0 ) {
 		factoryReset( "requested by the bridge" );
+
+	} else if( strcmp( type, "encryptStorage" ) == 0 ) {
+		encryptStorage();
 
 	} else if( strcmp( type, "unpair" ) == 0 ) {
 		ESP_LOGI( TAG, "Unpaired by the bridge" );
@@ -1473,6 +1566,10 @@ void setup() {
 		ESP_LOGI( TAG, "New firmware; waiting for an authenticated connection to keep it" );
 
 	statusLed.begin( kStatusLedPin );
+	// initArduino() set NVS up through SecureNVS (nvs_flash_init() is wrapped); without that,
+	// an encrypted device's settings would have been erased.
+	if( !SecureNVS::ready() )
+		ESP_LOGE( TAG, "NVS isn't set up (storage %s)", SecureNVS::stateName() );
 	settings.begin();
 
 	// "espdeck-eeff": unique per device, for DHCP and mDNS.
@@ -1557,8 +1654,6 @@ void loop() {
 	improv.loop();
 	if( improv.takeProvisioned() )
 		leaveSetupMode( "improv" );
-	if( improv.takeRenamed() && session.authenticated() )
-		sendHello();   // a resync carries the new name to the bridge
 	if( portal.takeResetRequest() )
 		factoryReset( "requested on the setup page" );
 	if( screen == Screen::Setup && portal.canExit() != setupExitShown )
@@ -1602,6 +1697,7 @@ void loop() {
 			handleDeckEvent( event );
 	}
 
+	checkRenamed();
 	checkSetupChord();
 	checkPairingHold();
 	checkSleepTimer();

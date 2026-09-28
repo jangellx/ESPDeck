@@ -26,9 +26,6 @@ public:
 	// True once, when credentials sent over Improv have connected (main leaves setup mode).
 	bool takeProvisioned();
 
-	// True once, after Improv renamed the device (main tells the bridge).
-	bool takeRenamed();
-
 private:
 	enum class State : uint8_t {
 		Ready        = 0x02,   // "authorized"
@@ -72,7 +69,6 @@ private:
 	// A connection attempt with credentials from Improv.
 	bool      connecting_   = false;
 	bool      provisioned_  = false;   // for takeProvisioned()
-	bool      renamed_      = false;   // for takeRenamed()
 	uint32_t  connectStart_ = 0;
 	char      ssid_[33]     = {};
 	char      password_[65] = {};

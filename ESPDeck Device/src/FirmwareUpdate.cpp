@@ -207,6 +207,12 @@ FirmwareUpdate::Status FirmwareUpdate::checkImage( const uint8_t *chunk, size_t 
 
 // MARK: - Rollback
 
+// Arduino's initArduino() asks this before setup(); its default (false) marks a new image
+// valid right there, before it has proven anything. main marks it valid itself.
+extern "C" bool verifyRollbackLater() {
+	return true;
+}
+
 bool FirmwareUpdate::pendingVerify() {
 	esp_ota_img_states_t state;
 	return esp_ota_get_state_partition( esp_ota_get_running_partition(), &state ) == ESP_OK && state == ESP_OTA_IMG_PENDING_VERIFY;
