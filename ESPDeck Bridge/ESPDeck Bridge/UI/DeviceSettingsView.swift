@@ -2,8 +2,9 @@
 //  DeviceSettingsView.swift
 //  ESPDeck Bridge
 //
-//  One ESP32's name, display, sleep behavior, and setup mode. Settings the ESP32 owns
-//  (name, brightness, orientation, sleep timer) can only change while it's connected.
+//  One ESP32's name, display, sleep behavior, setup mode, and how it stores its secrets.
+//  Settings the ESP32 owns (name, brightness, orientation, sleep timer) can only change while
+//  it's connected.
 //
 
 import SwiftUI
@@ -107,6 +108,10 @@ struct DeviceSettingsView: View {
 		let online = device.isOnline
 
 		Form {
+			if controller.storageChoicePending.contains( deviceID ) {
+				StorageChoiceSection( controller: controller, device: device, name: settings.name )
+			}
+
 			Section {
 				// Renamed on Return or when the field loses focus; an empty field goes back to the current name.
 				TextField( "Name", text: $nameDraft, prompt: Text( settings.defaultName ) )
@@ -224,6 +229,8 @@ struct DeviceSettingsView: View {
 				Text( "Setup mode shows QR codes on the deck for joining the device's own Wi-Fi network and opening its setup page, where you can change its Wi-Fi network and name. You can also enter it by holding the top-left and bottom-right keys for 5 seconds.\n\nFactory Reset erases the device itself. Forget Device removes it from ESPDeck Bridge (and unpairs it) but leaves its Wi-Fi settings alone." )
 			}
 
+			SecuritySection( controller: controller, device: device, name: settings.name )
+
 			DeveloperSection( controller: controller, device: device )
 		}
 		.formStyle( .grouped )
@@ -258,6 +265,127 @@ struct DeviceSettingsView: View {
 			controller.settings( deviceID )?.sleepTimeout ?? 0
 		} set: {
 			controller.setSleepTimeout( device: deviceID, seconds: $0 )
+		}
+	}
+}
+
+/// Wording shared by the choice after pairing and the Security section.
+private enum StorageText {
+	static func confirmTitle( _ name: String ) -> String { "Encrypt the secrets stored on \(name)?" }
+
+	static let confirmMessage = "This protects the Wi-Fi password, the pairing key and the developer password stored on the dev kit, in case someone takes it and reads its flash.\n\nIt's permanent: it uses a one-time eFuse on the chip and can't be undone. The deck keeps working normally and can still be updated.\n\nKeep the deck powered for the few seconds it takes. It restarts when it's done."
+
+	static let learnMore = "The dev kit keeps your Wi-Fi password, its pairing key and the developer password in its flash. With Standard, anyone who takes it can read them over USB, and the pairing key could let them trigger this deck's actions from your network. Encrypted stores them with a key burned into the chip that no software can read, so the flash alone gives nothing away.\n\nThe key can't be removed, so Encrypted is permanent. Everything else stays the same: updates, factory reset and the web installer work as before (a reset starts over with empty storage, still encrypted). ESPDeck Bridge won't install firmware older than 4.1.0 on it, since that can't read encrypted storage."
+}
+
+/// Asked once after pairing: keep secrets in plain flash (Standard), or encrypt them with the
+/// chip's one-time key (Encrypted).
+private struct StorageChoiceSection: View {
+	let controller : DeckController
+	let device     : DeckDevice
+	let name       : String
+
+	@State private var confirming = false
+
+	var body: some View {
+		Section {
+			Text( "How should this deck store its Wi-Fi password and pairing key?" )
+			choice( "Standard", detail: "Plain flash. Fine for hobby use; nothing permanent." ) {
+				controller.keepStandardStorage( device: device.id )
+			}
+			choice( "Encrypted", detail: "Recommended for installed or shared setups. Uses the chip's one-time key, so it's permanent." ) {
+				confirming = true
+			}
+			.disabled( !controller.canEncryptStorage( device ) )
+			DisclosureGroup( "Learn More" ) {
+				Text( StorageText.learnMore )
+					.font( .callout )
+					.foregroundStyle( .secondary )
+			}
+		} header: {
+			SectionHeader( "Stored Secrets" )
+		}
+		.confirmationDialog( StorageText.confirmTitle( name ), isPresented: $confirming, titleVisibility: .visible ) {
+			Button( "Encrypt" ) { controller.encryptStorage( device: device.id ) }
+		} message: {
+			Text( StorageText.confirmMessage )
+		}
+	}
+
+	private func choice( _ title: String, detail: String, action: @escaping () -> Void ) -> some View {
+		Button( action: action ) {
+			VStack( alignment: .leading, spacing: 2 ) {
+				Text( title )
+					.font( .body.weight( .semibold ) )
+				Text( detail )
+					.font( .caption )
+					.foregroundStyle( .secondary )
+			}
+			.frame( maxWidth: .infinity, alignment: .leading )
+			.contentShape( Rectangle() )
+		}
+		.buttonStyle( .borderless )
+	}
+}
+
+/// How the device stores its secrets, and encrypting them (Standard → Encrypted only).
+private struct SecuritySection: View {
+	let controller : DeckController
+	let device     : DeckDevice
+	let name       : String
+
+	@State private var confirming = false
+
+	var body: some View {
+		let storage = device.status.storage
+
+		Section {
+			LabeledContent( "Stored Secrets", value: stateText( storage ) )
+			if storage != "encrypted" {
+				Button( "Encrypt Stored Secrets…" ) { confirming = true }
+					.disabled( !controller.canEncryptStorage( device ) )
+				if let note = unavailableNote( storage ) {
+					Text( note )
+						.font( .caption )
+						.foregroundStyle( .secondary )
+				}
+			}
+			switch controller.storageEncryption[device.id] {
+				case .encrypting:
+					ProgressView( "Encrypting; the deck restarts when it's done…" )
+				case .failed( let message ):
+					Label( message, systemImage: "exclamationmark.triangle.fill" )
+						.foregroundStyle( .orange )
+				case nil:
+					EmptyView()
+			}
+		} header: {
+			SectionHeader( "Security" )
+		} footer: {
+			Text( "Standard keeps the Wi-Fi password, pairing key and developer password in the dev kit's flash as they are. Encrypted protects them with a key burned into the chip, so reading the flash doesn't reveal them. Encrypting is permanent." )
+		}
+		.confirmationDialog( StorageText.confirmTitle( name ), isPresented: $confirming, titleVisibility: .visible ) {
+			Button( "Encrypt" ) { controller.encryptStorage( device: device.id ) }
+		} message: {
+			Text( StorageText.confirmMessage )
+		}
+	}
+
+	private func stateText( _ storage: String? ) -> String {
+		guard device.isOnline else { return "Unknown while offline" }
+		switch storage {
+			case "encrypted": return "Encrypted"
+			case "plain":     return "Standard"
+			default:          return "Standard (not encrypted)"
+		}
+	}
+
+	private func unavailableNote( _ storage: String? ) -> String? {
+		guard device.isOnline else { return nil }
+		switch storage {
+			case nil:           return "Needs firmware 4.1.0 or later."
+			case "unsupported": return "This chip has no free eFuse key block to encrypt with."
+			default:            return device.status.setupMode ? "Leave setup mode first." : nil
 		}
 	}
 }

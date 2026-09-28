@@ -61,6 +61,9 @@ struct DeviceStatus: Codable, Equatable {
 	var setupMode = false
 	/// Uploads from PlatformIO are allowed (firmware 3.2.0 and later; nil before).
 	var devOTA    : Bool?
+	/// How NVS (Wi-Fi password, pairing key, …) is stored: "plain", "encrypted", or
+	/// "unsupported" (plain, and the chip can't encrypt it). Firmware 4.1.0 and later; nil before.
+	var storage   : String?
 	/// Why it last changed: "timer", "key", "bridge", "chord", "setupPage", "exitKey", "boot",
 	/// "improv", "pairing", "timeout".
 	var reason    : String?
@@ -119,6 +122,8 @@ enum DeviceMessage {
 	/// "busy", "failed", or nil (firmware before 4.0.0).
 	case pairCancel( reason: String? )
 	case firmwareStatus( FirmwareStatus )
+	/// The answer to encryptStorage.
+	case storageStatus( StorageStatus )
 
 	struct FirmwareStatus {
 		enum State: String {
@@ -127,6 +132,17 @@ enum DeviceMessage {
 		var state    : State
 		var received : Int?
 		var message  : String?
+	}
+
+	struct StorageStatus {
+		enum State: String {
+			/// Under way; the device restarts when it's done.
+			case encrypting
+			/// Nothing changed; `message` says why.
+			case error
+		}
+		var state   : State
+		var message : String?
 	}
 
 	/// Messages the ESP32 may send before the session is authenticated.
@@ -215,6 +231,9 @@ enum DeviceMessage {
 			case "firmwareStatus":
 				guard let state = envelope.state.flatMap( FirmwareStatus.State.init( rawValue: ) ) else { return nil }
 				self = .firmwareStatus( FirmwareStatus( state: state, received: envelope.received, message: envelope.message ) )
+			case "storageStatus":
+				guard let state = envelope.state.flatMap( StorageStatus.State.init( rawValue: ) ) else { return nil }
+				self = .storageStatus( StorageStatus( state: state, message: envelope.message ) )
 			default:
 				return nil
 		}
@@ -254,6 +273,8 @@ enum HostMessage: Encodable {
 	case setupMode( Bool )
 	case unpair
 	case factoryReset
+	/// Burns the chip's eFuse key and encrypts NVS with it (firmware 4.1.0 and later). Permanent.
+	case encryptStorage
 	/// Uploads from PlatformIO: their password's SHA-256 sealed for the frame that carries it
 	/// (DeckServer.sendDevOTA), or nil to turn them off.
 	case devOTA( sealedHash: Data? )
@@ -301,6 +322,8 @@ enum HostMessage: Encodable {
 				try container.encode( "unpair", forKey: .type )
 			case .factoryReset:
 				try container.encode( "factoryReset", forKey: .type )
+			case .encryptStorage:
+				try container.encode( "encryptStorage", forKey: .type )
 			case .devOTA( let sealedHash ):
 				try container.encode( "devOTA", forKey: .type )
 				if let sealedHash {

@@ -5,7 +5,8 @@
 //  Streams a firmware image to an ESP32 over its authenticated connection, one chunk
 //  at a time (PROTOCOL.md, Firmware frame). UpdateManager downloads and verifies release
 //  images; development images come from a file the user picks. Firmware 4.0.0 and later
-//  refuses an image older than the one it runs unless it's told the user asked for it.
+//  refuses an image older than the one it runs unless it's told the user asked for it. A
+//  device with encrypted storage never gets firmware older than 4.1.0, which can't read it.
 //
 
 import CryptoKit
@@ -20,6 +21,13 @@ extension DeckController {
 		guard let device = device( id ), let client = device.client, server.isAuthenticated( client ) else { return }
 		guard !device.status.setupMode else {
 			device.firmwareProgress = FirmwareProgress( version: version, phase: .failed( "Leave setup mode first." ) )
+			return
+		}
+		// Older firmware can't read encrypted storage: it would erase the device's Wi-Fi
+		// settings, name and pairing, and store new ones unencrypted.
+		if device.status.storage == "encrypted", let new = Version( version ), new < Self.storageEncryptionFirmware {
+			device.firmwareProgress = FirmwareProgress( version: version, phase: .failed(
+				"This device's stored secrets are encrypted, which firmware before \(Self.storageEncryptionFirmware) can't read. Installing \(version) would erase its Wi-Fi settings and pairing." ) )
 			return
 		}
 

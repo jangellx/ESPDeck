@@ -219,6 +219,9 @@ extension DeckController {
 		handshakes[client] = nil
 		newDevices.removeAll { $0.client == client }
 		adoptDevice( handshake.hello, from: client, handshakeTraffic: handshake.traffic )
+		if handshake.pairing != nil {
+			storagePaired( handshake.hello, client: client )
+		}
 	}
 
 	/// A connection closed before authenticating. Nothing is remembered about the device ID

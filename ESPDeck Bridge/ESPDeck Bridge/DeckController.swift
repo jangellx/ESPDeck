@@ -37,6 +37,14 @@ final class DeckController {
 	/// This Mac's password for uploads from PlatformIO, once there is one (DevOTAPassword).
 	private(set) var developerPassword: String?
 
+	/// Devices just paired that haven't been asked yet how to store their secrets (Standard or
+	/// Encrypted); their Device page asks. See DeckController+Storage.
+	var storageChoicePending : Set<String> = []
+	/// Encrypting a device's storage: under way, or why it failed.
+	var storageEncryption    : [String: StorageEncryption] = [:]
+	/// The connection encryptStorage went to, and the wait for the device to come back.
+	@ObservationIgnored var storageEncryptionRequests: [String: ( client: ClientID, timeout: Task<Void, Never> )] = [:]
+
 	/// Launch at Login, as the AppKit bundle reports it.
 	private(set) var launchAtLogin = LaunchAtLogin.off
 
@@ -396,6 +404,8 @@ final class DeckController {
 			server.drop( client )
 		}
 		PairingKeyStore.delete( id )
+		storageChoicePending.remove( id )
+		storageEncryption[id] = nil
 		config.settings.devices.removeAll { $0.id == id }
 		devices.removeAll { $0.id == id }
 		config.removeUnusedIcons()
@@ -665,6 +675,9 @@ final class DeckController {
 			case .firmwareStatus( let status ):
 				firmwareStatus( status, device: device, client: client )
 
+			case .storageStatus( let status ):
+				storageStatus( status, device: device )
+
 			case .deck( let deck ):
 				device.deck = deck
 				if let layout = deck.layout {
@@ -783,6 +796,7 @@ final class DeckController {
 		// used to send each `show` twice).
 		renderAll( device: hello.id )
 		firmwareReconnected( device )
+		storageReconnected( device )
 		updates.deviceConnected( hello.id )
 	}
 
