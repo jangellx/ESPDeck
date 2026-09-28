@@ -351,12 +351,16 @@ private struct SecuritySection: View {
 		Section {
 			LabeledContent( "Stored Secrets", value: stateText( storage ) )
 			if storage != "encrypted" {
-				Button( "Encrypt Stored Secrets…" ) { confirming = true }
-					.disabled( !controller.canEncryptStorage( device ) )
-				if let note = unavailableNote( storage ) {
-					Text( note )
-						.font( .caption )
-						.foregroundStyle( .secondary )
+				HStack {
+					Button( "Encrypt Stored Secrets…" ) { confirming = true }
+						.disabled( !controller.canEncryptStorage( device ) )
+					if let note = unavailableNote( storage ) {
+						Spacer()
+						Text( note )
+							.font( .caption )
+							.foregroundStyle( .secondary )
+							.multilineTextAlignment( .trailing )
+					}
 				}
 			}
 			switch controller.storageEncryption[device.id] {
@@ -371,7 +375,7 @@ private struct SecuritySection: View {
 		} header: {
 			SectionHeader( "Security" )
 		} footer: {
-			Text( "Standard keeps the Wi-Fi password, pairing key and developer password in the dev kit's flash as they are. Encrypted protects them with a key burned into the chip, so reading the flash doesn't reveal them. Encrypting is permanent." )
+			Text( "Standard keeps the Wi-Fi password, pairing key and developer password in the dev kit's flash as they are. Encrypted protects them with a key burned into the chip, so reading the flash doesn't reveal them. Encrypting is permanent, but only the key is: the Wi-Fi network, name and pairing can still be changed as usual." )
 		}
 		.confirmationDialog( StorageText.confirmTitle( name ), isPresented: $confirming, titleVisibility: .visible ) {
 			Button( "Encrypt" ) { controller.encryptStorage( device: device.id ) }
