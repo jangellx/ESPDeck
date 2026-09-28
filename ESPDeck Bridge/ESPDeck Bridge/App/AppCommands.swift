@@ -38,8 +38,10 @@ extension AppDelegate {
 		}
 		var file: [UIMenuElement] = [ UIMenu( title: "New Demo Deck", children: models ) ]
 		if menuBarAvailable {
-			file.append( UIKeyCommand( title: "Set Up Device over USB…", action: #selector( showSidebarItem( _: ) ), input: "u",
-									   modifierFlags: [ .command, .shift ], propertyList: SidebarItem.usbSetup ) )
+			// Its own action: UIKit rejects two commands with the same action and property list,
+			// and View has a USB Setup item too.
+			file.append( UIKeyCommand( title: "Set Up Device over USB…", action: #selector( showUSBSetup ), input: "u",
+									   modifierFlags: [ .command, .shift ] ) )
 		}
 		builder.insertChild( UIMenu( options: .displayInline, children: file ), atStartOfMenu: .file )
 
@@ -92,7 +94,7 @@ extension AppDelegate {
 					   ( "Select Key Above", UIKeyCommand.inputUpArrow ), ( "Select Key Below", UIKeyCommand.inputDownArrow ) ]
 		let keyMenu = UIMenu( title: "Key", identifier: UIMenu.Identifier( "com.tmproductions.espdeck.key" ), children: [
 			UIMenu( options: .displayInline, children: arrows.map { title, input in
-				UIKeyCommand( title: title, action: #selector( moveKeySelection( _: ) ), input: input, modifierFlags: .alternate )
+				UIKeyCommand( title: title, action: #selector( moveKeySelection( _: ) ), input: input, modifierFlags: .alternate, propertyList: input )
 			} ),
 			UIMenu( options: .displayInline, children: [
 				UIKeyCommand( title: "Test Action", action: #selector( testAction ), input: "t", modifierFlags: .command ),
@@ -307,6 +309,10 @@ extension AppDelegate {
 	}
 
 	/// ⌥-arrows from the Key menu, and plain arrows while the deck preview has focus.
+	@objc func showUSBSetup() {
+		show( SidebarItem.usbSetup )
+	}
+
 	@objc func moveKeySelection( _ sender: UIKeyCommand ) {
 		guard let key = currentKey else { return }
 		let layout = controller.layout( key.device )
