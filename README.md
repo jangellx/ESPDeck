@@ -78,7 +78,7 @@ After pairing, ESPDeck Bridge asks how the deck should store its secrets:
 - **Standard**: plain flash. Nothing permanent; fine for hobby setups.
 - **Encrypted**: recommended for installed or shared setups.
 
-A Standard device can be encrypted later from its **Device** page, under **Security**, but never back: the eFuse key is permanent. The deck works as before, updates still work, and a factory reset or the web installer start over with empty storage that's still encrypted. Keep it powered for the few seconds encrypting takes; a power cut in the middle can reset its settings, and it then starts in setup mode.
+A Standard device can be encrypted later from its **Device** page, under **Security**, but never back: the eFuse key is permanent, so that dev kit always encrypts what it stores. Only the encryption is permanent, not the settings: the Wi-Fi network, name and pairing can still be changed as usual. The deck works as before, updates still work, and a factory reset or the web installer start over with empty storage that's still encrypted. Keep it powered for the few seconds encrypting takes; a power cut in the middle can reset its settings, and it then starts in setup mode.
 
 Firmware older than 4.1.0 can't read encrypted storage. ESPDeck Bridge won't install it on an encrypted device, over Wi-Fi or from a file. Installed anyway over USB or with PlatformIO, it erases the settings and starts over unencrypted; installing 4.1.0 or later again encrypts them again.
 

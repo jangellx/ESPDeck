@@ -282,9 +282,9 @@ struct DeviceSettingsView: View {
 private enum StorageText {
 	static func confirmTitle( _ name: String ) -> String { "Encrypt the secrets stored on \(name)?" }
 
-	static let confirmMessage = "This protects the Wi-Fi password, the pairing key and the developer password stored on the dev kit, in case someone takes it and reads its flash.\n\nIt's permanent: it uses a one-time eFuse on the chip and can't be undone. The deck keeps working normally and can still be updated.\n\nKeep the deck powered for the few seconds it takes. It restarts when it's done."
+	static let confirmMessage = "This encrypts the Wi-Fi password, pairing key and developer password stored on the dev kit, so someone who takes it and reads its flash can't recover them.\n\nTurning encryption on is permanent: it burns a one-time key into the chip, so this dev kit always encrypts what it stores from now on. What it stores isn't locked in: you can still change its Wi-Fi network, rename it, pair it again or reset it, and it keeps working and updating as before.\n\nKeep the deck powered for the few seconds it takes. It restarts when it's done."
 
-	static let learnMore = "The dev kit keeps your Wi-Fi password, its pairing key and the developer password in its flash. With Standard, anyone who takes it can read them over USB, and the pairing key could let them trigger this deck's actions from your network. Encrypted stores them with a key burned into the chip that no software can read, so the flash alone gives nothing away.\n\nThe key can't be removed, so Encrypted is permanent. Everything else stays the same: updates, factory reset and the web installer work as before (a reset starts over with empty storage, still encrypted). ESPDeck Bridge won't install firmware older than 4.1.0 on it, since that can't read encrypted storage."
+	static let learnMore = "The dev kit keeps your Wi-Fi password, its pairing key and the developer password in its flash. With Standard, anyone who takes it can read them over USB, and the pairing key could let them trigger this deck's actions from your network. Encrypted stores them with a key burned into the chip that no software can read, so the flash alone gives nothing away.\n\nOnly the encryption is permanent: the key can't be removed, so this dev kit always encrypts what it stores. The settings themselves can still be changed any time (Wi-Fi network, name, pairing), and updates, factory reset and the web installer work as before (a reset starts over with empty storage, still encrypted). ESPDeck Bridge won't install firmware older than 4.1.0 on it, since that can't read encrypted storage."
 }
 
 /// Asked once after pairing: keep secrets in plain flash (Standard), or encrypt them with the
@@ -299,10 +299,10 @@ private struct StorageChoiceSection: View {
 	var body: some View {
 		Section {
 			Text( "How should this deck store its Wi-Fi password and pairing key?" )
-			choice( "Standard", detail: "Plain flash. Fine for hobby use; nothing permanent." ) {
+			choice( "Standard", detail: "Stored as-is in the dev kit's flash. Fine for hobby use; you can switch to Encrypted later." ) {
 				controller.keepStandardStorage( device: device.id )
 			}
-			choice( "Encrypted", detail: "Recommended for installed or shared setups. Uses the chip's one-time key, so it's permanent." ) {
+			choice( "Encrypted", detail: "Recommended for installed or shared setups. Once on, encryption can't be turned off, but the Wi-Fi, name and pairing can still be changed." ) {
 				confirming = true
 			}
 			.disabled( !controller.canEncryptStorage( device ) )
@@ -375,7 +375,7 @@ private struct SecuritySection: View {
 		} header: {
 			SectionHeader( "Security" )
 		} footer: {
-			Text( "Standard keeps the Wi-Fi password, pairing key and developer password in the dev kit's flash as they are. Encrypted protects them with a key burned into the chip, so reading the flash doesn't reveal them. Encrypting is permanent, but only the key is: the Wi-Fi network, name and pairing can still be changed as usual." )
+			Text( "Standard keeps the Wi-Fi password, pairing key and developer password in the dev kit's flash as they are. Encrypted protects them with a key burned into the chip, so reading the flash doesn't reveal them. Turning encryption on is permanent (the chip's key can't be removed), but the Wi-Fi network, name and pairing stay changeable as usual." )
 		}
 		.confirmationDialog( StorageText.confirmTitle( name ), isPresented: $confirming, titleVisibility: .visible ) {
 			Button( "Encrypt" ) { controller.encryptStorage( device: device.id ) }
