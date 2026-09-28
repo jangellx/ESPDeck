@@ -116,11 +116,25 @@ private struct Sidebar: View {
 				ForEach( controller.devices ) { device in
 					let status = controller.status( device: device )
 					Label {
-						VStack( alignment: .leading, spacing: 1 ) {
-							Text( controller.settings( device.id )?.name ?? device.id )
-							Text( status.text.components( separatedBy: ": " ).last ?? "" )
-								.font( .caption )
-								.foregroundStyle( .secondary )
+						HStack {
+							VStack( alignment: .leading, spacing: 1 ) {
+								Text( controller.settings( device.id )?.name ?? device.id )
+								Text( status.text.components( separatedBy: ": " ).last ?? "" )
+									.font( .caption )
+									.foregroundStyle( .secondary )
+							}
+							Spacer( minLength: 4 )
+							if controller.updates.firmwareUpdateAvailable( for: device ), let latest = controller.updates.latestFirmware {
+								Button {
+									selection = SidebarItem.updates
+								} label: {
+									Image( systemName: "arrow.up.circle.fill" )
+										.foregroundStyle( .tint )
+								}
+								.buttonStyle( .borderless )
+								.help( "Firmware \(latest.version.description) is available. Click to open Updates." )
+								.accessibilityLabel( "Firmware update available" )
+							}
 						}
 					} icon: {
 						StatusIndicator( level: status.level )
