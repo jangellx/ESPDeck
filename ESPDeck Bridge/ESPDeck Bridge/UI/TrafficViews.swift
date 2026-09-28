@@ -16,11 +16,11 @@ struct TrafficLogView: View {
 	private static let time: Date.FormatStyle = .dateTime.hour( .twoDigits( amPM: .omitted ) ).minute( .twoDigits ).second( .twoDigits ).secondFraction( .fractional( 3 ) )
 
 	var body: some View {
-		let entries = device.log.reversed().filter { filter.isEmpty || $0.summary.localizedStandardContains( filter ) }
+		let entries = device.log.reversed().filter { filter.isEmpty || $0.summary.localizedStandardContains( filter ) || $0.detail.localizedStandardContains( filter ) }
 
 		VStack( spacing: 0 ) {
 			HStack {
-				TextField( "Filter", text: $filter, prompt: Text( "Filter (e.g. keyDown, image, show)" ) )
+				TextField( "Filter", text: $filter, prompt: Text( "Filter (e.g. pressed, image, keyDown)" ) )
 					.textFieldStyle( .roundedBorder )
 					.frame( maxWidth: 320 )
 				Spacer()
@@ -43,21 +43,31 @@ struct TrafficLogView: View {
 				List( entries ) { entry in
 					HStack( alignment: .firstTextBaseline, spacing: 10 ) {
 						Text( entry.date, format: Self.time )
+							.monospacedDigit()
 							.foregroundStyle( .secondary )
 						Image( systemName: Self.symbol( entry.direction ) )
 							.foregroundStyle( Self.color( entry.direction ) )
 							.accessibilityLabel( Self.name( entry.direction ) )
-						Text( entry.summary )
-							.lineLimit( 2 )
-							.textSelection( .enabled )
-							.fontWeight( entry.direction == .event ? .semibold : .regular )
+						VStack( alignment: .leading, spacing: 2 ) {
+							Text( entry.summary )
+								.lineLimit( 2 )
+								.fontWeight( entry.direction == .event ? .semibold : .regular )
+							if !entry.detail.isEmpty {
+								Text( entry.detail )
+									.font( .caption.monospaced() )
+									.foregroundStyle( .secondary )
+									.lineLimit( 2 )
+							}
+						}
+						.textSelection( .enabled )
 						Spacer( minLength: 8 )
 						if entry.bytes > 0 {
 							Text( ByteCountFormatter.string( fromByteCount: Int64( entry.bytes ), countStyle: .file ) )
+								.monospacedDigit()
 								.foregroundStyle( .secondary )
 						}
 					}
-					.font( .callout.monospaced() )
+					.font( .callout )
 				}
 				.listStyle( .plain )
 			}
@@ -67,7 +77,8 @@ struct TrafficLogView: View {
 	private func text( _ entries: [TrafficEntry] ) -> String {
 		entries.reversed().map { entry in
 			let arrow = entry.direction == .sent ? "→" : entry.direction == .received ? "←" : "•"
-			return "\(entry.date.formatted( Self.time ))  \(arrow)  \(entry.summary)" + ( entry.bytes > 0 ? "  (\(entry.bytes) B)" : "" )
+			let detail = [ entry.detail, entry.bytes > 0 ? "(\(entry.bytes) B)" : "" ].filter { !$0.isEmpty }.joined( separator: "  " )
+			return "\(entry.date.formatted( Self.time ))  \(arrow)  \(entry.summary)" + ( detail.isEmpty ? "" : "\n                 \(detail)" )
 		}.joined( separator: "\n" )
 	}
 

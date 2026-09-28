@@ -315,7 +315,7 @@ final class DeckServer {
 					}
 				}
 				onMessage?( id, message, payload )
-				onTraffic?( id, TrafficEntry( direction: .received, summary: TrafficEntry.describe( json: payload ), bytes: payload.count ) )
+				onTraffic?( id, .frame( json: payload, direction: .received ) )
 			case .close:
 				drop( id )
 				return
@@ -395,15 +395,17 @@ final class DeckServer {
 		send( frame, opcode: .binary, to: id )
 	}
 
-	func sendFirmwareChunk( offset: Int, chunk: Data, to id: ClientID ) {
+	/// `total`: the size of the whole image, for the log.
+	func sendFirmwareChunk( offset: Int, chunk: Data, total: Int, to id: ClientID ) {
 		guard isAuthenticated( id ) else { return }
-		send( HostMessage.firmwareFrame( offset: offset, chunk: chunk ), opcode: .binary, to: id )
+		let frame = HostMessage.firmwareFrame( offset: offset, chunk: chunk )
+		send( frame, opcode: .binary, to: id, entry: .frame( binary: frame, firmwareTotal: total ) )
 	}
 
-	private func send( _ payload: Data, opcode: NWProtocolWebSocket.Opcode, to id: ClientID ) {
+	/// `entry`: what the log records, when it knows more than the frame does.
+	private func send( _ payload: Data, opcode: NWProtocolWebSocket.Opcode, to id: ClientID, entry: TrafficEntry? = nil ) {
 		guard let connection = clients[id]?.connection else { return }
-		let summary = opcode == .text ? TrafficEntry.describe( json: payload ) : TrafficEntry.describe( binary: payload )
-		onTraffic?( id, TrafficEntry( direction: .sent, summary: summary, bytes: payload.count ) )
+		onTraffic?( id, entry ?? ( opcode == .text ? .frame( json: payload, direction: .sent ) : .frame( binary: payload ) ) )
 
 		// Inside a session, prefix the MAC: hex for text frames, raw for binary ones.
 		var data = payload

@@ -81,7 +81,7 @@ extension DeckController {
 		guard ( 0..<image.count ).contains( offset ) else { return }
 		let end = min( offset + Self.firmwareChunkSize, image.count )
 		device.firmwareChunkEnd = end
-		server.sendFirmwareChunk( offset: offset, chunk: image.subdata( in: offset..<end ), to: client )
+		server.sendFirmwareChunk( offset: offset, chunk: image.subdata( in: offset..<end ), total: image.count, to: client )
 	}
 
 	private func failFirmware( _ device: DeckDevice, _ message: String ) {
