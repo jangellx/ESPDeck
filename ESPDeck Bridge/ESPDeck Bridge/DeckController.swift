@@ -34,6 +34,9 @@ final class DeckController {
 	/// Called whenever the menu bar's deck list may have changed.
 	@ObservationIgnored var onDecksChange : ( ( _ heading: String, _ decks: [DeckMenuEntry] ) -> Void )?
 
+	/// This Mac's password for uploads from PlatformIO, once there is one (DevOTAPassword).
+	private(set) var developerPassword: String?
+
 	/// Launch at Login, as the AppKit bundle reports it.
 	private(set) var launchAtLogin = LaunchAtLogin.off
 
@@ -95,6 +98,7 @@ final class DeckController {
 		observeStatus()
 		updates.start()
 		usbSetup.start()
+		developerPassword = DevOTAPassword.stored()
 
 		home.onReady = { [weak self] in
 			self?.releasePushes()
@@ -237,10 +241,59 @@ final class DeckController {
 		send( .setupMode( enabled ), to: id )
 	}
 
-	/// Allows uploads from PlatformIO with this password, or turns them off (nil). Only its
-	/// hash is sent, and nothing is kept: PlatformIO reads the password from ota_password.txt.
-	func setDevOTA( device id: String, password: String? ) {
-		send( .devOTA( passwordHash: password.map( DevOTAPassword.hash ) ), to: id )
+	/// Allows uploads from PlatformIO with this Mac's developer password (made now if there
+	/// isn't one), or turns them off. Devices only get the password's hash.
+	func setDevOTA( device id: String, enabled: Bool ) {
+		send( .devOTA( passwordHash: enabled ? DevOTAPassword.hash( developerPasswordCreatingIfNeeded() ) : nil ), to: id )
+	}
+
+	@discardableResult
+	func developerPasswordCreatingIfNeeded() -> String {
+		if let developerPassword { return developerPassword }
+		let password: String
+		if let stored = DevOTAPassword.stored() {
+			password = stored
+		} else {
+			password = DevOTAPassword.generate()
+			DevOTAPassword.store( password )
+		}
+		developerPassword = password
+		return password
+	}
+
+	/// Which devices got a new developer password, and which allow uploads but are offline
+	/// and keep the old one.
+	struct DeveloperPasswordChange {
+		var updated : [String]
+		var offline : [String]
+
+		var summary: String {
+			let count = updated.count == 1 ? "1 device updated" : "\(updated.count) devices updated"
+			guard !offline.isEmpty else { return updated.isEmpty ? "No device allows uploads right now." : "\(count)." }
+			let names = ListFormatter.localizedString( byJoining: offline )
+			return "\(count); \(names) \(offline.count == 1 ? "is" : "are") offline and still \(offline.count == 1 ? "uses" : "use") the old password."
+		}
+	}
+
+	/// Replaces this Mac's developer password with a new random one, or with `password`,
+	/// and sends its hash to every connected device that allows uploads.
+	@discardableResult
+	func replaceDeveloperPassword( with password: String? = nil ) -> DeveloperPasswordChange {
+		let new = password ?? DevOTAPassword.generate()
+		DevOTAPassword.store( new )
+		developerPassword = new
+
+		var change = DeveloperPasswordChange( updated: [], offline: [] )
+		for device in devices {
+			guard let settings = settings( device.id ), !settings.isDemo else { continue }
+			if device.isOnline, device.status.devOTA == true {
+				send( .devOTA( passwordHash: DevOTAPassword.hash( new ) ), to: device.id )
+				change.updated.append( settings.name )
+			} else if !device.isOnline, settings.devOTA {
+				change.offline.append( settings.name )
+			}
+		}
+		return change
 	}
 
 	// MARK: - Demo decks
@@ -581,6 +634,9 @@ final class DeckController {
 			case .status( let status ):
 				let wasAsleep = device.status.asleep
 				device.status = status
+				if let value = status.devOTA {
+					updateMirror( id ) { $0.devOTA = value }
+				}
 				if status.asleep || status.setupMode {
 					device.pressed = []
 					device.chord   = false
@@ -658,6 +714,7 @@ final class DeckController {
 			if let value = hello.settings.brightness   { settings.brightness = value }
 			if let value = hello.settings.orientation  { settings.orientation = value }
 			if let value = hello.settings.sleepTimeout { settings.sleepTimeout = value }
+			if let value = hello.status.devOTA         { settings.devOTA = value }
 			if let layout = hello.deck.layout          { settings.layout = layout }
 		}
 

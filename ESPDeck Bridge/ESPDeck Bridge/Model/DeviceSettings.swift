@@ -115,6 +115,8 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	var brightness    = 80
 	var orientation   = "auto"
 	var sleepTimeout  = 0
+	/// Uploads from PlatformIO were allowed when it was last connected.
+	var devOTA        = false
 
 	/// Where every key's label goes. Drawn by the bridge, so it works offline too.
 	var labelPosition = LabelPosition.bottom
@@ -139,6 +141,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		brightness    = try container.decodeIfPresent( Int.self, forKey: .brightness ) ?? 80
 		orientation   = try container.decodeIfPresent( String.self, forKey: .orientation ) ?? "auto"
 		sleepTimeout  = try container.decodeIfPresent( Int.self, forKey: .sleepTimeout ) ?? 0
+		devOTA        = try container.decodeIfPresent( Bool.self, forKey: .devOTA ) ?? false
 		labelPosition = try container.decodeIfPresent( LabelPosition.self, forKey: .labelPosition ) ?? .bottom
 		sleepTriggers = try container.decodeIfPresent( [SleepTrigger].self, forKey: .sleepTriggers ) ?? []
 		onSleep       = try container.decodeIfPresent( KeyAssignment.self, forKey: .onSleep ) ?? KeyAssignment()

@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct DeviceSettingsView: View {
 	let controller : DeckController
@@ -261,53 +262,171 @@ struct DeviceSettingsView: View {
 	}
 }
 
-/// Uploads from PlatformIO over Wi-Fi (ArduinoOTA), off until a password is set. The
-/// password goes to the device only as its SHA-256, and isn't kept here.
+/// Uploads from PlatformIO over Wi-Fi (ArduinoOTA), off until allowed here. The device
+/// gets the hash of this Mac's developer password, which PlatformIO reads from
+/// ota_password.txt.
 private struct DeveloperSection: View {
 	let controller : DeckController
 	let device     : DeckDevice
-
-	@State private var password = ""
 
 	private static let firstVersion = Version( "3.2.0" )!
 
 	var body: some View {
 		let supported = device.firmware.flatMap( Version.init ).map { $0 >= Self.firstVersion } ?? false
-		let enabled   = device.status.devOTA ?? false
-		let problem   = DevOTAPassword.problem( password )
 
 		Section {
 			Toggle( "Allow uploads from PlatformIO", isOn: Binding {
-				enabled
+				device.status.devOTA ?? false
 			} set: { on in
-				if !on {
-					controller.setDevOTA( device: device.id, password: nil )
-				} else if problem == nil {
-					controller.setDevOTA( device: device.id, password: password )
-					password = ""
-				}
+				controller.setDevOTA( device: device.id, enabled: on )
 			} )
-			.disabled( !enabled && problem != nil )
-
-			if !enabled {
-				SecureField( "Password", text: $password, prompt: Text( "At least 8 characters" ) )
-				if let problem, !password.isEmpty {
-					Text( problem )
-						.font( .caption )
-						.foregroundStyle( .secondary )
-				}
-			}
+			.disabled( !device.isOnline || !supported )
 			if device.isOnline && !supported {
 				Text( "Needs firmware 3.2.0 or later." )
 					.font( .caption )
 					.foregroundStyle( .secondary )
 			}
+			if controller.developerPassword != nil {
+				DeveloperPasswordRows( controller: controller )
+			}
 		} header: {
 			SectionHeader( "Developer" )
 		} footer: {
-			Text( "Lets `pio run -t upload` send firmware to this device over Wi-Fi, with the same password in ota_password.txt. It's for development: anyone on your network with the password can replace the firmware, so it's off by default." )
+			Text( "Lets `pio run -t upload` send firmware to this device over Wi-Fi. Save the developer password as ota_password.txt in the ESPDeck Device folder of your checkout, where PlatformIO reads it. It's for development: anyone on your network with the password can replace the firmware, so it's off by default." )
 		}
-		.disabled( !device.isOnline || !supported )
+	}
+}
+
+/// This Mac's developer password: shown on request, copied, saved as ota_password.txt,
+/// replaced with one of the user's own, or regenerated.
+private struct DeveloperPasswordRows: View {
+	let controller : DeckController
+
+	@State private var revealed      = false
+	@State private var saving        = false
+	@State private var choosingOwn   = false
+	@State private var regenerating  = false
+	@State private var result        : String?
+
+	private var password: String { controller.developerPassword ?? "" }
+
+	var body: some View {
+		LabeledContent( "Developer Password" ) {
+			HStack( spacing: 10 ) {
+				Text( revealed ? password : String( repeating: "•", count: password.count ) )
+					.font( .body.monospaced() )
+					.textSelection( .enabled )
+					.lineLimit( 1 )
+				Button {
+					revealed.toggle()
+				} label: {
+					Image( systemName: revealed ? "eye.slash" : "eye" )
+				}
+				.buttonStyle( .borderless )
+				.help( revealed ? "Hide the password" : "Show the password" )
+				Button( "Copy" ) {
+					UIPasteboard.general.string = password
+				}
+			}
+		}
+
+		HStack {
+			Button( "Save as ota_password.txt…" ) { saving = true }
+			Spacer()
+			Menu( "More" ) {
+				Button( "Use My Own Password…" ) { choosingOwn = true }
+				Button( "Regenerate Password…" ) { regenerating = true }
+			}
+			.fixedSize()
+		}
+		.fileExporter( isPresented: $saving, document: PasswordFile( password: password ), contentType: .plainText,
+					   defaultFilename: "ota_password.txt" ) { _ in }
+		.confirmationDialog( "Make a new developer password?", isPresented: $regenerating, titleVisibility: .visible ) {
+			Button( "Regenerate Password" ) {
+				result = controller.replaceDeveloperPassword().summary
+			}
+		} message: {
+			Text( regenerateMessage )
+		}
+		.sheet( isPresented: $choosingOwn ) {
+			OwnPasswordSheet { password in
+				result = controller.replaceDeveloperPassword( with: password ).summary
+			}
+		}
+
+		if let result {
+			Text( "\(result) Save the new password as ota_password.txt again." )
+				.font( .caption )
+				.foregroundStyle( .secondary )
+		}
+	}
+
+	/// Connected devices that allow uploads get the new password; offline ones keep the old one.
+	private var regenerateMessage: String {
+		let offline = controller.devices.filter { device in
+			!device.isOnline && controller.settings( device.id ).map { $0.devOTA && !$0.isDemo } == true
+		}.compactMap { controller.settings( $0.id )?.name }
+		var text = "Connected devices that allow uploads from PlatformIO get the new password right away. Save it as ota_password.txt again afterward."
+		if !offline.isEmpty {
+			let names = ListFormatter.localizedString( byJoining: offline )
+			text += " \(names) \(offline.count == 1 ? "is" : "are") offline and will keep the old password; turn uploads off and on again for \(offline.count == 1 ? "it" : "them") later."
+		}
+		return text
+	}
+}
+
+/// A password the user picks instead of the generated one.
+private struct OwnPasswordSheet: View {
+	let use: ( String ) -> Void
+
+	@Environment( \.dismiss ) private var dismiss
+	@State private var password = ""
+
+	var body: some View {
+		let problem = DevOTAPassword.problem( password )
+		NavigationStack {
+			Form {
+				Section {
+					SecureField( "Password", text: $password, prompt: Text( "At least 8 characters" ) )
+				} footer: {
+					Text( problem != nil && !password.isEmpty ? problem! : "Replaces this Mac's developer password. Connected devices that allow uploads from PlatformIO get it right away." )
+				}
+			}
+			.formStyle( .grouped )
+			.navigationTitle( "Use My Own Password" )
+			.toolbar {
+				ToolbarItem( placement: .cancellationAction ) {
+					Button( "Cancel" ) { dismiss() }
+				}
+				ToolbarItem( placement: .confirmationAction ) {
+					Button( "Use Password" ) {
+						use( password )
+						dismiss()
+					}
+					.disabled( problem != nil )
+				}
+			}
+		}
+		.frame( minWidth: 380, minHeight: 220 )
+	}
+}
+
+/// ota_password.txt for the save dialog: the password alone.
+private struct PasswordFile: FileDocument {
+	static let readableContentTypes: [UTType] = [ .plainText ]
+
+	var password: String
+
+	init( password: String ) {
+		self.password = password
+	}
+
+	init( configuration: ReadConfiguration ) throws {
+		password = String( decoding: configuration.file.regularFileContents ?? Data(), as: UTF8.self )
+	}
+
+	func fileWrapper( configuration: WriteConfiguration ) throws -> FileWrapper {
+		FileWrapper( regularFileWithContents: DevOTAPassword.fileContents( password ) )
 	}
 }
 
