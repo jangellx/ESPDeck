@@ -6,3 +6,9 @@
 
 # Built firmware for the web installer; the release workflow builds and deploys it.
 web/firmware/*.bin
+
+# The firmware signing key lives only in the FIRMWARE_SIGNING_KEY secret. Never commit it;
+# these catch the usual names for a copy of it.
+*.key
+*private*.pem
+firmware_signing_key.pem

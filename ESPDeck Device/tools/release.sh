@@ -9,6 +9,8 @@
 #                                         flashing at 0x0 over USB (the web installer uses it)
 #   *.sha256                              "<hash>  <file>", as shasum writes them
 # It then copies the merged image into ../web/firmware/ and points ../web/manifest.json at it.
+# It doesn't sign them: tools/sign_release.sh does, with the key in FIRMWARE_SIGNING_KEY
+# (the release workflow runs it next). ESPDeck Bridge won't install an unsigned release.
 set -euo pipefail
 
 VERSION="${1:-}"
@@ -117,9 +119,6 @@ echo "Release $VERSION:"
 ( cd "$DIST" && cat "$OTA_NAME.sha256" "$MERGED_NAME.sha256" )
 echo "Web installer now points at web/firmware/$MERGED_NAME."
 
-if command -v gh > /dev/null; then
-	echo
-	echo "To publish:"
-	echo "  gh release create firmware-v$VERSION --title \"Firmware $VERSION\" --notes \"ESPDeck firmware $VERSION\" \\"
-	echo "    \"$DIST/$OTA_NAME\" \"$DIST/$OTA_NAME.sha256\" \"$DIST/$MERGED_NAME\" \"$DIST/$MERGED_NAME.sha256\""
-fi
+echo
+echo "To publish, push the tag firmware-v$VERSION: the release workflow builds, signs and uploads."
+

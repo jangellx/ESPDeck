@@ -1,8 +1,11 @@
 # Builds and publishes a firmware release when a tag like firmware-v3.0.0 is pushed:
-# the GitHub release gets the OTA image, the merged USB image and their .sha256 files, and
-# web/ (the browser installer, now pointing at this version) is deployed to GitHub Pages.
+# the GitHub release gets the OTA image, the merged USB image, their .sha256 files and their
+# .sig signatures, and web/ (the browser installer, now pointing at this version) is deployed
+# to GitHub Pages.
 #
-# One-time setup: Settings → Pages → Source: GitHub Actions.
+# One-time setup: Settings → Pages → Source: GitHub Actions, and the repository secret
+# FIRMWARE_SIGNING_KEY (the Ed25519 private key, PEM; see README, Release signing). Without
+# the secret the job fails before anything is published.
 name: Firmware release
 
 # Actions are pinned to commit SHAs (the version in each comment); all run on Node 24.
@@ -46,16 +49,26 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           "ESPDeck Device/tools/release.sh" "$VERSION"
 
+      # ESPDeck Bridge installs only release files with a valid signature. sign_release.sh
+      # checks each one against the public key the app has, and removes its copy of the key.
+      - name: Sign
+        env:
+          FIRMWARE_SIGNING_KEY: ${{ secrets.FIRMWARE_SIGNING_KEY }}
+        run: |
+          DIST="ESPDeck Device/dist"
+          "ESPDeck Device/tools/sign_release.sh" "$DIST/espdeck-firmware-$VERSION.bin" "$DIST/espdeck-firmware-$VERSION-merged.bin"
+
       # GitHub sometimes runs the workflow twice for one tag. The second run finds the
-      # release already there and replaces its assets instead of failing.
+      # release already there and replaces its assets instead of failing (the signatures come
+      # out the same: Ed25519 is deterministic).
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           DIST="ESPDeck Device/dist"
           ASSETS=(
-            "$DIST/espdeck-firmware-$VERSION.bin" "$DIST/espdeck-firmware-$VERSION.bin.sha256"
-            "$DIST/espdeck-firmware-$VERSION-merged.bin" "$DIST/espdeck-firmware-$VERSION-merged.bin.sha256"
+            "$DIST/espdeck-firmware-$VERSION.bin" "$DIST/espdeck-firmware-$VERSION.bin.sha256" "$DIST/espdeck-firmware-$VERSION.bin.sig"
+            "$DIST/espdeck-firmware-$VERSION-merged.bin" "$DIST/espdeck-firmware-$VERSION-merged.bin.sha256" "$DIST/espdeck-firmware-$VERSION-merged.bin.sig"
           )
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" --clobber "${ASSETS[@]}"
