@@ -44,14 +44,19 @@ struct TrafficEntry: Identifiable {
 
 	/// An image or firmware frame (their MAC is added after this). `firmwareTotal`: the size
 	/// of the whole firmware image, for a firmware frame.
-	static func frame( binary: Data, firmwareTotal: Int? = nil ) -> TrafficEntry {
+	static func frame( binary: Data, firmwareTotal: Int? = nil, imageKeys: [Int] = [] ) -> TrafficEntry {
 		let magic = String( decoding: binary.prefix( 4 ), as: UTF8.self )
 		let summary : String
 		let detail  : String
 		switch magic {
 			case "IMG1":
 				let hash = binary.dropFirst( 4 ).prefix( 4 ).map { String( format: "%02x", $0 ) }.joined()
-				summary = "Sent a key image"
+				let keys = imageKeys.sorted().map { String( $0 + 1 ) }
+				switch keys.count {
+					case 0:  summary = "Sent a key image"
+					case 1:  summary = "Sent image to key \(keys[0])"
+					default: summary = "Sent image to keys \(ListFormatter.localizedString( byJoining: keys ))"
+				}
 				detail  = "IMG1  hash \(hash)…  \(size( binary.count - 20 ))"
 			case "FWU1":
 				let offset = binary.dropFirst( 4 ).prefix( 4 ).enumerated().reduce( 0 ) { $0 | Int( $1.element ) << ( 8 * $1.offset ) }

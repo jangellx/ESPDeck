@@ -653,7 +653,7 @@ final class DeckController {
 		guard force || device.shown[key] != rendered.hash else { return }
 
 		if !device.knownHashes.contains( rendered.hash ) {
-			server.sendImage( hash: rendered.hash, image: rendered.data, to: client )
+			server.sendImage( hash: rendered.hash, image: rendered.data, keys: [ key ], to: client )
 			device.knownHashes.insert( rendered.hash )
 		}
 		server.send( .show( key: key, hash: rendered.hash ), to: client )
@@ -745,7 +745,7 @@ final class DeckController {
 				device.knownHashes.remove( hash )
 				let keys = device.shown.filter { $0.value == hash }.map( \.key )
 				if let data = device.recentImages[hash] {
-					server.sendImage( hash: hash, image: data, to: client )
+					server.sendImage( hash: hash, image: data, keys: keys, to: client )
 					device.knownHashes.insert( hash )
 					for key in keys {
 						server.send( .show( key: key, hash: hash ), to: client )

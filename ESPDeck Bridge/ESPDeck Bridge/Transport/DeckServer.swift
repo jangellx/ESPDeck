@@ -390,9 +390,10 @@ final class DeckServer {
 		send( .devOTA( sealedHash: sealed ), to: id )
 	}
 
-	func sendImage( hash: String, image: Data, to id: ClientID ) {
+	/// `keys`: the keys it's for (from 0), for the log; the frame itself only carries the hash.
+	func sendImage( hash: String, image: Data, keys: [Int] = [], to id: ClientID ) {
 		guard isAuthenticated( id ), let frame = HostMessage.imageFrame( hash: hash, image: image ) else { return }
-		send( frame, opcode: .binary, to: id )
+		send( frame, opcode: .binary, to: id, entry: .frame( binary: frame, imageKeys: keys ) )
 	}
 
 	/// `total`: the size of the whole image, for the log.
