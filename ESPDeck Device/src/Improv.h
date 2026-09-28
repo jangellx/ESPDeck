@@ -1,6 +1,6 @@
 // Improv Wi-Fi over serial (https://www.improv-wifi.com/serial/, version 1): lets ESP Web
-// Tools, right after installing the firmware, ask for the device's details, list the Wi-Fi
-// networks it sees, and give it credentials.
+// Tools or ESPDeck Bridge, over USB, ask for the device's details, list the Wi-Fi networks
+// it sees, give it credentials, and get or set its name.
 //
 // It listens on UART0 (the console/COM port) always, and on the native USB port's
 // USB-Serial-JTAG when that's plugged into a computer. Log output keeps flowing on both;
@@ -25,6 +25,9 @@ public:
 
 	// True once, when credentials sent over Improv have connected (main leaves setup mode).
 	bool takeProvisioned();
+
+	// True once, after Improv renamed the device (main tells the bridge).
+	bool takeRenamed();
 
 private:
 	enum class State : uint8_t {
@@ -69,6 +72,7 @@ private:
 	// A connection attempt with credentials from Improv.
 	bool      connecting_   = false;
 	bool      provisioned_  = false;   // for takeProvisioned()
+	bool      renamed_      = false;   // for takeRenamed()
 	uint32_t  connectStart_ = 0;
 	char      ssid_[33]     = {};
 	char      password_[65] = {};

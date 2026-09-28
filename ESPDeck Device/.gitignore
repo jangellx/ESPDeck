@@ -5,3 +5,5 @@ sdkconfig.*
 managed_components
 managed_components.nosync/
 dist/
+ota_password.txt
+platformio.local*.ini

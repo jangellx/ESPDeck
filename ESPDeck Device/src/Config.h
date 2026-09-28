@@ -11,6 +11,14 @@ inline const char *firmwareVersion() {
 	return esp_app_get_description()->version;
 }
 
+// The SHA-256 of the app's ELF file, in hex: tells builds with the same version apart.
+inline const char *firmwareBuild() {
+	static char hex[65] = {};
+	if( !hex[0] )
+		esp_app_get_elf_sha256( hex, sizeof( hex ) );
+	return hex;
+}
+
 constexpr int         kProtocolVersion = 3;
 
 // Bonjour service advertised by ESPDeck Bridge on the Mac (without the leading underscores;

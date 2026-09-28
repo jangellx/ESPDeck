@@ -28,6 +28,7 @@
 #include "BridgeClient.h"
 #include "Config.h"
 #include "Crypto.h"
+#include "DevOTA.h"
 #include "FirmwareUpdate.h"
 #include "Hash.h"
 #include "ImageCache.h"
@@ -224,6 +225,7 @@ static void sendHello() {
 	cJSON_AddStringToObject( json, "id", settings.id() );
 	cJSON_AddStringToObject( json, "name", settings.name() );
 	cJSON_AddStringToObject( json, "firmware", firmwareVersion() );
+	cJSON_AddStringToObject( json, "elfSHA256", firmwareBuild() );
 	cJSON_AddStringToObject( json, "nonce", session.deviceNonceHex() );
 	cJSON_AddStringToObject( json, "pairedBridge", settings.isPaired() ? settings.pairedBridge() : "" );
 
@@ -656,7 +658,7 @@ static Screen desiredScreen() {
 		return Screen::Setup;
 	if( pairing.active )
 		return Screen::Pairing;
-	if( firmware.active() || restartPending )
+	if( firmware.active() || restartPending || DevOTA::active() )
 		return Screen::Updating;
 	if( chordHeld && millis() - chordSince >= kSetupCountdown && deckHasLayout() )
 		return Screen::SetupCountdown;
@@ -1313,6 +1315,7 @@ void setup() {
 			ESP_LOGE( TAG, "USB host unavailable" );
 	}
 	bridge.begin( hostname );
+	DevOTA::begin( hostname, [] { refreshScreen( true ); }, [] { cache.persistNow(); } );
 	portal.begin();
 	session.reset();
 
@@ -1344,7 +1347,16 @@ void loop() {
 	if( wifiJoined ) {
 		wifiJoined = false;
 		settings.markCredentialsWork();
+#if ESPDECK_DEV_OTA
+		// A development build keeps a new image once it's on Wi-Fi, where the next upload
+		// comes from, rather than waiting for a bridge that may not be part of the test.
+		if( pendingVerify ) {
+			FirmwareUpdate::markValid();
+			pendingVerify = false;
+		}
+#endif
 	}
+	DevOTA::loop( firmware.active() || restartPending );
 
 	portal.loop();
 	if( portal.takeExitRequest() )
@@ -1354,6 +1366,8 @@ void loop() {
 	improv.loop();
 	if( improv.takeProvisioned() )
 		leaveSetupMode( "improv" );
+	if( improv.takeRenamed() && session.authenticated() )
+		sendHello();   // a resync carries the new name to the bridge
 	if( portal.takeResetRequest() )
 		factoryReset( "requested on the setup page" );
 	if( screen == Screen::Setup && portal.canExit() != setupExitShown )

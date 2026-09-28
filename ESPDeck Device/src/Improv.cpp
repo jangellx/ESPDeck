@@ -38,6 +38,7 @@ namespace {
 	constexpr uint8_t  kRequestState    = 0x02;
 	constexpr uint8_t  kRequestInfo     = 0x03;
 	constexpr uint8_t  kRequestScan     = 0x04;
+	constexpr uint8_t  kDeviceName      = 0x06;   // get (no data) or set (the name's bytes)
 
 	volatile bool      gotIP            = false;   // set on the Wi-Fi event task
 
@@ -92,6 +93,12 @@ bool Improv::takeProvisioned() {
 	bool provisioned = provisioned_;
 	provisioned_ = false;
 	return provisioned;
+}
+
+bool Improv::takeRenamed() {
+	bool renamed = renamed_;
+	renamed_ = false;
+	return renamed;
 }
 
 // MARK: - Receiving
@@ -185,6 +192,25 @@ void Improv::handleCommand( uint8_t command, const uint8_t *data, size_t length 
 
 		case kRequestInfo:
 			sendResult( kRequestInfo, { "ESPDeck", firmwareVersion(), "ESP32-S3", settings_.name() } );
+			break;
+
+		case kDeviceName:
+			// The data is the name itself, not a length-prefixed string. Stored as the
+			// bridge's setName is; the answer carries the name in effect.
+			if( length > 0 ) {
+				char name[Settings::kMaxName + 1];
+				if( length > Settings::kMaxName || memchr( data, '\0', length ) ) {
+					sendError( Error::InvalidRPC );
+					return;
+				}
+				memcpy( name, data, length );
+				name[length] = '\0';
+				if( strcmp( name, settings_.name() ) != 0 && settings_.setName( name ) ) {
+					ESP_LOGI( TAG, "Renamed to %s", name );
+					renamed_ = true;
+				}
+			}
+			sendResult( kDeviceName, { settings_.name() } );
 			break;
 
 		case kRequestScan:

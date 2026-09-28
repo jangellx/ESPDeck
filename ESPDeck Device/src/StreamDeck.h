@@ -9,6 +9,10 @@
 // Only the keys are used; the Neo's info screen, the Plus's dials and touch strip, and touch
 // keys are ignored. Protocol: https://docs.elgato.com/streamdeck/hid/
 //
+// The model layouts and USB report formats are derived from python-elgato-streamdeck,
+// Copyright (c) Dean Camera, MIT License (https://github.com/abcminiuser/python-elgato-streamdeck).
+// See THIRD-PARTY-NOTICES.md for the full license text.
+//
 // Key indices here are row-major from the top-left as seen from the front, whatever the
 // model's own wire order.
 #pragma once
