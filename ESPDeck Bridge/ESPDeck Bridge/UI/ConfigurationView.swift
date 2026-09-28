@@ -145,12 +145,16 @@ private struct Sidebar: View {
 								Text( controller.settings( device.id )?.name ?? device.id )
 								Spacer( minLength: 4 )
 								if controller.updates.firmwareUpdateAvailable( for: device ), let latest = controller.updates.latestFirmware {
-									SidebarButton( symbol: "arrow.up.circle.fill",
-												   toolTip: "Firmware \(latest.version.description) is available. Click to open Updates.",
-												   accessibilityLabel: "Firmware update available" ) {
+									Button {
 										holdSelectionUntil = Date( timeIntervalSinceNow: 0.5 )
 										selection          = SidebarItem.updates
+									} label: {
+										Image( systemName: "arrow.up.circle.fill" )
+											.foregroundStyle( .tint )
 									}
+									.buttonStyle( .borderless )
+									.help( "Firmware \(latest.version.description) is available. Click to open Updates." )
+									.accessibilityLabel( "Firmware update available" )
 								}
 							}
 							Text( status.text.components( separatedBy: ": " ).last ?? "" )
