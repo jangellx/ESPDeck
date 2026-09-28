@@ -45,7 +45,11 @@ extension AppDelegate {
 			return index == 0 ? UIKeyCommand( title: title, action: #selector( newDemoDeck( _: ) ), input: "n", modifierFlags: .command, propertyList: layout.model )
 							  : UICommand( title: title, action: #selector( newDemoDeck( _: ) ), propertyList: layout.model )
 		}
-		var file: [UIMenuElement] = [ UIMenu( title: "New Demo Deck", children: models ) ]
+		var file: [UIMenuElement] = [
+			UIMenu( title: "New Demo Deck", children: models ),
+			// Its own action, as Help ▸ Getting Started has the same sheet.
+			UIKeyCommand( title: "Find Your Device", action: #selector( findYourDevice ), input: "f", modifierFlags: [ .command, .shift ] ),
+		]
 		if menuBarAvailable {
 			// Its own action: UIKit rejects two commands with the same action and property list,
 			// and View has a USB Setup item too.
@@ -65,7 +69,8 @@ extension AppDelegate {
 			UIKeyCommand( title: page.rawValue, action: #selector( showPage( _: ) ), input: "\(index + 1)", modifierFlags: .command,
 						  propertyList: page.rawValue )
 		}
-		var items = [ ( "Updates", SidebarItem.updates ), ( "Getting Started", SidebarItem.parts ), ( "About", SidebarItem.about ) ]
+		// In sidebar order.
+		var items = [ ( "Getting Started", SidebarItem.parts ), ( "Updates", SidebarItem.updates ), ( "About", SidebarItem.about ) ]
 		if menuBarAvailable {
 			items.insert( ( "USB Setup", SidebarItem.usbSetup ), at: 1 )
 		}
@@ -115,9 +120,13 @@ extension AppDelegate {
 		] )
 		builder.insertSibling( keyMenu, afterMenu: deviceMenu.identifier )
 
-		// Help
+		// Help: Getting Started's sheets, on the Mac including the USB path's.
+		let sheets = GuideSheet.allCases.filter { menuBarAvailable || $0 != .connect }.map { sheet in
+			UICommand( title: sheet.rawValue, action: #selector( showGuideSheet( _: ) ), propertyList: sheet.rawValue )
+		}
 		builder.replaceChildren( ofMenu: .help ) { _ in
-			[ UICommand( title: "ESPDeck Help", action: #selector( openHelp ) ) ]
+			[ UICommand( title: "ESPDeck Help", action: #selector( openHelp ) ),
+			  UIMenu( options: .displayInline, children: [ UIMenu( title: "Getting Started", children: sheets ) ] ) ]
 		}
 	}
 
@@ -191,6 +200,8 @@ extension AppDelegate {
 				command.state = currentDevice != nil && window.page.rawValue == command.propertyList as? String ? .on : .off
 			case #selector( showSidebarItem( _: ) ), #selector( selectDevice( _: ) ):
 				command.state = window.isShowing && window.selection == command.propertyList as? String ? .on : .off
+			case #selector( showGuideSheet( _: ) ):
+				command.state = window.isShowing && window.selection == SidebarItem.parts && window.guideSheet.rawValue == command.propertyList as? String ? .on : .off
 			case #selector( toggleSetupMode ):
 				command.title = onlineDevice?.status.setupMode == true ? "Exit Setup Mode" : "Enter Setup Mode"
 			case #selector( installFirmwareUpdate ):
@@ -237,6 +248,19 @@ extension AppDelegate {
 	@objc func showPage( _ sender: UICommand ) {
 		guard let raw = sender.propertyList as? String, let page = WindowState.Page( rawValue: raw ) else { return }
 		window.page = page
+	}
+
+	/// A sheet of Getting Started; Connect to This Mac is on the USB path.
+	@objc func showGuideSheet( _ sender: UICommand ) {
+		guard let raw = sender.propertyList as? String, let sheet = GuideSheet( rawValue: raw ) else { return }
+		if sheet == .connect { window.guidePath = .usb }
+		window.guideSheet = sheet
+		show( SidebarItem.parts )
+	}
+
+	@objc func findYourDevice() {
+		window.guideSheet = .find
+		show( SidebarItem.parts )
 	}
 
 	@objc func openHelp() {

@@ -4,7 +4,7 @@
 //
 //  Devices in the sidebar; each device has a Keys page (simulated deck plus the
 //  selected key's settings) and a Device page. New devices waiting to be paired, and
-//  the app's USB Setup (Mac only), Updates, Getting Started and About pages, and the
+//  the app's Getting Started, USB Setup (Mac only), Updates and About pages, and the
 //  Status section with Launch at Login, are in the sidebar too. The selection lives in
 //  the controller's WindowState, which the app's menus also drive.
 //
@@ -71,6 +71,16 @@ struct ConfigurationView: View {
 			if window.selection == nil { window.selection = controller.devices.first?.id }
 		}
 		.onDisappear { window.isShowing = false }
+		.onChange( of: controller.newDevices.map { "\($0.client) \($0.hello.id)" } ) { old, _ in
+			// A new device that reconnected (with a new name, say) is listed again under a new
+			// connection: keep it selected.
+			guard let item = window.selection, item.hasPrefix( SidebarItem.newPrefix ),
+				  !controller.newDevices.contains( where: { SidebarItem.newDevice( $0.client ) == item } ),
+				  let entry = old.first( where: { $0.hasPrefix( item.dropFirst( SidebarItem.newPrefix.count ) ) } ),
+				  let id = entry.split( separator: " " ).last,
+				  let again = controller.newDevices.first( where: { $0.hello.id == id } ) else { return }
+			window.selection = SidebarItem.newDevice( again.client )
+		}
 		.onChange( of: controller.devices.map( \.id ) ) { old, new in
 			// Follow a device that just finished pairing.
 			let current = window.selection
@@ -87,8 +97,19 @@ private struct Sidebar: View {
 	let controller          : DeckController
 	@Binding var selection  : String?
 
+	/// Until then, the list's own selection changes are ignored: clicking a button in a row
+	/// also selects the row, before or after the button's action.
+	@State private var holdSelectionUntil = Date.distantPast
+
+	private var listSelection: Binding<String?> {
+		Binding { selection } set: { item in
+			guard Date() >= holdSelectionUntil else { return }
+			selection = item
+		}
+	}
+
 	var body: some View {
-		List( selection: $selection ) {
+		List( selection: listSelection ) {
 			if !controller.newDevices.isEmpty {
 				Section {
 					ForEach( controller.newDevices ) { device in
@@ -118,25 +139,23 @@ private struct Sidebar: View {
 				ForEach( controller.devices ) { device in
 					let status = controller.status( device: device )
 					Label {
-						HStack {
-							VStack( alignment: .leading, spacing: 1 ) {
+						VStack( alignment: .leading, spacing: 1 ) {
+							// The update arrow on the name's line, not centred on the row.
+							HStack {
 								Text( controller.settings( device.id )?.name ?? device.id )
-								Text( status.text.components( separatedBy: ": " ).last ?? "" )
-									.font( .caption )
-									.foregroundStyle( .secondary )
-							}
-							Spacer( minLength: 4 )
-							if controller.updates.firmwareUpdateAvailable( for: device ), let latest = controller.updates.latestFirmware {
-								Button {
-									selection = SidebarItem.updates
-								} label: {
-									Image( systemName: "arrow.up.circle.fill" )
-										.foregroundStyle( .tint )
+								Spacer( minLength: 4 )
+								if controller.updates.firmwareUpdateAvailable( for: device ), let latest = controller.updates.latestFirmware {
+									SidebarButton( symbol: "arrow.up.circle.fill",
+												   toolTip: "Firmware \(latest.version.description) is available. Click to open Updates.",
+												   accessibilityLabel: "Firmware update available" ) {
+										holdSelectionUntil = Date( timeIntervalSinceNow: 0.5 )
+										selection          = SidebarItem.updates
+									}
 								}
-								.buttonStyle( .borderless )
-								.help( "Firmware \(latest.version.description) is available. Click to open Updates." )
-								.accessibilityLabel( "Firmware update available" )
 							}
+							Text( status.text.components( separatedBy: ": " ).last ?? "" )
+								.font( .caption )
+								.foregroundStyle( .secondary )
 						}
 					} icon: {
 						StatusIndicator( level: status.level )
@@ -153,29 +172,32 @@ private struct Sidebar: View {
 			}
 
 			Section {
+				Label( "Getting Started", systemImage: "shippingbox" )
+					.tag( SidebarItem.parts )
+
 				if controller.usbSetup.isAvailable {
 					Label {
 						HStack {
 							Text( "USB Setup" )
-							// White count on blue with boards found; an empty blue ring while looking.
-							// No animation, so it doesn't pull the eye.
-							if controller.usbSetup.boardCount > 0 {
+							// White count on blue with boards found; a blue magnifying glass while
+							// looking. No animation, so it doesn't pull the eye.
+							let count = controller.usbSetup.boardCount
+							if count > 0 {
 								Spacer()
-								Text( "\(controller.usbSetup.boardCount)" )
+								Text( "\(count)" )
 									.font( .caption.weight( .bold ).monospacedDigit() )
 									.foregroundStyle( .white )
 									.frame( minWidth: 18, minHeight: 18 )
-									.padding( .horizontal, controller.usbSetup.boardCount > 9 ? 3 : 0 )
+									.padding( .horizontal, count > 9 ? 3 : 0 )
 									.background( Capsule().fill( Color.accentColor ) )
-									.accessibilityLabel( controller.usbSetup.boardCount == 1 ? "1 board plugged in" : "\(controller.usbSetup.boardCount) boards plugged in" )
+									.help( count == 1 ? "1 board found; looking for more" : "\(count) boards found; looking for more" )
+									.accessibilityLabel( count == 1 ? "1 board plugged in" : "\(count) boards plugged in" )
 							} else if controller.usbSetup.scanning {
 								Spacer()
-								Circle()
-									.strokeBorder( Color.accentColor, lineWidth: 1.5 )
-									.frame( width: 14, height: 14 )
-									.padding( .trailing, 2 )
-									.accessibilityLabel( "Looking for boards" )
+								Image( systemName: "magnifyingglass.circle" )
+									.foregroundStyle( .tint )
 									.help( "Looking for boards plugged in over USB" )
+									.accessibilityLabel( "Looking for boards" )
 							}
 						}
 					} icon: {
@@ -196,9 +218,6 @@ private struct Sidebar: View {
 					Image( systemName: "arrow.down.circle" )
 				}
 				.tag( SidebarItem.updates )
-
-				Label( "Getting Started", systemImage: "shippingbox" )
-					.tag( SidebarItem.parts )
 
 				Label( "About", systemImage: "info.circle" )
 					.tag( SidebarItem.about )

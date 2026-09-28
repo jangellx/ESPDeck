@@ -3,36 +3,64 @@
 //  ESPDeck Bridge
 //
 //  The Getting Started page, sheets like a product manual's: "What You Need" (the parts, as
-//  the "in the box" page), "Putting It Together" (the parts assembled), and "Find Your
-//  Device" (devices waiting to be set up, as they appear). The illustrations
-//  are two-colour line drawings (ink and the app icon's amber) drawn in code, so they stay
-//  sharp and follow light and dark mode.
+//  the "in the box" page, and how the dev kit will be set up), "Connect to This Mac" (for
+//  setting it up over USB), "Putting It Together" (the parts assembled), and "Find Your
+//  Device" (devices waiting to be set up, as they appear). The switcher and pager follow
+//  the chosen way of setting up. The illustrations are two-colour line drawings (ink and
+//  the app icon's amber) drawn in code, so they stay sharp and follow light and dark mode.
 //
 
 import SwiftUI
+
+/// Getting Started's sheets. The page shows the ones on the chosen GuidePath.
+enum GuideSheet: String, CaseIterable, Identifiable {
+	case parts    = "What You Need"
+	case connect  = "Connect to This Mac"
+	case assembly = "Putting It Together"
+	case find     = "Find Your Device"
+
+	var id: Self { self }
+}
+
+/// How the dev kit gets its Wi-Fi: from the setup codes on the deck, or over USB from this
+/// Mac (Mac only), which comes before putting it together.
+enum GuidePath {
+	case wifi
+	case usb
+
+	var sheets: [GuideSheet] {
+		switch self {
+			case .wifi: [ .parts, .assembly, .find ]
+			case .usb:  [ .parts, .connect, .assembly, .find ]
+		}
+	}
+}
 
 struct PartsView: View {
 	let controller          : DeckController
 	@Binding var selection  : String?
 
-	fileprivate enum Sheet: String, CaseIterable, Identifiable {
-		case parts    = "What You Need"
-		case assembly = "Putting It Together"
-		case find     = "Find Your Device"
+	private var window: WindowState { controller.window }
 
-		var id: Self { self }
-
-		var previous: Sheet? { Self.allCases.firstIndex( of: self ).flatMap { $0 > 0 ? Self.allCases[$0 - 1] : nil } }
-		var next: Sheet?     { Self.allCases.firstIndex( of: self ).flatMap { $0 + 1 < Self.allCases.count ? Self.allCases[$0 + 1] : nil } }
+	/// The chosen path; USB where it's available until one is chosen, and only Wi-Fi without it.
+	private var path: GuidePath {
+		controller.usbSetup.isAvailable ? window.guidePath ?? .usb : .wifi
 	}
 
-	@State private var sheet = Sheet.parts
+	/// The sheet asked for, or the first one when it isn't on this path.
+	private var sheet: GuideSheet {
+		path.sheets.contains( window.guideSheet ) ? window.guideSheet : .parts
+	}
+
+	private var sheetBinding: Binding<GuideSheet> {
+		Binding { sheet } set: { controller.window.guideSheet = $0 }
+	}
 
 	var body: some View {
 		VStack( spacing: 0 ) {
 			// Outside the scroll view, so it stays put while the sheet scrolls.
-			Picker( "Sheet", selection: $sheet ) {
-				ForEach( Sheet.allCases ) { sheet in
+			Picker( "Sheet", selection: sheetBinding ) {
+				ForEach( path.sheets ) { sheet in
 					Text( sheet.rawValue ).tag( sheet )
 				}
 			}
@@ -56,28 +84,33 @@ struct PartsView: View {
 	}
 
 	@ViewBuilder
-	fileprivate func page( _ sheet: Sheet ) -> some View {
+	fileprivate func page( _ sheet: GuideSheet ) -> some View {
 		switch sheet {
 			case .parts:    parts
+			case .connect:  connect
 			case .assembly: assembly
 			case .find:     FindDevicesSheet( controller: controller, selection: $selection )
 		}
 	}
 
-	/// Previous and next sheet, at the end of each one.
+	/// Previous and next sheet on the chosen path, at the end of each one.
 	private var pager: some View {
-		HStack {
-			if let previous = sheet.previous {
+		let sheets   = path.sheets
+		let index    = sheets.firstIndex( of: sheet ) ?? 0
+		let previous = index > 0 ? sheets[index - 1] : nil
+		let next     = index + 1 < sheets.count ? sheets[index + 1] : nil
+		return HStack {
+			if let previous {
 				Button {
-					sheet = previous
+					window.guideSheet = previous
 				} label: {
 					Label( previous.rawValue, systemImage: "chevron.left" )
 				}
 			}
 			Spacer()
-			if let next = sheet.next {
+			if let next {
 				Button {
-					sheet = next
+					window.guideSheet = next
 				} label: {
 					HStack( spacing: 6 ) {
 						Text( next.rawValue )
@@ -89,6 +122,8 @@ struct PartsView: View {
 		}
 		.padding( .top, 8 )
 	}
+
+	// MARK: - What You Need
 
 	private var parts: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
@@ -112,15 +147,79 @@ struct PartsView: View {
 				Label( "A 2.4 GHz Wi-Fi network that the Mac and the ESP32-S3 share.", systemImage: "wifi" )
 			}
 			.foregroundStyle( .secondary )
+
+			if controller.usbSetup.isAvailable {
+				pathChoice
+			}
 		}
 	}
 
-	private static let steps = [
+	/// Over USB or over Wi-Fi: the rest of the sheets follow the choice.
+	private var pathChoice: some View {
+		VStack( alignment: .leading, spacing: 12 ) {
+			Text( "How Do You Want to Set It Up?" )
+				.font( .headline )
+			HStack( alignment: .top, spacing: 16 ) {
+				PathCard( icon: "cable.connector", title: "Set up over USB from this Mac",
+						  detail: "Plug the dev kit into this Mac first. ESPDeck Bridge installs the firmware and gives it your Wi-Fi.",
+						  chosen: path == .usb ) {
+					window.guidePath = .usb
+				}
+				PathCard( icon: "qrcode", title: "Set up over Wi-Fi with the codes on the deck",
+						  detail: "For a dev kit that already runs ESPDeck: scan the setup codes its keys show to join it and give it your Wi-Fi.",
+						  chosen: path == .wifi ) {
+					window.guidePath = .wifi
+				}
+			}
+		}
+	}
+
+	// MARK: - Connect to This Mac
+
+	private static let connectSteps = [
+		"Connect the dev kit's port labelled **USB** to this Mac with the USB-C cable. The Mac powers the dev kit; nothing else needs to be plugged in yet.",
+		"Open USB Setup. It finds the dev kit, installs ESPDeck on it, and gives it your Wi-Fi network and a name.",
+		"When USB Setup says it has joined your network, unplug it from this Mac and put it together with the Stream Deck.",
+	]
+
+	private var connect: some View {
+		VStack( alignment: .leading, spacing: 28 ) {
+			VStack( alignment: .leading, spacing: 6 ) {
+				Text( "Connect to This Mac" )
+					.font( .largeTitle.weight( .bold ) )
+				Text( "Before putting it together, plug the dev kit into this Mac to install ESPDeck and set up its Wi-Fi." )
+					.foregroundStyle( .secondary )
+			}
+
+			USBConnectionIllustration()
+				.aspectRatio( USBConnectionIllustration.space.width / USBConnectionIllustration.space.height, contentMode: .fit )
+				.padding( 18 )
+				.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+
+			steps( Self.connectSteps )
+
+			Button {
+				selection = SidebarItem.usbSetup
+			} label: {
+				Label( "Open USB Setup", systemImage: "cable.connector" )
+			}
+		}
+	}
+
+	// MARK: - Putting It Together
+
+	private static let assemblySteps = [
 		"Plug the OTG adapter into the dev kit's port labelled **USB** (not the one labelled UART or COM).",
 		"Plug the Stream Deck into the OTG adapter's USB-A socket. If the deck's cable ends in USB-C, put the USB-A to USB-C adapter in between.",
 		"Connect the power supply to the OTG adapter's USB-C socket with the USB-C cable. The Stream Deck lights up.",
-		"Set up the dev kit's Wi-Fi (from USB Setup here, or from the setup codes on the deck). It then finds ESPDeck Bridge on this Mac, and you pair it.",
 	]
+
+	private var lastAssemblyStep: String {
+		switch path {
+			case .usb:  "It joins the Wi-Fi network you gave it in USB Setup and finds ESPDeck Bridge on this Mac. Pair it under New Devices, then hold Confirm on the deck."
+			case .wifi: "Scan the setup codes on the deck's keys to join the dev kit's own network, and give it your Wi-Fi. It then finds ESPDeck Bridge on this Mac: pair it under New Devices, then hold Confirm on the deck."
+		}
+	}
 
 	private var assembly: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
@@ -136,18 +235,62 @@ struct PartsView: View {
 				.padding( 18 )
 				.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
 
-			VStack( alignment: .leading, spacing: 12 ) {
-				ForEach( Array( Self.steps.enumerated() ), id: \.offset ) { index, step in
-					HStack( alignment: .firstTextBaseline, spacing: 10 ) {
-						Text( "\( index + 1 )" )
-							.font( .headline.monospacedDigit() )
-							.foregroundStyle( PartIllustration.accent )
-						Text( LocalizedStringKey( step ) )
-							.fixedSize( horizontal: false, vertical: true )
-					}
+			steps( Self.assemblySteps + [ lastAssemblyStep ] )
+		}
+	}
+
+	/// Numbered in amber; **bold** marks what to look for.
+	private func steps( _ steps: [String] ) -> some View {
+		VStack( alignment: .leading, spacing: 12 ) {
+			ForEach( Array( steps.enumerated() ), id: \.offset ) { index, step in
+				HStack( alignment: .firstTextBaseline, spacing: 10 ) {
+					Text( "\( index + 1 )" )
+						.font( .headline.monospacedDigit() )
+						.foregroundStyle( PartIllustration.accent )
+					Text( LocalizedStringKey( step ) )
+						.fixedSize( horizontal: false, vertical: true )
 				}
 			}
 		}
+	}
+}
+
+/// One way of setting up the dev kit, chosen by clicking it.
+private struct PathCard: View {
+	let icon    : String
+	let title   : String
+	let detail  : String
+	let chosen  : Bool
+	let choose  : () -> Void
+
+	var body: some View {
+		Button( action: choose ) {
+			HStack( alignment: .top, spacing: 12 ) {
+				Image( systemName: icon )
+					.font( .title2 )
+					.foregroundStyle( .tint )
+					.frame( width: 30 )
+				VStack( alignment: .leading, spacing: 4 ) {
+					Text( title )
+						.font( .headline )
+					Text( detail )
+						.font( .callout )
+						.foregroundStyle( .secondary )
+						.fixedSize( horizontal: false, vertical: true )
+				}
+				Spacer( minLength: 0 )
+				Image( systemName: chosen ? "checkmark.circle.fill" : "circle" )
+					.font( .title3 )
+					.foregroundStyle( chosen ? Color.accentColor : Color.secondary )
+			}
+			.padding( 14 )
+			.frame( maxWidth: .infinity, alignment: .leading )
+			.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+			.overlay( RoundedRectangle( cornerRadius: 14, style: .continuous ).strokeBorder( chosen ? Color.accentColor : .clear, lineWidth: 2 ) )
+			.contentShape( Rectangle() )
+		}
+		.buttonStyle( .plain )
+		.accessibilityAddTraits( chosen ? .isSelected : [] )
 	}
 }
 
@@ -159,9 +302,11 @@ private struct FindDevicesSheet: View {
 
 	private var usbBoards: [USBSetup.Board] {
 		guard controller.usbSetup.isAvailable, controller.usbSetup.scanning else { return [] }
-		let known = Set( controller.devices.compactMap { controller.settings( $0.id )?.name } )
+		let names = Set( controller.devices.compactMap { controller.settings( $0.id )?.name } )
 		return controller.usbSetup.boards.filter { board in
-			board.espDeck.map { !known.contains( $0.name ) } ?? true
+			// By its MAC address where the USB port gives it, by name otherwise.
+			if let id = board.port.deviceID { return controller.device( id ) == nil }
+			return board.espDeck.map { !names.contains( $0.name ) } ?? true
 		}
 	}
 
@@ -324,6 +469,15 @@ struct PartIllustration: View {
 			draw( &sketch )
 		}
 		.accessibilityHidden( true )
+	}
+}
+
+/// A dev kit plugged into this Mac with a USB-C cable, for setting it up over USB.
+struct USBConnectionIllustration: View {
+	static let space = CGSize( width: 560, height: 186 )
+
+	var body: some View {
+		PartIllustration( space: Self.space, draw: Sketch.usbConnection )
 	}
 }
 
@@ -622,13 +776,50 @@ fileprivate nonisolated struct Sketch {
 		s.context.fill( Path( ellipseIn: CGRect( x: 492, y: 249, width: 6, height: 6 ) ), with: .color( accentColor ) )
 
 		// The Mac running ESPDeck Bridge.
-		// A MacBook: thin-bezelled lid, and a flat base with the opening notch.
-		s.stroke( UnevenRoundedRectangle( topLeadingRadius: 6, topTrailingRadius: 6, style: .continuous ).path( in: CGRect( x: 452, y: 262, width: 86, height: 56 ) ) )
-		s.thin( UnevenRoundedRectangle( topLeadingRadius: 2, topTrailingRadius: 2, style: .continuous ).path( in: CGRect( x: 457, y: 267, width: 76, height: 46 ) ) )
-		s.stroke( box( 440, 318, 110, 7, 2.5 ) )
-		// The recess for opening the lid: square along the top, rounded at the bottom.
-		s.thin( UnevenRoundedRectangle( bottomLeadingRadius: 2.5, bottomTrailingRadius: 2.5, style: .continuous ).path( in: CGRect( x: 483, y: 318, width: 24, height: 3.5 ) ) )
-		s.label( "ESPDeck\nBridge", 495, 290 )
+		macBook( s.placed( at: CGPoint( x: 495, y: 262 ) ) )
 		s.label( "Mac", 495, 340 )
+	}
+
+	/// A MacBook running ESPDeck Bridge: thin-bezelled lid, and a flat base with the opening
+	/// notch. The origin is the top centre of the lid; the base spans x ±55 at y 56–63.
+	static func macBook( _ s: Sketch ) {
+		s.stroke( UnevenRoundedRectangle( topLeadingRadius: 6, topTrailingRadius: 6, style: .continuous ).path( in: CGRect( x: -43, y: 0, width: 86, height: 56 ) ) )
+		s.thin( UnevenRoundedRectangle( topLeadingRadius: 2, topTrailingRadius: 2, style: .continuous ).path( in: CGRect( x: -38, y: 5, width: 76, height: 46 ) ) )
+		s.stroke( box( -55, 56, 110, 7, 2.5 ) )
+		// The recess for opening the lid: square along the top, rounded at the bottom.
+		s.thin( UnevenRoundedRectangle( bottomLeadingRadius: 2.5, bottomTrailingRadius: 2.5, style: .continuous ).path( in: CGRect( x: -12, y: 56, width: 24, height: 3.5 ) ) )
+		s.label( "ESPDeck\nBridge", 0, 28 )
+	}
+
+	// MARK: USB Connection
+
+	/// The dev kit's USB port cabled to the side of a MacBook, in a 560 × 186 space.
+	static func usbConnection( _ s: inout Sketch ) {
+		// The Mac on the left, its USB-C port in the right end of the base at (macPort, portY).
+		let macScale: CGFloat = 1.35
+		let mac     = CGPoint( x: 136, y: 26 )
+		macBook( s.placed( at: mac, scale: macScale ) )
+		s.label( "Mac", mac.x, mac.y + 63 * macScale + 18 )
+		let macPort = mac.x + 55 * macScale
+		let portY   = mac.y + 59.5 * macScale
+		s.placed( at: CGPoint( x: macPort, y: portY ), scale: 0.8 ).usbCSocket()
+
+		// The dev kit on the right; its USB socket lands at (kitPort, kitY).
+		var kit = s.placed( at: CGPoint( x: 334, y: 28 ) )
+		devKit( &kit )
+		s.label( "ESP32-S3 dev kit", 436, 152 )
+		let kitPort: CGFloat = 334 + 16, kitY: CGFloat = 28 + 56
+
+		// The cable, seated at both ends.
+		let plugScale: CGFloat = 0.8
+		let macEnd = s.placed( at: CGPoint( x: macPort + 1.5, y: portY ), degrees: 180, scale: plugScale ).usbCPlug( seated: true )
+		let kitEnd = s.placed( at: CGPoint( x: kitPort - 2, y: kitY ), scale: plugScale ).usbCPlug( seated: true )
+		let from   = CGPoint( x: macPort + 1.5 - macEnd * plugScale, y: portY )
+		let to     = CGPoint( x: kitPort - 2 + kitEnd * plugScale, y: kitY )
+		var cable  = Path()
+		cable.move( to: from )
+		cable.addCurve( to: to, control1: CGPoint( x: from.x + 60, y: from.y ), control2: CGPoint( x: to.x - 60, y: to.y ) )
+		s.stroke( cable )
+		s.label( "USB-C cable\n(data, not charge-only)", ( from.x + to.x ) / 2, portY + 38 )
 	}
 }

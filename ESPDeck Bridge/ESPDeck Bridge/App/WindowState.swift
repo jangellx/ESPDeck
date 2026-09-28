@@ -28,6 +28,11 @@ final class WindowState {
 	var page        = Page.keys
 	var selectedKey = 0
 
+	/// Getting Started's sheet, and how the dev kit is being set up (nil until chosen: USB
+	/// where it's available). Here so USB Setup and the menus can open a sheet.
+	var guideSheet  = GuideSheet.parts
+	var guidePath   : GuidePath?
+
 	// Asked for by the menus, shown by the views (the same dialogs as their buttons).
 	var confirmingClearKey  = false
 	var confirmingForget    = false

@@ -25,6 +25,8 @@ final class USBSetup {
 		var vendorID  : Int?
 		var productID : Int?
 		var location  : Int?
+		/// The USB serial number; "" when there's none.
+		var serial    : String
 
 		var id: String { path }
 
@@ -38,6 +40,17 @@ final class USBSetup {
 			vendorID  = Int( fields[3] )
 			productID = Int( fields[4] )
 			location  = Int( fields[5] )
+			serial    = fields.count > 6 ? fields[6] : ""
+		}
+
+		/// The device ID of the board on this port, where the port gives it: the ESP32-S3's
+		/// own USB port has the chip's MAC address as its serial number ("7C:4F:AD:BB:D9:78"),
+		/// and ESPDeck's device ID is that MAC in lowercase. Serial chips have their own.
+		var deviceID: String? {
+			guard isEspressif else { return nil }
+			let parts = serial.split( separator: ":", omittingEmptySubsequences: false )
+			guard parts.count == 6, parts.allSatisfy( { $0.count == 2 && $0.allSatisfy( \.isHexDigit ) } ) else { return nil }
+			return serial.lowercased()
 		}
 
 		/// An ESP32's own USB port, or a USB-to-serial chip that dev boards use.
@@ -145,6 +158,14 @@ final class USBSetup {
 		case failed( String )
 	}
 
+	/// The board that joined a network, remembered after it's unplugged, to find it when
+	/// it connects to this bridge.
+	struct JoinedBoard: Equatable {
+		var path     : String
+		var deviceID : String?
+		var name     : String
+	}
+
 	@ObservationIgnored private weak var controller: DeckController?
 
 	private(set) var boards          : [Board] = []
@@ -156,6 +177,7 @@ final class USBSetup {
 	private(set) var findingNetworks = false
 	private(set) var wifi            = WiFi.idle
 	private(set) var rename          = Rename.idle
+	private(set) var joinedBoard     : JoinedBoard?
 
 	@ObservationIgnored private var watching           = false
 	@ObservationIgnored private var ports              : [Port] = []
@@ -169,6 +191,8 @@ final class USBSetup {
 	@ObservationIgnored private var queue              : Task<Void, Never>?
 	@ObservationIgnored private var inbox              : [Packet] = []
 	@ObservationIgnored private var session            = 0
+	/// Boards whose networks were looked for without being asked, by device ID or port.
+	@ObservationIgnored private var scannedBoards      : Set<String> = []
 
 	/// An Improv packet, or the port closing (`closed` set).
 	private struct Packet {
@@ -400,6 +424,7 @@ final class USBSetup {
 		installingLocation = location
 		wifi               = .idle
 		rename             = .idle
+		joinedBoard        = nil
 		install            = .preparing( "Getting the firmware…" )
 
 		Task {
@@ -516,6 +541,14 @@ final class USBSetup {
 		}
 	}
 
+	/// Looks for networks the first time a board that can be asked is showing, so the
+	/// Network menu is filled in by the time it's needed. Once per board while the app runs.
+	func findNetworksOnce() {
+		guard let board = selectedBoard, board.espDeck != nil, !findingNetworks else { return }
+		guard scannedBoards.insert( board.port.deviceID ?? board.port.path ).inserted else { return }
+		findNetworks()
+	}
+
 	func findNetworks() {
 		guard selectedBoard?.espDeck != nil, !findingNetworks else { return }
 		findingNetworks = true
@@ -536,7 +569,7 @@ final class USBSetup {
 
 	/// Sends the network and password, and waits for the board to join or give up.
 	func join( ssid: String, password: String ) {
-		guard selectedBoard?.espDeck != nil else { return }
+		guard let board = selectedBoard, let info = board.espDeck else { return }
 		let data: Data
 		switch Self.wifiSettings( ssid: ssid, password: password ) {
 			case .success( let settings ): data = settings
@@ -544,7 +577,8 @@ final class USBSetup {
 				wifi = .failed( problem.message )
 				return
 		}
-		wifi = .joining( ssid )
+		wifi        = .joining( ssid )
+		joinedBoard = nil
 		withSelectedBoard { [weak self] path in
 			guard let self else { return }
 			guard openPort( path ), send( Improv.sendWiFi, data: data ) else {
@@ -556,6 +590,10 @@ final class USBSetup {
 				if packet.type == Improv.typeResult && packet.value == Improv.sendWiFi { return true }
 				if packet.type == Improv.typeError && packet.value != 0 { return false }
 				return nil
+			}
+			if joined == true {
+				let name    = boards.first( where: { $0.port.path == path } )?.espDeck?.name ?? info.name
+				joinedBoard = JoinedBoard( path: path, deviceID: board.port.deviceID, name: name )
 			}
 			wifi = switch joined {
 				case true?:  .joined( ssid )
@@ -614,6 +652,7 @@ final class USBSetup {
 					info.name    = name
 					board.answer = .answered( info )
 				}
+				if joinedBoard?.path == path { joinedBoard?.name = name }
 				rename = .idle
 			} else if answer?.error == Improv.unknownCommand {
 				rename = .failed( "This firmware can't be renamed over USB. Install the current firmware, or rename the device in ESPDeck Bridge once it's connected." )
@@ -625,14 +664,25 @@ final class USBSetup {
 
 	// MARK: - After Wi-Fi
 
-	/// Where the board shows up once it's on the network, found by name: the sidebar item
-	/// to select, and whether it still needs pairing.
-	func arrival( named name: String ) -> ( selection: String, needsPairing: Bool )? {
+	/// Where the board that joined a network shows up once it has found this bridge: the
+	/// sidebar item to select, and whether it still needs pairing. Found by its device ID
+	/// where its USB port gave it, since a board renamed after it first connected can still
+	/// be listed under its old name; by name otherwise.
+	func arrival( of board: JoinedBoard ) -> ( selection: String, needsPairing: Bool )? {
 		guard let controller else { return nil }
-		if let new = controller.newDevices.first( where: { $0.hello.name == name } ) {
+		if let id = board.deviceID {
+			if let new = controller.newDevices.first( where: { $0.hello.id == id } ) {
+				return ( SidebarItem.newDevice( new.client ), true )
+			}
+			if let device = controller.device( id ), device.isOnline {
+				return ( device.id, false )
+			}
+			return nil
+		}
+		if let new = controller.newDevices.first( where: { $0.hello.name == board.name } ) {
 			return ( SidebarItem.newDevice( new.client ), true )
 		}
-		if let device = controller.devices.first( where: { $0.isOnline && controller.settings( $0.id )?.name == name } ) {
+		if let device = controller.devices.first( where: { $0.isOnline && controller.settings( $0.id )?.name == board.name } ) {
 			return ( device.id, false )
 		}
 		return nil

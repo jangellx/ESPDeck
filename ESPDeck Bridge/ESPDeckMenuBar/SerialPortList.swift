@@ -20,6 +20,8 @@ nonisolated struct SerialPortInfo: Equatable, Sendable {
 	/// Where the device is plugged in (locationID): the same socket keeps the same value
 	/// when a board restarts as a different USB device, e.g. into its ROM bootloader.
 	var location  : Int?
+	/// The USB serial number. On the ESP32-S3's own USB port, it's the chip's MAC address
+	/// ("7C:4F:AD:BB:D9:78"), which the app matches to the device's ID.
 	var serial    : String?
 
 	static let espressifVendorID = 0x303A
@@ -57,7 +59,7 @@ nonisolated struct SerialPortInfo: Equatable, Sendable {
 										  vendorID: ( property( service, "idVendor" ) as? NSNumber )?.intValue,
 										  productID: ( property( service, "idProduct" ) as? NSNumber )?.intValue,
 										  location: ( property( service, "locationID" ) as? NSNumber )?.intValue,
-										  serial: property( service, "USB Serial Number" ) as? String ) )
+										  serial: ( property( service, "USB Serial Number" ) ?? property( service, "kUSBSerialNumberString" ) ) as? String ) )
 		}
 		return ports.sorted { $0.path < $1.path }
 	}

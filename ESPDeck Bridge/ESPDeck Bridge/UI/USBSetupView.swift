@@ -39,8 +39,8 @@ struct USBSetupView: View {
 					wifiSection
 					nameSection( info )
 				}
-				if case .joined( let network ) = setup.wifi {
-					nextSection( network )
+				if case .joined( let network ) = setup.wifi, let joined = setup.joinedBoard {
+					nextSection( network, joined )
 				}
 			}
 		}
@@ -48,6 +48,8 @@ struct USBSetupView: View {
 		.navigationTitle( "USB Setup" )
 		.onAppear( perform: appeared )
 		.onChange( of: setup.selectedBoard?.espDeck?.name ) { nameDraft = setup.selectedBoard?.espDeck?.name ?? "" }
+		// A board that can be asked for networks, once it's showing.
+		.onChange( of: setup.selectedBoard?.espDeck != nil ? setup.selectedBoard?.id : nil ) { setup.findNetworksOnce() }
 		.onChange( of: setup.networks ) {
 			if ssid.isEmpty, let strongest = setup.networks.first { ssid = strongest.ssid }
 		}
@@ -67,6 +69,7 @@ struct USBSetupView: View {
 
 	private func appeared() {
 		nameDraft   = setup.selectedBoard?.espDeck?.name ?? ""
+		setup.findNetworksOnce()
 		let updates = controller.updates
 		let stale   = updates.lastCheck.map { Date().timeIntervalSince( $0 ) > Self.recheckAfter } ?? true
 		if updates.repository != nil && ( updates.latestFirmware == nil || stale ) {
@@ -78,10 +81,19 @@ struct USBSetupView: View {
 
 	private var scanningSection: some View {
 		Section {
-			Toggle( "Look for boards plugged in over USB", isOn: Binding( get: { setup.scanning }, set: { setup.scanning = $0 } ) )
+			// A switch, so the symbol in front of the text can't be taken for a checkbox.
+			Toggle( isOn: Binding( get: { setup.scanning }, set: { setup.scanning = $0 } ) ) {
+				Label {
+					Text( "Look for boards plugged in over USB" )
+				} icon: {
+					Image( systemName: "magnifyingglass.circle" )
+						.foregroundStyle( .tint )
+				}
+			}
+			.toggleStyle( .switch )
 		} footer: {
 			if setup.scanning {
-				Text( "When an ESP32 is plugged into its own USB port, ESPDeck Bridge briefly asks what it's running, then lets go of it. Other ports are left alone until you ask." )
+				Text( "When an ESP32 is plugged into this computer, ESPDeck Bridge briefly asks what it's running, then releases it." )
 			} else {
 				Text( "Scanning is off: ESPDeck Bridge doesn't watch or open USB ports. Turn it on to set up a board over USB." )
 			}
@@ -93,8 +105,14 @@ struct USBSetupView: View {
 	private var boardsSection: some View {
 		Section {
 			if setup.boards.isEmpty {
-				Label( "No board is plugged in.", systemImage: "cable.connector.slash" )
-					.foregroundStyle( .secondary )
+				VStack( spacing: 12 ) {
+					USBConnectionIllustration()
+						.frame( height: 130 )
+						.frame( maxWidth: .infinity )
+					Label( "No board is plugged in.", systemImage: "cable.connector.slash" )
+						.foregroundStyle( .secondary )
+				}
+				.padding( .vertical, 8 )
 			}
 			ForEach( setup.boards ) { board in
 				boardRow( board )
@@ -105,7 +123,7 @@ struct USBSetupView: View {
 			SectionHeader( "Board Info" )
 		} footer: {
 			Text( ( setup.boards.count > 1 ? "Click the board to set up. " : "" )
-				  + "Connect a USB data cable (not a charge-only one) to the board's port labeled USB. On some boards the second port, labeled COM or UART, doesn't power the board." )
+				  + "Connect a USB data cable (not a charge-only one) to the board's port labeled USB. On some boards the second port (labeled COM or UART) doesn't power the board." )
 		}
 		.disabled( setup.install.isBusy )
 	}
@@ -125,9 +143,12 @@ struct USBSetupView: View {
 				VStack( alignment: .leading, spacing: 3 ) {
 					Text( board.espDeck.map { "\($0.name)" } ?? board.port.title )
 					ForEach( details( board ), id: \.self ) { line in
-						Text( line )
-							.font( .caption )
-							.foregroundStyle( .secondary )
+						HStack( alignment: .firstTextBaseline, spacing: 6 ) {
+							Text( "•" )
+							Text( line )
+						}
+						.font( .callout )
+						.foregroundStyle( .primary )
 					}
 				}
 				.frame( maxWidth: .infinity, alignment: .leading )
@@ -178,22 +199,23 @@ struct USBSetupView: View {
 
 	private var firmwareSection: some View {
 		Section {
-			Picker( "Firmware", selection: Binding( get: { setup.source }, set: { setup.source = $0 } ) ) {
-				Text( controller.updates.latestFirmware.map { "Latest release (\($0.version.description))" } ?? "Latest release" )
-					.tag( USBSetup.Source.release )
-				if let chosenFile = setup.chosenFile {
-					Text( "\(chosenFile.url.lastPathComponent) (\(chosenFile.version))" )
-						.tag( USBSetup.Source.file( chosenFile.url ) )
+			LabeledContent( "Firmware" ) {
+				// The popup with its refresh button, and when releases were last looked for
+				// under it.
+				VStack( alignment: .leading, spacing: 4 ) {
+					HStack( spacing: 6 ) {
+						sourcePicker
+						if controller.updates.repository != nil {
+							refreshReleasesButton
+						}
+					}
+					if controller.updates.repository != nil {
+						releaseCheck
+					}
 				}
-			}
-			.disabled( setup.install.isBusy )
-			if setup.source == .release && controller.updates.repository != nil {
-				releaseCheck
 			}
 
 			HStack {
-				Button( "Choose File…" ) { pickingFile = true }
-					.disabled( setup.install.isBusy )
 				Spacer()
 				if setup.install.isBusy {
 					Button( "Stop", role: .cancel ) { setup.cancelInstall() }
@@ -212,14 +234,48 @@ struct USBSetupView: View {
 		} header: {
 			SectionHeader( "1. Install Firmware" )
 		} footer: {
-			Text( "Installing keeps the board's Wi-Fi settings, name, and pairing. Before writing anything, it checks that the board is an ESP32-S3 with enough flash and the PSRAM ESPDeck needs. If the board can't be switched to flashing mode by itself, hold BOOT, press and release RST, release BOOT, then click Install Firmware again." )
+			Text( "Installing keeps the board's Wi-Fi settings, name, and pairing. Before writing anything, it verifies that the board is an ESP32-S3 with enough flash and the PSRAM for ESPDeck. If the board can't enter flash mode by itself, hold BOOT, press and release RST, release BOOT, then click Install Firmware again." )
 		}
 	}
 
-	/// When releases were last looked for, and a way to look again.
-	private var releaseCheck: some View {
+	/// The latest release, a chosen file, and Choose File… at the end, which opens the
+	/// file picker (nil stands for it) and leaves the selection alone.
+	private var sourcePicker: some View {
+		Picker( "Firmware", selection: Binding<USBSetup.Source?>( get: { setup.source }, set: { source in
+			if let source {
+				setup.source = source
+			} else {
+				pickingFile = true
+			}
+		} ) ) {
+			Text( controller.updates.latestFirmware.map { "Latest release (\($0.version.description))" } ?? "Latest release" )
+				.tag( USBSetup.Source.release as USBSetup.Source? )
+			if let chosenFile = setup.chosenFile {
+				Text( "\(chosenFile.url.lastPathComponent) (\(chosenFile.version))" )
+					.tag( USBSetup.Source.file( chosenFile.url ) as USBSetup.Source? )
+			}
+			Divider()
+			Text( "Choose File…" )
+				.tag( nil as USBSetup.Source? )
+		}
+		.labelsHidden()
+		.fixedSize()
+		.disabled( setup.install.isBusy )
+	}
+
+	/// Looks for new releases; a spinner while it does.
+	private var refreshReleasesButton: some View {
 		let updates = controller.updates
-		return HStack {
+		return RefreshButton( busy: updates.checking, help: "Check for new releases" ) {
+			Task { await updates.check( userInitiated: true ) }
+		}
+		.disabled( setup.install.isBusy )
+	}
+
+	/// When releases were last looked for, under the popup.
+	@ViewBuilder private var releaseCheck: some View {
+		let updates = controller.updates
+		Group {
 			if updates.checking {
 				Text( "Checking for new releases…" )
 			} else if let error = updates.checkError {
@@ -228,11 +284,6 @@ struct USBSetupView: View {
 			} else if let date = updates.lastCheck {
 				Text( "Last checked \( date.formatted( .relative( presentation: .named ) ) )" )
 			}
-			Spacer()
-			Button( "Check Now" ) {
-				Task { await updates.check( userInitiated: true ) }
-			}
-			.disabled( updates.checking || setup.install.isBusy )
 		}
 		.font( .caption )
 		.foregroundStyle( .secondary )
@@ -284,20 +335,11 @@ struct USBSetupView: View {
 
 	private var wifiSection: some View {
 		Section {
-			Picker( "Network", selection: $ssid ) {
-				if setup.networks.isEmpty {
-					Text( setup.findingNetworks ? "Looking for networks…" : "Click Find Networks" ).tag( "" )
+			LabeledContent( "Network" ) {
+				HStack( spacing: 6 ) {
+					networkPicker
+					RefreshButton( busy: setup.findingNetworks, help: "Look for networks again" ) { setup.findNetworks() }
 				}
-				ForEach( setup.networks ) { network in
-					Label {
-						Text( network.ssid )
-					} icon: {
-						Image( systemName: network.secure ? "lock.fill" : "wifi" )
-					}
-					.tag( network.ssid )
-				}
-				Divider()
-				Text( "Other Network…" ).tag( Self.otherNetwork )
 			}
 			if ssid == Self.otherNetwork {
 				TextField( "Network Name", text: $otherSSID )
@@ -305,26 +347,27 @@ struct USBSetupView: View {
 			SecureField( "Password", text: $password )
 				.onSubmit( join )
 
+			// While joining, the button makes way for a spinner.
 			HStack {
-				Button( setup.findingNetworks ? "Looking…" : "Find Networks" ) { setup.findNetworks() }
-					.disabled( setup.findingNetworks )
-				Spacer()
-				Button( "Join Network" ) { join() }
-					.disabled( wifiProblem != nil || isJoining )
+				if isJoining {
+					ProgressView()
+						.controlSize( .small )
+					Text( "Joining…" )
+						.foregroundStyle( .secondary )
+				} else {
+					Button( "Join Network" ) { join() }
+						.disabled( wifiProblem != nil )
+				}
 			}
+			.frame( maxWidth: .infinity )
 			if let problem = wifiProblem, !joinSSID.isEmpty {
 				Text( problem )
 					.font( .caption )
 					.foregroundStyle( .secondary )
 			}
-			switch setup.wifi {
-				case .joining:
-					ProgressView( "Joining…" ).controlSize( .small )
-				case .failed( let message ):
-					Label( message, systemImage: "exclamationmark.triangle.fill" )
-						.foregroundStyle( .orange )
-				case .idle, .joined:
-					EmptyView()
+			if case .failed( let message ) = setup.wifi {
+				Label( message, systemImage: "exclamationmark.triangle.fill" )
+					.foregroundStyle( .orange )
 			}
 		} header: {
 			SectionHeader( "2. Set Up Wi-Fi" )
@@ -332,6 +375,26 @@ struct USBSetupView: View {
 			Text( "The board needs a 2.4 GHz network, the same one this Mac is on. It keeps the network once it has joined it." )
 		}
 		.disabled( setup.install.isBusy )
+	}
+
+	private var networkPicker: some View {
+		Picker( "Network", selection: $ssid ) {
+			if setup.networks.isEmpty {
+				Text( setup.findingNetworks ? "Looking for networks…" : "No networks found" ).tag( "" )
+			}
+			ForEach( setup.networks ) { network in
+				Label {
+					Text( network.ssid )
+				} icon: {
+					Image( systemName: network.secure ? "lock.fill" : "wifi" )
+				}
+				.tag( network.ssid )
+			}
+			Divider()
+			Text( "Other Network…" ).tag( Self.otherNetwork )
+		}
+		.labelsHidden()
+		.fixedSize()
 	}
 
 	private var joinSSID: String {
@@ -402,37 +465,87 @@ struct USBSetupView: View {
 
 	// MARK: - Next
 
-	private func nextSection( _ network: String ) -> some View {
+	private func nextSection( _ network: String, _ joined: USBSetup.JoinedBoard ) -> some View {
 		Section {
-			let name    = setup.selectedBoard?.espDeck?.name ?? "The device"
-			let arrival = setup.arrival( named: name )
-			Label( network.isEmpty ? "\(name) joined the network." : "\(name) joined “\(network)”.", systemImage: "checkmark.circle.fill" )
-				.foregroundStyle( .green )
-
-			if let arrival {
-				HStack {
-					Text( arrival.needsPairing ? "It found ESPDeck Bridge and is waiting to be paired." : "It's connected to ESPDeck Bridge." )
-					Spacer()
+			let arrival = setup.arrival( of: joined )
+			HStack {
+				// One row, so no divider comes between joining and finding the bridge.
+				VStack( alignment: .leading, spacing: 8 ) {
+					Label {
+						Text( network.isEmpty ? "\(joined.name) joined the network." : "\(joined.name) joined “\(network)”." )
+					} icon: {
+						Image( systemName: "checkmark.circle.fill" )
+							.foregroundStyle( .green )
+					}
+					if let arrival {
+						Label {
+							Text( arrival.needsPairing ? "It found ESPDeck Bridge and is waiting to be paired." : "It's connected to ESPDeck Bridge." )
+						} icon: {
+							Image( systemName: "checkmark.circle.fill" )
+								.foregroundStyle( .green )
+						}
+					} else {
+						Label( "Waiting for it to find ESPDeck Bridge…", systemImage: "antenna.radiowaves.left.and.right" )
+							.foregroundStyle( .secondary )
+					}
+				}
+				Spacer()
+				if let arrival {
 					Button( arrival.needsPairing ? "Pair It" : "Show It" ) { selection = arrival.selection }
 				}
-			} else {
-				Label( "Waiting for it to find ESPDeck Bridge…", systemImage: "antenna.radiowaves.left.and.right" )
-					.foregroundStyle( .secondary )
 			}
+			.padding( .vertical, 4 )
 		} header: {
 			SectionHeader( "4. Pair It with This Mac" )
 		} footer: {
-			Text( nextSteps )
+			// The link opens Getting Started's Putting It Together.
+			Text( LocalizedStringKey( nextSteps ) )
+				.environment( \.openURL, OpenURLAction { _ in
+					showAssembly()
+					return .handled
+				} )
 		}
 	}
 
-	/// Pairing needs a key press on the deck, and on the board's native USB port the Mac is
+	/// Pairing needs Confirm held on the deck, and on the board's native USB port the Mac is
 	/// where the deck would be.
 	private var nextSteps: String {
-		let pairing = "A new device appears under New Devices in the sidebar. Click Pair, check that the deck shows the same code, and press Confirm on the deck."
-		if setup.selectedBoard?.port.isEspressif == true {
-			return "It connects to ESPDeck Bridge over Wi-Fi within a few seconds. To use it, unplug it from this Mac, connect the Stream Deck to its USB port with the OTG adapter, and power it. \(pairing)"
+		let pairing = "It then appears under New Devices in the sidebar: click Pair, check that the deck shows the same code, and hold Confirm on the deck."
+		let guide   = "[Putting It Together](espdeck:assembly)"
+		if setup.selectedBoard?.port.isEspressif != false {
+			return "The device connects to ESPDeck Bridge over Wi-Fi within a few seconds. Pairing needs the Stream Deck, so unplug the board from this Mac and connect it to the deck and power, as in \(guide). \(pairing)"
 		}
-		return "It connects to ESPDeck Bridge over Wi-Fi within a few seconds. \(pairing)"
+		return "The device connects to ESPDeck Bridge over Wi-Fi within a few seconds. \(pairing) The deck needs to be connected; see \(guide)."
+	}
+
+	/// Getting Started's Putting It Together sheet, on the USB path.
+	private func showAssembly() {
+		controller.window.guidePath  = .usb
+		controller.window.guideSheet = .assembly
+		selection                    = SidebarItem.parts
+	}
+}
+
+/// The circular arrow that looks again, replaced by a spinner of the same size while looking.
+private struct RefreshButton: View {
+	let busy   : Bool
+	let help   : String
+	let action : () -> Void
+
+	var body: some View {
+		ZStack {
+			if busy {
+				ProgressView()
+					.controlSize( .small )
+			} else {
+				Button( action: action ) {
+					Image( systemName: "arrow.clockwise" )
+				}
+				.buttonStyle( .borderless )
+				.help( help )
+				.accessibilityLabel( help )
+			}
+		}
+		.frame( width: 18, height: 18 )
 	}
 }
