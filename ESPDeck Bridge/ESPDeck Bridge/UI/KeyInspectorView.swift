@@ -40,7 +40,15 @@ struct KeyInspectorView: View {
 					LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 				}
 			} header: {
-				SectionHeader( "Key \(key + 1)" )
+				let cols = max( controller.layout( deviceID ).cols, 1 )
+				HStack( alignment: .firstTextBaseline ) {
+					SectionHeader( "Key \(key + 1)" )
+					Spacer()
+					Text( "Row \(key / cols + 1), Column \(key % cols + 1)" )
+						.font( .subheadline )
+						.foregroundStyle( Color.secondary )   // not .secondary: see SectionHeader
+						.textCase( nil )
+				}
 			} footer: {
 				// In the footer, so the button sits right under the section it tests.
 				VStack( alignment: .leading, spacing: 10 ) {
