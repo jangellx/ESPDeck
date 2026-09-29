@@ -44,6 +44,8 @@ final class DeckDevice: Identifiable {
 	@ObservationIgnored var lastAddress  : String?
 	/// For automatic firmware updates, which wait for an idle deck.
 	@ObservationIgnored var lastKeyActivity = Date.distantPast
+	/// Keys whose press was part of a two-key hold: the device's report of it is ignored.
+	@ObservationIgnored var suppressedPresses: Set<Int> = []
 	/// The repeatKeys message last sent, so it's only sent when it changes.
 	@ObservationIgnored var sentRepeatKeys: HostMessage?
 

@@ -271,6 +271,9 @@ static cJSON *statusJSON() {
 	cJSON_AddBoolToObject( object, "devOTA", settings.hasOTAPassword() );
 	cJSON_AddStringToObject( object, "storage", SecureNVS::stateName() );
 	cJSON_AddStringToObject( object, "hostname", settings.hostname() );
+	// Reports keyTap, keyDoubleTap and keyHold (keyModes), so the Mac acts on those rather
+	// than on keyUp.
+	cJSON_AddBoolToObject( object, "presses", true );
 
 	// The network it's set up for, only inside the session: an unpaired device sends its
 	// hello to whichever bridge it finds. So the first hello goes without it, and a status

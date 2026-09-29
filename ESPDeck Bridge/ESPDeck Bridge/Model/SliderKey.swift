@@ -77,8 +77,13 @@ struct SliderKey: Codable, Equatable {
 	/// Keys one above the other: labels on the edges facing each other (the upper key's at its
 	/// bottom, the lower's at its top), rather than where the deck puts every label.
 	var labelsFacing = true
+	/// A double tap goes all the way (100% on the raising key, 0% on the other). Off by
+	/// default: tapping quickly to step would trigger it.
+	var doubleTapToEnd = false
 
-	init( level: SliderLevel, raises: Bool, partner: Int, step: Double = SliderLevel.defaultStep, style: SliderStyle = .chevron, labelsFacing: Bool = true ) {
+	init( level: SliderLevel, raises: Bool, partner: Int, step: Double = SliderLevel.defaultStep, style: SliderStyle = .chevron, labelsFacing: Bool = true,
+		  doubleTapToEnd: Bool = false ) {
+		self.doubleTapToEnd = doubleTapToEnd
 		self.level        = level
 		self.raises       = raises
 		self.partner      = partner
@@ -97,5 +102,6 @@ struct SliderKey: Codable, Equatable {
 		step         = container.lenient( Double.self, forKey: .step ) ?? SliderLevel.defaultStep
 		style        = container.lenient( SliderStyle.self, forKey: .style ) ?? .chevron
 		labelsFacing = container.lenient( Bool.self, forKey: .labelsFacing ) ?? true
+		doubleTapToEnd = container.lenient( Bool.self, forKey: .doubleTapToEnd ) ?? false
 	}
 }

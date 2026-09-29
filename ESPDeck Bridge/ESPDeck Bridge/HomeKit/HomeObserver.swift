@@ -351,8 +351,9 @@ final class HomeObserver: NSObject {
 	/// One step of a slider key. The new level shows at once; the writes are coalesced, so
 	/// while one is on its way the next press just moves the goal, and only the latest goal is
 	/// written after it. Raising a level that's off also turns it on. Returns the new level.
+	/// `toEnd`: all the way, to the top (raising key) or the bottom.
 	@discardableResult
-	func adjust( _ assignment: KeyAssignment ) -> Double? {
+	func adjust( _ assignment: KeyAssignment, toEnd: Bool = false ) -> Double? {
 		guard let slider = assignment.slider, let ref = assignment.sliderRef, let kind = assignment.kind,
 			  let accessory = accessory( ref.accessoryID ),
 			  let characteristic = Self.characteristic( ref.characteristicType, serviceID: ref.serviceID, in: accessory ) else { return nil }
@@ -361,7 +362,7 @@ final class HomeObserver: NSObject {
 		let low      = metadata?.minimumValue?.doubleValue ?? 0
 		let high     = metadata?.maximumValue?.doubleValue ?? 100
 		let base     = level( ref ) ?? ( characteristic.value as? NSNumber )?.doubleValue ?? low
-		var goal     = min( max( base + ( slider.raises ? slider.step : -slider.step ), low ), high )
+		var goal     = toEnd ? ( slider.raises ? high : low ) : min( max( base + ( slider.raises ? slider.step : -slider.step ), low ), high )
 		if let step = metadata?.stepValue?.doubleValue, step > 0 {
 			goal = min( max( ( goal / step ).rounded() * step, low ), high )
 		}

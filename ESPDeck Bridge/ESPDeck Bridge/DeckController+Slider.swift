@@ -46,9 +46,12 @@ extension DeckController {
 
 		let step = keys[key].slider?.step ?? SliderLevel.defaultStep
 		let facing = keys[key].slider?.labelsFacing ?? true
-		keys[key].slider = SliderKey( level: level, raises: !partnerRaises, partner: partner, step: step, style: keys[key].slider?.style ?? style, labelsFacing: facing )
+		let toEnd  = keys[key].slider?.doubleTapToEnd ?? false
+		keys[key].slider = SliderKey( level: level, raises: !partnerRaises, partner: partner, step: step, style: keys[key].slider?.style ?? style,
+									  labelsFacing: facing, doubleTapToEnd: toEnd )
 		var other        = KeyAssignment()
-		other.slider     = SliderKey( level: level, raises: partnerRaises, partner: key, step: step, style: keys[key].slider?.style ?? style, labelsFacing: facing )
+		other.slider     = SliderKey( level: level, raises: partnerRaises, partner: key, step: step, style: keys[key].slider?.style ?? style,
+									  labelsFacing: facing, doubleTapToEnd: toEnd )
 		copyTarget( from: keys[key], to: &other )
 		keys[partner]    = other
 
@@ -118,7 +121,8 @@ extension DeckController {
 			var other = keys[slider.partner]
 			copyTarget( from: keys[key], to: &other )
 			other.slider = SliderKey( level: slider.level, raises: other.slider.map { $0.partner == key ? $0.raises : !slider.raises } ?? !slider.raises,
-									  partner: key, step: slider.step, style: slider.style, labelsFacing: slider.labelsFacing )
+									  partner: key, step: slider.step, style: slider.style, labelsFacing: slider.labelsFacing,
+									  doubleTapToEnd: slider.doubleTapToEnd )
 			keys[slider.partner] = other
 		}
 		config.settings.devices[index].keys = keys
@@ -344,12 +348,22 @@ extension DeckController {
 		device.firmware.flatMap( Version.init ).map { $0 >= Self.deviceRepeatFirmware } ?? false
 	}
 
-	/// Tells the device which keys on the page it shows repeat, and how; only when that changed.
+	/// Tells the device how the keys on the page it shows report presses (which repeat, which
+	/// have a double tap or a hold) and the timings; only when that changed.
 	func sendRepeatKeys( device id: String ) {
 		guard let device = device( id ), device.isOnline, repeatsOnDevice( device ), let settings = settings( id ) else { return }
-		let keys    = settings.keys.indices.filter { settings.keys[$0].slider != nil }
-		let message = HostMessage.repeatKeys( keys: keys, delay: Int( settings.repeatDelay * 1000 ),
-											  interval: Int( 1000 / max( settings.repeatRate, 1 ) ) )
+		let keys    = settings.keys
+		let message: HostMessage
+		if device.status.presses == true {
+			message = .keyModes( repeat: keys.indices.filter { keys[$0].slider != nil },
+								 doubleTap: keys.indices.filter { keys[$0].slider.map( \.doubleTapToEnd ) ?? ( keys[$0].doubleTap != nil ) },
+								 hold: keys.indices.filter { keys[$0].slider == nil && keys[$0].hold != nil },
+								 delay: Int( settings.repeatDelay * 1000 ), interval: Int( 1000 / max( settings.repeatRate, 1 ) ),
+								 doubleTapWindow: Int( settings.doubleTapWindow * 1000 ), holdTime: Int( settings.holdTime * 1000 ) )
+		} else {
+			message = .repeatKeys( keys: keys.indices.filter { keys[$0].slider != nil }, delay: Int( settings.repeatDelay * 1000 ),
+								   interval: Int( 1000 / max( settings.repeatRate, 1 ) ) )
+		}
 		guard device.sentRepeatKeys != message else { return }
 		device.sentRepeatKeys = message
 		send( message, to: id )

@@ -60,6 +60,9 @@ struct DeviceReportedSettings: Codable, Equatable {
 struct DeviceStatus: Codable, Equatable {
 	var asleep    = false
 	var setupMode = false
+	/// Reports keyTap, keyDoubleTap and keyHold (firmware with keyModes); nil before, when
+	/// the Mac acts on keyUp.
+	var presses   : Bool?
 	/// Uploads from PlatformIO are allowed (firmware 3.2.0 and later; nil before).
 	var devOTA    : Bool?
 	/// How NVS (Wi-Fi password, pairing key, …) is stored: "plain", "encrypted", or
@@ -135,6 +138,8 @@ enum DeviceMessage {
 	case keyUp( Int )
 	/// A held Level key, again (firmware 4.1.0 and later; see HostMessage.repeatKeys).
 	case keyRepeat( Int )
+	/// What kind of press it was, judged on the device (see HostMessage.keyModes).
+	case keyPress( Int, PressKind )
 	/// A key now shows this image on the deck (uploaded, or it already did).
 	case shown( key: Int, hash: String )
 	case auth( proof: Data )
@@ -241,6 +246,9 @@ enum DeviceMessage {
 			case "keyRepeat":
 				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
 				self = .keyRepeat( key )
+			case "keyTap", "keyDoubleTap", "keyHold":
+				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
+				self = .keyPress( key, envelope.type == "keyTap" ? .tap : envelope.type == "keyDoubleTap" ? .doubleTap : .hold )
 			case "shown":
 				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ), let hash = envelope.hash else { return nil }
 				self = .shown( key: key, hash: hash )
@@ -306,8 +314,11 @@ enum HostMessage: Encodable, Equatable {
 	case setupMode( Bool )
 	/// Its name on the network; "" for the default. It restarts to use it. Firmware 4.1.0 and later.
 	case setHostname( String )
-	/// Which keys repeat while held, and how (milliseconds). Firmware 4.1.0 and later.
+	/// Which keys repeat while held, and how (milliseconds). Firmware 4.1.0 before keyModes.
 	case repeatKeys( keys: [Int], delay: Int, interval: Int )
+	/// How keys report presses: which repeat, which have a double tap or a hold, and the
+	/// timings (milliseconds). Firmware that reports presses (DeviceStatus.presses).
+	case keyModes( repeat: [Int], doubleTap: [Int], hold: [Int], delay: Int, interval: Int, doubleTapWindow: Int, holdTime: Int )
 	case unpair
 	case factoryReset
 	/// Burns the chip's eFuse key and encrypts NVS with it (firmware 4.1.0 and later). Permanent.
@@ -326,6 +337,7 @@ enum HostMessage: Encodable, Equatable {
 
 	private enum CodingKeys: String, CodingKey {
 		case type, key, keys, hash, value, name, seconds, enabled, delay, interval, hostname
+		case `repeat`, doubleTap, hold, doubleTapWindow, holdTime
 		case version, size, sha256, allowDowngrade, nonce, proof, bridgeID, bridgeName, publicKey, passwordHash, sealedHash
 	}
 
@@ -358,6 +370,15 @@ enum HostMessage: Encodable, Equatable {
 			case .setHostname( let hostname ):
 				try container.encode( "setHostname", forKey: .type )
 				try container.encode( hostname, forKey: .hostname )
+			case .keyModes( let keys, let doubleTap, let hold, let delay, let interval, let window, let holdTime ):
+				try container.encode( "keyModes", forKey: .type )
+				try container.encode( keys, forKey: .repeat )
+				try container.encode( doubleTap, forKey: .doubleTap )
+				try container.encode( hold, forKey: .hold )
+				try container.encode( delay, forKey: .delay )
+				try container.encode( interval, forKey: .interval )
+				try container.encode( window, forKey: .doubleTapWindow )
+				try container.encode( holdTime, forKey: .holdTime )
 			case .repeatKeys( let keys, let delay, let interval ):
 				try container.encode( "repeatKeys", forKey: .type )
 				try container.encode( keys, forKey: .keys )

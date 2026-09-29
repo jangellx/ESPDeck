@@ -143,6 +143,13 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	/// Holding a slider key: how long before it starts repeating, and how often it repeats.
 	var repeatDelay   = DeviceSettings.defaultRepeatDelay    // seconds
 	var repeatRate    = DeviceSettings.defaultRepeatRate     // per second
+	/// How quickly a second tap has to follow for a double tap, and how long a hold is.
+	var doubleTapWindow = DeviceSettings.defaultDoubleTapWindow   // seconds
+	var holdTime        = DeviceSettings.defaultHoldTime          // seconds
+	static let defaultDoubleTapWindow = 0.3
+	static let defaultHoldTime        = 0.5
+	static let doubleTapWindowRange   = 0.15...1.0
+	static let holdTimeRange          = 0.2...3.0
 	static let defaultRepeatDelay = 0.5
 	static let defaultRepeatRate  = 6.0
 	static let repeatDelayRange   = 0.2...1.5
@@ -186,6 +193,8 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		labelPosition = container.lenient( LabelPosition.self, forKey: .labelPosition ) ?? .bottom
 		repeatDelay   = container.lenient( Double.self, forKey: .repeatDelay ) ?? Self.defaultRepeatDelay
 		repeatRate    = container.lenient( Double.self, forKey: .repeatRate ) ?? Self.defaultRepeatRate
+		doubleTapWindow = container.lenient( Double.self, forKey: .doubleTapWindow ) ?? Self.defaultDoubleTapWindow
+		holdTime      = container.lenient( Double.self, forKey: .holdTime ) ?? Self.defaultHoldTime
 		sleepTriggers = container.lenientArray( of: SleepTrigger.self, forKey: .sleepTriggers ) ?? []
 		onSleep       = container.lenient( KeyAssignment.self, forKey: .onSleep ) ?? KeyAssignment()
 		onWake        = container.lenient( KeyAssignment.self, forKey: .onWake ) ?? KeyAssignment()
@@ -226,7 +235,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 
 	private enum CodingKeys: String, CodingKey {
 		case id, name, isDemo, pages, gridColumns, currentPage, layout, brightness, orientation, sleepTimeout, devOTA, labelPosition
-		case repeatDelay, repeatRate, sleepTriggers, onSleep, onWake
+		case repeatDelay, repeatRate, doubleTapWindow, holdTime, sleepTriggers, onSleep, onWake
 		case keys   // before pages
 	}
 
@@ -246,6 +255,8 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		try container.encode( labelPosition, forKey: .labelPosition )
 		try container.encode( repeatDelay, forKey: .repeatDelay )
 		try container.encode( repeatRate, forKey: .repeatRate )
+		try container.encode( doubleTapWindow, forKey: .doubleTapWindow )
+		try container.encode( holdTime, forKey: .holdTime )
 		try container.encode( sleepTriggers, forKey: .sleepTriggers )
 		try container.encode( onSleep, forKey: .onSleep )
 		try container.encode( onWake, forKey: .onWake )

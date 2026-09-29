@@ -40,6 +40,17 @@ struct KeyAssignment: Codable, Equatable {
 	var slider          : SliderKey?
 	/// Go to Page: the page, from 1.
 	var pageNumber      : Int?
+	/// What a double tap and a hold do, besides the tap (this assignment); nil for nothing.
+	var doubleTap       : PressAction?
+	var hold            : PressAction?
+
+	func press( _ kind: PressKind ) -> PressAction? {
+		switch kind {
+			case .tap:       PressAction( self )
+			case .doubleTap: doubleTap
+			case .hold:      hold
+		}
+	}
 
 	var isToggleShortcut: Bool { kind == .shortcut && shortcutToggles == true }
 
@@ -108,6 +119,8 @@ extension KeyAssignment {
 		backgroundColor = container.lenient( String.self, forKey: .backgroundColor )
 		slider          = container.lenient( SliderKey.self, forKey: .slider )
 		pageNumber      = container.lenient( Int.self, forKey: .pageNumber )
+		doubleTap       = container.lenient( PressAction.self, forKey: .doubleTap )
+		hold            = container.lenient( PressAction.self, forKey: .hold )
 	}
 }
 

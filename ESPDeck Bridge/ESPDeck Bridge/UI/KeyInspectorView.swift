@@ -16,19 +16,55 @@ struct KeyInspectorView: View {
 
 	/// Slider chosen for this key, before its other key is picked.
 	@State private var choosingPartner = false
+	/// Which press the picker and the action section edit.
+	@State private var pressKind = PressKind.tap
+
+	/// What the selected press does: the key itself for a tap, else its double tap or hold.
+	private var editing: KeyAssignment {
+		pressKind == .tap ? assignment : assignment.press( pressKind )?.assignment ?? KeyAssignment()
+	}
+
+	/// Changes what the selected press does.
+	private func edit( _ change: ( inout KeyAssignment ) -> Void ) {
+		let kind = pressKind
+		controller.update( device: deviceID, key: key ) { assignment in
+			guard kind != .tap else { return change( &assignment ) }
+			var press = assignment.press( kind )?.assignment ?? KeyAssignment()
+			change( &press )
+			if kind == .doubleTap { assignment.doubleTap = PressAction( press ) } else { assignment.hold = PressAction( press ) }
+		}
+	}
 
 	var body: some View {
 		Form {
 			Section {
-				TargetPicker( controller: controller, assignment: assignment, modes: TargetMode.allCases,
-							  edit: { change in controller.update( device: deviceID, key: key, change ) },
-							  modeRequest: modeRequest ) { target in
-					controller.update( device: deviceID, key: key ) { $0.bind( to: target ) }
+				// Like a Home app button: each kind of press can do its own thing. Level keys
+				// repeat when held; their double tap is a switch in the Level section.
+				if !isSlider {
+					Picker( "Press", selection: $pressKind ) {
+						ForEach( PressKind.allCases ) { kind in
+							let set = kind != .tap && assignment.press( kind ) != nil
+							Text( set && pressKind != kind ? "\(kind.rawValue) •" : kind.rawValue ).tag( kind )
+						}
+					}
+					.pickerStyle( .segmented )
+					.labelsHidden()
+					if pressKind != .tap && controller.device( deviceID )?.status.presses != true {
+						Text( "Double taps and holds need the latest firmware (4.1.0 from today or later) on the device." )
+							.font( .caption )
+							.foregroundStyle( Color.secondary )
+					}
 				}
-				.id( "\(deviceID)/\(key)" )   // fresh mode and search for each key
 
-				if let kind = assignment.kind {
-					if kind == .shortcut {
+				TargetPicker( controller: controller, assignment: editing, modes: TargetMode.allCases,
+							  edit: { change in edit( change ) },
+							  modeRequest: modeRequest ) { target in
+					edit { $0.bind( to: target ) }
+				}
+				.id( "\(deviceID)/\(key)/\(pressKind.rawValue)" )   // fresh mode and search for each key and press
+
+				if let kind = editing.kind {
+					if kind == .shortcut && pressKind == .tap {
 						Picker( "Type", selection: shortcutTogglesBinding ) {
 							Text( "One-Shot" ).tag( false )
 							Text( "On/Off" ).tag( true )
@@ -36,7 +72,7 @@ struct KeyInspectorView: View {
 						.pickerStyle( .segmented )
 					}
 					// Lights and fans with a level: switch them, or step the level with two keys.
-					if !levels.isEmpty {
+					if !levels.isEmpty && pressKind == .tap {
 						Picker( "Type", selection: sliderTypeBinding ) {
 							Text( "Toggle" ).tag( false )
 							Text( "Level" ).tag( true )
@@ -44,14 +80,14 @@ struct KeyInspectorView: View {
 						.pickerStyle( .segmented )
 					}
 					// The command is chosen above; Go to Page needs its page.
-					if kind == .page && assignment.action == .goToPage {
+					if kind == .page && editing.action == .goToPage {
 						let pageCount = controller.pageCount( device: deviceID )
 						Stepper( value: Binding {
-							min( max( assignment.pageNumber ?? 1, 1 ), max( pageCount, 1 ) )
+							min( max( editing.pageNumber ?? 1, 1 ), max( pageCount, 1 ) )
 						} set: { page in
-							controller.update( device: deviceID, key: key ) { $0.pageNumber = page }
+							edit { $0.pageNumber = page }
 						}, in: 1...max( pageCount, 1 ) ) {
-							LabeledContent( "Page", value: "\(min( assignment.pageNumber ?? 1, max( pageCount, 1 ) )) of \(pageCount)" )
+							LabeledContent( "Page", value: "\(min( editing.pageNumber ?? 1, max( pageCount, 1 ) )) of \(pageCount)" )
 						}
 					}
 				}
@@ -68,17 +104,17 @@ struct KeyInspectorView: View {
 			}
 
 			// What a press does: Toggle (or the kind's actions), or Level's two keys.
-			if let kind = assignment.kind, kind != .page {
-				if isSlider {
+			if let kind = editing.kind, kind != .page {
+				if isSlider && pressKind == .tap {
 					SliderSection( controller: controller, deviceID: deviceID, key: key, levels: levels )
 				} else {
 					Section {
 						onPressMenu
 						stateRow
 					} header: {
-						SectionHeader( levels.isEmpty ? "Action" : "Toggle" )
+						SectionHeader( pressKind != .tap ? pressKind.rawValue : levels.isEmpty ? "Action" : "Toggle" )
 					} footer: {
-						if assignment.isToggleShortcut {
+						if editing.isToggleShortcut {
 							Text( "Each press runs the shortcut with \u{201C}on\u{201D} or \u{201C}off\u{201D} as its Shortcut Input: the state the key is switching to. If the shortcut ends with Stop and Output of \u{201C}on\u{201D} or \u{201C}off\u{201D}, the key shows that state instead." )
 						}
 					}
@@ -87,8 +123,14 @@ struct KeyInspectorView: View {
 
 			PillRow {
 				Pill {
-					Button( "Test Action" ) { controller.press( device: deviceID, key: key ) }
-						.disabled( assignment.kind == nil || ( assignment.action == .none && assignment.slider == nil ) )
+					Button( "Test Action" ) {
+						if pressKind == .tap {
+							controller.press( device: deviceID, key: key )
+						} else {
+							controller.perform( editing, context: "Key \(key + 1) (\(pressKind.rawValue.lowercased()))", device: deviceID )
+						}
+					}
+					.disabled( editing.kind == nil || ( editing.action == .none && editing.slider == nil ) )
 				}
 			}
 
@@ -164,7 +206,7 @@ struct KeyInspectorView: View {
 				Text( "This removes the key's accessory, action, label, background color, and icons." )
 			}
 		}
-		.onChange( of: key ) { choosingPartner = false }
+		.onChange( of: key ) { choosingPartner = false; pressKind = .tap }
 		.onChange( of: assignment.slider != nil ) { if assignment.slider != nil { choosingPartner = false } }
 	}
 
@@ -178,12 +220,12 @@ struct KeyInspectorView: View {
 	/// shortcut's actions then a light's) kept showing the old choice. This label is always
 	/// the key's current action.
 	private var onPressMenu: some View {
-		let current = assignment
+		let current = editing
 		return LabeledContent( "On Press" ) {
 			Menu {
 				ForEach( current.actions ) { action in
 					Button {
-						controller.update( device: deviceID, key: key ) { $0.action = action }
+						edit { $0.action = action }
 					} label: {
 						if action == current.action {
 							Label( action.title, systemImage: "checkmark" )

@@ -210,10 +210,36 @@ struct DeviceSettingsView: View {
 							.frame( width: 44, alignment: .trailing )
 					}
 				}
+				LabeledContent( "Double-Tap Speed" ) {
+					HStack {
+						Slider( value: Binding {
+							settings.doubleTapWindow
+						} set: { window in
+							controller.updateSettings( device: deviceID ) { $0.doubleTapWindow = ( window * 20 ).rounded() / 20 }
+						}, in: DeviceSettings.doubleTapWindowRange, step: 0.05 )
+						.frame( maxWidth: 200 )
+						Text( settings.doubleTapWindow.formatted( .number.precision( .fractionLength( 2 ) ) ) + " s" )
+							.monospacedDigit()
+							.frame( width: 44, alignment: .trailing )
+					}
+				}
+				LabeledContent( "Hold Time" ) {
+					HStack {
+						Slider( value: Binding {
+							settings.holdTime
+						} set: { time in
+							controller.updateSettings( device: deviceID ) { $0.holdTime = ( time * 10 ).rounded() / 10 }
+						}, in: DeviceSettings.holdTimeRange, step: 0.1 )
+						.frame( maxWidth: 200 )
+						Text( settings.holdTime.formatted( .number.precision( .fractionLength( 1 ) ) ) + " s" )
+							.monospacedDigit()
+							.frame( width: 44, alignment: .trailing )
+					}
+				}
 			} header: {
-				SectionHeader( "Slider Keys" )
+				SectionHeader( "Key Presses" )
 			} footer: {
-				Text( "Holding a slider key (Keys page ▸ Type ▸ Slider) steps it again and again: after the delay, this many steps a second." )
+				Text( "Holding a Level key steps it again and again: after the repeat delay, this many steps a second. A second tap within the double-tap time is a double tap, and a key held for the hold time is a hold, for keys with a double tap or hold (Keys page). Keys without one act as soon as they're released." )
 			}
 
 			ForEach( settings.sleepTriggers ) { trigger in

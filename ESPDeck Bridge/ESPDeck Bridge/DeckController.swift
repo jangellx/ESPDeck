@@ -864,10 +864,16 @@ final class DeckController {
 					stopSliders( device: id )
 				}
 				device.pressed.insert( key )
+				device.suppressedPresses.remove( key )   // a fresh press
 				// Slider keys act on press, and repeat while held.
 				if !device.chord && assignment( id, key: key ).slider != nil {
 					startSlider( device: id, key: key, repeatHere: !repeatsOnDevice( device ) )
 				}
+
+			case .keyPress( let key, let kind ):
+				// A hold arrives while the key is down: ignored if another key is down too.
+				if device.suppressedPresses.remove( key ) != nil || ( kind == .hold && device.chord ) { break }
+				performPress( device: id, key: key, kind: kind )
 
 			case .keyRepeat( let key ):
 				// The device repeats a held Level key itself (firmware 4.1.0 and later).
@@ -881,6 +887,10 @@ final class DeckController {
 				let wasPressed = device.pressed.remove( key ) != nil
 				if assignment( id, key: key ).slider != nil {
 					stopSlider( device: id, key: key )
+				} else if device.status.presses == true {
+					// The device reports what kind of press it was (keyPress); not if it was
+					// part of a two-key hold.
+					if !wasPressed || device.chord { device.suppressedPresses.insert( key ) }
 				} else if wasPressed && !device.chord {
 					press( device: id, key: key )
 				}
@@ -957,6 +967,26 @@ final class DeckController {
 	}
 
 	// MARK: - Actions
+
+	/// A tap, double tap or hold, as the device judged it. Level keys act on keyDown and
+	/// keyRepeat; their double tap can go all the way.
+	func performPress( device id: String, key: Int, kind: PressKind ) {
+		let assignment = assignment( id, key: key )
+		if let slider = assignment.slider {
+			if kind == .doubleTap && slider.doubleTapToEnd, let level = home.adjust( assignment, toEnd: true ) {
+				logEvent( "Key \(key + 1) double-tapped: \(slider.level.title) \(Int( level.rounded() ))%", device: id )
+			}
+			return
+		}
+		switch kind {
+			case .tap:
+				press( device: id, key: key )
+			case .doubleTap, .hold:
+				if let action = assignment.press( kind ) {
+					perform( action.assignment, context: "Key \(key + 1) \(kind == .hold ? "held" : "double-tapped")", device: id )
+				}
+		}
+	}
 
 	/// Performs a key's action; also used by the configuration UI's Test button.
 	func press( device id: String, key: Int ) {

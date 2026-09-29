@@ -82,6 +82,12 @@ struct TrafficEntry: Identifiable {
 			case "sleepTimeout":
 				guard let seconds = object["seconds"] as? Int else { return "Sleep timer set" }
 				return seconds == 0 ? "Sleep timer turned off" : "Sleep timer set to \(duration( seconds ))"
+			case "keyModes":
+				func list( _ name: String ) -> String {
+					let keys = ( object[name] as? [Int] ) ?? []
+					return keys.isEmpty ? "none" : keys.map { String( $0 + 1 ) }.joined( separator: ", " )
+				}
+				return "Key presses: repeat \(list( "repeat" )); double tap \(list( "doubleTap" )); hold \(list( "hold" ))"
 			case "repeatKeys":
 				let keys = ( object["keys"] as? [Int] ) ?? []
 				return keys.isEmpty ? "No keys repeat when held" : "Keys that repeat when held: \(keys.map { String( $0 + 1 ) }.joined( separator: ", " ))"
@@ -168,6 +174,9 @@ struct TrafficEntry: Identifiable {
 			case "keyDown":        return "\(key( object ).capitalizedFirst) pressed"
 			case "keyUp":          return "\(key( object ).capitalizedFirst) released"
 			case "keyRepeat":      return "\(key( object ).capitalizedFirst) held: repeat"
+			case "keyTap":         return "\(key( object ).capitalizedFirst) tapped"
+			case "keyDoubleTap":   return "\(key( object ).capitalizedFirst) double-tapped"
+			case "keyHold":        return "\(key( object ).capitalizedFirst) held"
 			default:               return "Received \(plain( type ))"
 		}
 	}
