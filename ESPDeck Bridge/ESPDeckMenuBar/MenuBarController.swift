@@ -133,9 +133,10 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 		for ( index, line ) in statusLines.enumerated() {
 			let item = NSMenuItem( title: line, action: nil, keyEquivalent: "" )
-			// Disabled, so it can't be chosen or highlighted, but in the normal text colour:
-			// AppKit doesn't grey an attributed title.
-			item.isEnabled       = false
+			// Enabled, so it isn't drawn dimmed (macOS 27 dims a disabled item whatever its
+			// colours); choosing it opens the configuration window, where the same status is.
+			item.action          = #selector( openConfiguration )
+			item.target          = self
 			item.attributedTitle = Self.title( line, icon: Self.statusImage( level: index < statusLevels.count ? statusLevels[index] : 0 ) )
 			menu.addItem( item )
 		}
