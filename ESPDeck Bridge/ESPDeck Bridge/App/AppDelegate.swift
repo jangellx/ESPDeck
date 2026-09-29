@@ -32,9 +32,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		controller.onStatusChange = { [weak self] items, connected in
 			self?.menuBar?.update( statusLines: items.map( \.text ), levels: items.map { $0.level.rawValue }, connected: connected )
 		}
-		controller.onDecksChange = { [weak self] heading, decks in
+		controller.onDecksChange = { [weak self] decks in
 			guard let self else { return }
-			menuBar?.updateDecks( heading: heading, ids: decks.map( \.id ), titles: decks.map( \.title ), levels: decks.map( \.menuLevel ) )
+			menuBar?.updateDecks( ids: decks.map( \.id ), titles: decks.map( \.title ), levels: decks.map( \.menuLevel ) )
 			// The Device menu lists the devices by name.
 			let names = controller.devices.map { controller.settings( $0.id )?.name ?? $0.id }
 			if names != deviceMenuNames {

@@ -18,8 +18,12 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	private var statusLines: [String] = [ "Starting…" ]
 	private var statusLevels: [Int]   = [ 0 ]
 	private var connected  = false
-	private var deckHeading = "Waiting for HomeKit…"
 	private var decks       : [( id: String, title: String, level: Int )] = []
+
+	/// The app that was frontmost when the menu opened, and whether a menu item then opened
+	/// a window; see menuWillOpen(_:).
+	private var appBeforeMenu : NSRunningApplication?
+	private var menuOpensWindow = false
 
 	// USB setup; see MenuBarController+USB.swift.
 	var portWatcher        : SerialPortWatcher?
@@ -50,15 +54,15 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		rebuild()
 	}
 
-	func updateDecks( heading: String, ids: [String], titles: [String], levels: [Int] ) {
-		deckHeading = heading
-		decks       = zip( ids, zip( titles, levels ) ).map { ( $0, $1.0, $1.1 ) }
+	func updateDecks( ids: [String], titles: [String], levels: [Int] ) {
+		decks = zip( ids, zip( titles, levels ) ).map { ( $0, $1.0, $1.1 ) }
 		rebuild()
 	}
 
 	/// Called while handling the click that opens the window, and still an accessory, which
 	/// WindowServer lets activate; DockPresence goes regular once the window is on screen.
 	func activateApp() {
+		menuOpensWindow = true
 		DockPresence.windowWillOpen()
 		Self.forceActivate()
 	}
@@ -96,28 +100,23 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 		menu.removeAllItems()
 
-		// The Home, then the decks, each opening its Keys page.
-		let heading = NSMenuItem( title: deckHeading, action: nil, keyEquivalent: "" )
-		heading.isEnabled       = false
-		heading.attributedTitle = Self.title( deckHeading, icon: Self.symbol( "house.fill", color: .systemOrange ), dimmed: true )
-		menu.addItem( heading )
+		// The decks, each opening its Keys page. (HomeKit's state is with the status lines;
+		// there can be several Homes, so no one Home heads the list.)
+		menu.addItem( .sectionHeader( title: "Decks" ) )
+		if decks.isEmpty {
+			let none = NSMenuItem( title: "None yet", action: nil, keyEquivalent: "" )
+			none.isEnabled = false
+			menu.addItem( none )
+		}
 		for deck in decks {
 			// The app sends "Name: state" or "Name (demo)": the state goes on a second line.
 			let parts = deck.title.components( separatedBy: ": " )
 			let name  = parts.count > 1 ? parts.dropLast().joined( separator: ": " ) : deck.title
-			let state = parts.count > 1 ? parts.last : nil
-			let item  = NSMenuItem( title: name, action: #selector( showDeck( _: ) ), keyEquivalent: "" )
+			let state = parts.count > 1 ? parts.last.map { $0.prefix( 1 ).uppercased() + $0.dropFirst() } : nil
+			let item  = NSMenuItem( title: deck.title, action: #selector( showDeck( _: ) ), keyEquivalent: "" )
 			item.target            = self
 			item.representedObject = deck.id
-			item.indentationLevel  = 1
-			if let state {
-				if #available( macOS 14.4, * ) {
-					item.subtitle = state.prefix( 1 ).uppercased() + state.dropFirst()
-				} else {
-					item.title = deck.title
-				}
-			}
-			item.attributedTitle = Self.title( item.title, icon: Self.deckImage( level: deck.level ) )
+			item.attributedTitle   = Self.title( name, icon: Self.deckImage( level: deck.level ), detail: state )
 			menu.addItem( item )
 		}
 		menu.addItem( .separator() )
@@ -185,12 +184,15 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		return image
 	}
 
-	/// A title with its icon in front. macOS 27 gives a menu item's own image no room unless
-	/// the item also shows a state (a checkmark), but an attachment in the title gets its
-	/// space. The icon sits in a fixed-width box so the titles line up.
-	private static func title( _ text: String, icon: NSImage?, dimmed: Bool = false ) -> NSAttributedString {
+	/// A title with its icon in front, and optionally a smaller second line (like a
+	/// subtitle, which would start under the icon) lined up with the text. macOS 27 gives a
+	/// menu item's own image no room unless the item also shows a state (a checkmark), but an
+	/// attachment in the title gets its space. The icon sits in a fixed-width box so the
+	/// titles line up.
+	private static func title( _ text: String, icon: NSImage?, detail: String? = nil, dimmed: Bool = false ) -> NSAttributedString {
 		let font  = NSFont.menuFont( ofSize: 0 )
 		let title = NSMutableAttributedString()
+		var indent: CGFloat = 0
 		if let icon {
 			let side: CGFloat = 16
 			let box = NSImage( size: NSSize( width: side, height: side ), flipped: false ) { rect in
@@ -203,6 +205,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 			attachment.bounds = NSRect( x: 0, y: ( font.capHeight - side ) / 2, width: side, height: side )
 			title.append( NSAttributedString( attachment: attachment ) )
 			title.append( NSAttributedString( string: " " ) )
+			indent = side + NSAttributedString( string: " ", attributes: [ .font: font ] ).size().width
 		}
 		title.append( NSAttributedString( string: text ) )
 		var attributes: [NSAttributedString.Key: Any] = [ .font: font ]
@@ -210,6 +213,17 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 			attributes[.foregroundColor] = NSColor.secondaryLabelColor   // an attributed title isn't greyed when disabled
 		}
 		title.addAttributes( attributes, range: NSRange( location: 0, length: title.length ) )
+
+		if let detail {
+			let paragraph = NSMutableParagraphStyle()
+			paragraph.headIndent          = indent   // the second line starts where the text does
+			paragraph.firstLineHeadIndent = 0
+			title.append( NSAttributedString( string: "\n" + detail, attributes: [
+				.font:            NSFont.menuFont( ofSize: NSFont.smallSystemFontSize ),
+				.foregroundColor: NSColor.secondaryLabelColor,
+			] ) )
+			title.addAttribute( .paragraphStyle, value: paragraph, range: NSRange( location: 0, length: title.length ) )
+		}
 		return title
 	}
 
@@ -332,6 +346,30 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		}
 	}
 
+	/// Activates the app while the click that opened the menu is the latest input. macOS 27
+	/// runs the menu outside the app, so choosing an item delivers no event of its own, and an
+	/// activation asked for then carries the opening click's time; WindowServer refuses it as
+	/// expired ("earlier than the time of the last activation"). If no item opens a window,
+	/// menuDidClose(_:) hands activation back.
+	func menuWillOpen( _ menu: NSMenu ) {
+		menuOpensWindow = false
+		let front = NSWorkspace.shared.frontmostApplication
+		appBeforeMenu = front == NSRunningApplication.current ? nil : front
+		NSApp.activate()
+		DockPresence.logState( "menu opened" )
+	}
+
+	func menuDidClose( _ menu: NSMenu ) {
+		// The chosen item's action runs after this.
+		DispatchQueue.main.async { [self] in
+			guard !menuOpensWindow, let app = appBeforeMenu else { return }
+			appBeforeMenu = nil
+			NSApp.yieldActivation( to: app )
+			app.activate( from: .current, options: [] )
+			DockPresence.logState( "menu closed; gave activation back to \(app.localizedName ?? "?")" )
+		}
+	}
+
 	func menuNeedsUpdate( _ menu: NSMenu ) {
 		// The user can change this in System Settings while the app runs.
 		menu.items.first { $0.action == #selector( toggleLaunchAtLogin ) }?.state = launchAtLoginMenuState
@@ -360,6 +398,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	}
 
 	@objc private func quit() {
+		menuOpensWindow = true   // the alert
 		confirmQuit()
 	}
 

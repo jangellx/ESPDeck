@@ -35,9 +35,9 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// `levels` has one entry per line: 0 waiting (yellow), 1 OK (green check), 2 problem (red).
 	func update( statusLines: [String], levels: [Int], connected: Bool )
 
-	/// The decks at the top of the menu, under `heading` (the Home's name, or "HomeKit"
-	/// with several). `levels` as in update(statusLines:); 3 is a demo deck.
-	func updateDecks( heading: String, ids: [String], titles: [String], levels: [Int] )
+	/// The decks at the top of the menu. `levels` as in update(statusLines:); 3 is a demo
+	/// deck, 4 a new device waiting to be paired.
+	func updateDecks( ids: [String], titles: [String], levels: [Int] )
 
 	/// Launch at Login (SMAppService.mainApp, which Catalyst can't reach): 0 off, 1 on,
 	/// 2 waiting for approval in System Settings.

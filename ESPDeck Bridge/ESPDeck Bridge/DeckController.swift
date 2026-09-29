@@ -32,7 +32,7 @@ final class DeckController {
 	/// Called whenever the menu bar summary may have changed.
 	@ObservationIgnored var onStatusChange: ( ( _ items: [StatusItem], _ connected: Bool ) -> Void )?
 	/// Called whenever the menu bar's deck list may have changed.
-	@ObservationIgnored var onDecksChange : ( ( _ heading: String, _ decks: [DeckMenuEntry] ) -> Void )?
+	@ObservationIgnored var onDecksChange : ( ( _ decks: [DeckMenuEntry] ) -> Void )?
 
 	/// This Mac's password for uploads from PlatformIO, once there is one (DevOTAPassword).
 	private(set) var developerPassword: String?
@@ -1112,15 +1112,6 @@ final class DeckController {
 		var menuLevel: Int { isNew ? 4 : level.rawValue }
 	}
 
-	/// The Home's name, "HomeKit" with several Homes, or HomeKit's state before it's ready.
-	var deckMenuHeading: String {
-		switch home.homes.count {
-			case 0:  homeStatus.text
-			case 1:  home.homes[0].name
-			default: "HomeKit"
-		}
-	}
-
 	/// Real decks in sidebar order, then new devices, then demo decks.
 	var deckMenuEntries: [DeckMenuEntry] {
 		let entries = devices.map { device in
@@ -1157,12 +1148,12 @@ final class DeckController {
 	/// Pushes the menu bar summary now and again whenever anything it reads changes, so
 	/// the menu always matches the configuration window.
 	private func observeStatus() {
-		let ( items, connected, heading, decks ) = withObservationTracking {
-			( statusItems, devices.contains { $0.isOnline && $0.deck.connected }, deckMenuHeading, deckMenuEntries )
+		let ( items, connected, decks ) = withObservationTracking {
+			( statusItems, devices.contains { $0.isOnline && $0.deck.connected }, deckMenuEntries )
 		} onChange: { [weak self] in
 			Task { @MainActor in self?.observeStatus() }
 		}
 		onStatusChange?( items, connected )
-		onDecksChange?( heading, decks )
+		onDecksChange?( decks )
 	}
 }
