@@ -181,6 +181,8 @@ bool StreamDeck::isConnected() const {
 }
 
 StreamDeck::UsbDevice StreamDeck::lastUsbDevice() const {
+	if( !mutex_ )   // no USB host: a computer is on the port
+		return {};
 	xSemaphoreTake( mutex_, portMAX_DELAY );
 	UsbDevice copy = usbDevice_;
 	xSemaphoreGive( mutex_ );

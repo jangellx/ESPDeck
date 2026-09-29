@@ -134,6 +134,7 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 | `shown` | `key`, `hash` | the key now shows that cached image on the deck: just uploaded, or it already did. Drives the Mac's progress bar; firmware without it is handled by a timeout. |
 | `keyDown`, `keyUp` | `key` | key pressed or released (not sent while asleep or in setup mode, nor for the key press that wakes the deck) |
 | `keyRepeat` | `key` | Firmware 4.1.0 and later: a key in the `repeatKeys` list is still held: sent after the delay, then every interval, until its `keyUp`. The device repeats rather than the Mac, so a late `keyUp` can't cause extra steps. |
+| `keyTap`, `keyDoubleTap`, `keyHold` | `key` | Firmware 4.1.0 and later: what kind of press it was (see `keyModes`); `keyDown`/`keyUp` still come too. |
 
 `elfSHA256` is the running app's `app_elf_sha256` from its app description (`esp_app_desc_t`), as 64 lowercase hex digits: the SHA-256 of the ELF file it was built from. Two builds with the same `firmware` version have different values.
 
@@ -179,7 +180,7 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 | `sleepTimeout` | `seconds` (0 = never, at most 30 days) | sleep after this long without a key press |
 | `sleep`, `wake` | | sleep or wake the deck now |
 | `setupMode` | `enabled` (bool) | enter or leave setup mode |
-| `repeatKeys` | `keys` (indexes), `delay`, `interval` (milliseconds; clamped to 100–3000 and 30–2000) | Firmware 4.1.0 and later: which keys repeat while held (the Mac's Level keys on the page it shows), with `keyRepeat`. An empty list stops repeating; a new session starts with none. |
+| `keyModes` | `repeat`, `doubleTap`, `hold` (key indexes; each optional), `delay`, `interval`, `doubleTapWindow`, `holdTime` (milliseconds; clamped to 100–3000, 30–2000, 150–1000, 200–3000) | Firmware 4.1.0 and later: how the keys on the page the Mac shows report presses, judged on the device so network delays can't change them. `repeat` keys send `keyRepeat` while held; `hold` keys send `keyHold` once held for `holdTime` (that press is then no tap); `doubleTap` keys send `keyDoubleTap` for a second press within the window, else `keyTap` once it has passed; other keys send `keyTap` as they come up. A new session starts with none. (`repeatKeys` { `keys`, `delay`, `interval` } from an earlier bridge sets only the repeating keys.) |
 | `unpair` | | delete the pairing key; the connection then closes |
 | `devOTA` | `sealedHash` (to allow), or `passwordHash`: `""` (to turn off) | Allows uploads from PlatformIO over Wi-Fi (ArduinoOTA, UDP port 3232), or turns them off; the listener starts or stops at once. See **devOTA** below. The device answers with `status` (reason `bridge`), whose `devOTA` shows the result. While allowed, a new image is marked valid once it's on Wi-Fi instead of after the first authenticated session. Pairing again, unpairing, and a factory reset turn uploads off. |
 | `factoryReset` | | erase NVS (Wi-Fi, name, pairing, settings) first, then the image cache (once its writer has stopped), then restart; the device comes back in setup mode. The firmware stays, and so does storage encryption (NVS starts over empty and encrypted). The setup page offers the same reset. |

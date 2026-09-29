@@ -99,13 +99,26 @@ static uint32_t         keysToBlank    = 0;
 static uint32_t         keysDown       = 0;       // held right now
 static uint32_t         keysForwarded  = 0;       // the Mac has seen keyDown but not keyUp
 static uint32_t         keysBouncing   = 0;       // down ignored as bounce; ignore its up too
-// Keys that repeat while held (the Mac's Level keys on the page it shows): keyRepeat after
-// the delay, then every interval, until the key comes up. Here rather than on the Mac, so a
-// late keyUp can't cause extra repeats.
-static uint32_t         repeatingKeys  = 0;
-static uint32_t         repeatDelay    = 500;     // ms
-static uint32_t         repeatInterval = 166;     // ms
+// How each key's presses are reported (keyModes from the Mac, for the page it shows). Timing
+// is judged here rather than on the Mac, so a late message can't turn a tap into a hold or
+// add repeats.
+//   Repeating keys (Level keys): keyRepeat after the delay, then every interval, while held.
+//   Hold keys: keyHold once held for holdTime; that press then isn't a tap.
+//   Double-tap keys: keyDoubleTap for a second press within the window; otherwise keyTap
+//   once the window has passed. Other keys: keyTap as they come up.
+static uint32_t         repeatingKeys   = 0;
+static uint32_t         doubleTapKeys   = 0;
+static uint32_t         holdKeys        = 0;
+static uint32_t         repeatDelay     = 500;    // ms
+static uint32_t         repeatInterval  = 166;    // ms
+static uint32_t         doubleTapWindow = 300;    // ms
+static uint32_t         holdTime        = 500;    // ms
 static uint32_t         nextRepeatAt[kMaxKeys] = {};
+static uint32_t         holdAt[kMaxKeys]       = {};
+static uint32_t         tapDueAt[kMaxKeys]     = {};
+static uint32_t         holdSent        = 0;      // this press was a hold
+static uint32_t         secondPress     = 0;      // down within the double-tap window
+static uint32_t         tapPending      = 0;      // up, waiting to see if a second press comes
 static uint32_t         keyReleasedAt[kMaxKeys] = {};   // millis() of each key's last up
 static bool             swallowKeys    = false;   // forward nothing until every key is up (the wake press)
 
@@ -402,6 +415,7 @@ static void releaseForwardedKeys() {
 	}
 	keysForwarded = 0;
 	swallowKeys   = keysDown != 0;
+	holdSent = secondPress = tapPending = 0;   // cut short: no taps or holds
 }
 
 // MARK: - Brightness and sleep
@@ -984,7 +998,9 @@ static void handleAuth( cJSON *json ) {
 	swallowKeys   = keysDown != 0;
 	refreshScreen();
 
-	repeatingKeys = 0;   // the Mac says which keys repeat, if it knows how
+	// The Mac says how keys are reported, if it knows how; until then, keyTap as they come up.
+	repeatingKeys = doubleTapKeys = holdKeys = 0;
+	holdSent = secondPress = tapPending = 0;
 
 	// What the unauthenticated hello left out (the Wi-Fi network).
 	sendStatus( "session" );
@@ -993,7 +1009,7 @@ static void handleAuth( cJSON *json ) {
 	sendDeck();
 
 	// Plugged in before the Mac connected (at boot, say) but never recognized as a deck.
-	StreamDeck::UsbDevice usb = deck.lastUsbDevice();
+	StreamDeck::UsbDevice usb = computerOnUSB ? StreamDeck::UsbDevice {} : deck.lastUsbDevice();
 	if( usb.seen && !deckConnected )
 		sendUsbDevice( usb );
 }
@@ -1272,22 +1288,32 @@ static void handleCommand( const char *type, cJSON *json ) {
 		if( cJSON_IsNumber( seconds ) && seconds->valuedouble >= 0 )
 			settings.setSleepTimeout( (uint32_t)std::min( seconds->valuedouble, 30.0 * 24 * 3600 ) );
 
-	} else if( strcmp( type, "repeatKeys" ) == 0 ) {
-		// { keys: [indexes], delay: ms, interval: ms }; an empty list stops repeating.
-		uint32_t keys  = 0;
-		cJSON   *list  = cJSON_GetObjectItemCaseSensitive( json, "keys" );
-		cJSON   *entry = nullptr;
-		cJSON_ArrayForEach( entry, list ) {
-			if( cJSON_IsNumber( entry ) && entry->valuedouble >= 0 && entry->valuedouble < kMaxKeys )
-				keys |= keyBit( (uint8_t)entry->valuedouble );
-		}
-		cJSON *delayMs    = cJSON_GetObjectItemCaseSensitive( json, "delay" );
-		cJSON *intervalMs = cJSON_GetObjectItemCaseSensitive( json, "interval" );
-		if( cJSON_IsNumber( delayMs ) )
-			repeatDelay = (uint32_t)std::min( std::max( delayMs->valuedouble, 100.0 ), 3000.0 );
-		if( cJSON_IsNumber( intervalMs ) )
-			repeatInterval = (uint32_t)std::min( std::max( intervalMs->valuedouble, 30.0 ), 2000.0 );
-		repeatingKeys = keys;
+	} else if( strcmp( type, "keyModes" ) == 0 || strcmp( type, "repeatKeys" ) == 0 ) {
+		// repeatKeys: an earlier bridge's { keys, delay, interval }, for repeating only.
+		bool repeatOnly = strcmp( type, "repeatKeys" ) == 0;
+		// { repeat: [keys], doubleTap: [keys], hold: [keys], delay, interval, doubleTapWindow,
+		//   holdTime (ms) }; a missing list is empty.
+		auto keySet = [&]( const char *name ) {
+			uint32_t keys  = 0;
+			cJSON   *entry = nullptr;
+			cJSON_ArrayForEach( entry, cJSON_GetObjectItemCaseSensitive( json, name ) ) {
+				if( cJSON_IsNumber( entry ) && entry->valuedouble >= 0 && entry->valuedouble < kMaxKeys )
+					keys |= keyBit( (uint8_t)entry->valuedouble );
+			}
+			return keys;
+		};
+		auto millisecondsOf = [&]( const char *name, uint32_t &value, double low, double high ) {
+			cJSON *number = cJSON_GetObjectItemCaseSensitive( json, name );
+			if( cJSON_IsNumber( number ) )
+				value = (uint32_t)std::min( std::max( number->valuedouble, low ), high );
+		};
+		repeatingKeys = keySet( repeatOnly ? "keys" : "repeat" );
+		doubleTapKeys = keySet( "doubleTap" );
+		holdKeys      = keySet( "hold" );
+		millisecondsOf( "delay", repeatDelay, 100, 3000 );
+		millisecondsOf( "interval", repeatInterval, 30, 2000 );
+		millisecondsOf( "doubleTapWindow", doubleTapWindow, 150, 1000 );
+		millisecondsOf( "holdTime", holdTime, 200, 3000 );
 
 	} else if( strcmp( type, "sleep" ) == 0 ) {
 		goToSleep( "bridge" );
@@ -1490,21 +1516,55 @@ static void handleKeyDown( uint8_t key ) {
 	ESP_LOGI( TAG, "Key %u down", key );
 	keysForwarded |= keyBit( key );
 	sendKey( "keyDown", key );
+	uint32_t now = millis();
 	if( repeatingKeys & keyBit( key ) )
-		nextRepeatAt[key] = millis() + repeatDelay;
+		nextRepeatAt[key] = now + repeatDelay;
+	if( holdKeys & keyBit( key ) )
+		holdAt[key] = now + holdTime;
+	holdSent &= ~keyBit( key );
+	// The second press of a double tap.
+	if( tapPending & keyBit( key ) ) {
+		tapPending  &= ~keyBit( key );
+		secondPress |= keyBit( key );
+	}
 }
 
-// Held keys that repeat (see repeatingKeys), once each is due.
-static void sendKeyRepeats() {
-	uint32_t held = keysForwarded & repeatingKeys;
-	if( !held || !session.authenticated() )
+// Repeats and holds for keys still down, and taps whose double-tap window has passed.
+static void sendHeldKeys() {
+	if( !session.authenticated() || !( keysForwarded & ( repeatingKeys | holdKeys ) ) && !tapPending )
 		return;
 	uint32_t now = millis();
 	for( uint8_t key = 0; key < kMaxKeys; key++ ) {
-		if( !( held & keyBit( key ) ) || (int32_t)( now - nextRepeatAt[key] ) < 0 )
-			continue;
-		sendKey( "keyRepeat", key );
-		nextRepeatAt[key] = now + repeatInterval;
+		uint32_t bit = keyBit( key );
+		if( ( keysForwarded & repeatingKeys & bit ) && (int32_t)( now - nextRepeatAt[key] ) >= 0 ) {
+			sendKey( "keyRepeat", key );
+			nextRepeatAt[key] = now + repeatInterval;
+		}
+		if( ( keysForwarded & holdKeys & bit ) && !( holdSent & bit ) && (int32_t)( now - holdAt[key] ) >= 0 ) {
+			sendKey( "keyHold", key );
+			holdSent    |= bit;
+			secondPress &= ~bit;
+		}
+		if( ( tapPending & bit ) && (int32_t)( now - tapDueAt[key] ) >= 0 ) {
+			tapPending &= ~bit;
+			sendKey( "keyTap", key );
+		}
+	}
+}
+
+// A press that came up: what kind it was (see keyModes).
+static void reportPress( uint8_t key ) {
+	uint32_t bit = keyBit( key );
+	if( holdSent & bit ) {
+		holdSent &= ~bit;
+	} else if( secondPress & bit ) {
+		secondPress &= ~bit;
+		sendKey( "keyDoubleTap", key );
+	} else if( doubleTapKeys & bit ) {
+		tapPending   |= bit;
+		tapDueAt[key] = millis() + doubleTapWindow;
+	} else {
+		sendKey( "keyTap", key );
 	}
 }
 
@@ -1515,6 +1575,7 @@ static void handleKeyUp( uint8_t key ) {
 	if( keysForwarded & keyBit( key ) ) {
 		keysForwarded &= ~keyBit( key );
 		sendKey( "keyUp", key );
+		reportPress( key );
 	}
 	if( !keysDown )
 		swallowKeys = false;
@@ -1798,7 +1859,7 @@ void loop() {
 	StreamDeck::Event event;
 	while( deck.nextEvent( event ) )
 		handleDeckEvent( event );
-	sendKeyRepeats();
+	sendHeldKeys();
 
 	BridgeClient::Message message;
 	while( bridge.nextMessage( message ) ) {
