@@ -129,7 +129,7 @@ extension DeckController {
 			case .nextPage:     return "chevron.right"
 			case .previousPage: return "chevron.left"
 			case .goToPage:     return Self.numberSymbol( assignment.pageNumber ?? 1, shape: "circle" )
-			default:            return Self.numberSymbol( currentPage( device: id ) + 1, shape: "square" )
+			default:            return "doc"   // drawn as a page with the number on it (KeyFace.pageNumber)
 		}
 	}
 

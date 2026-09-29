@@ -27,6 +27,9 @@ struct KeyFace: Equatable {
 	var background  : Color?
 	/// Shortcut whose own icon is the artwork when no icon was dropped.
 	var shortcutID  : String?
+	/// Show Page Number: a page (its corner folded at the lower right) with this number on it,
+	/// instead of `symbol`.
+	var pageNumber  : Int?
 }
 
 /// A key image ready to send in the deck's format, plus an upright preview for the UI.
@@ -85,6 +88,9 @@ struct KeyFaceView: View {
 			Image( uiImage: icon )
 				.resizable()
 				.scaledToFit()
+		} else if let number = face.pageNumber {
+			PageNumber( number: number, tint: face.tint )
+				.padding( 4 )
 		} else if let symbol = face.symbol {
 			// Multicolor draws warning badges in yellow; everything else takes the tint.
 			Image( systemName: symbol )
@@ -102,6 +108,35 @@ struct KeyFaceView: View {
 				}
 				.padding( 4 )
 		}
+	}
+}
+
+/// "doc" upside down, so its folded corner is at the lower right, with the number across it.
+private struct PageNumber: View {
+	let number : Int
+	let tint   : Color
+
+	var body: some View {
+		GeometryReader { geometry in
+			let side = min( geometry.size.width, geometry.size.height )
+			ZStack {
+				Image( systemName: "doc" )
+					.resizable()
+					.scaledToFit()
+					.fontWeight( .semibold )
+					.scaleEffect( x: 1, y: -1 )
+					.foregroundStyle( tint )
+				Text( "\(number)" )
+					.font( .system( size: side * 0.32, weight: .bold, design: .rounded ) )
+					.minimumScaleFactor( 0.5 )
+					.lineLimit( 1 )
+					.foregroundStyle( tint )
+					.frame( width: side * 0.44 )
+					.offset( x: -side * 0.02, y: -side * 0.1 )   // above the fold
+			}
+			.frame( width: geometry.size.width, height: geometry.size.height )
+		}
+		.environment( \.colorScheme, .light )
 	}
 }
 

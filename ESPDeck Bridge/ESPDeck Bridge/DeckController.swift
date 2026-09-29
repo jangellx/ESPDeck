@@ -609,6 +609,9 @@ final class DeckController {
 		face.background = assignment.backgroundColor.flatMap( Color.init( hex: ) )
 		if kind == .page {
 			face.symbol = pageSymbol( for: assignment, device: id )
+			if assignment.action == .pageNumber {
+				face.pageNumber = currentPage( device: id ) + 1
+			}
 		}
 		if let slider = assignment.slider {
 			// Up or down (right or left, side by side), whatever the kind's own symbol is.
