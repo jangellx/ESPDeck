@@ -61,13 +61,13 @@ private struct DeckKeyView: View {
 	let deviceID           : String
 	let index              : Int
 	let size               : CGFloat
-	/// A new page ripples in from the top left, as it does on the deck (rippleIn).
+	/// A new page ripples in from the top left, as the deck's keys fill in over USB.
 	let page               : Int
 	let diagonal           : Int
 	@Binding var selection : Int
 	@State private var isTargeted = false
 
-	private static let rippleStep: Double = 0.04   // s per diagonal; the deck's is 20 ms plus its own time per key
+	private static let rippleStep: Double = 0.04   // s per diagonal
 
 	var body: some View {
 		let device   = controller.device( deviceID )

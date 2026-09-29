@@ -512,9 +512,7 @@ final class DeckController {
 
 	/// `deferPush` batches edits from the configuration UI (e.g. dragging the color
 	/// picker) so the ESP32 only receives the final image.
-	/// `ripple`: a new page, whose keys go to the deck from the top left to the bottom right
-	/// rather than all at once, like Elgato's page changes but quicker.
-	func assignmentsChanged( device id: String? = nil, deferPush: Bool = false, ripple: Bool = false ) {
+	func assignmentsChanged( device id: String? = nil, deferPush: Bool = false ) {
 		var refs = Set<CharacteristicRef>()
 		for settings in config.settings.devices {
 			for key in settings.allKeys {
@@ -529,8 +527,7 @@ final class DeckController {
 		home.watch( refs )
 
 		if let id {
-			renderAll( device: id, deferPush: deferPush || ripple )
-			if ripple { rippleIn( id ) }
+			renderAll( device: id, deferPush: deferPush )
 			sendRepeatKeys( device: id )
 		} else {
 			renderEverything()
@@ -680,25 +677,6 @@ final class DeckController {
 			schedulePush( device )
 		} else {
 			push( device, key: key )
-		}
-	}
-
-	/// Sends the keys a diagonal at a time from the top left, 20 ms apart; the deck's own
-	/// time per key stretches it a little more.
-	private func rippleIn( _ id: String ) {
-		guard let device = device( id ) else { return }
-		let cols = max( layout( id ).cols, 1 )
-		device.pushTask?.cancel()
-		device.pushTask = Task { [weak self, weak device] in
-			guard let self, let device else { return }
-			let byDiagonal = Dictionary( grouping: device.keys.indices ) { $0 / cols + $0 % cols }
-			for diagonal in byDiagonal.keys.sorted() {
-				guard !Task.isCancelled else { return }
-				for key in byDiagonal[diagonal] ?? [] {
-					push( device, key: key )
-				}
-				try? await Task.sleep( for: .milliseconds( 20 ) )
-			}
 		}
 	}
 

@@ -27,7 +27,7 @@ extension DeckController {
 		stopSliders( device: id )
 		config.settings.devices[index].currentPage = page
 		window.selectedKey = min( window.selectedKey, max( layout( id ).keyCount - 1, 0 ) )
-		assignmentsChanged( device: id, ripple: true )
+		assignmentsChanged( device: id )
 	}
 
 	/// A new page after this one, which the deck then shows.
