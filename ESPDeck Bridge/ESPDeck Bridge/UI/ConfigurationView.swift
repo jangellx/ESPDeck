@@ -276,7 +276,6 @@ private struct Sidebar: View {
 private struct LaunchAtLoginRow: View {
 	let controller : DeckController
 
-	@State private var explaining = false
 
 	var body: some View {
 		let state = controller.launchAtLogin
@@ -295,19 +294,8 @@ private struct LaunchAtLoginRow: View {
 
 			Spacer()
 
-			Button {
-				explaining = true
-			} label: {
-				Image( systemName: "info.circle" )
-			}
-			.buttonStyle( .borderless )
-			.help( "About Launch at Login" )
-			.popover( isPresented: $explaining ) {
-				Text( "ESPDeck Bridge is what connects your decks to HomeKit. If it isn't running, the keys can't control anything and the decks show Connecting. Launching at login keeps it running after a restart." )
-					.frame( width: 280 )
-					.fixedSize( horizontal: false, vertical: true )
-					.padding()
-			}
+			InfoButton( help: "About Launch at Login",
+						text: "ESPDeck Bridge is what connects your decks to HomeKit. If it isn't running, the keys can't control anything and the decks show Connecting. Launching at login keeps it running after a restart." )
 		}
 		.onAppear { controller.refreshLaunchAtLogin() }
 	}
@@ -412,6 +400,12 @@ struct LabelPositionControl: View {
 			.pickerStyle( .segmented )
 			.labelsHidden()
 			.fixedSize()
+
+			Divider()
+				.frame( height: 18 )
+
+			CopyKeysMenu( controller: controller, deviceID: deviceID )
+				.fixedSize()
 		}
 	}
 }

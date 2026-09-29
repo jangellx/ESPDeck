@@ -95,6 +95,7 @@ struct KeysPageView: View {
 			} label: {
 				Image( systemName: "square.grid.4x3.fill" )
 					.imageScale( .small )
+					.foregroundStyle( Color.secondary )
 			}
 			.buttonStyle( .borderless )
 			.help( "Smallest keys" )
@@ -108,16 +109,22 @@ struct KeysPageView: View {
 			} label: {
 				Image( systemName: "square.grid.2x2.fill" )
 					.imageScale( .medium )
+					.foregroundStyle( Color.secondary )
 			}
 			.buttonStyle( .borderless )
 			.help( "Full-size keys" )
 
-			Button( "Size to Fit" ) { window.deckKeySize = 0 }
-				.disabled( window.deckKeySize == 0 )
-				.help( "Size the deck preview to fit this pane (⌘0)" )
-				.padding( .leading, 6 )
+			// On (tinted) while the deck follows the pane's size; turning it off keeps the
+			// current size.
+			Toggle( "Size to Fit", isOn: Binding {
+				window.deckKeySize == 0
+			} set: { fit in
+				window.deckKeySize = fit ? 0 : Double( window.deckFitKeySize.rounded() )
+			} )
+			.toggleStyle( .button )
+			.help( "Size the deck preview to fit this pane (⌘0)" )
+			.padding( .leading, 6 )
 		}
-		.foregroundStyle( Color.secondary )
 		.controlSize( .small )
 		.padding( .horizontal, 14 )
 		.padding( .vertical, 8 )

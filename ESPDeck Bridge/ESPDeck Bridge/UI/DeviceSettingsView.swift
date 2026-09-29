@@ -87,7 +87,7 @@ struct DeviceSettingsView: View {
 						Text( "This removes its key assignments." )
 					}
 			} footer: {
-				Text( "To use this layout on a real deck, open that device's Device page and choose Copy Keys From. Keys are matched by row and column, so layouts carry across deck sizes." )
+				Text( "To use this layout on a real deck, open that device's Keys page and choose Copy Keys From under the deck. Keys are matched by row and column, so layouts carry across deck sizes." )
 			}
 		}
 		.formStyle( .grouped )
@@ -202,30 +202,39 @@ struct DeviceSettingsView: View {
 							footer: "Runs whenever the deck wakes, whatever woke it." )
 
 			Section {
-				if device.status.setupMode {
-					Button( "Exit Setup Mode" ) { controller.setSetupMode( device: deviceID, false ) }
-				} else {
-					Button( "Enter Setup Mode" ) { controller.setSetupMode( device: deviceID, true ) }
-						.disabled( !online )
+				HStack {
+					if device.status.setupMode {
+						Button( "Exit Setup Mode" ) { controller.setSetupMode( device: deviceID, false ) }
+					} else {
+						Button( "Enter Setup Mode" ) { controller.setSetupMode( device: deviceID, true ) }
+							.disabled( !online )
+					}
+					InfoButton( help: "About setup mode",
+								text: "Setup mode shows QR codes on the deck for joining the device's own Wi-Fi network and opening its setup page, where you can change its Wi-Fi network and name. You can also enter it by holding the top-left and bottom-right keys for 5 seconds." )
 				}
-				CopyKeysMenu( controller: controller, deviceID: deviceID )
-				Button( "Factory Reset Device…", role: .destructive ) { confirmingReset = true }
-					.disabled( !online )
-					.confirmationDialog( "Factory reset \(settings.name)?", isPresented: $confirmingReset ) {
-						Button( "Factory Reset", role: .destructive ) { controller.factoryReset( device: deviceID ) }
-					} message: {
-						Text( "The ESPDeck erases its Wi-Fi settings, name, pairing, and stored key images, and restarts in setup mode as if new. Its key layout stays in ESPDeck Bridge and returns once you set it up and pair it again." )
-					}
-				Button( "Forget Device…", role: .destructive ) { controller.window.confirmingForget = true }
-					.confirmationDialog( "Forget \(settings.name)?", isPresented: confirmingForget ) {
-						Button( "Forget Device", role: .destructive ) { controller.forget( device: deviceID ) }
-					} message: {
-						Text( "This removes its key assignments and settings from ESPDeck Bridge. If it connects again, it appears as a new device." )
-					}
+				HStack {
+					Button( "Factory Reset Device…", role: .destructive ) { confirmingReset = true }
+						.disabled( !online )
+						.confirmationDialog( "Factory reset \(settings.name)?", isPresented: $confirmingReset ) {
+							Button( "Factory Reset", role: .destructive ) { controller.factoryReset( device: deviceID ) }
+						} message: {
+							Text( "The ESPDeck erases its Wi-Fi settings, name, pairing, and stored key images, and restarts in setup mode as if new. Its key layout stays in ESPDeck Bridge and returns once you set it up and pair it again." )
+						}
+					InfoButton( help: "About Factory Reset",
+								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It restarts in setup mode as if new. Its key layout stays in ESPDeck Bridge and comes back once you set it up and pair it again." )
+				}
+				HStack {
+					Button( "Forget Device…", role: .destructive ) { controller.window.confirmingForget = true }
+						.confirmationDialog( "Forget \(settings.name)?", isPresented: confirmingForget ) {
+							Button( "Forget Device", role: .destructive ) { controller.forget( device: deviceID ) }
+						} message: {
+							Text( "This removes its key assignments and settings from ESPDeck Bridge. If it connects again, it appears as a new device." )
+						}
+					InfoButton( help: "About Forget Device",
+								text: "Forget Device removes it from ESPDeck Bridge, with its key assignments and settings, and unpairs it, but leaves its Wi-Fi settings alone. If it connects again, it appears as a new device." )
+				}
 			} header: {
 				SectionHeader( "Setup" )
-			} footer: {
-				Text( "Setup mode shows QR codes on the deck for joining the device's own Wi-Fi network and opening its setup page, where you can change its Wi-Fi network and name. You can also enter it by holding the top-left and bottom-right keys for 5 seconds.\n\nFactory Reset erases the device itself. Forget Device removes it from ESPDeck Bridge (and unpairs it) but leaves its Wi-Fi settings alone." )
 			}
 
 			SecuritySection( controller: controller, device: device, name: settings.name )
@@ -280,7 +289,7 @@ private enum StorageText {
 
 	static let confirmMessage = "This encrypts the Wi-Fi password, pairing key and developer password stored on the dev kit, so someone who takes it and reads its flash can't recover them. Its settings and pairing move across, so it keeps working as it does now.\n\nTurning encryption on is permanent: it burns a one-time key into the chip, so this dev kit always encrypts what it stores from now on. What it stores isn't locked in: you can still change its Wi-Fi network, rename it, pair it again or reset it, and it keeps working and updating as before.\n\nKeep the deck powered for the few seconds it takes. It restarts when it's done."
 
-	static let learnMore = "The dev kit keeps your Wi-Fi password, its pairing key and the developer password in its flash. Unencrypted (Standard), anyone who takes it can read them over USB, and the pairing key could let them trigger this deck's actions from your network. Encrypted stores them with a key burned into the chip that no software can read, so the flash alone gives nothing away. New devices are encrypted when they're first set up, over USB or on their setup page, unless Standard is chosen there.\n\nOnly the encryption is permanent: the key can't be removed, so this dev kit always encrypts what it stores. The settings themselves can still be changed any time (Wi-Fi network, name, pairing), and updates, factory reset and the web installer work as before (a reset starts over with empty storage, still encrypted). ESPDeck Bridge won't install firmware older than 4.1.0 on it, since that can't read encrypted storage."
+	static let learnMore = "The dev kit keeps your Wi-Fi password, its pairing key and the developer password in its flash. Unencrypted (Standard), anyone who takes it can read them over USB, and the pairing key could let them trigger this deck's actions from your network. Encrypted stores them with a key burned into the chip that no software can read, so the flash alone gives nothing away. New devices are encrypted when they're first set up, over USB or on their setup page, unless Standard is chosen there.\n\nEnabling encryption is permanent: the key can't be removed, so this dev kit always encrypts what it stores. The settings themselves can still be changed any time (Wi-Fi network, name, pairing), and updates, factory reset and the web installer work as before (a reset starts over with empty storage, still encrypted). ESPDeck Bridge won't install firmware older than 4.1.0 on it, since that can't read encrypted storage."
 }
 
 /// How the device stores its secrets, and encrypting them (Standard → Encrypted only). A
@@ -290,7 +299,8 @@ private struct SecuritySection: View {
 	let device     : DeckDevice
 	let name       : String
 
-	@State private var confirming = false
+	@State private var confirming   = false
+	@State private var learningMore = false
 
 	var body: some View {
 		let storage = device.status.storage
@@ -323,8 +333,6 @@ private struct SecuritySection: View {
 			}
 		} header: {
 			SectionHeader( "Security" )
-		} footer: {
-			Text( "Standard keeps the Wi-Fi password, pairing key and developer password in the dev kit's flash as they are. Encrypted protects them with a key burned into the chip, so reading the flash doesn't reveal them. New devices are encrypted when they're first set up, unless Standard is chosen there. Turning encryption on is permanent (the chip's key can't be removed), but the Wi-Fi network, name and pairing stay changeable as usual." )
 		}
 		.confirmationDialog( StorageText.confirmTitle( name ), isPresented: $confirming, titleVisibility: .visible ) {
 			Button( "Encrypt" ) { controller.encryptStorage( device: device.id ) }
@@ -343,28 +351,42 @@ private struct SecuritySection: View {
 			VStack( alignment: .leading, spacing: 6 ) {
 				Text( "Encrypt stored secrets (recommended)" )
 					.font( .body.weight( .semibold ) )
-				Text( "Its Wi-Fi password and pairing key are stored unencrypted, so anyone who takes the dev kit can read them over USB. Encrypting keeps its settings and pairing; only the encryption itself is permanent." )
-					.font( .caption )
-					.foregroundStyle( .secondary )
+				Text( "Wi-Fi password and bridge pairing are currently stored unencrypted, meaning anyone can read them off the dev kit over USB. Encrypting adds a permanent key that makes it impossible to read them from the device." )
+					.font( .callout )
 				HStack {
 					Button( "Encrypt Stored Secrets…" ) { confirming = true }
+						.foregroundStyle( .tint )
 						.disabled( !controller.canEncryptStorage( device ) )
 					if let note = unavailableNote( device.status.storage ) {
 						Text( note )
 							.font( .caption )
-							.foregroundStyle( .secondary )
 					}
 				}
-				DisclosureGroup( "Learn More" ) {
+				// The whole line toggles it, not just the chevron (as a DisclosureGroup would).
+				Button {
+					withAnimation( .easeInOut( duration: 0.2 ) ) { learningMore.toggle() }
+				} label: {
+					HStack( spacing: 6 ) {
+						Image( systemName: "chevron.right" )
+							.font( .caption.weight( .semibold ) )
+							.rotationEffect( .degrees( learningMore ? 90 : 0 ) )
+						Text( "Learn More" )
+						Spacer()
+					}
+					.contentShape( Rectangle() )
+				}
+				.buttonStyle( .plain )
+				if learningMore {
 					Text( StorageText.learnMore )
 						.font( .callout )
-						.foregroundStyle( .secondary )
 				}
 			}
 		}
+		.foregroundStyle( Color.primary )   // black on the tint, for readability
 		.padding( 10 )
 		.frame( maxWidth: .infinity, alignment: .leading )
 		.background( Color.accentColor.opacity( 0.08 ), in: RoundedRectangle( cornerRadius: 8 ) )
+		.padding( .bottom, 6 )
 	}
 
 	private func stateText( _ storage: String? ) -> String {
@@ -560,7 +582,7 @@ private struct PasswordFile: FileDocument {
 }
 
 /// Replaces this device's keys with another device's (demo or real), after confirming.
-private struct CopyKeysMenu: View {
+struct CopyKeysMenu: View {
 	let controller : DeckController
 	let deviceID   : String
 
