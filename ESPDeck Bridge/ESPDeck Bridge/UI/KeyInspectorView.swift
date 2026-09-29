@@ -57,14 +57,7 @@ struct KeyInspectorView: View {
 						}
 					} else {
 						if !isSlider {
-							Picker( "On Press", selection: binding( \.action ) ) {
-								ForEach( assignment.actions ) { action in
-									Text( action.title ).tag( action )
-								}
-							}
-							// A popup whose options change underneath it (a shortcut's actions, then a
-							// light's) can keep showing the old choice; a new one for each set doesn't.
-							.id( "\(deviceID)/\(key)/" + assignment.actions.map( \.rawValue ).joined( separator: "," ) )
+							onPressMenu
 						}
 						LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 					}
@@ -164,6 +157,31 @@ struct KeyInspectorView: View {
 	}
 
 	private var levels: [SliderLevel] { controller.sliderLevels( for: assignment ) }
+
+	/// A menu rather than a Picker: in a Form, a Picker whose options change (another key, a
+	/// shortcut's actions then a light's) kept showing the old choice. This label is always
+	/// the key's current action.
+	private var onPressMenu: some View {
+		let current = assignment
+		return LabeledContent( "On Press" ) {
+			Menu {
+				ForEach( current.actions ) { action in
+					Button {
+						controller.update( device: deviceID, key: key ) { $0.action = action }
+					} label: {
+						if action == current.action {
+							Label( action.title, systemImage: "checkmark" )
+						} else {
+							Text( action.title )
+						}
+					}
+				}
+			} label: {
+				Text( current.actions.contains( current.action ) ? current.action.title : "Choose…" )
+			}
+			.fixedSize()
+		}
+	}
 
 	private var isSlider: Bool { assignment.slider != nil || choosingPartner }
 
