@@ -106,6 +106,7 @@ struct SliderSection: View {
 					StylePicker( selection: slider.style, horizontal: horizontal ) { style in
 						controller.updateSlider( device: deviceID, key: key ) { $0.style = style }
 					}
+					.frame( maxWidth: .infinity )   // centred under its heading
 				}
 				.padding( .top, 6 )
 				.padding( .bottom, 4 )

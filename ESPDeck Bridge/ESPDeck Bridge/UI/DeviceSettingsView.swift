@@ -125,7 +125,8 @@ struct DeviceSettingsView: View {
 				}
 				.alignmentGuide( .listRowSeparatorLeading ) { _ in 0 }
 				LabeledContent( "Stream Deck", value: deckDescription( settings, device ) )
-				FirmwareRow( controller: controller, device: device, title: settings.defaultName )
+				FirmwareRow( controller: controller, device: device, title: "Firmware" )
+				NetworkNameRow( controller: controller, device: device, settings: settings )
 				LabeledContent( "MAC Address", value: deviceID )
 				if let ip = device.ip, online {
 					LabeledContent( "IP Address", value: ip )
@@ -752,5 +753,47 @@ private struct CommandSection: View {
 		} set: { value in
 			controller.updateSettings( device: deviceID ) { $0[keyPath: path].action = value }
 		}
+	}
+}
+
+/// The device's name on the network, which routers list it by, and changing it to its own
+/// name or back. Firmware before 4.1.0 always uses the original.
+private struct NetworkNameRow: View {
+	let controller : DeckController
+	let device     : DeckDevice
+	let settings   : DeviceSettings
+
+	var body: some View {
+		let current  = device.status.hostname ?? settings.defaultHostname
+		let proposed = DeviceSettings.hostname( from: settings.name )
+		let settable = device.isOnline && device.status.hostname != nil
+
+		VStack( alignment: .leading, spacing: 6 ) {
+			LabeledContent( "Network Name", value: current )
+			Text( "How it shows up on your network: in your router's list of devices, and as \(current).local." )
+				.font( .caption )
+				.foregroundStyle( Color.secondary )
+			if device.isOnline && device.status.hostname == nil {
+				Text( "Changing it needs firmware 4.1.0 or later." )
+					.font( .caption )
+					.foregroundStyle( Color.secondary )
+			} else {
+				HStack {
+					Button( proposed.map { "Use \u{201C}\($0)\u{201D}" } ?? "Use Device Name" ) {
+						controller.setHostname( device: device.id, proposed )
+					}
+					.disabled( !settable || proposed == nil || proposed == current )
+					.help( "Name it after the device, as your router will list it" )
+					Button( "Reset" ) { controller.setHostname( device: device.id, nil ) }
+						.disabled( !settable || current == settings.defaultHostname )
+						.help( "Back to \(settings.defaultHostname)" )
+				}
+				.buttonStyle( .borderless )
+				Text( "The device restarts to use a new name. Depending on your router, the old name can stay in its list for a while, until the device's address is renewed. Uploads from PlatformIO use the new name too." )
+					.font( .caption )
+					.foregroundStyle( Color.secondary )
+			}
+		}
+		.padding( .vertical, 2 )
 	}
 }

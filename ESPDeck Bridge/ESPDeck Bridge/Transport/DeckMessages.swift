@@ -65,6 +65,9 @@ struct DeviceStatus: Codable, Equatable {
 	/// How NVS (Wi-Fi password, pairing key, …) is stored: "plain", "encrypted", or
 	/// "unsupported" (plain, and the chip can't encrypt it). Firmware 4.1.0 and later; nil before.
 	var storage   : String?
+	/// Its name on the network (DHCP, and <hostname>.local). Firmware 4.1.0 and later; nil
+	/// before, when it's always the default (DeviceSettings.defaultHostname).
+	var hostname  : String?
 	/// The Wi-Fi network it's set up for. Only sent inside the session (firmware 4.1.0 and
 	/// later; nil before, and in the unauthenticated hello).
 	var wifi      : WiFi?
@@ -301,6 +304,8 @@ enum HostMessage: Encodable, Equatable {
 	case sleep
 	case wake
 	case setupMode( Bool )
+	/// Its name on the network; "" for the default. It restarts to use it. Firmware 4.1.0 and later.
+	case setHostname( String )
 	/// Which keys repeat while held, and how (milliseconds). Firmware 4.1.0 and later.
 	case repeatKeys( keys: [Int], delay: Int, interval: Int )
 	case unpair
@@ -320,7 +325,7 @@ enum HostMessage: Encodable, Equatable {
 	case pairCancel
 
 	private enum CodingKeys: String, CodingKey {
-		case type, key, keys, hash, value, name, seconds, enabled, delay, interval
+		case type, key, keys, hash, value, name, seconds, enabled, delay, interval, hostname
 		case version, size, sha256, allowDowngrade, nonce, proof, bridgeID, bridgeName, publicKey, passwordHash, sealedHash
 	}
 
@@ -350,6 +355,9 @@ enum HostMessage: Encodable, Equatable {
 			case .setupMode( let enabled ):
 				try container.encode( "setupMode", forKey: .type )
 				try container.encode( enabled, forKey: .enabled )
+			case .setHostname( let hostname ):
+				try container.encode( "setHostname", forKey: .type )
+				try container.encode( hostname, forKey: .hostname )
 			case .repeatKeys( let keys, let delay, let interval ):
 				try container.encode( "repeatKeys", forKey: .type )
 				try container.encode( keys, forKey: .keys )

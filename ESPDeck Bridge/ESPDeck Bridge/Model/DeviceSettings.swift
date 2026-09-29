@@ -192,6 +192,31 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		if name.isEmpty { name = defaultName }
 	}
 
+	/// The device's original name on the network: "espdeck-67e8", from the last two bytes of
+	/// its MAC address.
+	var defaultHostname: String {
+		let bytes = id.split( separator: ":" ).suffix( 2 ).joined().lowercased()
+		return bytes.isEmpty ? "espdeck" : "espdeck-\(bytes)"
+	}
+
+	/// A network name made from a device name: "Test Deck" becomes "test-deck". Lowercase
+	/// letters, digits and single hyphens, at most 32; nil if nothing's left.
+	static func hostname( from name: String ) -> String? {
+		var result   = ""
+		var hyphen   = false
+		for scalar in name.lowercased().unicodeScalars {
+			if ( "a"..."z" ).contains( scalar ) || ( "0"..."9" ).contains( scalar ) {
+				if hyphen && !result.isEmpty { result += "-" }
+				result.unicodeScalars.append( scalar )
+				hyphen = false
+			} else {
+				hyphen = true
+			}
+		}
+		let trimmed = String( result.prefix( 32 ) ).trimmingCharacters( in: CharacterSet( charactersIn: "-" ) )
+		return trimmed.isEmpty ? nil : trimmed
+	}
+
 	/// The name the device calls itself until it's renamed: "ESPDeck 67E8", from the last two
 	/// bytes of its MAC address.
 	var defaultName: String {

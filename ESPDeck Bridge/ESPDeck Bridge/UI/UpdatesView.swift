@@ -72,7 +72,8 @@ struct UpdatesView: View {
 struct FirmwareRow: View {
 	let controller : DeckController
 	let device     : DeckDevice
-	/// Replaces the device's name, e.g. with its default name on the Device page.
+	/// Replaces the device's name as the heading, e.g. "Firmware" on the Device page, where
+	/// the line under it is then just the version. Confirmations still name the device.
 	var title      : String?
 
 	/// An image checked and waiting for the user to confirm.
@@ -97,7 +98,7 @@ struct FirmwareRow: View {
 	@State private var chosen      : PendingInstall?
 
 	var body: some View {
-		let name = title ?? controller.settings( device.id )?.name ?? device.id
+		let name = controller.settings( device.id )?.name ?? device.id
 
 		LabeledContent {
 			HStack {
@@ -110,8 +111,8 @@ struct FirmwareRow: View {
 			}
 		} label: {
 			VStack( alignment: .leading, spacing: 2 ) {
-				Text( name )
-				Text( device.firmware.map { "Firmware \($0)" } ?? ( device.isOnline ? "Firmware unknown" : "Offline" ) )
+				Text( title ?? name )
+				Text( device.firmware.map { title == nil ? "Firmware \($0)" : $0 } ?? ( device.isOnline ? "Unknown" : "Offline" ) )
 					.font( .caption )
 					.foregroundStyle( .secondary )
 			}

@@ -280,6 +280,11 @@ final class DeckController {
 		send( .sleepTimeout( seconds ), to: id )
 	}
 
+	/// Its name on the network, or nil for the original; the device restarts to use it.
+	func setHostname( device id: String, _ hostname: String? ) {
+		send( .setHostname( hostname ?? "" ), to: id )
+	}
+
 	func sleep( device id: String ) {
 		send( .sleep, to: id )
 	}

@@ -39,6 +39,7 @@ void Settings::begin() {
 	esp_read_mac( mac, ESP_MAC_WIFI_STA );
 	snprintf( id_, sizeof( id_ ), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5] );
 	snprintf( suffix_, sizeof( suffix_ ), "%02X%02X", mac[4], mac[5] );
+	snprintf( defaultHostname_, sizeof( defaultHostname_ ), "espdeck-%02x%02x", mac[4], mac[5] );
 
 	if( !preferences.begin( kNamespace, false ) ) {
 		ESP_LOGE( TAG, "Opening NVS failed; using defaults" );
@@ -50,6 +51,9 @@ void Settings::begin() {
 	loadString( "password", password_, sizeof( password_ ) );
 	verified_ = preferences.getBool( "verified", false );
 	loadString( "name", name_, sizeof( name_ ) );
+	loadString( "hostname", hostname_, sizeof( hostname_ ) );
+	if( hostname_[0] && !isValidHostname( hostname_ ) )
+		hostname_[0] = '\0';
 	loadString( "orientation", orientation_, sizeof( orientation_ ) );
 	sleepTimeout_ = preferences.getUInt( "sleepTimeout", 0 );
 	loadString( "bridgeID", bridgeID_, sizeof( bridgeID_ ) );
@@ -135,6 +139,30 @@ bool Settings::setName( const char *name ) {
 	if( strcmp( name, name_ ) != 0 ) {
 		strlcpy( name_, name, sizeof( name_ ) );
 		preferences.putString( "name", name_ );
+	}
+	return true;
+}
+
+bool Settings::isValidHostname( const char *hostname ) {
+	size_t length = hostname ? strlen( hostname ) : 0;
+	if( length == 0 || length > kMaxName || hostname[0] == '-' || hostname[length - 1] == '-' )
+		return false;
+	return strspn( hostname, "abcdefghijklmnopqrstuvwxyz0123456789-" ) == length;
+}
+
+bool Settings::setHostname( const char *hostname ) {
+	if( !hostname || !hostname[0] || strcmp( hostname, defaultHostname_ ) == 0 ) {
+		if( hostname_[0] ) {
+			hostname_[0] = '\0';
+			preferences.remove( "hostname" );
+		}
+		return true;
+	}
+	if( !isValidHostname( hostname ) )
+		return false;
+	if( strcmp( hostname, hostname_ ) != 0 ) {
+		strlcpy( hostname_, hostname, sizeof( hostname_ ) );
+		preferences.putString( "hostname", hostname_ );
 	}
 	return true;
 }

@@ -162,6 +162,7 @@ static bool pairingShown() {
 static bool             pendingVerify  = false;   // this image is new and hasn't authenticated yet
 static bool             restartPending = false;   // a firmware update is installed
 static uint32_t         restartAt      = 0;
+static uint32_t         hostnameRestartAt = 0;      // a new hostname, taken at startup
 
 static volatile bool    wifiJoined     = false;   // set on the Wi-Fi event task
 
@@ -269,6 +270,7 @@ static cJSON *statusJSON() {
 	cJSON_AddBoolToObject( object, "setupMode", portal.active() );
 	cJSON_AddBoolToObject( object, "devOTA", settings.hasOTAPassword() );
 	cJSON_AddStringToObject( object, "storage", SecureNVS::stateName() );
+	cJSON_AddStringToObject( object, "hostname", settings.hostname() );
 
 	// The network it's set up for, only inside the session: an unpaired device sends its
 	// hello to whichever bridge it finds. So the first hello goes without it, and a status
@@ -1271,6 +1273,18 @@ static void handleCommand( const char *type, cJSON *json ) {
 		else
 			ESP_LOGW( TAG, "Bad setName message" );
 
+	} else if( strcmp( type, "setHostname" ) == 0 ) {
+		// "" for the default. Taken at startup (DHCP, mDNS), so a change restarts the device.
+		const char *hostname = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "hostname" ) );
+		char        before[Settings::kMaxName + 1];
+		strlcpy( before, settings.hostname(), sizeof( before ) );
+		if( !settings.setHostname( hostname ) ) {
+			ESP_LOGW( TAG, "Bad setHostname message" );
+		} else if( strcmp( before, settings.hostname() ) != 0 ) {
+			ESP_LOGI( TAG, "Hostname now %s; restarting to use it", settings.hostname() );
+			hostnameRestartAt = millis() + 500;
+		}
+
 	} else if( strcmp( type, "orientation" ) == 0 ) {
 		const char           *value = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "value" ) );
 		StreamDeck::Transform transform;
@@ -1690,6 +1704,15 @@ static void checkTimers() {
 		dropBridge( false );
 	}
 
+	if( hostnameRestartAt && (int32_t)( now - hostnameRestartAt ) >= 0 ) {
+		disableLoopWDT();
+		cache.persistNow();
+		if( bridge.isConnected() )
+			dropBridge( false );
+		delay( 200 );
+		esp_restart();
+	}
+
 	if( restartPending && (int32_t)( now - restartAt ) >= 0 ) {
 		ESP_LOGI( TAG, "Restarting into the new firmware" );
 		disableLoopWDT();            // the waits below can add up to more than its timeout
@@ -1749,11 +1772,8 @@ void setup() {
 		ESP_LOGE( TAG, "NVS isn't set up (storage %s)", SecureNVS::stateName() );
 	settings.begin();
 
-	// "espdeck-eeff": unique per device, for DHCP and mDNS.
-	static char hostname[16];
-	snprintf( hostname, sizeof( hostname ), "espdeck-%s", settings.idSuffix() );
-	for( char *c = hostname; *c; c++ )
-		*c = (char)tolower( *c );
+	// "espdeck-eeff" (unique per device) or the one chosen from the Mac, for DHCP and mDNS.
+	const char *hostname = settings.hostname();
 
 	if( !cache.begin() )
 		ESP_LOGE( TAG, "Image cache unavailable" );

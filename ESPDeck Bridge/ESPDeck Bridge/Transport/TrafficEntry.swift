@@ -85,6 +85,9 @@ struct TrafficEntry: Identifiable {
 			case "repeatKeys":
 				let keys = ( object["keys"] as? [Int] ) ?? []
 				return keys.isEmpty ? "No keys repeat when held" : "Keys that repeat when held: \(keys.map { String( $0 + 1 ) }.joined( separator: ", " ))"
+			case "setHostname":
+				let hostname = plain( object["hostname"] )
+				return hostname.isEmpty ? "Asked the deck to use its original network name" : "Asked the deck to use the network name \u{201C}\(hostname)\u{201D}"
 			case "sleep":          return "Asked the deck to sleep"
 			case "wake":           return "Asked the deck to wake"
 			case "setupMode":      return object["enabled"] as? Bool == true ? "Asked the deck to enter setup mode" : "Asked the deck to leave setup mode"

@@ -43,6 +43,14 @@ public:
 	const char *name() const { return name_; }
 	bool        setName( const char *name );
 
+	// The name on the network (DHCP, mDNS as <hostname>.local): the one chosen from the Mac,
+	// else "espdeck-eeff" from the MAC address. Taken at startup.
+	const char *hostname() const { return hostname_[0] ? hostname_ : defaultHostname_; }
+	bool        hasCustomHostname() const { return hostname_[0] != '\0'; }
+	// Empty or null goes back to the default. False (and unchanged) for anything but 1–32
+	// lowercase letters, digits and hyphens, not starting or ending with a hyphen.
+	bool        setHostname( const char *hostname );
+
 	// "auto" or a transform name; the caller validates.
 	const char *orientation() const { return orientation_; }
 	void        setOrientation( const char *orientation );
@@ -68,12 +76,16 @@ public:
 	static constexpr size_t kMaxBridgeID = 63;
 
 private:
+	static bool isValidHostname( const char *hostname );
+
 	char     id_[18]                     = {};
 	char     suffix_[5]                  = {};
 	char     ssid_[33]                   = {};
 	char     password_[65]               = {};
 	bool     verified_                   = false;
 	char     name_[kMaxName + 1]         = {};
+	char     hostname_[kMaxName + 1]     = {};
+	char     defaultHostname_[16]        = {};
 	char     orientation_[16]            = "auto";
 	uint32_t sleepTimeout_               = 0;
 	bool     paired_                     = false;
