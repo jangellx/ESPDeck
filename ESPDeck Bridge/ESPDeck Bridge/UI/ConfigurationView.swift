@@ -400,6 +400,27 @@ struct LabelPositionControl: View {
 	let deviceID   : String
 
 	var body: some View {
+		// One line where there's room, else Copy Keys From under Key Labels.
+		ViewThatFits( in: .horizontal ) {
+			HStack( spacing: 10 ) {
+				labels
+				Divider()
+					.frame( height: 18 )
+				copyKeys
+			}
+			VStack( spacing: 8 ) {
+				labels
+				copyKeys
+			}
+		}
+	}
+
+	private var copyKeys: some View {
+		CopyKeysMenu( controller: controller, deviceID: deviceID )
+			.fixedSize()
+	}
+
+	private var labels: some View {
 		HStack( spacing: 10 ) {
 			Text( "Key Labels" )
 				.foregroundStyle( .secondary )
@@ -415,12 +436,6 @@ struct LabelPositionControl: View {
 			.pickerStyle( .segmented )
 			.labelsHidden()
 			.fixedSize()
-
-			Divider()
-				.frame( height: 18 )
-
-			CopyKeysMenu( controller: controller, deviceID: deviceID )
-				.fixedSize()
 		}
 	}
 }

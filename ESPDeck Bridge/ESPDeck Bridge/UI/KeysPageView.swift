@@ -72,11 +72,6 @@ struct KeysPageView: View {
 				ScrollView( [ .vertical, .horizontal ] ) {
 					VStack( spacing: 14 ) {
 						DeckGridView( controller: controller, deviceID: deviceID, keySize: keySize, selection: $selection )
-						LabelPositionControl( controller: controller, deviceID: deviceID )
-						Text( "Shift-click a key to run it, as if pressed on the deck; hold a Level key to keep stepping." )
-							.font( .caption )
-							.foregroundStyle( Color.secondary )
-							.multilineTextAlignment( .center )
 						if let device = controller.device( deviceID ), controller.settings( deviceID )?.isDemo != true {
 							TransferStatusView( device: device )
 								.frame( maxWidth: 520 )
@@ -90,7 +85,19 @@ struct KeysPageView: View {
 			}
 
 			Divider()
-			zoomBar
+			// Fixed under the deck, so they don't move when it scrolls or zooms.
+			VStack( spacing: 8 ) {
+				LabelPositionControl( controller: controller, deviceID: deviceID )
+				zoomBar
+				Text( "Shift-click a key to run it, as if pressed on the deck; hold a Level key to keep stepping." )
+					.font( .caption )
+					.foregroundStyle( Color.secondary )
+					.multilineTextAlignment( .center )
+					.fixedSize( horizontal: false, vertical: true )
+					.frame( maxWidth: .infinity )
+			}
+			.padding( .horizontal, 14 )
+			.padding( .vertical, 10 )
 		}
 	}
 
@@ -227,8 +234,6 @@ struct KeysPageView: View {
 			.padding( .leading, 6 )
 		}
 		.controlSize( .small )
-		.padding( .horizontal, 14 )
-		.padding( .vertical, 8 )
 		.frame( maxWidth: .infinity )
 	}
 
