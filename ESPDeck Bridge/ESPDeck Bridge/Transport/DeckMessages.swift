@@ -98,6 +98,7 @@ struct DeviceStatus: Codable, Equatable {
 			case "pairing":   "pairing"
 			case "timeout":   "setup mode timed out"
 			case "session":   "connected"
+			case "deck":      "Stream Deck plugged in"
 			default:          reason
 		}
 	}

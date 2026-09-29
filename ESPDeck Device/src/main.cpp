@@ -296,7 +296,7 @@ static void sendDeck() {
 }
 
 // reason: what changed it ("timer", "key", "bridge", "chord", "setupPage", "exitKey",
-// "improv", "pairing", "boot", "timeout", "session"), for the Mac's log.
+// "improv", "pairing", "boot", "timeout", "session", "deck"), for the Mac's log.
 static void sendStatus( const char *reason ) {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", "status" );
@@ -1449,7 +1449,11 @@ static void handleDeckEvent( const StreamDeck::Event &event ) {
 			keysToBlank   = 0;   // a freshly plugged-in deck shows its own logo
 			keysToUpload  = allKeys( deckInfo.keyCount() );
 			uploader.reset();
-			refreshScreen( true );   // also sets the brightness; stays dark if asleep
+			// The sleep timer runs with no deck attached too, so a deck plugged into an idle
+			// board would otherwise stay dark. Plugging one in counts as activity.
+			lastActivity  = millis();
+			wake( "deck" );
+			refreshScreen( true );   // also sets the brightness
 			sendDeck();
 			break;
 		case StreamDeck::EventType::Disconnected:
