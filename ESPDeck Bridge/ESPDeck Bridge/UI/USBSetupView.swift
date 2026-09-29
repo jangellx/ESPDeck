@@ -260,28 +260,34 @@ struct USBSetupView: View {
 		}
 	}
 
-	/// The latest release, a chosen file, and Choose File… at the end, which opens the
-	/// file picker (nil stands for it) and leaves the selection alone.
+	/// The latest release, a chosen file, and Choose File… at the end, which opens the file
+	/// picker. A menu labelled with the current choice rather than a Picker: a Picker kept
+	/// showing Choose File… after a file was picked, until it was opened again.
 	private var sourcePicker: some View {
-		Picker( "Firmware", selection: Binding<USBSetup.Source?>( get: { setup.source }, set: { source in
-			if let source {
-				setup.source = source
-			} else {
-				pickingFile = true
+		let latest       = controller.updates.latestFirmware
+		// As in Updates.
+		let releaseTitle = latest.map { "Latest release (\($0.version.description))" } ?? "No signed release yet"
+		let fileTitle    = setup.chosenFile.map { "\($0.url.lastPathComponent) (\($0.version))" }
+		let isFile: Bool = { if case .file = setup.source { true } else { false } }()
+
+		return Menu {
+			Button {
+				setup.source = .release
+			} label: {
+				MenuChoice( title: releaseTitle, chosen: !isFile )
 			}
-		} ) ) {
-			// As in Updates.
-			Text( controller.updates.latestFirmware.map { "Latest release (\($0.version.description))" } ?? "No signed release yet" )
-				.tag( USBSetup.Source.release as USBSetup.Source? )
-			if let chosenFile = setup.chosenFile {
-				Text( "\(chosenFile.url.lastPathComponent) (\(chosenFile.version))" )
-					.tag( USBSetup.Source.file( chosenFile.url ) as USBSetup.Source? )
+			if let chosenFile = setup.chosenFile, let fileTitle {
+				Button {
+					setup.source = .file( chosenFile.url )
+				} label: {
+					MenuChoice( title: fileTitle, chosen: isFile )
+				}
 			}
 			Divider()
-			Text( "Choose File…" )
-				.tag( nil as USBSetup.Source? )
+			Button( "Choose File…" ) { pickingFile = true }
+		} label: {
+			Text( isFile ? fileTitle ?? releaseTitle : releaseTitle )
 		}
-		.labelsHidden()
 		.fixedSize()
 		.disabled( setup.install.isBusy )
 	}

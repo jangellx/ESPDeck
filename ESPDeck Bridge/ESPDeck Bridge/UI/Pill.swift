@@ -54,3 +54,17 @@ struct PillSegmentStyle: ButtonStyle {
 			.opacity( !isEnabled ? 0.35 : configuration.isPressed ? 0.55 : 1 )
 	}
 }
+
+/// An item in a menu used as a popup: a checkmark beside the current choice.
+struct MenuChoice: View {
+	let title  : String
+	let chosen : Bool
+
+	var body: some View {
+		if chosen {
+			Label( title, systemImage: "checkmark" )
+		} else {
+			Text( title )
+		}
+	}
+}

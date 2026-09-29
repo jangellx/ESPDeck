@@ -153,23 +153,32 @@ struct FirmwareRow: View {
 	}
 
 	/// Like USB Setup's: the latest signed release, the chosen file, then Choose File… after a
-	/// divider (on the Mac, where files can be picked).
+	/// divider (on the Mac, where files can be picked). A menu labelled with the current choice:
+	/// a Picker kept showing Choose File… after a file was picked.
 	private var firmwareMenu: some View {
-		let latest = controller.updates.latestFirmware
-		return Picker( "Firmware", selection: $choice ) {
-			Text( latest.map { "Latest release (\($0.version.description))" } ?? "No signed release yet" )
-				.tag( Choice.release )
-			if let chosen {
-				Text( "\(chosen.source) (\(chosen.info.version))" )
-					.tag( Choice.file )
+		let latest       = controller.updates.latestFirmware
+		let releaseTitle = latest.map { "Latest release (\($0.version.description))" } ?? "No signed release yet"
+		let fileTitle    = chosen.map { "\($0.source) (\($0.info.version))" }
+		return Menu {
+			Button {
+				choice = .release
+			} label: {
+				MenuChoice( title: releaseTitle, chosen: choice != .file )
+			}
+			if let fileTitle {
+				Button {
+					choice = .file
+				} label: {
+					MenuChoice( title: fileTitle, chosen: choice == .file )
+				}
 			}
 			if controller.macBridge != nil {
 				Divider()
-				Text( "Choose File…" )
-					.tag( Choice.chooseFile )
+				Button( "Choose File…" ) { pickingFile = true }
 			}
+		} label: {
+			Text( choice == .file ? fileTitle ?? releaseTitle : releaseTitle )
 		}
-		.labelsHidden()
 		.fixedSize()
 		.disabled( device.status.setupMode || device.firmwareProgress?.isActive == true )
 	}
