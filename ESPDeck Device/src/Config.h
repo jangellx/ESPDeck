@@ -41,6 +41,9 @@ constexpr uint32_t kSetupChordTime    = 5000;        // ms both corner keys are 
 constexpr uint32_t kSetupExitDelay    = 8000;        // ms after joining a new network before leaving
 constexpr uint8_t  kSetupBrightness   = 60;
 
+// A key pressed again this soon after its release is switch bounce, not a second press.
+constexpr uint32_t kKeyBounce         = 50;          // ms
+
 // Connecting screen
 constexpr uint32_t kConnectingGrace    = 3000;       // ms after a session ends before it shows
 constexpr uint32_t kConnectingDotStep  = 600;        // ms; each step is one key (~320 ms on a Mini)

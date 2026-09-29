@@ -98,6 +98,8 @@ static uint32_t         keysToBlank    = 0;
 // Key tracking, one bit per key.
 static uint32_t         keysDown       = 0;       // held right now
 static uint32_t         keysForwarded  = 0;       // the Mac has seen keyDown but not keyUp
+static uint32_t         keysBouncing   = 0;       // down ignored as bounce; ignore its up too
+static uint32_t         keyReleasedAt[kMaxKeys] = {};   // millis() of each key's last up
 static bool             swallowKeys    = false;   // forward nothing until every key is up (the wake press)
 
 static bool             asleep         = false;
@@ -1500,12 +1502,25 @@ static void handleDeckEvent( const StreamDeck::Event &event ) {
 			sendDeck();
 			break;
 		case StreamDeck::EventType::KeyDown:
+			// A switch that bounces reports up and down again within a few milliseconds; a
+			// person can't press the same key again that quickly, so that's one press.
+			if( event.key < kMaxKeys && keyReleasedAt[event.key] && millis() - keyReleasedAt[event.key] < kKeyBounce ) {
+				ESP_LOGI( TAG, "Deck key %u down %u ms after its release; ignored as bounce", event.key, (unsigned)( millis() - keyReleasedAt[event.key] ) );
+				keysBouncing |= keyBit( event.key );
+				break;
+			}
 			ESP_LOGI( TAG, "Deck key %u down (screen %d, asleep %d, swallowing %d, authenticated %d)",
 					  event.key, (int)screen, asleep, swallowKeys, session.authenticated() );
 			statusLed.keyPressed();
 			handleKeyDown( event.key );
 			break;
 		case StreamDeck::EventType::KeyUp:
+			if( event.key < kMaxKeys )
+				keyReleasedAt[event.key] = millis() | 1;   // never 0, which means "not yet"
+			if( keysBouncing & keyBit( event.key ) ) {
+				keysBouncing &= ~keyBit( event.key );
+				break;
+			}
 			ESP_LOGI( TAG, "Deck key %u up (forwarded %d)", event.key, ( keysForwarded & keyBit( event.key ) ) != 0 );
 			handleKeyUp( event.key );
 			break;
