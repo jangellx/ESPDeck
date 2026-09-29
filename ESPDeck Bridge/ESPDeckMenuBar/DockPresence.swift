@@ -20,6 +20,25 @@ enum DockPresence {
 	/// Until then, stay regular without a window: one has been asked for and is on its way.
 	private static var expectingWindowUntil = Date.distantPast
 
+	/// The app icon for the Dock and alerts: the AppIcon.icns Xcode builds from the asset
+	/// catalog. Asking the workspace for the bundle's icon could give the generic one (a
+	/// freshly built app's icon not cached yet). Failing both, it's drawn from the icon art in
+	/// the shape of a macOS icon: inset on a 1024 grid, rounded.
+	static let appIcon: NSImage = {
+		if let url = Bundle.main.url( forResource: "AppIcon", withExtension: "icns" ), let icon = NSImage( contentsOf: url ) {
+			return icon
+		}
+		guard let art = NSImage( named: "AppIconArt" ) else {
+			return NSWorkspace.shared.icon( forFile: Bundle.main.bundlePath )
+		}
+		return NSImage( size: NSSize( width: 1024, height: 1024 ), flipped: false ) { _ in
+			let shape = NSRect( x: 100, y: 100, width: 824, height: 824 )
+			NSBezierPath( roundedRect: shape, xRadius: 185, yRadius: 185 ).addClip()
+			art.draw( in: shape )
+			return true
+		}
+	}()
+
 	static func start() {
 		guard observers.isEmpty else { return }
 		let names: [Notification.Name] = [
@@ -32,7 +51,7 @@ enum DockPresence {
 		]
 		// Switched to regular at run time, an LSUIElement app can show the generic icon in the
 		// Dock; give it the bundle's icon explicitly.
-		NSApp.applicationIconImage = NSWorkspace.shared.icon( forFile: Bundle.main.bundlePath )
+		NSApp.applicationIconImage = appIcon
 
 		observers = names.map { name in
 			NotificationCenter.default.addObserver( forName: name, object: nil, queue: .main ) { _ in

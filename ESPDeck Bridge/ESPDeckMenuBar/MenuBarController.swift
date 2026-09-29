@@ -411,6 +411,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	func confirmQuit() {
 		let windowOpen = DockPresence.hasOpenWindow
 		let alert = NSAlert()
+		alert.icon = DockPresence.appIcon
 		alert.messageText     = "Quit ESPDeck Bridge?"
 		alert.informativeText = "While ESPDeck Bridge isn't running, your Stream Decks can't control anything and show Connecting."
 		alert.addButton( withTitle: "Quit" )
