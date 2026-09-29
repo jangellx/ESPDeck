@@ -62,6 +62,9 @@ struct KeyInspectorView: View {
 									Text( action.title ).tag( action )
 								}
 							}
+							// A popup whose options change underneath it (a shortcut's actions, then a
+							// light's) can keep showing the old choice; a new one for each set doesn't.
+							.id( "\(deviceID)/\(key)/" + assignment.actions.map( \.rawValue ).joined( separator: "," ) )
 						}
 						LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 					}
