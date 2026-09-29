@@ -31,15 +31,18 @@ enum SymbolCounterpart {
 		let join    = { ( parts: [String], fill: Bool ) in ( parts + ( fill ? [ "fill" ] : [] ) ).joined( separator: "." ) }
 
 		// A symbol with .on/.off in it (lightswitch.on.square), or poweron/poweroff: that part
-		// says the state, and the rest (square, fill) stays as it is.
+		// says the state, and the rest (square, fill) stays as it is. Only when the other one
+		// exists: in doc.on.doc, "on" isn't a state, so it fills and unfills as usual.
 		if target == .on || target == .off {
 			let words: [String: String] = [ "on": "off", "off": "on", "poweron": "poweroff", "poweroff": "poweron" ]
 			if let index = base.firstIndex( where: { words[$0] != nil } ) {
-				let wanted = target == .on ? [ "on", "poweron" ] : [ "off", "poweroff" ]
-				guard !wanted.contains( base[index] ) else { return [] }   // already right
 				var swapped = base
 				swapped[index] = words[base[index]]!
-				return [ join( swapped, filled ) ]
+				let other = join( swapped, filled )
+				if UIImage( systemName: other ) != nil {
+					let wanted = target == .on ? [ "on", "poweron" ] : [ "off", "poweroff" ]
+					return wanted.contains( base[index] ) ? [] : [ other ]   // [] when already right
+				}
 			}
 		}
 

@@ -783,26 +783,36 @@ final class USBSetup {
 	// MARK: - After Wi-Fi
 
 	/// Where the board that joined a network shows up once it has found this bridge: the
-	/// sidebar item to select, and whether it still needs pairing. Found by its device ID
+	/// sidebar item to select, a line saying how it is, and whether it still needs pairing. Found by its device ID
 	/// where its USB port gave it, since a board renamed after it first connected can still
 	/// be listed under its old name; by name otherwise.
-	func arrival( of board: JoinedBoard ) -> ( selection: String, needsPairing: Bool )? {
+	func arrival( of board: JoinedBoard ) -> ( selection: String, status: String, needsPairing: Bool )? {
 		guard let controller else { return nil }
+		// A known device the bridge can't authenticate shows on its own row (stuckConnection).
+		let listed = { ( new: NewDevice ) -> ( selection: String, status: String, needsPairing: Bool ) in
+			if controller.stuckConnection( for: new.hello.id )?.client == new.client, controller.device( new.hello.id ) != nil {
+				return ( new.hello.id, "It found ESPDeck Bridge, but \(new.reason.status).", false )
+			}
+			return ( SidebarItem.newDevice( new.client ),
+					 new.reason.canPair ? "It found ESPDeck Bridge and is waiting to be paired." : "It found ESPDeck Bridge, but \(new.reason.status).",
+					 new.reason.canPair )
+		}
 		if let id = board.deviceID {
 			if let new = controller.newDevices.first( where: { $0.hello.id == id } ) {
-				return ( SidebarItem.newDevice( new.client ), true )
+				return listed( new )
 			}
 			if let device = controller.device( id ), device.isOnline {
-				return ( device.id, false )
+				return ( device.id, "It's connected to ESPDeck Bridge.", false )
 			}
 			return nil
 		}
 		if let new = controller.newDevices.first( where: { $0.hello.name == board.name } ) {
-			return ( SidebarItem.newDevice( new.client ), true )
+			return listed( new )
 		}
 		if let device = controller.devices.first( where: { $0.isOnline && controller.settings( $0.id )?.name == board.name } ) {
-			return ( device.id, false )
+			return ( device.id, "It's connected to ESPDeck Bridge.", false )
 		}
 		return nil
 	}
+
 }

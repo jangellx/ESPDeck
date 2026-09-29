@@ -10,7 +10,7 @@ import Foundation
 import Security
 
 enum PairingKeyStore {
-	private static let service = "ESPDeck Bridge pairing key"
+	nonisolated private static let service = "ESPDeck Bridge pairing key"
 	/// Keys already read, so a reconnect doesn't go to the Keychain on the main thread…
 	private static var cache: [String: Data] = [:]
 	/// …and IDs the Keychain definitely has none for (errSecItemNotFound), so hellos from
@@ -20,10 +20,8 @@ enum PairingKeyStore {
 	private static var missing: Set<String> = []
 	private static let missingLimit = 256
 
-	/// recheck: go to the Keychain even if it said last time it had none.
-	static func key( for deviceID: String, recheck: Bool = false ) -> Data? {
+	static func key( for deviceID: String ) -> Data? {
 		if let cached = cache[deviceID] { return cached }
-		if recheck { missing.remove( deviceID ) }
 		if missing.contains( deviceID ) { return nil }
 		var definitelyMissing = true
 		for dataProtection in [ true, false ] {
@@ -47,6 +45,28 @@ enum PairingKeyStore {
 			missing.insert( deviceID )
 		}
 		return nil
+	}
+
+	/// Straight from the Keychain, bypassing (and not touching) the caches, so it can run off
+	/// the main thread: for checking again on a key that couldn't be read, when the Keychain
+	/// may be slow to answer. remember() it if found.
+	nonisolated static func read( _ deviceID: String ) -> Data? {
+		for dataProtection in [ true, false ] {
+			var query = base( deviceID, dataProtection: dataProtection )
+			query[kSecReturnData as String] = true
+			query[kSecMatchLimit as String] = kSecMatchLimitOne
+			var result: AnyObject?
+			if SecItemCopyMatching( query as CFDictionary, &result ) == errSecSuccess, let data = result as? Data {
+				return data
+			}
+		}
+		return nil
+	}
+
+	/// A key read() found.
+	static func remember( _ key: Data, for deviceID: String ) {
+		cache[deviceID] = key
+		missing.remove( deviceID )
 	}
 
 	/// Replaces the key in place (or adds it), so the old one is never gone before the new one
@@ -116,7 +136,7 @@ enum PairingKeyStore {
 		return stored
 	}
 
-	private static func base( _ deviceID: String, dataProtection: Bool ) -> [String: Any] {
+	nonisolated private static func base( _ deviceID: String, dataProtection: Bool ) -> [String: Any] {
 		[
 			kSecClass as String:                     kSecClassGenericPassword,
 			kSecAttrService as String:               service,

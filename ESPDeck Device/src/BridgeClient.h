@@ -6,7 +6,9 @@
 // stalled is avoided for kAvoidTime (except that last good one), so something else on the
 // network advertising the bridge's ID can't keep the device from its real bridge. While
 // connected to a bridge that knows us but can't authenticate (noKey), it keeps looking for
-// another with our ID (setLookingElsewhere), and moves to one if it turns up.
+// another with our ID (setLookingElsewhere), and moves to one if it turns up, skipping every
+// address that has answered noKey since we last authenticated (a Mac on Ethernet and Wi-Fi
+// answers at two; each is tried once).
 //
 // mDNS queries take a few seconds, so they run on a discovery task of their own; loop()
 // hands it requests and picks up the results, and never blocks.
@@ -65,9 +67,10 @@ public:
 	// (unless it's the last one that authenticated). Call before disconnect().
 	void avoidCurrent();
 
-	// While connected: every kLookInterval, look for another bridge with our ID; if one turns
-	// up, drop this connection (a Disconnected message follows) and connect to that one.
-	// Off again once the connection goes.
+	// The bridge we're connected to has no key for us: remember its address as one to skip,
+	// and every kLookInterval look for another bridge with our ID. If one turns up, this
+	// connection is dropped (a Disconnected message follows) and that one connected to.
+	// Off again once the connection goes; the addresses are forgotten on authentication.
 	void setLookingElsewhere( bool on );
 
 	// Drops the connection. No Disconnected message follows; the caller resets its own state.
@@ -90,7 +93,6 @@ private:
 	struct Endpoint {
 		uint32_t address;   // IPv4, network byte order as lwIP keeps it
 		uint16_t port;
-		char     host[32];  // its mDNS host name: a Mac on Ethernet and Wi-Fi has two addresses
 	};
 
 	struct Avoided {
@@ -99,19 +101,21 @@ private:
 	};
 
 	static constexpr size_t kMaxAvoided = 4;
+	static constexpr size_t kMaxNoKey   = 4;
 
 	struct Request {
 		char     preferred[64];
 		Endpoint lastGood;
 		Avoided  avoided[kMaxAvoided];
-		Endpoint exclude;   // the connection we have, when looking elsewhere
+		Endpoint skip[kMaxNoKey];   // when looking elsewhere: addresses that answered noKey
+		bool     lookingElsewhere;
 	};
 
 	void runDiscovery();
 	bool discover( const Request &request, Endpoint &found );
 
 	// Called by loop().
-	void requestDiscovery( Endpoint exclude = {} );
+	void requestDiscovery( bool lookingElsewhere = false );
 	void abandonDiscovery();
 	bool takeDiscoveryResult( bool &found, Endpoint &endpoint );
 
@@ -133,6 +137,10 @@ private:
 	Avoided                       avoided_[kMaxAvoided] = {};
 	bool                          lookingElsewhere_     = false;
 	uint32_t                      nextLook_             = 0;
+	Endpoint                      noKey_[kMaxNoKey]     = {};   // answered noKey since we last authenticated
+	size_t                        noKeyNext_            = 0;
+	bool                          switchPending_        = false;   // connect to switchTo_ once Disconnected is handed over
+	Endpoint                      switchTo_             = {};
 
 	// Discovery requests and results, under discoveryMutex_. Results carry the request's id,
 	// so one that arrives after Wi-Fi dropped is ignored.

@@ -25,7 +25,8 @@ extension DeckController {
 		let page = min( max( page, 0 ), config.settings.devices[index].pages.count - 1 )
 		guard page != config.settings.devices[index].currentPage else { return }
 		stopSliders( device: id )
-		device( id )?.pageChange = ( Date(), device( id )?.keys.map { $0?.preview } ?? [] )
+		// What each key shows now, which may still be the page before (changing twice quickly).
+		device( id )?.pageChange = ( Date(), device( id )?.displayedPreviews ?? [] )
 		config.settings.devices[index].currentPage = page
 		window.selectedKey = min( window.selectedKey, max( layout( id ).keyCount - 1, 0 ) )
 		assignmentsChanged( device: id )

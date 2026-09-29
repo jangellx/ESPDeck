@@ -98,7 +98,8 @@ struct ConfigurationView: View {
 				  let entry = old.first( where: { $0.hasPrefix( item.dropFirst( SidebarItem.newPrefix.count ) ) } ),
 				  let id = entry.split( separator: " " ).last,
 				  let again = controller.newDevices.first( where: { $0.hello.id == id } ) else { return }
-			window.selection = SidebarItem.newDevice( again.client )
+			// A known device it turned out to be shows on its own row.
+			window.selection = controller.listedNewDevices.contains( where: { $0.client == again.client } ) ? SidebarItem.newDevice( again.client ) : String( id )
 		}
 		.onChange( of: controller.devices.map( \.id ) ) { old, new in
 			// Follow a device that just finished pairing.

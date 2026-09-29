@@ -33,6 +33,23 @@ final class DeckDevice: Identifiable {
 	/// preview can pop the new page in a key at a time.
 	var pageChange: ( at: Date, previews: [UIImage?] )?
 
+	/// Seconds between keys as a new page pops in, in key order.
+	static let pagePopStep: TimeInterval = 0.05
+
+	/// Whether `key` still shows the old page of `pageChange` at `date`.
+	func isWaitingForPageChange( key: Int, at date: Date = Date() ) -> Bool {
+		guard let change = pageChange, key < change.previews.count else { return false }
+		return date < change.at.addingTimeInterval( Double( key ) * Self.pagePopStep )
+	}
+
+	/// What each key shows in the Keys page right now: the old page's image for keys still
+	/// waiting their turn after a page change.
+	var displayedPreviews: [UIImage?] {
+		keys.indices.map { key in
+			isWaitingForPageChange( key: key ) ? pageChange?.previews[key] : keys[key]?.preview
+		}
+	}
+
 	/// Set when another key goes down during a press, so chords (like the setup-mode
 	/// corner hold) don't trigger key actions.
 	@ObservationIgnored var chord        = false

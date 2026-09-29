@@ -27,7 +27,7 @@ struct NewDevice: Identifiable {
 			switch self {
 				case .unpaired:        "Not paired yet."
 				case .pairedElsewhere: "Paired with a different ESPDeck Bridge. To move it to this Mac, forget it on that Mac first, or use Unpair on the deck's setup page."
-				case .keyMissing:      "It's paired with this Mac, but this Mac no longer has its pairing key. Use Unpair on the deck's setup page, then pair it again here."
+				case .keyMissing:      "It's paired with this Mac, but this Mac can't read its pairing key. If the Keychain was only unavailable for a while, it connects by itself within a minute of the key being readable again. Otherwise, use Unpair on the deck's setup page, then pair it again here."
 				case .oldFirmware:     "Its firmware is too old to pair with this version of ESPDeck Bridge. Update it over USB."
 			}
 		}
@@ -192,9 +192,14 @@ extension DeckController {
 		Task { [weak self] in
 			while true {
 				try? await Task.sleep( for: .seconds( 60 ) )
-				guard let self, self.newDevices.contains( where: { $0.client == client && $0.reason == .keyMissing } ) else { return }
-				guard let key = PairingKeyStore.key( for: deviceID, recheck: true ) else { continue }
-				guard var handshake = self.handshakes[client] else { return }
+				// Stops once it's gone, or forgotten here (it'll never have a key again).
+				guard let self, self.newDevices.contains( where: { $0.client == client && $0.reason == .keyMissing } ),
+					  self.settings( deviceID ) != nil else { return }
+				// Off the main thread: this only runs because the Keychain misbehaved.
+				guard let key = await Task.detached( operation: { PairingKeyStore.read( deviceID ) } ).value else { continue }
+				guard self.newDevices.contains( where: { $0.client == client && $0.reason == .keyMissing } ),
+					  var handshake = self.handshakes[client] else { return }
+				PairingKeyStore.remember( key, for: deviceID )
 				print( "[Pairing] Found the key for \(deviceID) again; authenticating" )
 				self.newDevices.removeAll { $0.client == client }
 				self.sendAuth( client, key: key, handshake: &handshake )

@@ -547,7 +547,7 @@ struct USBSetupView: View {
 					}
 					if let arrival {
 						Label {
-							Text( arrival.needsPairing ? "It found ESPDeck Bridge and is waiting to be paired." : "It's connected to ESPDeck Bridge." )
+							Text( arrival.status )
 						} icon: {
 							Image( systemName: "checkmark.circle.fill" )
 								.foregroundStyle( .green )

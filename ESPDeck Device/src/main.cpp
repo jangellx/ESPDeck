@@ -117,6 +117,7 @@ static uint32_t         nextRepeatAt[kMaxKeys] = {};
 static uint32_t         holdAt[kMaxKeys]       = {};
 static uint32_t         tapDueAt[kMaxKeys]     = {};
 static uint32_t         holdSent        = 0;      // this press was a hold
+static uint32_t         repeatHeldBack  = 0;      // became a repeat key while down: not until pressed again
 static uint32_t         secondPress     = 0;      // down within the double-tap window
 static uint32_t         tapPending      = 0;      // up, waiting to see if a second press comes
 static uint32_t         keyReleasedAt[kMaxKeys] = {};   // millis() of each key's last up
@@ -422,7 +423,7 @@ static void releaseForwardedKeys() {
 	}
 	keysForwarded = 0;
 	swallowKeys   = keysDown != 0;
-	holdSent = secondPress = tapPending = 0;   // cut short: no taps or holds
+	holdSent = secondPress = tapPending = repeatHeldBack = 0;   // cut short: no taps or holds
 }
 
 // MARK: - Brightness and sleep
@@ -1009,7 +1010,7 @@ static void handleAuth( cJSON *json ) {
 
 	// The Mac says how keys are reported, if it knows how; until then, keyTap as they come up.
 	repeatingKeys = doubleTapKeys = holdKeys = 0;
-	holdSent = secondPress = tapPending = 0;
+	holdSent = secondPress = tapPending = repeatHeldBack = 0;
 
 	// What the unauthenticated hello left out (the Wi-Fi network).
 	sendStatus( "session" );
@@ -1328,9 +1329,15 @@ static void handleCommand( const char *type, cJSON *json ) {
 			if( cJSON_IsNumber( number ) )
 				value = (uint32_t)std::min( std::max( number->valuedouble, low ), high );
 		};
+		uint32_t wasRepeating = repeatingKeys, wasHold = holdKeys;
 		repeatingKeys = keySet( repeatOnly ? "keys" : "repeat" );
 		doubleTapKeys = keySet( "doubleTap" );
 		holdKeys      = keySet( "hold" );
+		// A key that's down now (the one that changed the page, say) was pressed for its old
+		// modes: new ones start with its next press, rather than repeating or holding at once
+		// from timers it never set.
+		repeatHeldBack |= keysForwarded & repeatingKeys & ~wasRepeating;
+		holdSent       |= keysForwarded & holdKeys & ~wasHold;
 		millisecondsOf( "delay", repeatDelay, 100, 3000 );
 		millisecondsOf( "interval", repeatInterval, 30, 2000 );
 		millisecondsOf( "doubleTapWindow", doubleTapWindow, 150, 1000 );
@@ -1408,10 +1415,11 @@ static void handleUnauthenticated( const char *type, cJSON *json ) {
 		if( pairing.stage != PairingStage::None )
 			cancelPairing( false, "bridge" );
 	} else if( strcmp( type, "noKey" ) == 0 ) {
-		// Our bridge (by its ID) knows us but can't authenticate: stay connected, idle, so it
-		// can show us as here while we wait to be unpaired (or for it to find its key and
-		// authenticate after all). Unauthenticated, so a stand-in could say it too, but we
-		// keep looking for another bridge with our ID and move to it if one turns up.
+		// A bridge with our bridge's ID can't authenticate us (no key, or it's another bridge
+		// we're not paired with): stay connected, idle, so it can show us as here while we
+		// wait to be unpaired (or for it to find its key and authenticate after all).
+		// Unauthenticated, so a stand-in could say it too, but we keep looking for another
+		// bridge with our ID, skipping addresses that said noKey, and move to one that turns up.
 		if( settings.isPaired() && pairing.stage == PairingStage::None && !bridgeHasNoKey ) {
 			ESP_LOGW( TAG, "The bridge has no key for us; staying connected, and looking for another" );
 			bridgeHasNoKey = true;
@@ -1552,7 +1560,8 @@ static void handleKeyDown( uint8_t key ) {
 		nextRepeatAt[key] = now + repeatDelay;
 	if( holdKeys & keyBit( key ) )
 		holdAt[key] = now + holdTime;
-	holdSent &= ~keyBit( key );
+	holdSent       &= ~keyBit( key );
+	repeatHeldBack &= ~keyBit( key );
 	// The second press of a double tap.
 	if( tapPending & keyBit( key ) ) {
 		tapPending  &= ~keyBit( key );
@@ -1567,7 +1576,7 @@ static void sendHeldKeys() {
 	uint32_t now = millis();
 	for( uint8_t key = 0; key < kMaxKeys; key++ ) {
 		uint32_t bit = keyBit( key );
-		if( ( keysForwarded & repeatingKeys & bit ) && (int32_t)( now - nextRepeatAt[key] ) >= 0 ) {
+		if( ( keysForwarded & repeatingKeys & bit ) && !( repeatHeldBack & bit ) && (int32_t)( now - nextRepeatAt[key] ) >= 0 ) {
 			sendKey( "keyRepeat", key );
 			nextRepeatAt[key] = now + repeatInterval;
 		}

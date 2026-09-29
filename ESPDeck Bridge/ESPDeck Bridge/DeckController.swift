@@ -1215,7 +1215,6 @@ final class DeckController {
 		let level : Level
 	}
 
-	/// One device's state in a few words, with its indicator.
 	/// A known device that's connected but can't be authenticated (this Mac lost its key, or
 	/// it's paired elsewhere): shown on its own row, not again under New Devices.
 	func stuckConnection( for id: String ) -> NewDevice? {
@@ -1228,6 +1227,7 @@ final class DeckController {
 		return newDevices.filter { !known.contains( $0.hello.id ) || stuckConnection( for: $0.hello.id )?.client != $0.client }
 	}
 
+	/// One device's state in a few words, with its indicator.
 	func status( device: DeckDevice ) -> StatusItem {
 		let name = settings( device.id )?.name ?? device.id
 		if settings( device.id )?.isDemo == true { return StatusItem( text: "\(name): demo deck", level: .demo ) }

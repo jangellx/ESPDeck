@@ -66,7 +66,6 @@ private struct DeckKeyView: View {
 	/// The page change this key has already swapped for.
 	@State private var swappedFor: Date?
 
-	private static let rippleStep: Double = 0.025   // s per key, about the deck's own pace
 
 	var body: some View {
 		let device   = controller.device( deviceID )
@@ -75,7 +74,7 @@ private struct DeckKeyView: View {
 		let change   = device?.pageChange
 		let current  = device.flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
 		// Only just after the change: a key that appears later (another page, back again) doesn't.
-		let recent   = change.flatMap { index < $0.previews.count && -$0.at.timeIntervalSinceNow < 1 ? $0 : nil }
+		let recent   = change.flatMap { index < $0.previews.count && -$0.at.timeIntervalSinceNow < Double( index ) * DeckDevice.pagePopStep + 0.5 ? $0 : nil }
 		let waiting  = recent.map { $0.at != swappedFor } ?? false
 		let preview  = current
 		let radius   = size * 0.125
@@ -97,7 +96,8 @@ private struct DeckKeyView: View {
 				}
 			}
 			.opacity( waiting ? 0 : 1 )
-			.animation( .easeOut( duration: 0.12 ), value: waiting )
+			// Only the fade up: hiding it at the change is instant.
+			.animation( waiting ? nil : .easeOut( duration: 0.15 ), value: waiting )
 		}
 		.frame( width: size, height: size )
 		.clipShape( RoundedRectangle( cornerRadius: radius, style: .continuous ) )
@@ -163,7 +163,7 @@ private struct DeckKeyView: View {
 		}
 		.task( id: change?.at ) {
 			guard let at = change?.at else { return }
-			let due = at.addingTimeInterval( Double( index ) * Self.rippleStep )
+			let due = at.addingTimeInterval( Double( index ) * DeckDevice.pagePopStep )
 			if due > Date() { try? await Task.sleep( for: .seconds( due.timeIntervalSinceNow ) ) }
 			guard !Task.isCancelled else { return }
 			swappedFor = at

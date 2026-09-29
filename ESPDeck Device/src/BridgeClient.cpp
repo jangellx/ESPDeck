@@ -57,6 +57,7 @@ void BridgeClient::loop() {
 			abandonDiscovery();
 		if( state_ != State::Idle ) {
 			ESP_LOGW( TAG, "Wi-Fi lost" );
+			switchPending_ = false;
 			bool wasConnected = state_ == State::Connected;
 			teardown();
 			if( wasConnected )
@@ -97,16 +98,18 @@ void BridgeClient::loop() {
 			if( discovering_ ) {
 				Endpoint endpoint;
 				bool     found;
-				if( takeDiscoveryResult( found, endpoint ) && found ) {
+				if( takeDiscoveryResult( found, endpoint ) && found && !switchPending_ ) {
 					esp_ip4_addr_t address = { endpoint.address };
 					ESP_LOGI( TAG, "Another bridge with our ID at " IPSTR ":%u; trying it", IP2STR( &address ), endpoint.port );
-					teardown();
+					// nextMessage() tears this connection down as it hands over the Disconnected
+					// (so the owner resets too), then connects there.
+					switchTo_      = endpoint;
+					switchPending_ = true;
 					enqueue( Message::Kind::Disconnected );
-					connect( endpoint );
 				}
-			} else if( (int32_t)( now - nextLook_ ) >= 0 ) {
+			} else if( !switchPending_ && (int32_t)( now - nextLook_ ) >= 0 ) {
 				nextLook_ = now + kLookInterval;
-				requestDiscovery( current_ );
+				requestDiscovery( true );
 			}
 			break;
 	}
@@ -115,6 +118,15 @@ void BridgeClient::loop() {
 void BridgeClient::setLookingElsewhere( bool on ) {
 	if( on == lookingElsewhere_ )
 		return;
+	if( on && current_.address ) {
+		bool known = false;
+		for( const Endpoint &entry : noKey_ )
+			known = known || ( entry.address == current_.address && entry.port == current_.port );
+		if( !known ) {
+			noKey_[noKeyNext_] = current_;
+			noKeyNext_         = ( noKeyNext_ + 1 ) % kMaxNoKey;
+		}
+	}
 	lookingElsewhere_ = on;
 	nextLook_         = millis() + kLookInterval;
 	if( !on && discovering_ )
@@ -123,11 +135,12 @@ void BridgeClient::setLookingElsewhere( bool on ) {
 
 // MARK: - Discovery
 
-void BridgeClient::requestDiscovery( Endpoint exclude ) {
+void BridgeClient::requestDiscovery( bool lookingElsewhere ) {
 	{
 		std::lock_guard<std::mutex> lock( discoveryMutex_ );
 		requestID_++;
-		request_.exclude = exclude;
+		request_.lookingElsewhere = lookingElsewhere;
+		memcpy( request_.skip, noKey_, sizeof( noKey_ ) );
 		strlcpy( request_.preferred, preferred_, sizeof( request_.preferred ) );
 		request_.lastGood = lastGood_;
 		memcpy( request_.avoided, avoided_, sizeof( avoided_ ) );
@@ -233,10 +246,14 @@ bool BridgeClient::discover( const Request &request, Endpoint &found ) {
 				if( entry.endpoint.address == ip && entry.endpoint.port == result->port && entry.until > now )
 					avoided = true;
 			}
-			// Looking elsewhere: not the bridge we have, at this address or any other of its own.
-			bool ours = ( ip == request.exclude.address && result->port == request.exclude.port )
-			            || ( request.exclude.host[0] && result->hostname && strncasecmp( result->hostname, request.exclude.host, sizeof( request.exclude.host ) - 1 ) == 0 );
-			if( avoided || ours )
+			// Looking elsewhere: not an address that has already said it has no key for us.
+			if( request.lookingElsewhere ) {
+				for( const Endpoint &entry : request.skip ) {
+					if( entry.address == ip && entry.port == result->port )
+						avoided = true;
+				}
+			}
+			if( avoided )
 				continue;
 			bool lastGood = request.lastGood.address == ip && request.lastGood.port == result->port;
 			int  score    = ( lastGood ? 2 : 0 ) + ( sameSubnet( address->addr.u_addr.ip4, local, mask ) ? 1 : 0 );
@@ -250,8 +267,7 @@ bool BridgeClient::discover( const Request &request, Endpoint &found ) {
 
 	bool ok = bestResult != nullptr;
 	if( ok ) {
-		found = { bestAddress.addr, bestResult->port, {} };
-		strlcpy( found.host, bestResult->hostname ? bestResult->hostname : "", sizeof( found.host ) );
+		found = { bestAddress.addr, bestResult->port };
 		char host[40], id[48];
 		ESP_LOGI( TAG, "Found %s (id %s) at " IPSTR ":%u%s", Text::printable( bestResult->hostname, host, sizeof( host ) ),
 				  Text::printable( txtValue( bestResult, "id" ), id, sizeof( id ) ), IP2STR( &bestAddress ), bestResult->port,
@@ -330,6 +346,7 @@ void BridgeClient::setPreferredBridge( const char *bridgeID ) {
 
 void BridgeClient::markAuthenticated() {
 	lastGood_ = current_;
+	memset( noKey_, 0, sizeof( noKey_ ) );
 }
 
 void BridgeClient::avoidCurrent() {
@@ -349,6 +366,7 @@ void BridgeClient::avoidCurrent() {
 }
 
 void BridgeClient::disconnect( bool retrySoon ) {
+	switchPending_ = false;
 	if( state_ == State::Idle )
 		return;
 	ESP_LOGI( TAG, "Closing the connection" );
@@ -377,7 +395,12 @@ bool BridgeClient::nextMessage( Message &message ) {
 			case Message::Kind::Disconnected:
 				ESP_LOGI( TAG, "Disconnected" );
 				teardown();
-				scheduleRetry();
+				if( switchPending_ ) {
+					switchPending_ = false;
+					connect( switchTo_ );   // looking elsewhere found another bridge
+				} else {
+					scheduleRetry();
+				}
 				// generation_ moved on, but the owner still needs to hear about this one
 				message.generation = generation_;
 				break;
