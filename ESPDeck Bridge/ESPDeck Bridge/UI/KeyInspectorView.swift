@@ -16,8 +16,9 @@ struct KeyInspectorView: View {
 
 	/// Slider chosen for this key, before its other key is picked.
 	@State private var choosingPartner = false
-	/// Which press the picker and the action section edit.
-	@State private var pressKind = PressKind.tap
+	/// Which press the picker and the action section edit: the window's choice, except that
+	/// Level keys (no press tabs) always show their tap.
+	private var pressKind: PressKind { isSlider ? .tap : controller.window.pressKind }
 
 	/// What the selected press does: the key itself for a tap, else its double tap or hold.
 	private var editing: KeyAssignment {
@@ -41,10 +42,10 @@ struct KeyInspectorView: View {
 				// Like a Home app button: each kind of press can do its own thing. Level keys
 				// repeat when held; their double tap is a switch in the Level section.
 				if !isSlider {
-					Picker( "Press", selection: $pressKind ) {
+					Picker( "Press", selection: Binding { controller.window.pressKind } set: { controller.window.pressKind = $0 } ) {
 						ForEach( PressKind.allCases ) { kind in
-							let set = kind != .tap && assignment.press( kind ) != nil
-							Text( set && pressKind != kind ? "\(kind.rawValue) •" : kind.rawValue ).tag( kind )
+							// A dot marks each press that does something.
+							Text( assignment.press( kind ) != nil ? "• \(kind.rawValue)" : kind.rawValue ).tag( kind )
 						}
 					}
 					.pickerStyle( .segmented )
@@ -206,7 +207,7 @@ struct KeyInspectorView: View {
 				Text( "This removes the key's accessory, action, label, background color, and icons." )
 			}
 		}
-		.onChange( of: key ) { choosingPartner = false; pressKind = .tap }
+		.onChange( of: key ) { choosingPartner = false }
 		.onChange( of: assignment.slider != nil ) { if assignment.slider != nil { choosingPartner = false } }
 	}
 

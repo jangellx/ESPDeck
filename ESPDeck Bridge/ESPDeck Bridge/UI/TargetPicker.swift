@@ -113,7 +113,7 @@ struct TargetPicker: View {
 						// A dot marks the tab holding what the key does now, to find it again after
 						// looking through the others.
 						let assigned = assignment.kind != nil && TargetMode( kind: assignment.kind ) == mode
-						Text( assigned && self.mode != mode ? "\(mode.rawValue) •" : mode.rawValue ).tag( mode )
+						Text( assigned ? "• \(mode.rawValue)" : mode.rawValue ).tag( mode )
 					}
 				}
 				.pickerStyle( .segmented )
