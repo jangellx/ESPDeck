@@ -236,16 +236,11 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		return NSImage( systemSymbolName: name, accessibilityDescription: nil )?.withSymbolConfiguration( configuration )
 	}
 
-	/// A deck, coloured by its state: green connected, yellow connecting or asleep, red a
-	/// problem, grey dashed a demo, and the sidebar's shield for a new device.
+	/// A deck: the status lines' icons (green check connected, yellow dot connecting or
+	/// asleep, red exclamation mark a problem, dashed circle a demo), or the sidebar's
+	/// shield for a new device waiting to be paired.
 	private static func deckImage( level: Int ) -> NSImage? {
-		switch level {
-			case 1:  symbol( "square.grid.3x2.fill", color: .systemGreen )
-			case 2:  symbol( "exclamationmark.square.fill", color: .systemRed )
-			case 3:  symbol( "square.dashed", color: .secondaryLabelColor )
-			case 4:  symbol( "lock.shield", color: .controlAccentColor )
-			default: symbol( "square.grid.3x2.fill", color: .systemYellow )
-		}
+		level == 4 ? symbol( "lock.shield", color: .controlAccentColor ) : statusImage( level: level )
 	}
 
 	private static func statusImage( level: Int ) -> NSImage? {
