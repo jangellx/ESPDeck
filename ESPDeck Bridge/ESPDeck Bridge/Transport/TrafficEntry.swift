@@ -238,7 +238,7 @@ struct TrafficEntry: Identifiable {
 	}
 }
 
-private extension String {
+extension String {
 	/// "Key 3" from "key 3".
 	var capitalizedFirst: String {
 		prefix( 1 ).uppercased() + dropFirst()

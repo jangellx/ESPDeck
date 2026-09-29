@@ -91,6 +91,7 @@ struct ExportBridgeSheet: View {
 
 				Section {
 					Toggle( "Also remove this bridge from this Mac after exporting", isOn: $removeAfter )
+						.toggleStyle( .switch )
 				} footer: {
 					Text( "Once the file is saved, this Mac forgets the pairing keys, devices, key layouts, icons and developer password, and starts over as a new bridge with no devices, so only the Mac you import the file on answers the decks. The decks stay paired with the bridge in the file." )
 				}

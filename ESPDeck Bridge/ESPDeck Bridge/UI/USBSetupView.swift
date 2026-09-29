@@ -369,6 +369,7 @@ struct USBSetupView: View {
 			if storageChoice {
 				VStack( alignment: .leading, spacing: 4 ) {
 					Toggle( "Encrypt stored secrets (recommended)", isOn: $encrypt )
+						.toggleStyle( .switch )
 					Text( "Permanent for this chip, which gets a one-time key; the Wi-Fi network, name and pairing stay changeable." )
 						.font( .caption )
 						.foregroundStyle( .secondary )

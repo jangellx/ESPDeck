@@ -66,9 +66,10 @@ struct KeyInspectorView: View {
 			}
 
 			Section {
-				Toggle( "Show Label", isOn: binding( \.showLabel ) )
 				TextField( "Label", text: binding( \.label ), prompt: Text( controller.defaultName( for: assignment ) ?? "Label" ) )
 					.disabled( !assignment.showLabel )
+				Toggle( "Show Label", isOn: binding( \.showLabel ) )
+					.toggleStyle( .switch )
 
 				ColorPicker( "Background", selection: backgroundBinding, supportsOpacity: false )
 			} header: {

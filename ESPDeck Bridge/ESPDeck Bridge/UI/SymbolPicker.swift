@@ -26,9 +26,7 @@ struct SymbolPicker: View {
 
 		VStack( alignment: .leading, spacing: 10 ) {
 			HStack {
-				TextField( "Search symbols", text: $query )
-					.textFieldStyle( .roundedBorder )
-					.focused( $searchFocused )
+				SearchField( prompt: "Search symbols", text: $query, focus: $searchFocused )
 					.onSubmit {
 						// Accept an exact symbol name even if it isn't in the catalog.
 						let name = query.trimmingCharacters( in: .whitespaces )

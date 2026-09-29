@@ -104,8 +104,7 @@ extension AppDelegate {
 			] ),
 			UIMenu( options: .displayInline, children: devices ),
 			UIMenu( options: .displayInline, children: [
-				UICommand( title: "Sleep Now", action: #selector( sleepDevice ) ),
-				UICommand( title: "Wake Now", action: #selector( wakeDevice ) ),
+				UICommand( title: "Sleep Now", action: #selector( toggleSleep ) ),
 				UICommand( title: "Enter Setup Mode", action: #selector( toggleSetupMode ) ),
 				UICommand( title: "Install Firmware Update", action: #selector( installFirmwareUpdate ) ),
 			] ),
@@ -181,10 +180,8 @@ extension AppDelegate {
 				currentDevice != nil
 			case #selector( nextDevice ), #selector( previousDevice ):
 				controller.devices.count > 1 || ( currentDevice == nil && !controller.devices.isEmpty )
-			case #selector( sleepDevice ):
-				onlineDevice.map { !$0.status.asleep } ?? false
-			case #selector( wakeDevice ):
-				onlineDevice?.status.asleep ?? false
+			case #selector( toggleSleep ):
+				onlineDevice != nil
 			case #selector( toggleSetupMode ):
 				onlineDevice != nil
 			case #selector( installFirmwareUpdate ):
@@ -216,6 +213,8 @@ extension AppDelegate {
 				command.state = window.isShowing && window.selection == command.propertyList as? String ? .on : .off
 			case #selector( showGuideSheet( _: ) ):
 				command.state = window.isShowing && window.selection == SidebarItem.parts && window.guideSheet.rawValue == command.propertyList as? String ? .on : .off
+			case #selector( toggleSleep ):
+				command.title = onlineDevice?.status.asleep == true ? "Wake Now" : "Sleep Now"
 			case #selector( toggleSetupMode ):
 				command.title = onlineDevice?.status.setupMode == true ? "Exit Setup Mode" : "Enter Setup Mode"
 			case #selector( installFirmwareUpdate ):
@@ -343,14 +342,14 @@ extension AppDelegate {
 		show( ids[( current + step + ids.count ) % ids.count] )
 	}
 
-	@objc func sleepDevice() {
+	/// Sleep Now, or Wake Now while the deck is asleep.
+	@objc func toggleSleep() {
 		guard let device = onlineDevice else { return }
-		controller.sleep( device: device.id )
-	}
-
-	@objc func wakeDevice() {
-		guard let device = onlineDevice else { return }
-		controller.wake( device: device.id )
+		if device.status.asleep {
+			controller.wake( device: device.id )
+		} else {
+			controller.sleep( device: device.id )
+		}
 	}
 
 	@objc func toggleSetupMode() {

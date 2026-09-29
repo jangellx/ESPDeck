@@ -107,17 +107,22 @@ struct TargetPicker: View {
 			if multiple {
 				memberRows( targets )
 			} else {
-				// A fixed-width label; long item titles otherwise squeeze it.
-				LabeledContent {
-					targetMenu( targets )
-				} label: {
-					Text( mode == .accessory ? "Accessory" : mode.rawValue )
-						.fixedSize()
+				VStack( alignment: .trailing, spacing: 6 ) {
+					// A fixed-width label; long item titles otherwise squeeze it.
+					LabeledContent {
+						targetMenu( targets )
+					} label: {
+						Text( mode == .accessory ? "Accessory" : mode.rawValue )
+							.fixedSize()
+					}
+					// In the same row as the popup it reloads.
+					if mode == .shortcut {
+						shortcutStatus( targets )
+					}
 				}
 			}
 
-			TextField( "Search", text: $search, prompt: Text( searchPrompt ) )
-				.textFieldStyle( .roundedBorder )
+			SearchField( prompt: searchPrompt, text: $search )
 
 			if !search.isEmpty {
 				let matches = targets.filter( matchesSearch )
@@ -145,21 +150,7 @@ struct TargetPicker: View {
 				}
 			}
 
-			if mode == .shortcut {
-				HStack( alignment: .firstTextBaseline ) {
-					if let error = controller.shortcutError {
-						Label( error, systemImage: "exclamationmark.triangle.fill" )
-							.font( .caption )
-							.foregroundStyle( .orange )
-					} else if targets.isEmpty && controller.shortcutsLoaded {
-						Text( "No shortcuts found." )
-							.font( .caption )
-							.foregroundStyle( .secondary )
-					}
-					Spacer()
-					Button( "Reload Shortcuts" ) { controller.reloadShortcuts() }
-				}
-			} else if targets.isEmpty {
+			if mode != .shortcut && targets.isEmpty {
 				Text( emptyExplanation )
 					.font( .caption )
 					.foregroundStyle( .secondary )
@@ -239,23 +230,27 @@ struct TargetPicker: View {
 					.frame( maxWidth: .infinity, alignment: .leading )
 			}
 			.foregroundStyle( .secondary )
-		} else if members.count == 1 && canAddMore {
-			Text( "Add more accessories to control them together with this key." )
-				.font( .caption )
-				.foregroundStyle( .secondary )
 		}
 
 		if canAddMore {
-			Menu {
-				byHome( addable( targets, members: members ) ) { targets in
-					roomMenus( targets ) { target in
-						Button( "\(target.name) (\(target.kind.title))" ) { add( target ) }
+			// The hint sits under the button, in the same row.
+			VStack( alignment: .leading, spacing: 4 ) {
+				Menu {
+					byHome( addable( targets, members: members ) ) { targets in
+						roomMenus( targets ) { target in
+							Button( "\(target.name) (\(target.kind.title))" ) { add( target ) }
+						}
 					}
+				} label: {
+					Label( members.isEmpty ? "Choose Accessory" : "Add Accessory", systemImage: "plus" )
 				}
-			} label: {
-				Label( members.isEmpty ? "Choose Accessory" : "Add Accessory", systemImage: "plus" )
+				.fixedSize()
+				if members.count == 1 {
+					Text( "Add more accessories to control them together with this key." )
+						.font( .caption )
+						.foregroundStyle( .secondary )
+				}
 			}
-			.fixedSize()
 		} else {
 			Text( "Only accessories that can be switched, opened or locked can join a group." )
 				.font( .caption )
@@ -443,6 +438,23 @@ struct TargetPicker: View {
 			case .shortcut: target.room
 			case .scene:    home
 			default:        [ home, target.room, target.kind.title ].compactMap { $0 }.joined( separator: " · " )
+		}
+	}
+
+	/// Under the Shortcut popup: why the list is empty, if it is, and Reload Shortcuts.
+	private func shortcutStatus( _ targets: [HomeTarget] ) -> some View {
+		HStack( alignment: .firstTextBaseline ) {
+			if let error = controller.shortcutError {
+				Label( error, systemImage: "exclamationmark.triangle.fill" )
+					.font( .caption )
+					.foregroundStyle( .orange )
+			} else if targets.isEmpty && controller.shortcutsLoaded {
+				Text( "No shortcuts found." )
+					.font( .caption )
+					.foregroundStyle( .secondary )
+			}
+			Spacer()
+			Button( "Reload Shortcuts" ) { controller.reloadShortcuts() }
 		}
 	}
 

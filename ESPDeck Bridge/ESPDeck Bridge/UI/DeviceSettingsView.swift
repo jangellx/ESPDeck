@@ -120,7 +120,7 @@ struct DeviceSettingsView: View {
 					let status = controller.status( device: device )
 					HStack( spacing: 6 ) {
 						StatusIndicator( level: status.level )
-						Text( status.text.components( separatedBy: ": " ).last ?? status.text )
+						Text( ( status.text.components( separatedBy: ": " ).last ?? status.text ).capitalizedFirst )
 					}
 				}
 				.alignmentGuide( .listRowSeparatorLeading ) { _ in 0 }
@@ -169,11 +169,11 @@ struct DeviceSettingsView: View {
 						Text( "\(settings.sleepTimeout) seconds" ).tag( settings.sleepTimeout )
 					}
 				}
-				HStack {
-					Button( "Sleep Now" ) { controller.sleep( device: deviceID ) }
-						.disabled( device.status.asleep )
+				// Whichever applies: only one is ever enabled.
+				if device.status.asleep {
 					Button( "Wake Now" ) { controller.wake( device: deviceID ) }
-						.disabled( !device.status.asleep )
+				} else {
+					Button( "Sleep Now" ) { controller.sleep( device: deviceID ) }
 				}
 			} header: {
 				SectionHeader( "Sleep" )
@@ -404,6 +404,7 @@ private struct DeveloperSection: View {
 			} set: { on in
 				controller.setDevOTA( device: device.id, enabled: on )
 			} )
+			.toggleStyle( .switch )
 			.disabled( !device.isOnline || ( !supported && !allowed ) )
 			if device.isOnline && !supported {
 				Text( allowed ? "This firmware can't get the password safely. Turn uploads off, and update to firmware 4.0.0 or later to turn them on again."
@@ -622,6 +623,7 @@ private struct TriggerSection: View {
 
 			if let opposite = trigger.state.opposite {
 				Toggle( "\(trigger.effect.opposite.title) the deck when the accessory changes to \(opposite.title)", isOn: binding( \.reverse ) )
+					.toggleStyle( .switch )
 			}
 		} header: {
 			HStack {
