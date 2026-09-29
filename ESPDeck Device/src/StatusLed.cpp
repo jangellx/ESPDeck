@@ -85,7 +85,7 @@ void StatusLed::update( Mode mode, bool keyDown, bool asleep ) {
 		}
 		case Mode::OnWifi: {
 			uint8_t level = pulseLevel();
-			show( level / 5, level, level / 5 );     // green with a little white in it
+			show( level / 16, level, level / 16 );   // green, barely paler (more reads as the setup blue)
 			break;
 		}
 		case Mode::Pairing:

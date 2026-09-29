@@ -872,7 +872,7 @@ private struct StatusLightSection: View {
 	private static let entries: [Entry] = [
 		Entry( color: .blue, style: .pulsing, title: "Pulsing blue", meaning: "Setup mode" ),
 		Entry( color: .yellow, style: .pulsing, title: "Pulsing yellow", meaning: "Looking for Wi-Fi" ),
-		Entry( color: Color( red: 0.55, green: 0.95, blue: 0.6 ), style: .pulsing, title: "Pulsing pale green", meaning: "On Wi-Fi, looking for ESPDeck Bridge or waiting on it (to be unpaired, say)" ),
+		Entry( color: Color( red: 0.3, green: 0.9, blue: 0.35 ), style: .pulsing, title: "Pulsing green", meaning: "On Wi-Fi, looking for ESPDeck Bridge or waiting on it (to be unpaired, say)" ),
 		Entry( color: .green, style: .solid, title: "Green", meaning: "Connected to ESPDeck Bridge; brighter while data moves" ),
 		Entry( color: .white, style: .solid, title: "White", meaning: "A key is pressed" ),
 		Entry( color: Color( red: 0.85, green: 0.2, blue: 0.85 ), style: .blinking, title: "Blinking magenta", meaning: "Pairing; steady once it's confirmed on the deck" ),
