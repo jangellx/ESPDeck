@@ -246,6 +246,8 @@ struct USBSetupView: View {
 					.disabled( setup.selectedBoard == nil || setup.install.isBusy
 							   || ( setup.source == .release && controller.updates.latestFirmware == nil ) )
 			}
+			// A row that starts with a spacer gets a divider only as wide as its button.
+			.alignmentGuide( .listRowSeparatorLeading ) { _ in 0 }
 			.confirmationDialog( olderTitle, isPresented: $confirmingOlder, titleVisibility: .visible ) {
 				Button( "Install Older Firmware" ) { setup.installFirmware() }
 			} message: {
@@ -402,6 +404,7 @@ struct USBSetupView: View {
 				}
 			}
 			.frame( maxWidth: .infinity )
+			.alignmentGuide( .listRowSeparatorLeading ) { _ in 0 }   // full-width divider
 			if let problem = wifiProblem, !joinSSID.isEmpty {
 				Text( problem )
 					.font( .caption )
