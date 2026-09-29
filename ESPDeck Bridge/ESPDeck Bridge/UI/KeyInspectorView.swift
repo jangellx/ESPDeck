@@ -20,7 +20,7 @@ struct KeyInspectorView: View {
 	var body: some View {
 		Form {
 			Section {
-				TargetPicker( controller: controller, assignment: assignment,
+				TargetPicker( controller: controller, assignment: assignment, modes: TargetMode.allCases,
 							  edit: { change in controller.update( device: deviceID, key: key, change ) },
 							  modeRequest: modeRequest ) { target in
 					controller.update( device: deviceID, key: key ) { $0.bind( to: target ) }
@@ -43,14 +43,28 @@ struct KeyInspectorView: View {
 						}
 						.pickerStyle( .segmented )
 					}
-					if !isSlider {
-						Picker( "On Press", selection: binding( \.action ) ) {
-							ForEach( assignment.actions ) { action in
-								Text( action.title ).tag( action )
+					if kind == .page {
+						// The command is chosen above; Go to Page needs its page.
+						if assignment.action == .goToPage {
+							let pageCount = controller.pageCount( device: deviceID )
+							Stepper( value: Binding {
+								min( max( assignment.pageNumber ?? 1, 1 ), max( pageCount, 1 ) )
+							} set: { page in
+								controller.update( device: deviceID, key: key ) { $0.pageNumber = page }
+							}, in: 1...max( pageCount, 1 ) ) {
+								LabeledContent( "Page", value: "\(min( assignment.pageNumber ?? 1, max( pageCount, 1 ) )) of \(pageCount)" )
 							}
 						}
+					} else {
+						if !isSlider {
+							Picker( "On Press", selection: binding( \.action ) ) {
+								ForEach( assignment.actions ) { action in
+									Text( action.title ).tag( action )
+								}
+							}
+						}
+						LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 					}
-					LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 				}
 			} header: {
 				let cols = max( controller.layout( deviceID ).cols, 1 )

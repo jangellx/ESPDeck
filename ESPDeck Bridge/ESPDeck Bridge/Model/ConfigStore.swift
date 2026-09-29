@@ -270,10 +270,13 @@ final class ConfigStore {
 		removeUnusedIcons()
 	}
 
-	/// Deletes icon files no key refers to any more.
+	/// Icons an undo could bring back; kept until the app quits.
+	var iconsKeptForUndo: Set<String> = []
+
+	/// Deletes icon files no key (on any page) refers to any more.
 	func removeUnusedIcons() {
-		let keys  = settings.devices.flatMap( \.keys ) + ( settings.legacyKeys ?? [] )
-		let used  = Set( keys.flatMap { $0.icons.values } )
+		let keys  = settings.devices.flatMap( \.allKeys ) + ( settings.legacyKeys ?? [] )
+		let used  = Set( keys.flatMap { $0.icons.values } ).union( iconsKeptForUndo )
 		let files = ( try? FileManager.default.contentsOfDirectory( atPath: iconDirectory.path( percentEncoded: false ) ) ) ?? []
 		for file in files where !used.contains( file ) {
 			try? FileManager.default.removeItem( at: iconDirectory.appending( path: file ) )

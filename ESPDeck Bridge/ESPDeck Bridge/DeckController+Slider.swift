@@ -29,6 +29,7 @@ extension DeckController {
 	/// `key` is cleared.
 	func makeSlider( device id: String, key: Int, partner: Int, level: SliderLevel ) {
 		guard let index = config.settings.deviceIndex( id ), key != partner else { return }
+		recordUndo( device: id, "Make Slider" )
 		config.settings.devices[index].ensureKey( max( key, partner ) )
 
 		let cols         = max( layout( id ).cols, 1 )
@@ -59,6 +60,7 @@ extension DeckController {
 	func removeSlider( device id: String, key: Int ) {
 		guard let index = config.settings.deviceIndex( id ), key < config.settings.devices[index].keys.count,
 			  let slider = config.settings.devices[index].keys[key].slider else { return }
+		recordUndo( device: id, "Remove Slider" )
 		config.settings.devices[index].keys[key].slider = nil
 		if slider.partner < config.settings.devices[index].keys.count, config.settings.devices[index].keys[slider.partner].slider?.partner == key {
 			config.settings.devices[index].keys[slider.partner] = KeyAssignment()
@@ -83,6 +85,7 @@ extension DeckController {
 	func swapSliderDirection( device id: String, key: Int ) {
 		guard let index = config.settings.deviceIndex( id ), key < config.settings.devices[index].keys.count,
 			  let slider = config.settings.devices[index].keys[key].slider else { return }
+		recordUndo( device: id, "Swap Slider Direction" )
 		config.settings.devices[index].keys[key].slider?.raises.toggle()
 		if slider.partner < config.settings.devices[index].keys.count, config.settings.devices[index].keys[slider.partner].slider?.partner == key {
 			config.settings.devices[index].keys[slider.partner].slider?.raises.toggle()

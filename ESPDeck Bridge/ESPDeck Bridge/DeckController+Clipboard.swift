@@ -49,6 +49,8 @@ extension DeckController {
 			return
 		}
 
+		// Under the key's own run of edits, so the update below doesn't add a second step.
+		recordUndo( device: id, "Paste Key", coalesce: "\(id)/\(key)" )
 		var assignment = clipboard.assignment
 		assignment.slider = nil   // half of a pair pastes as an ordinary key
 		for ( state, name ) in assignment.icons where !name.hasPrefix( KeyAssignment.symbolPrefix ) {

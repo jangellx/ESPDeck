@@ -49,6 +49,7 @@ enum KeyAction: String, Codable, CaseIterable, Identifiable {
 	case lock, unlock
 	case run
 	case runShortcut
+	case nextPage, previousPage, goToPage, pageNumber
 
 	var id: String { rawValue }
 
@@ -64,6 +65,10 @@ enum KeyAction: String, Codable, CaseIterable, Identifiable {
 			case .unlock:  "Unlock"
 			case .run:     "Run Scene"
 			case .runShortcut: "Run Shortcut"
+			case .nextPage:     "Next Page"
+			case .previousPage: "Previous Page"
+			case .goToPage:     "Go to Page"
+			case .pageNumber:   "Show Page Number"
 		}
 	}
 }
@@ -78,6 +83,8 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 	case temperature
 	case scene
 	case shortcut
+	/// Moves between the deck's pages, or shows which one it's on; not HomeKit.
+	case page
 
 	var id: String { rawValue }
 
@@ -91,6 +98,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case .temperature: "Temperature"
 			case .scene:       "Scene"
 			case .shortcut:    "Shortcut"
+			case .page:        "Page"
 		}
 	}
 
@@ -103,7 +111,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case .lock:        HMCharacteristicTypeCurrentLockMechanismState
 			case .contact:     HMCharacteristicTypeContactState
 			case .temperature: HMCharacteristicTypeCurrentTemperature
-			case .scene, .shortcut: nil
+			case .scene, .shortcut, .page: nil
 		}
 	}
 
@@ -142,12 +150,13 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case .contact, .temperature: [ .none ]
 			case .scene:                 [ .run, .none ]
 			case .shortcut:              [ .runShortcut, .none ]
+			case .page:                  [ .nextPage, .previousPage, .goToPage, .pageNumber ]
 		}
 	}
 
 	func state( for value: Any? ) -> KeyState {
 		guard let number = value as? NSNumber else {
-			return self == .scene || self == .shortcut || self == .temperature ? .standard : .unknown
+			return self == .scene || self == .shortcut || self == .temperature || self == .page ? .standard : .unknown
 		}
 
 		switch self {
@@ -177,7 +186,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case .contact:
 				// 0 = contact detected (closed), 1 = not detected (open)
 				return number.intValue == 0 ? .closed : .open
-			case .temperature, .scene, .shortcut:
+			case .temperature, .scene, .shortcut, .page:
 				return .standard
 		}
 	}
@@ -251,6 +260,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case ( .temperature, _ ):                                                         "thermometer.medium"
 			case ( .scene, _ ):                                                               "sparkles"
 			case ( .shortcut, _ ):                                                            "square.2.layers.3d"
+			case ( .page, _ ):                                                                "rectangle.stack"   // replaced by the command's own
 		}
 	}
 

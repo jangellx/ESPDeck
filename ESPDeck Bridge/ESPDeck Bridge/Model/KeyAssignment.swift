@@ -38,6 +38,8 @@ struct KeyAssignment: Codable, Equatable {
 	var backgroundColor : String?
 	/// One of a pair of keys stepping a level up and down, instead of the key's action.
 	var slider          : SliderKey?
+	/// Go to Page: the page, from 1.
+	var pageNumber      : Int?
 
 	var isToggleShortcut: Bool { kind == .shortcut && shortcutToggles == true }
 
@@ -102,6 +104,7 @@ extension KeyAssignment {
 		icons           = container.lenient( [String: String].self, forKey: .icons ) ?? [:]
 		backgroundColor = container.lenient( String.self, forKey: .backgroundColor )
 		slider          = container.lenient( SliderKey.self, forKey: .slider )
+		pageNumber      = container.lenient( Int.self, forKey: .pageNumber )
 	}
 }
 

@@ -120,7 +120,10 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	/// A virtual deck for configuring keys without hardware. Its `layout` is chosen
 	/// by the user instead of reported.
 	var isDemo        = false
-	var keys          : [KeyAssignment] = []
+	/// Every page of keys; there's always at least one. `keys` is the current page's.
+	var pages         : [[KeyAssignment]] = [ [] ]
+	/// The page the deck shows (and the Keys page edits).
+	var currentPage   = 0
 	/// Last layout the device reported, so an offline device's keys still draw correctly.
 	var layout        = DeckLayout.mini
 
@@ -159,7 +162,14 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		name          = container.lenient( String.self, forKey: .name ) ?? ""
 		isDemo        = container.lenient( Bool.self, forKey: .isDemo ) ?? false
 		// A key that can't be read becomes an empty one, so the others keep their places.
-		keys          = container.lenientArray( of: KeyAssignment.self, forKey: .keys, placeholder: KeyAssignment() ) ?? []
+		// A key that can't be read becomes an empty one, so the others keep their places.
+		// Before pages, the keys were one list.
+		if let decoded = try? container.decode( [LenientPage].self, forKey: .pages ), !decoded.isEmpty {
+			pages = decoded.map( \.keys )
+		} else {
+			pages = [ container.lenientArray( of: KeyAssignment.self, forKey: .keys, placeholder: KeyAssignment() ) ?? [] ]
+		}
+		currentPage   = min( max( container.lenient( Int.self, forKey: .currentPage ) ?? 0, 0 ), pages.count - 1 )
 		layout        = container.lenient( DeckLayout.self, forKey: .layout ) ?? .mini
 		brightness    = container.lenient( Int.self, forKey: .brightness ) ?? 80
 		orientation   = container.lenient( String.self, forKey: .orientation ) ?? "auto"
@@ -180,6 +190,63 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		let bytes = id.split( separator: ":" ).suffix( 2 ).joined().uppercased()
 		return bytes.isEmpty ? "ESPDeck" : "ESPDeck \(bytes)"
 	}
+
+	private enum CodingKeys: String, CodingKey {
+		case id, name, isDemo, pages, currentPage, layout, brightness, orientation, sleepTimeout, devOTA, labelPosition
+		case repeatDelay, repeatRate, sleepTriggers, onSleep, onWake
+		case keys   // before pages
+	}
+
+	func encode( to encoder: Encoder ) throws {
+		var container = encoder.container( keyedBy: CodingKeys.self )
+		try container.encode( id, forKey: .id )
+		try container.encode( name, forKey: .name )
+		try container.encode( isDemo, forKey: .isDemo )
+		try container.encode( pages, forKey: .pages )
+		try container.encode( currentPage, forKey: .currentPage )
+		try container.encode( layout, forKey: .layout )
+		try container.encode( brightness, forKey: .brightness )
+		try container.encode( orientation, forKey: .orientation )
+		try container.encode( sleepTimeout, forKey: .sleepTimeout )
+		try container.encode( devOTA, forKey: .devOTA )
+		try container.encode( labelPosition, forKey: .labelPosition )
+		try container.encode( repeatDelay, forKey: .repeatDelay )
+		try container.encode( repeatRate, forKey: .repeatRate )
+		try container.encode( sleepTriggers, forKey: .sleepTriggers )
+		try container.encode( onSleep, forKey: .onSleep )
+		try container.encode( onWake, forKey: .onWake )
+	}
+
+	/// A page whose unreadable keys become empty ones (see lenientArray(of:forKey:placeholder:)).
+	private struct LenientPage: Decodable {
+		var keys: [KeyAssignment]
+		init( from decoder: Decoder ) throws {
+			var container = try decoder.unkeyedContainer()
+			keys = []
+			while !container.isAtEnd {
+				if let key = try? container.decode( KeyAssignment.self ) {
+					keys.append( key )
+					continue
+				}
+				if ( try? container.decodeNil() ) != true {
+					guard ( try? container.decode( Skipped.self ) ) != nil else { break }
+				}
+				keys.append( KeyAssignment() )
+			}
+		}
+		private struct Skipped: Decodable {
+			init( from decoder: Decoder ) throws {}
+		}
+	}
+
+	/// The current page's keys.
+	var keys: [KeyAssignment] {
+		get { pages[currentPage] }
+		set { pages[currentPage] = newValue }
+	}
+
+	/// Every page's keys, for what doesn't care about pages (icon files, HomeKit watching).
+	var allKeys: [KeyAssignment] { pages.flatMap { $0 } }
 
 	/// The key at `index`, or an empty one past the end of `keys`.
 	func key( _ index: Int ) -> KeyAssignment {

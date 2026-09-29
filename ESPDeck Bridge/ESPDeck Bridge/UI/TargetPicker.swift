@@ -15,13 +15,19 @@ enum TargetMode: String, CaseIterable, Identifiable {
 	case accessory = "Accessories"
 	case scene     = "Scene"
 	case shortcut  = "Shortcut"
+	/// Keys only: page commands.
+	case page      = "Page"
 
 	var id: String { rawValue }
+
+	/// Everywhere but keys (sleep and wake commands, triggers).
+	static let homeModes: [TargetMode] = [ .accessory, .scene, .shortcut ]
 
 	init( kind: KeyKind? ) {
 		switch kind {
 			case .scene:    self = .scene
 			case .shortcut: self = .shortcut
+			case .page:     self = .page
 			default:        self = .accessory
 		}
 	}
@@ -64,6 +70,9 @@ extension KeyAssignment {
 		if kind != .power && kind != .fan {
 			slider = nil
 		}
+		if kind != .page {
+			pageNumber = nil
+		}
 		if target?.kind != nil {
 			if kindChanged || !actions.contains( action ) {
 				action = actions.first ?? .none
@@ -77,7 +86,7 @@ extension KeyAssignment {
 struct TargetPicker: View {
 	let controller : DeckController
 	let assignment : KeyAssignment
-	var modes      : [TargetMode] = TargetMode.allCases
+	var modes      : [TargetMode] = TargetMode.homeModes
 	/// Limits accessories to certain kinds, e.g. ones with states for sleep triggers.
 	var kindFilter : ( ( KeyKind ) -> Bool )?
 	/// Several accessories at once, with one "key accessory": applies a change to the
@@ -107,56 +116,10 @@ struct TargetPicker: View {
 				.pickerStyle( .segmented )
 			}
 
-			if multiple {
-				memberRows( targets )
+			if mode == .page {
+				pageRows
 			} else {
-				VStack( alignment: .trailing, spacing: 6 ) {
-					// A fixed-width label; long item titles otherwise squeeze it.
-					LabeledContent {
-						targetMenu( targets )
-					} label: {
-						Text( mode == .accessory ? "Accessory" : mode.rawValue )
-							.fixedSize()
-					}
-					// In the same row as the popup it reloads.
-					if mode == .shortcut {
-						shortcutStatus( targets )
-					}
-				}
-			}
-
-			SearchField( prompt: searchPrompt, text: $search )
-
-			if !search.isEmpty {
-				let matches = targets.filter( matchesSearch )
-				if matches.isEmpty {
-					Text( "No matches" )
-						.foregroundStyle( .secondary )
-				}
-				ForEach( matches.prefix( Self.maxSearchResults ) ) { target in
-					Button {
-						if multiple { add( target ) } else { onSelect( target ) }
-						search = ""
-					} label: {
-						VStack( alignment: .leading, spacing: 2 ) {
-							Text( target.name )
-							if let detail = detail( for: target ) {
-								Text( detail )
-									.font( .caption )
-									.foregroundStyle( .secondary )
-							}
-						}
-						.frame( maxWidth: .infinity, alignment: .leading )
-						.contentShape( Rectangle() )
-					}
-					.buttonStyle( .plain )
-				}
-			}
-
-			if mode != .shortcut && targets.isEmpty {
-				Text( emptyExplanation )
-					.font( .caption )
-					.foregroundStyle( .secondary )
+				homeRows( targets )
 			}
 		}
 		.onAppear {
@@ -170,6 +133,86 @@ struct TargetPicker: View {
 			if mode == .shortcut && !controller.shortcutsLoaded {
 				controller.reloadShortcuts()
 			}
+		}
+	}
+
+	/// The target menu (or several accessories), search, and why the list may be empty.
+	@ViewBuilder
+	private func homeRows( _ targets: [HomeTarget] ) -> some View {
+		if multiple {
+			memberRows( targets )
+		} else {
+			VStack( alignment: .trailing, spacing: 6 ) {
+				// A fixed-width label; long item titles otherwise squeeze it.
+				LabeledContent {
+					targetMenu( targets )
+				} label: {
+					Text( mode == .accessory ? "Accessory" : mode.rawValue )
+						.fixedSize()
+				}
+				// In the same row as the popup it reloads.
+				if mode == .shortcut {
+					shortcutStatus( targets )
+				}
+			}
+		}
+
+		SearchField( prompt: searchPrompt, text: $search )
+
+		if !search.isEmpty {
+			let matches = targets.filter( matchesSearch )
+			if matches.isEmpty {
+				Text( "No matches" )
+					.foregroundStyle( .secondary )
+			}
+			ForEach( matches.prefix( Self.maxSearchResults ) ) { target in
+				Button {
+					if multiple { add( target ) } else { onSelect( target ) }
+					search = ""
+				} label: {
+					VStack( alignment: .leading, spacing: 2 ) {
+						Text( target.name )
+						if let detail = detail( for: target ) {
+							Text( detail )
+								.font( .caption )
+								.foregroundStyle( .secondary )
+						}
+					}
+					.frame( maxWidth: .infinity, alignment: .leading )
+					.contentShape( Rectangle() )
+				}
+				.buttonStyle( .plain )
+			}
+		}
+
+		if mode != .shortcut && targets.isEmpty {
+			Text( emptyExplanation )
+				.font( .caption )
+				.foregroundStyle( .secondary )
+		}
+	}
+
+	/// Keys only: which page command. Go to Page's number is the inspector's.
+	private var pageRows: some View {
+		LabeledContent( "Command" ) {
+			Picker( "Command", selection: Binding {
+				assignment.kind == .page ? assignment.action : KeyAction.none
+			} set: { action in
+				guard let edit, action != .none else { return }
+				edit { assignment in
+					assignment.bind( to: HomeTarget( kind: .page, name: "Page", room: nil ) )
+					assignment.action = action
+				}
+			} ) {
+				if assignment.kind != .page {
+					Text( "Choose…" ).tag( KeyAction.none )
+				}
+				ForEach( KeyKind.page.actions ) { action in
+					Text( action.title ).tag( action )
+				}
+			}
+			.labelsHidden()
+			.fixedSize()
 		}
 	}
 
@@ -350,6 +393,8 @@ struct TargetPicker: View {
 							menuItem( target, title: "\(target.name) (\(target.kind.title))" )
 						}
 					}
+				case .page:
+					EmptyView()   // pageRows, not this menu
 			}
 		} label: {
 			// Menus size to their label, so shorten long names before they push the row wider.
@@ -426,6 +471,8 @@ struct TargetPicker: View {
 				case .shortcut:
 					// Before the list loads, show the remembered name rather than "missing".
 					return controller.shortcutsLoaded ? "Missing Shortcut" : ( assignment.shortcutName ?? "Shortcut" )
+				case .page:
+					return assignment.action.title
 			}
 		}
 		let home = severalHomes ? target.home.map { "\($0) › " } ?? "" : ""
@@ -486,6 +533,7 @@ struct TargetPicker: View {
 			case .accessory: severalHomes ? "Search accessories, rooms, Homes, or types" : "Search accessories, rooms, or types"
 			case .scene:     "Search scenes"
 			case .shortcut:  "Search shortcuts or folders"
+			case .page:      ""
 		}
 	}
 

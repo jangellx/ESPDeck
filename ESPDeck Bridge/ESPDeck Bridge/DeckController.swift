@@ -59,6 +59,10 @@ final class DeckController {
 	@ObservationIgnored private var keysInFlight: Set<String> = []
 	/// Slider keys being held ("device/key"): their repeat.
 	@ObservationIgnored var sliderRepeats: [String: Task<Void, Never>] = [:]
+	/// The configuration window's, for Edit ▸ Undo; see DeckController+Undo.
+	@ObservationIgnored weak var undoManager: UndoManager?
+	@ObservationIgnored var undoCoalescing : String?
+	@ObservationIgnored var undoCoalescedAt = Date.distantPast
 	private static let shortcutIconSize = 160
 
 	/// Connected devices that haven't authenticated, for the sidebar's New Devices.
@@ -131,7 +135,7 @@ final class DeckController {
 	/// A key, or a sleep or wake command, runs a shortcut.
 	private var usesShortcuts: Bool {
 		config.settings.devices.contains { settings in
-			( settings.keys + [ settings.onSleep, settings.onWake ] ).contains { $0.kind == .shortcut }
+			( settings.allKeys + [ settings.onSleep, settings.onWake ] ).contains { $0.kind == .shortcut }
 		}
 	}
 
@@ -165,7 +169,11 @@ final class DeckController {
 		guard let index = config.settings.deviceIndex( id ) else { return }
 		config.settings.devices[index].ensureKey( key )
 		let before = config.settings.devices[index].keys[key]
-		change( &config.settings.devices[index].keys[key] )
+		var after  = before
+		change( &after )
+		guard after != before else { return }
+		recordUndo( device: id, "Edit Key", coalesce: "\(id)/\(key)" )
+		config.settings.devices[index].keys[key] = after
 		if before.slider != nil || config.settings.devices[index].keys[key].slider != nil {
 			syncSliderPartner( device: index, key: key, before: before )
 		}
@@ -177,6 +185,7 @@ final class DeckController {
 			lastError = "That image couldn't be read."
 			return
 		}
+		recordUndo( device: id, "Change Icon" )
 		config.setIcon( name, device: id, key: key, state: state )
 		render( device: id, key: key )
 	}
@@ -184,6 +193,7 @@ final class DeckController {
 	/// Also gives the opposite state (On/Off, Open/Closed, Locked/Unlocked) the matching symbol,
 	/// unless it has an icon of its own that wasn't matched this way.
 	func setSymbol( _ name: String, device id: String, key: Int, state: KeyState ) {
+		recordUndo( device: id, "Change Icon" )
 		let before = assignment( id, key: key )
 		config.setIcon( KeyAssignment.symbolPrefix + name, device: id, key: key, state: state )
 
@@ -199,6 +209,7 @@ final class DeckController {
 	}
 
 	func removeIcon( device id: String, key: Int, state: KeyState ) {
+		recordUndo( device: id, "Remove Icon" )
 		config.setIcon( nil, device: id, key: key, state: state )
 		render( device: id, key: key )
 	}
@@ -206,6 +217,7 @@ final class DeckController {
 	/// Exchanges two keys' assignments, icons and appearance.
 	func swapKeys( device id: String, _ first: Int, _ second: Int ) {
 		guard first != second, let index = config.settings.deviceIndex( id ) else { return }
+		recordUndo( device: id, "Move Key" )
 		config.settings.devices[index].ensureKey( max( first, second ) )
 		config.settings.devices[index].keys.swapAt( first, second )
 		Self.remapSliders( &config.settings.devices[index].keys ) { $0 == first ? second : $0 == second ? first : $0 }
@@ -214,6 +226,7 @@ final class DeckController {
 
 	func clear( device id: String, key: Int ) {
 		guard let index = config.settings.deviceIndex( id ), key < config.settings.devices[index].keys.count else { return }
+		recordUndo( device: id, "Clear Key" )
 		// A slider pair goes together.
 		if let partner = config.settings.devices[index].keys[key].slider?.partner, partner < config.settings.devices[index].keys.count,
 		   config.settings.devices[index].keys[partner].slider?.partner == key {
@@ -392,18 +405,37 @@ final class DeckController {
 		let sourceLayout = layout( source )
 		let targetLayout = layout( destination )
 
-		var keys = Array( repeating: KeyAssignment(), count: targetLayout.keyCount )
-		for row in 0..<min( sourceLayout.rows, targetLayout.rows ) {
-			for col in 0..<min( sourceLayout.cols, targetLayout.cols ) {
-				keys[row * targetLayout.cols + col] = from.key( row * sourceLayout.cols + col )
+		recordUndo( device: destination, "Copy Keys" )
+		var pages: [[KeyAssignment]] = []
+		for sourceKeys in from.pages {
+			func key( _ index: Int ) -> KeyAssignment { index < sourceKeys.count ? sourceKeys[index] : KeyAssignment() }
+			var keys = Array( repeating: KeyAssignment(), count: targetLayout.keyCount )
+			for row in 0..<min( sourceLayout.rows, targetLayout.rows ) {
+				for col in 0..<min( sourceLayout.cols, targetLayout.cols ) {
+					keys[row * targetLayout.cols + col] = key( row * sourceLayout.cols + col )
+				}
 			}
+			// Slider pairs follow their keys to the new positions.
+			Self.remapSliders( &keys ) { old in
+				let row = old / max( sourceLayout.cols, 1 ), col = old % max( sourceLayout.cols, 1 )
+				return row < targetLayout.rows && col < targetLayout.cols ? row * targetLayout.cols + col : nil
+			}
+			// Next and Previous Page stay in the lower corners, whatever the deck's size.
+			for ( action, sourceIndex, targetIndex ) in [
+				( KeyAction.nextPage, sourceLayout.keyCount - 1, targetLayout.keyCount - 1 ),
+				( KeyAction.previousPage, sourceLayout.keyCount - sourceLayout.cols, targetLayout.keyCount - targetLayout.cols ),
+			] where key( sourceIndex ).kind == .page && key( sourceIndex ).action == action && targetIndex >= 0 {
+				let row = sourceIndex / max( sourceLayout.cols, 1 ), col = sourceIndex % max( sourceLayout.cols, 1 )
+				let mapped = row < targetLayout.rows && col < targetLayout.cols ? row * targetLayout.cols + col : nil
+				guard mapped != targetIndex, keys[targetIndex].kind == nil else { continue }
+				keys[targetIndex] = key( sourceIndex )
+				if let mapped { keys[mapped] = KeyAssignment() }
+			}
+			pages.append( keys )
 		}
-		// Slider pairs follow their keys to the new positions.
-		Self.remapSliders( &keys ) { old in
-			let row = old / max( sourceLayout.cols, 1 ), col = old % max( sourceLayout.cols, 1 )
-			return row < targetLayout.rows && col < targetLayout.cols ? row * targetLayout.cols + col : nil
-		}
-		config.settings.devices[index].keys = keys
+		config.settings.devices[index].pages       = pages.isEmpty ? [ [] ] : pages
+		config.settings.devices[index].currentPage = min( from.currentPage, max( pages.count - 1, 0 ) )
+		stopSliders( device: destination )
 		config.removeUnusedIcons()
 		assignmentsChanged( device: destination )
 	}
@@ -482,7 +514,7 @@ final class DeckController {
 	func assignmentsChanged( device id: String? = nil, deferPush: Bool = false ) {
 		var refs = Set<CharacteristicRef>()
 		for settings in config.settings.devices {
-			for key in settings.keys {
+			for key in settings.allKeys {
 				if let ref = key.characteristicRef { refs.insert( ref ) }
 				if let ref = key.alertRef { refs.insert( ref ) }
 				if let ref = key.sliderRef { refs.insert( ref ) }
@@ -570,6 +602,9 @@ final class DeckController {
 		face.doorArrow  = kind.doorArrow( for: state )
 		face.shortcutID = assignment.shortcutID
 		face.background = assignment.backgroundColor.flatMap( Color.init( hex: ) )
+		if kind == .page {
+			face.symbol = pageSymbol( for: assignment, device: id )
+		}
 		if let slider = assignment.slider {
 			// Up or down (right or left, side by side), whatever the kind's own symbol is.
 			face.symbol    = slider.style.symbol( raises: slider.raises, horizontal: isHorizontalPair( device: id, key, slider.partner ) )
@@ -902,6 +937,10 @@ final class DeckController {
 		}
 		guard let kind = assignment.kind, assignment.action != .none else { return }
 
+		if kind == .page {
+			if let id { performPage( assignment, device: id ) }
+			return
+		}
 		if kind == .shortcut {
 			runShortcut( assignment, context: context, device: id, key: key )
 			return
@@ -984,8 +1023,10 @@ final class DeckController {
 				}
 			}
 			for index in config.settings.devices.indices {
-				for key in config.settings.devices[index].keys.indices {
-					refresh( &config.settings.devices[index].keys[key] )
+				for page in config.settings.devices[index].pages.indices {
+					for key in config.settings.devices[index].pages[page].indices {
+						refresh( &config.settings.devices[index].pages[page][key] )
+					}
 				}
 				refresh( &config.settings.devices[index].onSleep )
 				refresh( &config.settings.devices[index].onWake )

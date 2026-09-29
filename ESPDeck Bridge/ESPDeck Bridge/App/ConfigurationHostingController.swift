@@ -48,6 +48,7 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		super.viewDidAppear( animated )
 		becomeFirstResponder()
 		controller.refreshClipboard()
+		controller.undoManager = undoManager   // the window's, which Edit ▸ Undo uses
 	}
 
 	override func canPerformAction( _ action: Selector, withSender sender: Any? ) -> Bool {

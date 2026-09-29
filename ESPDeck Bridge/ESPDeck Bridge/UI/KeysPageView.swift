@@ -19,6 +19,7 @@ struct KeysPageView: View {
 
 	@State private var dragStartWidth : Double?
 	@State private var pinchStartSize : CGFloat?
+	@State private var confirmingDeletePage = false
 
 	private static let minPreviewWidth   : CGFloat = 300
 	private static let minInspectorWidth : CGFloat = 380
@@ -63,6 +64,9 @@ struct KeysPageView: View {
 
 	private var previewPane: some View {
 		VStack( spacing: 0 ) {
+			pageBar
+			Divider()
+
 			GeometryReader { geometry in
 				let keySize = keySize( in: geometry.size )
 				ScrollView( [ .vertical, .horizontal ] ) {
@@ -84,6 +88,50 @@ struct KeysPageView: View {
 			Divider()
 			zoomBar
 		}
+	}
+
+	/// Which page the deck shows (and this page edits), and adding or deleting one.
+	private var pageBar: some View {
+		let count   = controller.pageCount( device: deviceID )
+		let current = controller.currentPage( device: deviceID )
+		return HStack( spacing: 8 ) {
+			Button {
+				controller.showPage( device: deviceID, current - 1 )
+			} label: {
+				Image( systemName: "chevron.left" )
+			}
+			.buttonStyle( .borderless )
+			.disabled( current == 0 )
+			.help( "Previous page" )
+
+			Text( "Page \(current + 1) of \(count)" )
+				.monospacedDigit()
+
+			Button {
+				controller.showPage( device: deviceID, current + 1 )
+			} label: {
+				Image( systemName: "chevron.right" )
+			}
+			.buttonStyle( .borderless )
+			.disabled( current + 1 >= count )
+			.help( "Next page" )
+
+			Spacer()
+
+			Button( "Add Page", systemImage: "plus" ) { controller.addPage( device: deviceID ) }
+				.help( "Add a page after this one. This page's lower-right key becomes Next Page, and what was there moves to the new page." )
+			Button( "Delete Page…", systemImage: "trash", role: .destructive ) { confirmingDeletePage = true }
+				.disabled( count <= 1 )
+				.confirmationDialog( "Delete page \(current + 1)?", isPresented: $confirmingDeletePage ) {
+					Button( "Delete Page", role: .destructive ) { controller.deletePage( device: deviceID ) }
+				} message: {
+					Text( "Its keys are removed. Edit ▸ Undo brings it back." )
+				}
+		}
+		.labelStyle( .titleAndIcon )
+		.controlSize( .small )
+		.padding( .horizontal, 14 )
+		.padding( .vertical, 8 )
 	}
 
 	/// Smallest and full size at either end of the slider; Size to Fit goes back to the
