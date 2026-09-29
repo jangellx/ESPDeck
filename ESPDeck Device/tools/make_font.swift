@@ -4,6 +4,7 @@
 //
 //   Label       Inter SemiBold 15 px, printable ASCII: labels on keys up to 80 px
 //   LabelLarge  Inter SemiBold 19 px, printable ASCII: labels on 96 px and larger keys
+//   LabelSmall  Inter SemiBold 12 px, printable ASCII: labels too wide for Label (72 px keys)
 //   Big         Inter Display SemiBold 34 px, digits: the pairing code and the countdown
 //
 // Glyphs are 4 bits per pixel (16 levels of coverage), packed two to a byte, row-major,
@@ -34,6 +35,7 @@ struct Spec {
 let specs = [
 	Spec( name: "Label",      file: "extras/ttf/Inter-SemiBold.ttf",        size: 15, first: " ", last: "~" ),
 	Spec( name: "LabelLarge", file: "extras/ttf/Inter-SemiBold.ttf",        size: 19, first: " ", last: "~" ),
+	Spec( name: "LabelSmall", file: "extras/ttf/Inter-SemiBold.ttf",        size: 12, first: " ", last: "~" ),
 	Spec( name: "Big",        file: "extras/ttf/InterDisplay-SemiBold.ttf", size: 34, first: "0", last: "9" ),
 ]
 

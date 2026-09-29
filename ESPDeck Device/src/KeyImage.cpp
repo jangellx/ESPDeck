@@ -187,16 +187,18 @@ void KeyImage::drawText( const char *const *lines, size_t count, uint32_t backgr
 	if( count == 0 )
 		return;
 
-	// Largest first; the last one is used even if it doesn't fit.
-	constexpr int kMargin = 4;
+	// Largest first; the last one is used even if it doesn't fit. LabelSmall is for labels
+	// like "Connecting" on 72 px keys (the MK.2) and 80 px ones (the Mini).
+	constexpr int kMargin = 3;
 	int           room    = size_ - 2 * kMargin;
-	const Font   *choices[3];
+	const Font   *choices[4];
 	size_t        options = 0;
 	if( style == TextStyle::Big )
 		choices[options++] = &kBigFont;
 	if( size_ >= 96 )
 		choices[options++] = &kLabelLargeFont;
 	choices[options++] = &kLabelFont;
+	choices[options++] = &kLabelSmallFont;
 
 	const Font *font = choices[options - 1];
 	for( size_t i = 0; i < options; i++ ) {
