@@ -21,6 +21,11 @@ typealias ClientID = UUID
 
 @Observable
 final class DeckServer {
+	/// Connections run here, not on the main thread, so the network stack answers the
+	/// devices' pings (autoReplyPing) even while the main thread is busy: a stall of 10 s used
+	/// to drop every deck. What they report is handled on the main thread, in order.
+	private static let networkQueue = DispatchQueue( label: "com.tmproductions.espdeck.server" )
+
 	static let serviceType = "_deckbridge._tcp"
 	static let port: NWEndpoint.Port = 48620
 	/// PROTOCOL.md's version, advertised in the Bonjour TXT record.
@@ -106,12 +111,12 @@ final class DeckServer {
 			let txt = NWTXTRecord( [ "id": bridgeID, "proto": "\(Self.protocolVersion)" ] )
 			listener.service = NWListener.Service( name: "ESPDeck Bridge", type: Self.serviceType, domain: nil, txtRecord: txt )
 			listener.stateUpdateHandler = { [weak self] state in
-				MainActor.assumeIsolated { self?.listenerStateChanged( state ) }
+				DispatchQueue.main.async { MainActor.assumeIsolated { self?.listenerStateChanged( state ) } }
 			}
 			listener.newConnectionHandler = { [weak self] connection in
-				MainActor.assumeIsolated { self?.accept( connection ) }
+				DispatchQueue.main.async { MainActor.assumeIsolated { self?.accept( connection ) } }
 			}
-			listener.start( queue: .main )
+			listener.start( queue: Self.networkQueue )
 			self.listener = listener
 			startSweeping()
 		} catch {
@@ -212,9 +217,9 @@ final class DeckServer {
 		client.deadline = Date( timeIntervalSinceNow: Self.helloTimeout )
 		clients[id] = client
 		connection.stateUpdateHandler = { [weak self] state in
-			MainActor.assumeIsolated { self?.connectionStateChanged( state, client: id ) }
+			DispatchQueue.main.async { MainActor.assumeIsolated { self?.connectionStateChanged( state, client: id ) } }
 		}
-		connection.start( queue: .main )
+		connection.start( queue: Self.networkQueue )
 	}
 
 	private func connectionStateChanged( _ state: NWConnection.State, client id: ClientID ) {
@@ -265,8 +270,8 @@ final class DeckServer {
 	private func receive( from id: ClientID ) {
 		guard let connection = clients[id]?.connection else { return }
 		connection.receiveMessage { [weak self] data, context, _, error in
-			MainActor.assumeIsolated {
-				self?.received( data, context: context, error: error, from: id )
+			DispatchQueue.main.async {
+				MainActor.assumeIsolated { self?.received( data, context: context, error: error, from: id ) }
 			}
 		}
 	}

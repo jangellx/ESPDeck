@@ -166,12 +166,17 @@ extension DeckController {
 	}
 
 	/// A slider key went down: one step now, then repeats after the device's delay until it
-	/// comes up (or a minute passes, in case the release never arrives).
-	func startSlider( device id: String, key: Int ) {
+	/// comes up (or a minute passes, in case the release never arrives). With `repeatHere`
+	/// false the device sends keyRepeat itself, and this only waits for the release.
+	func startSlider( device id: String, key: Int, repeatHere: Bool = true ) {
 		let name = "\(id)/\(key)"
 		sliderRepeats[name]?.cancel()
 		guard assignment( id, key: key ).slider != nil else { return }
 		stepSlider( device: id, key: key )
+		guard repeatHere else {
+			sliderRepeats[name] = Task {}   // held: stopSlider logs where it ended
+			return
+		}
 
 		let settings = settings( id )
 		let delay    = settings?.repeatDelay ?? DeviceSettings.defaultRepeatDelay
@@ -324,5 +329,28 @@ extension DeckController {
 		let raises = Self.raisesByDefault( key, partner: partner, cols: cols ) != swapped
 		config.settings.devices[index].keys[key].slider?.raises     = raises
 		config.settings.devices[index].keys[partner].slider?.raises = !raises
+	}
+}
+
+// MARK: - Repeating on the device
+
+extension DeckController {
+	/// Firmware 4.1.0 and later repeat held keys themselves (keyRepeat), which stops the
+	/// moment the key comes up, whatever the network does; older firmware leaves it to the Mac.
+	static let deviceRepeatFirmware = Version( "4.1.0" )!
+
+	func repeatsOnDevice( _ device: DeckDevice ) -> Bool {
+		device.firmware.flatMap( Version.init ).map { $0 >= Self.deviceRepeatFirmware } ?? false
+	}
+
+	/// Tells the device which keys on the page it shows repeat, and how; only when that changed.
+	func sendRepeatKeys( device id: String ) {
+		guard let device = device( id ), device.isOnline, repeatsOnDevice( device ), let settings = settings( id ) else { return }
+		let keys    = settings.keys.indices.filter { settings.keys[$0].slider != nil }
+		let message = HostMessage.repeatKeys( keys: keys, delay: Int( settings.repeatDelay * 1000 ),
+											  interval: Int( 1000 / max( settings.repeatRate, 1 ) ) )
+		guard device.sentRepeatKeys != message else { return }
+		device.sentRepeatKeys = message
+		send( message, to: id )
 	}
 }

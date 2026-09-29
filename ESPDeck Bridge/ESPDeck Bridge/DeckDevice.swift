@@ -44,6 +44,8 @@ final class DeckDevice: Identifiable {
 	@ObservationIgnored var lastAddress  : String?
 	/// For automatic firmware updates, which wait for an idle deck.
 	@ObservationIgnored var lastKeyActivity = Date.distantPast
+	/// The repeatKeys message last sent, so it's only sent when it changes.
+	@ObservationIgnored var sentRepeatKeys: HostMessage?
 
 	/// Frames sent and received, newest last, for the Log tab.
 	var log          : [TrafficEntry] = []
@@ -78,6 +80,7 @@ final class DeckDevice: Identifiable {
 		chord       = false
 		knownHashes = []
 		shown       = [:]
+		sentRepeatKeys = nil   // a new session starts with none
 		clearPending()
 	}
 

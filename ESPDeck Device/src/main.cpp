@@ -99,6 +99,13 @@ static uint32_t         keysToBlank    = 0;
 static uint32_t         keysDown       = 0;       // held right now
 static uint32_t         keysForwarded  = 0;       // the Mac has seen keyDown but not keyUp
 static uint32_t         keysBouncing   = 0;       // down ignored as bounce; ignore its up too
+// Keys that repeat while held (the Mac's Level keys on the page it shows): keyRepeat after
+// the delay, then every interval, until the key comes up. Here rather than on the Mac, so a
+// late keyUp can't cause extra repeats.
+static uint32_t         repeatingKeys  = 0;
+static uint32_t         repeatDelay    = 500;     // ms
+static uint32_t         repeatInterval = 166;     // ms
+static uint32_t         nextRepeatAt[kMaxKeys] = {};
 static uint32_t         keyReleasedAt[kMaxKeys] = {};   // millis() of each key's last up
 static bool             swallowKeys    = false;   // forward nothing until every key is up (the wake press)
 
@@ -977,6 +984,8 @@ static void handleAuth( cJSON *json ) {
 	swallowKeys   = keysDown != 0;
 	refreshScreen();
 
+	repeatingKeys = 0;   // the Mac says which keys repeat, if it knows how
+
 	// What the unauthenticated hello left out (the Wi-Fi network).
 	sendStatus( "session" );
 
@@ -1260,6 +1269,23 @@ static void handleCommand( const char *type, cJSON *json ) {
 		if( cJSON_IsNumber( seconds ) && seconds->valuedouble >= 0 )
 			settings.setSleepTimeout( (uint32_t)std::min( seconds->valuedouble, 30.0 * 24 * 3600 ) );
 
+	} else if( strcmp( type, "repeatKeys" ) == 0 ) {
+		// { keys: [indexes], delay: ms, interval: ms }; an empty list stops repeating.
+		uint32_t keys  = 0;
+		cJSON   *list  = cJSON_GetObjectItemCaseSensitive( json, "keys" );
+		cJSON   *entry = nullptr;
+		cJSON_ArrayForEach( entry, list ) {
+			if( cJSON_IsNumber( entry ) && entry->valuedouble >= 0 && entry->valuedouble < kMaxKeys )
+				keys |= keyBit( (uint8_t)entry->valuedouble );
+		}
+		cJSON *delayMs    = cJSON_GetObjectItemCaseSensitive( json, "delay" );
+		cJSON *intervalMs = cJSON_GetObjectItemCaseSensitive( json, "interval" );
+		if( cJSON_IsNumber( delayMs ) )
+			repeatDelay = (uint32_t)std::min( std::max( delayMs->valuedouble, 100.0 ), 3000.0 );
+		if( cJSON_IsNumber( intervalMs ) )
+			repeatInterval = (uint32_t)std::min( std::max( intervalMs->valuedouble, 30.0 ), 2000.0 );
+		repeatingKeys = keys;
+
 	} else if( strcmp( type, "sleep" ) == 0 ) {
 		goToSleep( "bridge" );
 
@@ -1461,6 +1487,22 @@ static void handleKeyDown( uint8_t key ) {
 	ESP_LOGI( TAG, "Key %u down", key );
 	keysForwarded |= keyBit( key );
 	sendKey( "keyDown", key );
+	if( repeatingKeys & keyBit( key ) )
+		nextRepeatAt[key] = millis() + repeatDelay;
+}
+
+// Held keys that repeat (see repeatingKeys), once each is due.
+static void sendKeyRepeats() {
+	uint32_t held = keysForwarded & repeatingKeys;
+	if( !held || !session.authenticated() )
+		return;
+	uint32_t now = millis();
+	for( uint8_t key = 0; key < kMaxKeys; key++ ) {
+		if( !( held & keyBit( key ) ) || (int32_t)( now - nextRepeatAt[key] ) < 0 )
+			continue;
+		sendKey( "keyRepeat", key );
+		nextRepeatAt[key] = now + repeatInterval;
+	}
 }
 
 static void handleKeyUp( uint8_t key ) {
@@ -1753,6 +1795,7 @@ void loop() {
 	StreamDeck::Event event;
 	while( deck.nextEvent( event ) )
 		handleDeckEvent( event );
+	sendKeyRepeats();
 
 	BridgeClient::Message message;
 	while( bridge.nextMessage( message ) ) {

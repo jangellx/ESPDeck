@@ -512,7 +512,7 @@ final class DeckController {
 		change( &config.settings.devices[index] )
 	}
 
-	private func send( _ message: HostMessage, to id: String ) {
+	func send( _ message: HostMessage, to id: String ) {
 		guard let client = device( id )?.client else { return }
 		server.send( message, to: client )
 	}
@@ -537,8 +537,10 @@ final class DeckController {
 
 		if let id {
 			renderAll( device: id, deferPush: deferPush )
+			sendRepeatKeys( device: id )
 		} else {
 			renderEverything()
+			for device in devices { sendRepeatKeys( device: device.id ) }
 		}
 	}
 
@@ -851,7 +853,13 @@ final class DeckController {
 				device.pressed.insert( key )
 				// Slider keys act on press, and repeat while held.
 				if !device.chord && assignment( id, key: key ).slider != nil {
-					startSlider( device: id, key: key )
+					startSlider( device: id, key: key, repeatHere: !repeatsOnDevice( device ) )
+				}
+
+			case .keyRepeat( let key ):
+				// The device repeats a held Level key itself (firmware 4.1.0 and later).
+				if device.pressed.contains( key ) && !device.chord && assignment( id, key: key ).slider != nil {
+					stepSlider( device: id, key: key )
 				}
 
 			case .keyUp( let key ):
@@ -921,6 +929,7 @@ final class DeckController {
 		// `shown` was just reset, so rendering sends every key once (a second forced pass
 		// used to send each `show` twice).
 		renderAll( device: hello.id )
+		sendRepeatKeys( device: hello.id )
 		firmwareReconnected( device )
 		storageReconnected( device )
 		updates.deviceConnected( hello.id )

@@ -73,14 +73,20 @@ struct SliderSection: View {
 					}
 				}
 
-				Stepper {
-					LabeledContent( "Step", value: "\(Int( slider.step ))%" )
-				} onIncrement: {
-					let next = Self.steps.first { $0 > slider.step } ?? Self.steps.last!
-					controller.updateSlider( device: deviceID, key: key ) { $0.step = next }
-				} onDecrement: {
-					let next = Self.steps.last { $0 < slider.step } ?? Self.steps.first!
-					controller.updateSlider( device: deviceID, key: key ) { $0.step = next }
+				// The value beside the arrows, not by the label.
+				LabeledContent( "Step" ) {
+					HStack( spacing: 6 ) {
+						Text( "\(Int( slider.step ))%" )
+							.monospacedDigit()
+						Stepper( "Step" ) {
+							let next = Self.steps.first { $0 > slider.step } ?? Self.steps.last!
+							controller.updateSlider( device: deviceID, key: key ) { $0.step = next }
+						} onDecrement: {
+							let next = Self.steps.last { $0 < slider.step } ?? Self.steps.first!
+							controller.updateSlider( device: deviceID, key: key ) { $0.step = next }
+						}
+						.labelsHidden()
+					}
 				}
 
 				let horizontal = controller.isHorizontalPair( device: deviceID, key, slider.partner )

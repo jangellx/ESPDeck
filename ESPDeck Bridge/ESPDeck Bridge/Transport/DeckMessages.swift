@@ -130,6 +130,8 @@ enum DeviceMessage {
 	case need( hash: String )
 	case keyDown( Int )
 	case keyUp( Int )
+	/// A held Level key, again (firmware 4.1.0 and later; see HostMessage.repeatKeys).
+	case keyRepeat( Int )
 	/// A key now shows this image on the deck (uploaded, or it already did).
 	case shown( key: Int, hash: String )
 	case auth( proof: Data )
@@ -233,6 +235,9 @@ enum DeviceMessage {
 			case "keyUp":
 				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
 				self = .keyUp( key )
+			case "keyRepeat":
+				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
+				self = .keyRepeat( key )
 			case "shown":
 				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ), let hash = envelope.hash else { return nil }
 				self = .shown( key: key, hash: hash )
@@ -287,7 +292,7 @@ enum DeviceMessage {
 }
 
 /// Mac → ESP32 control messages. Images go out as binary frames; see `imageFrame`.
-enum HostMessage: Encodable {
+enum HostMessage: Encodable, Equatable {
 	case show( key: Int, hash: String )
 	case brightness( Int )
 	case setName( String )
@@ -296,6 +301,8 @@ enum HostMessage: Encodable {
 	case sleep
 	case wake
 	case setupMode( Bool )
+	/// Which keys repeat while held, and how (milliseconds). Firmware 4.1.0 and later.
+	case repeatKeys( keys: [Int], delay: Int, interval: Int )
 	case unpair
 	case factoryReset
 	/// Burns the chip's eFuse key and encrypts NVS with it (firmware 4.1.0 and later). Permanent.
@@ -313,7 +320,7 @@ enum HostMessage: Encodable {
 	case pairCancel
 
 	private enum CodingKeys: String, CodingKey {
-		case type, key, hash, value, name, seconds, enabled
+		case type, key, keys, hash, value, name, seconds, enabled, delay, interval
 		case version, size, sha256, allowDowngrade, nonce, proof, bridgeID, bridgeName, publicKey, passwordHash, sealedHash
 	}
 
@@ -343,6 +350,11 @@ enum HostMessage: Encodable {
 			case .setupMode( let enabled ):
 				try container.encode( "setupMode", forKey: .type )
 				try container.encode( enabled, forKey: .enabled )
+			case .repeatKeys( let keys, let delay, let interval ):
+				try container.encode( "repeatKeys", forKey: .type )
+				try container.encode( keys, forKey: .keys )
+				try container.encode( delay, forKey: .delay )
+				try container.encode( interval, forKey: .interval )
 			case .unpair:
 				try container.encode( "unpair", forKey: .type )
 			case .factoryReset:

@@ -82,6 +82,9 @@ struct TrafficEntry: Identifiable {
 			case "sleepTimeout":
 				guard let seconds = object["seconds"] as? Int else { return "Sleep timer set" }
 				return seconds == 0 ? "Sleep timer turned off" : "Sleep timer set to \(duration( seconds ))"
+			case "repeatKeys":
+				let keys = ( object["keys"] as? [Int] ) ?? []
+				return keys.isEmpty ? "No keys repeat when held" : "Keys that repeat when held: \(keys.map { String( $0 + 1 ) }.joined( separator: ", " ))"
 			case "sleep":          return "Asked the deck to sleep"
 			case "wake":           return "Asked the deck to wake"
 			case "setupMode":      return object["enabled"] as? Bool == true ? "Asked the deck to enter setup mode" : "Asked the deck to leave setup mode"
@@ -161,6 +164,7 @@ struct TrafficEntry: Identifiable {
 			case "shown":          return "\(key( object ).capitalizedFirst) now shows its image"
 			case "keyDown":        return "\(key( object ).capitalizedFirst) pressed"
 			case "keyUp":          return "\(key( object ).capitalizedFirst) released"
+			case "keyRepeat":      return "\(key( object ).capitalizedFirst) held: repeat"
 			default:               return "Received \(plain( type ))"
 		}
 	}
