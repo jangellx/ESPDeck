@@ -34,9 +34,9 @@ struct SearchField: View {
 				.help( "Clear" )
 			}
 		}
-		.padding( .horizontal, 7 )
-		.padding( .vertical, 4 )
-		.background( RoundedRectangle( cornerRadius: 7, style: .continuous ).fill( Color( uiColor: .tertiarySystemFill ) ) )
+		.padding( .horizontal, 10 )
+		.padding( .vertical, 5 )
+		.background( Capsule().fill( Color( uiColor: .tertiarySystemFill ) ) )   // as Apple's search fields
 	}
 
 	@ViewBuilder

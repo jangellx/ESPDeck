@@ -13,27 +13,37 @@ enum PairingKeyStore {
 	private static let service = "ESPDeck Bridge pairing key"
 	/// Keys already read, so a reconnect doesn't go to the Keychain on the main thread…
 	private static var cache: [String: Data] = [:]
-	/// …and IDs without one, so hellos from unknown devices (or anyone making them up) don't
-	/// either. Cleared when it gets large.
+	/// …and IDs the Keychain definitely has none for (errSecItemNotFound), so hellos from
+	/// unknown devices (or anyone making them up) don't either. Any other failure isn't
+	/// remembered: one caching a paired device's key as missing, until the app quit, left it
+	/// "needing unpairing" and unable to connect. Cleared when it gets large.
 	private static var missing: Set<String> = []
 	private static let missingLimit = 256
 
 	static func key( for deviceID: String ) -> Data? {
 		if let cached = cache[deviceID] { return cached }
 		if missing.contains( deviceID ) { return nil }
+		var definitelyMissing = true
 		for dataProtection in [ true, false ] {
 			var query = base( deviceID, dataProtection: dataProtection )
 			query[kSecReturnData as String] = true
 			query[kSecMatchLimit as String] = kSecMatchLimitOne
 
 			var result: AnyObject?
-			if SecItemCopyMatching( query as CFDictionary, &result ) == errSecSuccess, let data = result as? Data {
+			let status = SecItemCopyMatching( query as CFDictionary, &result )
+			if status == errSecSuccess, let data = result as? Data {
 				cache[deviceID] = data
 				return data
 			}
+			if status != errSecItemNotFound {
+				definitelyMissing = false
+				print( "[PairingKeyStore] Reading the key for \(deviceID) (\(dataProtection ? "data protection" : "login") keychain) failed: \(status)" )
+			}
 		}
-		if missing.count >= missingLimit { missing.removeAll() }
-		missing.insert( deviceID )
+		if definitelyMissing {
+			if missing.count >= missingLimit { missing.removeAll() }
+			missing.insert( deviceID )
+		}
 		return nil
 	}
 
