@@ -28,9 +28,9 @@ extension DeckController {
 	/// right raises the level. The partner's old assignment is replaced; a previous partner of
 	/// `key` is cleared.
 	func makeSlider( device id: String, key: Int, partner: Int, level: SliderLevel ) {
-		guard let index = config.settings.deviceIndex( id ), key != partner else { return }
+		guard let index = config.settings.deviceIndex( id ), key != partner,
+			  max( key, partner ) < config.settings.devices[index].keys.count else { return }
 		recordUndo( device: id, "Make Slider" )
-		config.settings.devices[index].ensureKey( max( key, partner ) )
 
 		let cols         = max( layout( id ).cols, 1 )
 		let partnerRaises = partner / cols < key / cols || ( partner / cols == key / cols && partner % cols > key % cols )
@@ -128,7 +128,8 @@ extension DeckController {
 	/// A pair split by a copy that left one key out becomes two ordinary keys.
 	static func remapSliders( _ keys: inout [KeyAssignment], _ moved: ( Int ) -> Int? ) {
 		for index in keys.indices {
-			guard let partner = keys[index].slider?.partner else { continue }
+			// A partner the deck doesn't show stays paired (by its place on the grid).
+			guard let partner = keys[index].slider?.partner, partner != DeviceSettings.offscreenPartner else { continue }
 			if let target = moved( partner ), target < keys.count, target != index {
 				keys[index].slider?.partner = target
 			} else {
@@ -241,8 +242,8 @@ extension DeckController {
 	/// (keys in the way swap into the places it left). If its partner would land off the deck,
 	/// `pendingLevelMove` is set for the view to ask about.
 	func moveKey( device id: String, from source: Int, to target: Int ) {
-		guard source != target, let index = config.settings.deviceIndex( id ) else { return }
-		config.settings.devices[index].ensureKey( max( source, target ) )
+		guard source != target, let index = config.settings.deviceIndex( id ),
+			  max( source, target ) < config.settings.devices[index].keys.count else { return }
 		let keys = config.settings.devices[index].keys
 		// Dropping an ordinary key on a Level key moves the Level key the other way.
 		let ( moving, destination ) = isPairedSlider( keys, source ) ? ( source, target ) : isPairedSlider( keys, target ) ? ( target, source ) : ( -1, -1 )

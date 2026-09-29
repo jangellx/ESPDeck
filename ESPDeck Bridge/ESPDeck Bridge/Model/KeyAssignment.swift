@@ -43,6 +43,9 @@ struct KeyAssignment: Codable, Equatable {
 
 	var isToggleShortcut: Bool { kind == .shortcut && shortcutToggles == true }
 
+	/// Nothing on it at all.
+	var isEmpty: Bool { self == KeyAssignment() }
+
 	/// States that can have their own icon, besides `standard`.
 	var states: [KeyState] { isToggleShortcut ? [ .on, .off ] : kind?.states ?? [] }
 

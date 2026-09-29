@@ -66,7 +66,7 @@ extension DeckController {
 			newPage[lowerRight] = Self.pageKey( .nextPage )
 		}
 
-		settings.pages.insert( newPage, at: settings.currentPage + 1 )
+		settings.pages.insert( DeviceSettings.grid( fromDisplay: newPage, layout: settings.layout ), at: settings.currentPage + 1 )
 		settings.currentPage += 1
 		// Go to Page keys keep pointing at the same pages.
 		let inserted = settings.currentPage + 1   // 1-based

@@ -264,8 +264,7 @@ final class ConfigStore {
 	}
 
 	func setIcon( _ name: String?, device: String, key: Int, state: KeyState ) {
-		guard let index = settings.deviceIndex( device ) else { return }
-		settings.devices[index].ensureKey( key )
+		guard let index = settings.deviceIndex( device ), key < settings.devices[index].keys.count else { return }
 		settings.devices[index].keys[key].icons[state.rawValue] = name
 		removeUnusedIcons()
 	}

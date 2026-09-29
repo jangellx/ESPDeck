@@ -172,7 +172,7 @@ final class DeckController {
 
 	func update( device id: String, key: Int, _ change: ( inout KeyAssignment ) -> Void ) {
 		guard let index = config.settings.deviceIndex( id ) else { return }
-		config.settings.devices[index].ensureKey( key )
+		guard key < config.settings.devices[index].keys.count else { return }   // not on this deck
 		let before = config.settings.devices[index].keys[key]
 		var after  = before
 		change( &after )
@@ -221,9 +221,9 @@ final class DeckController {
 
 	/// Exchanges two keys' assignments, icons and appearance.
 	func swapKeys( device id: String, _ first: Int, _ second: Int ) {
-		guard first != second, let index = config.settings.deviceIndex( id ) else { return }
+		guard first != second, let index = config.settings.deviceIndex( id ),
+			  max( first, second ) < config.settings.devices[index].keys.count else { return }
 		recordUndo( device: id, "Move Key" )
-		config.settings.devices[index].ensureKey( max( first, second ) )
 		config.settings.devices[index].keys.swapAt( first, second )
 		Self.remapSliders( &config.settings.devices[index].keys ) { $0 == first ? second : $0 == second ? first : $0 }
 		assignmentsChanged( device: id )
@@ -412,37 +412,11 @@ final class DeckController {
 	/// layout carries across deck sizes. Keys that don't fit are left out.
 	func copyKeys( from source: String, to destination: String ) {
 		guard let from = settings( source ), let index = config.settings.deviceIndex( destination ) else { return }
-		let sourceLayout = layout( source )
-		let targetLayout = layout( destination )
 
 		recordUndo( device: destination, "Copy Keys" )
-		var pages: [[KeyAssignment]] = []
-		for sourceKeys in from.pages {
-			func key( _ index: Int ) -> KeyAssignment { index < sourceKeys.count ? sourceKeys[index] : KeyAssignment() }
-			var keys = Array( repeating: KeyAssignment(), count: targetLayout.keyCount )
-			for row in 0..<min( sourceLayout.rows, targetLayout.rows ) {
-				for col in 0..<min( sourceLayout.cols, targetLayout.cols ) {
-					keys[row * targetLayout.cols + col] = key( row * sourceLayout.cols + col )
-				}
-			}
-			// Slider pairs follow their keys to the new positions.
-			Self.remapSliders( &keys ) { old in
-				let row = old / max( sourceLayout.cols, 1 ), col = old % max( sourceLayout.cols, 1 )
-				return row < targetLayout.rows && col < targetLayout.cols ? row * targetLayout.cols + col : nil
-			}
-			// Next and Previous Page stay in the lower corners, whatever the deck's size.
-			for ( action, sourceIndex, targetIndex ) in [
-				( KeyAction.nextPage, sourceLayout.keyCount - 1, targetLayout.keyCount - 1 ),
-				( KeyAction.previousPage, sourceLayout.keyCount - sourceLayout.cols, targetLayout.keyCount - targetLayout.cols ),
-			] where key( sourceIndex ).kind == .page && key( sourceIndex ).action == action && targetIndex >= 0 {
-				let row = sourceIndex / max( sourceLayout.cols, 1 ), col = sourceIndex % max( sourceLayout.cols, 1 )
-				let mapped = row < targetLayout.rows && col < targetLayout.cols ? row * targetLayout.cols + col : nil
-				guard mapped != targetIndex, keys[targetIndex].kind == nil else { continue }
-				keys[targetIndex] = key( sourceIndex )
-				if let mapped { keys[mapped] = KeyAssignment() }
-			}
-			pages.append( keys )
-		}
+		// Keys are kept by row and column (DeviceSettings.gridColumns), so every page copies as
+		// it is: each deck shows the part that fits, and nothing is lost for a bigger one.
+		let pages = from.pages
 		config.settings.devices[index].pages       = pages.isEmpty ? [ [] ] : pages
 		config.settings.devices[index].currentPage = min( from.currentPage, max( pages.count - 1, 0 ) )
 		stopSliders( device: destination )

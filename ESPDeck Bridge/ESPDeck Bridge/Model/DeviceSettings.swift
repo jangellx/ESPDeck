@@ -120,7 +120,10 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	/// A virtual deck for configuring keys without hardware. Its `layout` is chosen
 	/// by the user instead of reported.
 	var isDemo        = false
-	/// Every page of keys; there's always at least one. `keys` is the current page's.
+	/// Every page of keys; there's always at least one. Stored on a grid `gridColumns` wide,
+	/// at row × gridColumns + column, whatever deck is plugged in: a smaller deck shows the
+	/// top-left corner and leaves the rest alone for a bigger one. `keys` is the current page
+	/// as the deck (`layout`) numbers its keys.
 	var pages         : [[KeyAssignment]] = [ [] ]
 	/// The page the deck shows (and the Keys page edits).
 	var currentPage   = 0
@@ -163,14 +166,19 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		isDemo        = container.lenient( Bool.self, forKey: .isDemo ) ?? false
 		// A key that can't be read becomes an empty one, so the others keep their places.
 		// A key that can't be read becomes an empty one, so the others keep their places.
-		// Before pages, the keys were one list.
+		layout        = container.lenient( DeckLayout.self, forKey: .layout ) ?? .mini
+		// Before pages, the keys were one list; before the grid, pages were numbered as the
+		// deck they were set up on numbers its keys (its last layout).
 		if let decoded = try? container.decode( [LenientPage].self, forKey: .pages ), !decoded.isEmpty {
 			pages = decoded.map( \.keys )
 		} else {
 			pages = [ container.lenientArray( of: KeyAssignment.self, forKey: .keys, placeholder: KeyAssignment() ) ?? [] ]
 		}
+		if container.lenient( Int.self, forKey: .gridColumns ) != Self.gridColumns {
+			let old = layout
+			pages = pages.map { Self.grid( fromDisplay: $0, layout: old ) }
+		}
 		currentPage   = min( max( container.lenient( Int.self, forKey: .currentPage ) ?? 0, 0 ), pages.count - 1 )
-		layout        = container.lenient( DeckLayout.self, forKey: .layout ) ?? .mini
 		brightness    = container.lenient( Int.self, forKey: .brightness ) ?? 80
 		orientation   = container.lenient( String.self, forKey: .orientation ) ?? "auto"
 		sleepTimeout  = container.lenient( Int.self, forKey: .sleepTimeout ) ?? 0
@@ -192,7 +200,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	}
 
 	private enum CodingKeys: String, CodingKey {
-		case id, name, isDemo, pages, currentPage, layout, brightness, orientation, sleepTimeout, devOTA, labelPosition
+		case id, name, isDemo, pages, gridColumns, currentPage, layout, brightness, orientation, sleepTimeout, devOTA, labelPosition
 		case repeatDelay, repeatRate, sleepTriggers, onSleep, onWake
 		case keys   // before pages
 	}
@@ -202,7 +210,8 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		try container.encode( id, forKey: .id )
 		try container.encode( name, forKey: .name )
 		try container.encode( isDemo, forKey: .isDemo )
-		try container.encode( pages, forKey: .pages )
+		try container.encode( pages.map( Self.trimmed ), forKey: .pages )
+		try container.encode( Self.gridColumns, forKey: .gridColumns )
 		try container.encode( currentPage, forKey: .currentPage )
 		try container.encode( layout, forKey: .layout )
 		try container.encode( brightness, forKey: .brightness )
@@ -239,10 +248,93 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		}
 	}
 
-	/// The current page's keys.
+	/// The widest deck (the XL); a Stream Deck has at most 8 rows too.
+	static let gridColumns = 8
+
+	/// The current page's keys, numbered as `layout` numbers them. Setting it writes them back
+	/// to their grid places and leaves keys the layout doesn't show alone.
 	var keys: [KeyAssignment] {
-		get { pages[currentPage] }
-		set { pages[currentPage] = newValue }
+		get { Self.display( pages[currentPage], layout: layout ) }
+		set { pages[currentPage] = Self.store( newValue, into: pages[currentPage], layout: layout ) }
+	}
+
+	/// Where a key of `layout` lives on the grid.
+	static func gridIndex( _ key: Int, layout: DeckLayout ) -> Int {
+		let cols = max( layout.cols, 1 )
+		return key / cols * gridColumns + key % cols
+	}
+
+	/// The key a grid place is on `layout`, if it shows it.
+	static func displayIndex( _ grid: Int, layout: DeckLayout ) -> Int? {
+		let row = grid / gridColumns, col = grid % gridColumns
+		guard row < layout.rows, col < layout.cols else { return nil }
+		return row * layout.cols + col
+	}
+
+	/// A Level key whose other key the layout doesn't show; it still steps on its own.
+	static let offscreenPartner = Int.max
+
+	/// A grid page as `layout` shows it. Level partners become key numbers too. A Next or
+	/// Previous Page key the layout can't show appears in its lower-right or lower-left corner
+	/// if that key is empty, so a smaller deck can still change page.
+	static func display( _ page: [KeyAssignment], layout: DeckLayout ) -> [KeyAssignment] {
+		func at( _ grid: Int ) -> KeyAssignment { grid < page.count ? page[grid] : KeyAssignment() }
+		var keys = ( 0..<layout.keyCount ).map { key in
+			var assignment = at( gridIndex( key, layout: layout ) )
+			if let partner = assignment.slider?.partner {
+				assignment.slider?.partner = displayIndex( partner, layout: layout ) ?? offscreenPartner
+			}
+			return assignment
+		}
+		for ( action, corner ) in [ ( KeyAction.nextPage, layout.keyCount - 1 ), ( KeyAction.previousPage, layout.keyCount - layout.cols ) ]
+		where corner >= 0 && corner < keys.count && keys[corner].isEmpty && !keys.contains( where: { $0.kind == .page && $0.action == action } ) {
+			if let hidden = page.indices.first( where: { page[$0].kind == .page && page[$0].action == action && displayIndex( $0, layout: layout ) == nil } ) {
+				keys[corner] = page[hidden]
+			}
+		}
+		return keys
+	}
+
+	/// Writes `keys` (numbered as `layout` numbers them) into their grid places in `page`.
+	static func store( _ keys: [KeyAssignment], into page: [KeyAssignment], layout: DeckLayout ) -> [KeyAssignment] {
+		var page  = page
+		let shown = display( page, layout: layout )
+		// Only keys that changed: an unchanged Next/Previous Page key standing in for a hidden
+		// one stays where it is.
+		for ( key, assignment ) in keys.enumerated() where key < layout.keyCount && assignment != shown[key] {
+			let grid = gridIndex( key, layout: layout )
+			while page.count <= grid { page.append( KeyAssignment() ) }
+			var stored = assignment
+			if let partner = assignment.slider?.partner {
+				stored.slider?.partner = partner == offscreenPartner || partner >= layout.keyCount
+					? ( grid < page.count ? page[grid].slider?.partner ?? offscreenPartner : offscreenPartner )
+					: gridIndex( partner, layout: layout )
+			}
+			page[grid] = stored
+		}
+		return page
+	}
+
+	/// A page numbered as `layout` numbers its keys, onto the grid (older settings files).
+	static func grid( fromDisplay keys: [KeyAssignment], layout: DeckLayout ) -> [KeyAssignment] {
+		var page: [KeyAssignment] = []
+		for ( key, assignment ) in keys.enumerated() {
+			let grid = gridIndex( key, layout: layout )
+			while page.count <= grid { page.append( KeyAssignment() ) }
+			var stored = assignment
+			if let partner = assignment.slider?.partner {
+				stored.slider?.partner = gridIndex( partner, layout: layout )
+			}
+			page[grid] = stored
+		}
+		return page
+	}
+
+	/// Without the empty keys at the end, for the file.
+	private static func trimmed( _ page: [KeyAssignment] ) -> [KeyAssignment] {
+		var page = page
+		while let last = page.last, last.isEmpty { page.removeLast() }
+		return page
 	}
 
 	/// Every page's keys, for what doesn't care about pages (icon files, HomeKit watching).
@@ -253,10 +345,9 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		index < keys.count ? keys[index] : KeyAssignment()
 	}
 
-	/// Grows `keys` so `index` is valid.
-	mutating func ensureKey( _ index: Int ) {
-		while keys.count <= index { keys.append( KeyAssignment() ) }
-	}
+	/// `keys` always has every key of `layout`; there's nothing to grow. (A key past the end
+	/// isn't on the deck, and writing to it is ignored.)
+	mutating func ensureKey( _ index: Int ) {}
 }
 
 struct BridgeSettings: Codable, Equatable {
