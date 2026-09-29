@@ -47,7 +47,8 @@ struct KeyInspectorView: View {
 				.id( "\(deviceID)/\(key)/\(pressKind.rawValue)" )   // fresh mode and search for each key and press
 
 				if let kind = editing.kind {
-					if kind == .shortcut && pressKind == .tap {
+					// Each under its own tab of the picker, not whichever tab is showing.
+					if kind == .shortcut && pressKind == .tap && pickerTab == .shortcut {
 						Picker( "Type", selection: shortcutTogglesBinding ) {
 							Text( "One-Shot" ).tag( false )
 							Text( "On/Off" ).tag( true )
@@ -55,7 +56,7 @@ struct KeyInspectorView: View {
 						.pickerStyle( .segmented )
 					}
 					// Lights and fans with a level: switch them, or step the level with two keys.
-					if !levels.isEmpty && pressKind == .tap {
+					if !levels.isEmpty && pressKind == .tap && pickerTab == .home {
 						Picker( "Type", selection: sliderTypeBinding ) {
 							Text( "Toggle" ).tag( false )
 							Text( "Level" ).tag( true )
@@ -63,7 +64,7 @@ struct KeyInspectorView: View {
 						.pickerStyle( .segmented )
 					}
 					// The command is chosen above; Go to Page needs its page.
-					if kind == .page && editing.action == .goToPage {
+					if kind == .page && editing.action == .goToPage && pickerTab == .page {
 						let pageCount = controller.pageCount( device: deviceID )
 						Stepper( value: Binding {
 							min( max( editing.pageNumber ?? 1, 1 ), max( pageCount, 1 ) )
@@ -236,6 +237,9 @@ struct KeyInspectorView: View {
 	}
 
 	private var levels: [SliderLevel] { controller.sliderLevels( for: assignment ) }
+
+	/// The key picker's tab (TargetPicker keeps it in the window state).
+	private var pickerTab: TargetMode { controller.window.lastKeyTargetMode }
 
 	/// A menu rather than a Picker: in a Form, a Picker whose options change (another key, a
 	/// shortcut's actions then a light's) kept showing the old choice. This label is always
