@@ -17,6 +17,9 @@
 
 class Improv {
 public:
+	// Joining a network it was just given (it has its own timeout, and goes back after).
+	bool connecting() const { return connecting_; }
+
 	explicit Improv( Settings &settings ) : settings_( settings ) {}
 
 	// Installs the serial drivers. usbSerial: also listen on the USB-Serial-JTAG port.

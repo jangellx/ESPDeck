@@ -54,6 +54,7 @@ constexpr uint32_t kPairingTimeout    = 120000;      // ms before the deck cance
 constexpr uint32_t kPairingKeyGuard   = 1000;        // ms after the code appears before keys count
 constexpr uint32_t kConfirmHold       = 1500;        // ms Confirm is held to confirm a pairing
 constexpr uint32_t kAuthTimeout       = 10000;       // ms a paired device waits for the bridge's auth
+constexpr uint32_t kWifiRetry         = 30000;       // ms off Wi-Fi before starting the join over
 constexpr size_t   kMaxPlainText      = 2048;        // bytes; longer unauthenticated messages are ignored
 constexpr int      kMaxJSONDepth      = 8;           // arrays and objects; deeper messages are ignored
 constexpr uint32_t kRollbackDeadline  = 600000;      // ms after boot for a new image to authenticate

@@ -121,7 +121,7 @@ struct PartsView: View {
 						Image( systemName: "chevron.right" )
 					}
 				}
-				.buttonStyle( .borderedProminent )
+				.prominentButtonStyle()
 			}
 		}
 		.padding( .top, 8 )
@@ -493,7 +493,7 @@ private struct FindDevicesSheet: View {
 			}
 			Spacer()
 			Button( action, action: perform )
-				.buttonStyle( .borderedProminent )
+				.prominentButtonStyle()
 		}
 		.padding( 14 )
 		.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )

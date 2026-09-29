@@ -1721,6 +1721,20 @@ static void checkTimers() {
 		dropBridge( false );
 	}
 
+	// Arduino's auto-reconnect gives up on some failures (an association that expired or was
+	// refused "temporarily" by a WPA3 router), leaving the device looking for Wi-Fi forever.
+	static uint32_t wifiDownSince = 0;
+	if( WiFi.status() == WL_CONNECTED || portal.active() || improv.connecting() || !settings.hasCredentials() ) {
+		wifiDownSince = 0;
+	} else if( !wifiDownSince ) {
+		wifiDownSince = now;
+	} else if( now - wifiDownSince >= kWifiRetry ) {
+		ESP_LOGW( TAG, "Not on Wi-Fi after %u s; joining again", (unsigned)( kWifiRetry / 1000 ) );
+		WiFi.disconnect( false, false );
+		WiFi.begin( settings.ssid(), settings.password() );
+		wifiDownSince = now;
+	}
+
 	if( hostnameRestartAt && (int32_t)( now - hostnameRestartAt ) >= 0 ) {
 		disableLoopWDT();
 		cache.persistNow();

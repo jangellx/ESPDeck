@@ -241,7 +241,7 @@ struct USBSetupView: View {
 					Button( "Stop", role: .cancel ) { setup.cancelInstall() }
 				}
 				Button( "Install Firmware" ) { installTapped() }
-					.buttonStyle( .borderedProminent )
+					.prominentButtonStyle()
 					// Nothing to install while "No signed release yet" is chosen.
 					.disabled( setup.selectedBoard == nil || setup.install.isBusy
 							   || ( setup.source == .release && controller.updates.latestFirmware == nil ) )
@@ -600,7 +600,7 @@ struct USBSetupView: View {
 						Image( systemName: "chevron.right" )
 					}
 				}
-				.buttonStyle( .borderedProminent )   // only the button, not the whole row, is clickable
+				.prominentButtonStyle()   // only the button, not the whole row, is clickable
 				.frame( maxWidth: .infinity )
 			}
 			// The title's line box leaves room above it, so less padding there than under the button.

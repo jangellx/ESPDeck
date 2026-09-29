@@ -86,7 +86,7 @@ struct NewDeviceView: View {
 			switch device.pairing {
 				case .idle:
 					Button( "Pair with This Mac" ) { startPairing( device ) }
-						.buttonStyle( .borderedProminent )
+						.prominentButtonStyle()
 						.controlSize( .large )
 						.confirmationDialog( "Replace the existing pairing for \(replacing ?? "")?",
 											 isPresented: Binding( get: { replacing != nil }, set: { if !$0 { replacing = nil } } ), titleVisibility: .visible ) {
@@ -110,7 +110,7 @@ struct NewDeviceView: View {
 						HStack( spacing: 12 ) {
 							Button( "It Doesn't Match", role: .destructive ) { controller.rejectCode( client ) }
 							Button( "The Deck Shows This Code" ) { controller.confirmCode( client ) }
-								.buttonStyle( .borderedProminent )
+								.prominentButtonStyle()
 						}
 						Text( deckConfirmed ? "It was confirmed on the deck."
 											: "If it doesn't match, something else may be answering for the deck: don't pair." )
