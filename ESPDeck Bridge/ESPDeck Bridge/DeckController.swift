@@ -579,8 +579,10 @@ final class DeckController {
 
 		if assignment.showLabel {
 			var label = assignment.label.isEmpty ? defaultName( for: assignment ) : assignment.label
-			if assignment.slider != nil && assignment.label.isEmpty {
-				label = sliderLabel( for: assignment ) ?? label   // the level, e.g. "60%"
+			// A pair reads like a control: the name on the upper (or left) key, the level
+			// ("60%") on the other.
+			if let slider = assignment.slider, assignment.label.isEmpty, slider.partner < key {
+				label = sliderLabel( for: assignment ) ?? label
 			}
 			if kind == .temperature, let ref = assignment.characteristicRef, let celsius = home.values[ref] as? NSNumber {
 				let reading = Measurement( value: celsius.doubleValue, unit: UnitTemperature.celsius )

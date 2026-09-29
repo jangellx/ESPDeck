@@ -77,13 +77,13 @@ struct SliderSection: View {
 		} header: {
 			SectionHeader( "Slider" )
 		} footer: {
-			Text( "Press either key to step the level; hold it to keep stepping (the delay and speed are on the Device page). The key shows the level unless it has its own label. Either key can also have any icon, under Icons." )
+			Text( "Press either key to step the level; hold it to keep stepping (the delay and speed are on the Device page). The upper (or left) key shows the name and the other the level, unless they have their own labels. Either key can also have any icon, under Icons." )
 		}
 	}
 }
 
-/// The 3 × 3 keys around this one: itself in the middle, the four beside it to choose from.
-/// Corners (diagonal) can't be chosen; positions off the deck are left empty.
+/// A cross of the keys around this one: itself in the middle, the four beside it to choose
+/// from. An arm that would be off the edge of the deck is ghosted.
 private struct SliderPartnerGrid: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -104,12 +104,15 @@ private struct SliderPartnerGrid: View {
 				GridRow {
 					ForEach( -1...1, id: \.self ) { dc in
 						let r = row + dr, c = col + dc
-						if r < 0 || c < 0 || r >= layout.rows || c >= cols {
+						if dr != 0 && dc != 0 {
 							Color.clear.frame( width: Self.cell, height: Self.cell )
+						} else if r < 0 || c < 0 || r >= layout.rows || c >= cols {
+							RoundedRectangle( cornerRadius: 6, style: .continuous )
+								.strokeBorder( Color( white: 0.5 ).opacity( 0.35 ), style: StrokeStyle( lineWidth: 1, dash: [ 3, 3 ] ) )
+								.frame( width: Self.cell, height: Self.cell )
+								.help( "Off the edge of the deck" )
 						} else if dr == 0 && dc == 0 {
 							keyCell( r * cols + c, style: .this )
-						} else if dr != 0 && dc != 0 {
-							keyCell( r * cols + c, style: .unavailable )
 						} else {
 							let index = r * cols + c
 							Button {
@@ -126,7 +129,7 @@ private struct SliderPartnerGrid: View {
 		}
 	}
 
-	private enum CellStyle { case this, chosen, choice, unavailable }
+	private enum CellStyle { case this, chosen, choice }
 
 	private func keyCell( _ index: Int, style: CellStyle ) -> some View {
 		let preview = controller.device( deviceID ).flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
@@ -137,28 +140,17 @@ private struct SliderPartnerGrid: View {
 				Image( uiImage: preview )
 					.resizable()
 					.clipShape( RoundedRectangle( cornerRadius: 6, style: .continuous ) )
-					.opacity( style == .unavailable ? 0.3 : 0.8 )
+					.opacity( 0.8 )
 			}
 			Text( "\(index + 1)" )
 				.font( .caption.weight( .semibold ) )
 				.foregroundStyle( .white )
 				.shadow( radius: 2 )
-				.opacity( style == .unavailable ? 0.4 : 1 )
 		}
 		.frame( width: Self.cell, height: Self.cell )
 		.overlay {
 			RoundedRectangle( cornerRadius: 6, style: .continuous )
 				.strokeBorder( style == .chosen ? Color.accentColor : Color( white: 0.35 ), lineWidth: style == .chosen ? 3 : 1 )
-		}
-		.overlay {
-			if style == .unavailable {
-				// Struck through: diagonal keys can't pair.
-				Path { path in
-					path.move( to: CGPoint( x: 6, y: Self.cell - 6 ) )
-					path.addLine( to: CGPoint( x: Self.cell - 6, y: 6 ) )
-				}
-				.stroke( Color( white: 0.45 ), lineWidth: 1.5 )
-			}
 		}
 		.accessibilityLabel( "Key \(index + 1)" )
 	}
