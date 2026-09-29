@@ -38,12 +38,14 @@ struct DeckGridView: View {
 		let layout  = controller.layout( deviceID )
 		let spacing = Self.spacing( layout )
 		let size    = keySize
+		let page    = controller.currentPage( device: deviceID )
 
 		Grid( horizontalSpacing: spacing, verticalSpacing: spacing ) {
 			ForEach( 0..<layout.rows, id: \.self ) { row in
 				GridRow {
 					ForEach( 0..<layout.cols, id: \.self ) { column in
-						DeckKeyView( controller: controller, deviceID: deviceID, index: row * layout.cols + column, size: size, selection: $selection )
+						DeckKeyView( controller: controller, deviceID: deviceID, index: row * layout.cols + column, size: size,
+									 page: page, diagonal: row + column, selection: $selection )
 					}
 				}
 			}
@@ -59,8 +61,13 @@ private struct DeckKeyView: View {
 	let deviceID           : String
 	let index              : Int
 	let size               : CGFloat
+	/// A new page ripples in from the top left, as it does on the deck (rippleIn).
+	let page               : Int
+	let diagonal           : Int
 	@Binding var selection : Int
 	@State private var isTargeted = false
+
+	private static let rippleStep: Double = 0.04   // s per diagonal; the deck's is 20 ms plus its own time per key
 
 	var body: some View {
 		let device   = controller.device( deviceID )
@@ -77,6 +84,16 @@ private struct DeckKeyView: View {
 			} else {
 				Color.black
 			}
+		}
+		// Dims at once on a page change, then each diagonal comes up in turn.
+		.keyframeAnimator( initialValue: 1.0, trigger: page ) { content, level in
+			content
+				.opacity( level )
+				.scaleEffect( 0.86 + 0.14 * level )
+		} keyframes: { _ in
+			LinearKeyframe( 0.15, duration: 0.01 )
+			LinearKeyframe( 0.15, duration: Double( diagonal ) * Self.rippleStep )
+			SpringKeyframe( 1.0, duration: 0.25 )
 		}
 		.frame( width: size, height: size )
 		.clipShape( RoundedRectangle( cornerRadius: radius, style: .continuous ) )
