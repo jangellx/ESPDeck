@@ -340,8 +340,12 @@ struct USBSetupView: View {
 				ProgressView( text )
 					.controlSize( .small )
 			case .running( let stage, let fraction ):
-				ProgressView( value: fraction ) {
+				// The stage on its own line: as the bar's label, each change (per flash region)
+				// rebuilt the bar, which then animated up from the start again.
+				VStack( alignment: .leading, spacing: 4 ) {
 					Text( stage )
+					ProgressView( value: fraction )
+						.animation( nil, value: fraction )
 				}
 			case .finished( let text ):
 				Label( text, systemImage: "checkmark.circle.fill" )

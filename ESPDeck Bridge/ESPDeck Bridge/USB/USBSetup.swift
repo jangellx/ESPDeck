@@ -195,7 +195,11 @@ final class USBSetup {
 
 	@ObservationIgnored private weak var controller: DeckController?
 
-	private(set) var boards          : [Board] = []
+	private(set) var boards          : [Board] = [] {
+		didSet { noteRestartedBoard() }
+	}
+	/// After an install: the board's USB location, until it answers from its new firmware.
+	@ObservationIgnored private var awaitingRestart: Int??
 	var selectedPath                 : String?
 	var source                       = Source.release
 	private(set) var chosenFile      : ChosenFile?
@@ -340,6 +344,17 @@ final class USBSetup {
 			let restarting = expected.map { $0.location == board.port.location && ContinuousClock.now < $0.until } ?? false
 			if restarting { selectedPath = board.port.path }
 			ask( board.port.path, attempts: restarting ? 12 : 1 )
+		}
+	}
+
+	/// The installed board answered from its new firmware: say it's done.
+	private func noteRestartedBoard() {
+		guard let location = awaitingRestart, case .finished = install else { return }
+		for board in boards where board.port.location == location {
+			guard case .answered( let info ) = board.answer, info.isESPDeck else { continue }
+			awaitingRestart = nil
+			install = .finished( "ESPDeck \(info.version) is installed and running. You can unplug the board safely, or carry on setting it up below." )
+			return
 		}
 	}
 
@@ -537,7 +552,8 @@ final class USBSetup {
 	/// expected back, and asked again once it has had time to start. On its own USB port it
 	/// usually drops off the bus for a moment; then it's asked when it's back.
 	private func finishInstall( error: String?, version: String, port: String, location: Int? ) {
-		install            = error.map { .failed( $0 ) } ?? .finished( "ESPDeck \(version) is installed, and the board is restarting." )
+		install            = error.map { .failed( $0 ) } ?? .finished( "ESPDeck \(version) is installed, and the board is restarting…" )
+		awaitingRestart    = nil
 		installingLocation = nil
 		expected           = ( location, ContinuousClock.now + .seconds( 30 ) )
 
@@ -545,6 +561,7 @@ final class USBSetup {
 		guard let current = ports.first( where: { $0.path == port } ) else {
 			// Away: it's asked when it's back, as a board expected back.
 			boards.removeAll { $0.port.location == location }
+			if error == nil { awaitingRestart = .some( location ) }
 			return
 		}
 		boards.removeAll { $0.port.location == location && $0.port.path != port }
@@ -552,6 +569,8 @@ final class USBSetup {
 			boards.append( Board( port: current, answer: .asking, hardware: location.flatMap { hardware[$0] } ) )
 		}
 		update( port ) { $0.answer = .asking }
+		// Only now, so the board's answer from before the install doesn't count.
+		if error == nil { awaitingRestart = .some( location ) }
 		Task {
 			// ESPDeck takes a moment to start and to decide its USB port stays a serial port.
 			try? await Task.sleep( for: .seconds( 3 ) )
