@@ -620,26 +620,56 @@ struct CopyKeysMenu: View {
 	let controller : DeckController
 	let deviceID   : String
 
-	@State private var pendingSource: String?
+	/// A device, and one of its pages or nil for all of them, waiting for Replace.
+	@State private var pending: ( source: String, page: Int? )?
 
 	var body: some View {
-		let others = controller.config.settings.devices.filter { $0.id != deviceID }
+		let devices = controller.config.settings.devices
+		let others  = devices.filter { $0.id != deviceID }
+		let this    = devices.first { $0.id == deviceID }
 
 		Menu( "Copy Keys From" ) {
 			ForEach( others ) { other in
-				Button( other.isDemo ? "\(other.name) (demo)" : other.name ) { pendingSource = other.id }
+				let name = other.isDemo ? "\(other.name) (demo)" : other.name
+				if other.pages.count > 1 {
+					Menu( name ) {
+						Button( "All Pages" ) { pending = ( other.id, nil ) }
+						Divider()
+						ForEach( other.pages.indices, id: \.self ) { page in
+							Button( "Page \(page + 1)" ) { pending = ( other.id, page ) }
+						}
+					}
+				} else {
+					Button( name ) { pending = ( other.id, nil ) }
+				}
+			}
+			// Another page of this device onto the one showing.
+			if let this, this.pages.count > 1 {
+				Divider()
+				Menu( "This Device" ) {
+					ForEach( this.pages.indices.filter { $0 != this.currentPage }, id: \.self ) { page in
+						Button( "Page \(page + 1)" ) { pending = ( deviceID, page ) }
+					}
+				}
 			}
 		}
-		.disabled( others.isEmpty )
-		.confirmationDialog( "Replace this device's keys?", isPresented: Binding( get: { pendingSource != nil }, set: { if !$0 { pendingSource = nil } } ) ) {
+		.disabled( others.isEmpty && ( this?.pages.count ?? 1 ) < 2 )
+		.confirmationDialog( pending?.page == nil ? "Replace this device's keys?" : "Replace this page's keys?",
+							 isPresented: Binding( get: { pending != nil }, set: { if !$0 { pending = nil } } ) ) {
 			Button( "Replace Keys", role: .destructive ) {
-				if let source = pendingSource {
-					controller.copyKeys( from: source, to: deviceID )
+				if let pending {
+					controller.copyKeys( from: pending.source, to: deviceID, page: pending.page )
 				}
-				pendingSource = nil
+				pending = nil
 			}
 		} message: {
-			Text( "Every key is replaced with the matching key (same row and column) from \(pendingSource.flatMap { controller.settings( $0 )?.name } ?? "the other device"). Keys outside its layout become empty." )
+			let source = pending.flatMap { controller.settings( $0.source ) }
+			let name   = pending?.source == deviceID ? "this device" : source?.name ?? "the other device"
+			if let page = pending?.page {
+				Text( "The page showing is replaced with page \(page + 1) of \(name), key for key by row and column. Its other pages stay as they are." )
+			} else {
+				Text( "Every page is replaced with \(name)'s pages, key for key by row and column. Keys a deck can't show are kept for a bigger one." )
+			}
 		}
 	}
 }

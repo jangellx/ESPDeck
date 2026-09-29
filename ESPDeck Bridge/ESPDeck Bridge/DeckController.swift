@@ -415,8 +415,20 @@ final class DeckController {
 
 	/// Replaces a device's keys with another's, matching keys by row and column so a
 	/// layout carries across deck sizes. Keys that don't fit are left out.
-	func copyKeys( from source: String, to destination: String ) {
+	/// With `page`, only that page of the source replaces the page the destination shows (the
+	/// source can be the same device); without, every page is copied.
+	func copyKeys( from source: String, to destination: String, page: Int? = nil ) {
 		guard let from = settings( source ), let index = config.settings.deviceIndex( destination ) else { return }
+		if let page {
+			guard page < from.pages.count else { return }
+			recordUndo( device: destination, "Copy Page" )
+			let current = config.settings.devices[index].currentPage
+			config.settings.devices[index].pages[current] = from.pages[page]   // by row and column, like everything else
+			stopSliders( device: destination )
+			config.removeUnusedIcons()
+			assignmentsChanged( device: destination )
+			return
+		}
 
 		recordUndo( device: destination, "Copy Keys" )
 		// Keys are kept by row and column (DeviceSettings.gridColumns), so every page copies as
