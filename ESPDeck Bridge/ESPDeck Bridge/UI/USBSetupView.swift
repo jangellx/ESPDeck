@@ -603,7 +603,9 @@ struct USBSetupView: View {
 				.buttonStyle( .borderedProminent )   // only the button, not the whole row, is clickable
 				.frame( maxWidth: .infinity )
 			}
-			.padding( .vertical, 6 )
+			// The title's line box leaves room above it, so less padding there than under the button.
+			.padding( .top, 2 )
+			.padding( .bottom, 10 )
 		}
 	}
 
