@@ -22,6 +22,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 	/// The names the Device menu was built with.
 	private var deviceMenuNames          : [String] = []
 
+	func application( _ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? ) -> Bool {
+		// AppKit adds Start Dictation and Emoji & Symbols to the Edit menu unless these are set.
+		UserDefaults.standard.set( true, forKey: "NSDisabledDictationMenuItem" )
+		UserDefaults.standard.set( true, forKey: "NSDisabledCharacterPaletteMenuItem" )
+		return true
+	}
+
 	func application( _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? ) -> Bool {
 		// App Nap would throttle HomeKit notifications and the server while no window is open.
 		activity = ProcessInfo.processInfo.beginActivity( options: [ .userInitiatedAllowingIdleSystemSleep ], reason: "Bridging HomeKit to the Stream Deck" )

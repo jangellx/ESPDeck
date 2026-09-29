@@ -64,8 +64,22 @@ extension AppDelegate {
 			UICommand( title: "Import Bridge…", action: #selector( showImportBridge ) ),
 		] ), afterMenu: fileItems.identifier )
 
-		// Edit: Copy and Paste are the standard items, which the configuration window
-		// answers for the selected key.
+		// Edit: Undo/Redo, then Cut, Copy and Paste, which the configuration window answers for
+		// the selected key as Copy Key and Paste Key (a text field being edited keeps them).
+		// Nothing for text formatting, finding or speech.
+		builder.replaceChildren( ofMenu: .standardEdit ) { _ in
+			[
+				UIKeyCommand( title: "Cut", action: #selector( UIResponderStandardEditActions.cut( _: ) ), input: "x", modifierFlags: .command ),
+				UIKeyCommand( title: "Copy", action: #selector( UIResponderStandardEditActions.copy( _: ) ), input: "c", modifierFlags: .command ),
+				UIKeyCommand( title: "Paste", action: #selector( UIResponderStandardEditActions.paste( _: ) ), input: "v", modifierFlags: .command ),
+			]
+		}
+		for menu: UIMenu.Identifier in [ .format, .find, .spelling, .substitutions, .transformations, .speech ] {
+			builder.remove( menu: menu )
+		}
+		if #available( iOS 17.0, * ) {
+			builder.remove( menu: .autoFill )
+		}
 		builder.insertSibling( UIMenu( options: .displayInline, children: [
 			UIKeyCommand( title: "Clear Key…", action: #selector( clearKey ), input: UIKeyCommand.inputDelete, modifierFlags: [] ),
 		] ), afterMenu: .standardEdit )

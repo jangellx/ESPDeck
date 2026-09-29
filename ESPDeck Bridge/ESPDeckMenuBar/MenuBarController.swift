@@ -133,8 +133,10 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 		for ( index, line ) in statusLines.enumerated() {
 			let item = NSMenuItem( title: line, action: nil, keyEquivalent: "" )
+			// Disabled, so it can't be chosen or highlighted, but in the normal text colour:
+			// AppKit doesn't grey an attributed title.
 			item.isEnabled       = false
-			item.attributedTitle = Self.title( line, icon: Self.statusImage( level: index < statusLevels.count ? statusLevels[index] : 0 ), dimmed: true )
+			item.attributedTitle = Self.title( line, icon: Self.statusImage( level: index < statusLevels.count ? statusLevels[index] : 0 ) )
 			menu.addItem( item )
 		}
 		menu.addItem( .separator() )
@@ -199,7 +201,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	/// menu item's own image no room unless the item also shows a state (a checkmark), but an
 	/// attachment in the title gets its space. The icon sits in a fixed-width box so the
 	/// titles line up.
-	private static func title( _ text: String, icon: NSImage?, detail: String? = nil, dimmed: Bool = false ) -> NSAttributedString {
+	private static func title( _ text: String, icon: NSImage?, detail: String? = nil ) -> NSAttributedString {
 		let font  = NSFont.menuFont( ofSize: 0 )
 		let title = NSMutableAttributedString()
 		var indent: CGFloat = 0
@@ -218,11 +220,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 			indent = side + NSAttributedString( string: " ", attributes: [ .font: font ] ).size().width
 		}
 		title.append( NSAttributedString( string: text ) )
-		var attributes: [NSAttributedString.Key: Any] = [ .font: font ]
-		if dimmed {
-			attributes[.foregroundColor] = NSColor.secondaryLabelColor   // an attributed title isn't greyed when disabled
-		}
-		title.addAttributes( attributes, range: NSRange( location: 0, length: title.length ) )
+		title.addAttribute( .font, value: font, range: NSRange( location: 0, length: title.length ) )
 
 		if let detail {
 			let paragraph = NSMutableParagraphStyle()

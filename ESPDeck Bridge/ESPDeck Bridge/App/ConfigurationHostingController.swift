@@ -58,6 +58,17 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		}
 	}
 
+	/// Only reached with this controller answering (a text field being edited answers for
+	/// itself, as plain Copy and Paste).
+	override func validate( _ command: UICommand ) {
+		super.validate( command )
+		switch command.action {
+			case #selector( copy( _: ) ):  command.title = "Copy Key"
+			case #selector( paste( _: ) ): command.title = "Paste Key"
+			default:                       break
+		}
+	}
+
 	override func copy( _ sender: Any? ) {
 		guard let focused = controller.focusedKey else { return }
 		controller.copyKey( device: focused.device, key: focused.key )
