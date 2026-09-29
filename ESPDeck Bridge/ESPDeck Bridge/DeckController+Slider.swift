@@ -147,6 +147,24 @@ extension DeckController {
 
 	// MARK: - Pressing
 
+	/// Shift-click in the deck preview: like the key on the deck, including the flash, a
+	/// Level key's repeat while held, and other keys acting on release.
+	func previewPress( device id: String, key: Int, down: Bool ) {
+		if down {
+			device( id )?.pressed.insert( key )
+			if assignment( id, key: key ).slider != nil {
+				startSlider( device: id, key: key )
+			}
+		} else {
+			device( id )?.pressed.remove( key )
+			if assignment( id, key: key ).slider != nil {
+				stopSlider( device: id, key: key )
+			} else {
+				press( device: id, key: key )
+			}
+		}
+	}
+
 	/// A slider key went down: one step now, then repeats after the device's delay until it
 	/// comes up (or a minute passes, in case the release never arrives).
 	func startSlider( device id: String, key: Int ) {

@@ -57,6 +57,9 @@ final class DeckController {
 	@ObservationIgnored private var shortcutsLoading = false
 	/// Keys ("device/key") whose HomeKit write or scene hasn't finished yet.
 	@ObservationIgnored private var keysInFlight: Set<String> = []
+	/// The Keys page's deck preview: where each key is in the window, for shift-click.
+	@ObservationIgnored var previewKeyFrames: [Int: CGRect] = [:]
+	@ObservationIgnored var previewDevice: String?
 	/// A drag that would split a Level pair, for the Keys page to ask about.
 	var pendingLevelMove: PendingLevelMove?
 	/// Slider keys being held ("device/key"): their repeat.

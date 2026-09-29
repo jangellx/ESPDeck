@@ -130,6 +130,16 @@ private struct DeckKeyView: View {
 			}
 			return true
 		} isTargeted: { isTargeted = $0 }
+		// Where it is in the window, for shift-click (ConfigurationHostingController).
+		.background {
+			GeometryReader { geometry in
+				let frame = geometry.frame( in: .global )
+				Color.clear
+					.onAppear { controller.previewKeyFrames[index] = frame; controller.previewDevice = deviceID }
+					.onChange( of: frame ) { controller.previewKeyFrames[index] = frame; controller.previewDevice = deviceID }
+					.onDisappear { controller.previewKeyFrames[index] = nil }
+			}
+		}
 		.accessibilityLabel( "Key \(index + 1)" )
 		.accessibilityAddTraits( selected ? [ .isButton, .isSelected ] : .isButton )
 	}

@@ -73,6 +73,10 @@ struct KeysPageView: View {
 					VStack( spacing: 14 ) {
 						DeckGridView( controller: controller, deviceID: deviceID, keySize: keySize, selection: $selection )
 						LabelPositionControl( controller: controller, deviceID: deviceID )
+						Text( "Shift-click a key to run it, as if pressed on the deck; hold a Level key to keep stepping." )
+							.font( .caption )
+							.foregroundStyle( Color.secondary )
+							.multilineTextAlignment( .center )
 						if let device = controller.device( deviceID ), controller.settings( deviceID )?.isDemo != true {
 							TransferStatusView( device: device )
 								.frame( maxWidth: 520 )
