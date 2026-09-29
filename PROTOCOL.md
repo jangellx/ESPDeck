@@ -18,11 +18,11 @@ The Mac app (ESPDeck Bridge) runs a WebSocket server. Any number of ESP32s (ESPD
 Every ESP32 is paired with one bridge. Pairing uses an X25519 key agreement confirmed by comparing a 6-digit code shown on both the Mac and the deck (numeric comparison with a commitment, as in Bluetooth LE Secure Connections). The user confirms on the Mac and holds a key on the deck, so pairing requires physical access. The result is a 32-byte pairing key `K` that both sides store: the ESP32 in NVS, the Mac in the Keychain.
 
 Every connection starts **unauthenticated**. Until the handshake below succeeds:
-- The ESP32 sends only `hello`, `auth`, `pairResponse`, `pairReveal`, `pairConfirm` and `pairCancel`, and accepts only `auth`, `pairRequest`, `pairNonce` and `pairCancel`. It forwards no key presses and obeys no commands.
+- The ESP32 sends only `hello`, `auth`, `pairResponse`, `pairReveal`, `pairConfirm` and `pairCancel`, and accepts only `auth`, `pairRequest`, `pairNonce`, `pairCancel` and `noKey`. It forwards no key presses and obeys no commands.
 - The Mac acts on nothing from the device, and shows it as a new device that can be paired (or, for a device that says it's paired with this bridge but whose key the Mac doesn't have, explains how to unpair it). What an unauthenticated connection sends doesn't go into any device's log until it authenticates, and nothing about the device ID it claims is remembered.
 
 Limits before authentication:
-- ESP32: text frames longer than 2 KB are ignored, binary frames are ignored, and a paired ESP32 closes the connection if the bridge's `auth` hasn't verified within 10 seconds of connecting (and avoids that address; see Discovery).
+- ESP32: text frames longer than 2 KB are ignored, binary frames are ignored, and a paired ESP32 closes the connection if the bridge's `auth` hasn't verified within 10 seconds of connecting (and avoids that address; see Discovery). A bridge with the ESP32's `pairedBridge` ID but no key for it (lost from its Keychain, say) sends `noKey` instead: the ESP32 then stays connected and idle, so the bridge can show it as present and needing unpairing, and the bridge can still send `auth` if it finds the key again (it re-reads it every minute). `noKey` is unauthenticated, so a stand-in could send it too; but while idle the ESP32 looks for another bridge with its `pairedBridge` ID every 30 seconds, and if one turns up it moves to that one (and a stand-in that then fails there is avoided as usual). Firmware 4.1.0 and later; older firmware ignores it.
 - ESP32, always: JSON nested deeper than 8 arrays or objects is ignored before it's parsed.
 - Mac: at most 8 unauthenticated connections, and 2 from any one address; beyond 8, the oldest one that isn't pairing is closed. A connection that hasn't sent `hello` within 15 seconds, or doesn't finish the handshake within 15 seconds of `auth`, is closed (one listed as a new device waits for the user without a limit; one pairing has about 2 minutes). Before authentication, a binary frame, a frame over 4 KB (32 KB for the `hello`, which lists cached images), more than 12 frames in 10 seconds, or a second `hello` closes the connection.
 
@@ -197,6 +197,7 @@ These are the unauthenticated messages from the Mac:
 | `pairRequest` | `bridgeID`, `bridgeName`, `publicKey` | pairing step 1 |
 | `pairNonce` | `nonce` | pairing step 3 |
 | `pairCancel` | | pairing cancelled on the Mac (or the codes didn't match) |
+| `noKey` | | **Unauthenticated.** This Mac knows the deck but has no key for it; the deck waits, idle, while looking for another bridge with its ID (see Limits). Firmware 4.1.0 and later |
 
 ### devOTA
 

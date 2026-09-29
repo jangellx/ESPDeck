@@ -334,6 +334,10 @@ enum HostMessage: Encodable, Equatable {
 	case pairRequest( bridgeID: String, bridgeName: String, publicKey: Data )
 	case pairNonce( Data )
 	case pairCancel
+	/// This Mac can't authenticate the deck (it has no key for it): the deck stays connected
+	/// and idle, so it still shows as here, rather than giving up on this Mac. Firmware 4.1.0
+	/// and later; older firmware ignores it and drops the connection after 10 s.
+	case noKey
 
 	private enum CodingKeys: String, CodingKey {
 		case type, key, keys, hash, value, name, seconds, enabled, delay, interval, hostname
@@ -421,14 +425,16 @@ enum HostMessage: Encodable, Equatable {
 				try container.encode( nonce.hex, forKey: .nonce )
 			case .pairCancel:
 				try container.encode( "pairCancel", forKey: .type )
+			case .noKey:
+				try container.encode( "noKey", forKey: .type )
 		}
 	}
 
 	/// Sendable before the session is authenticated.
 	var isHandshake: Bool {
 		switch self {
-			case .auth, .pairRequest, .pairNonce, .pairCancel: true
-			default:                                           false
+			case .auth, .pairRequest, .pairNonce, .pairCancel, .noKey: true
+			default:                                                   false
 		}
 	}
 

@@ -166,8 +166,10 @@ static uint32_t         hostnameRestartAt = 0;      // a new hostname, taken at 
 
 static volatile bool    wifiJoined     = false;   // set on the Wi-Fi event task
 
-// A paired device that connects must authenticate within kAuthTimeout.
+// A paired device that connects must authenticate within kAuthTimeout, unless the bridge
+// says it has no key for it (noKey); it then waits, idle, and looks for another.
 static uint32_t         connectedAt    = 0;
+static bool             bridgeHasNoKey = false;
 
 // The name in the last hello, which the bridge shows; see checkRenamed().
 static char             helloName[Settings::kMaxName + 1] = {};
@@ -993,6 +995,8 @@ static void handleAuth( cJSON *json ) {
 	ESP_LOGI( TAG, "%s %s", pairingAuth ? "Paired and authenticated with" : "Authenticated with",
 			  Text::printable( settings.pairedBridge(), id, sizeof( id ) ) );
 	bridge.markAuthenticated();
+	bridge.setLookingElsewhere( false );
+	bridgeHasNoKey = false;
 	hadSession = true;
 
 	if( pendingVerify ) {
@@ -1403,6 +1407,16 @@ static void handleUnauthenticated( const char *type, cJSON *json ) {
 	} else if( strcmp( type, "pairCancel" ) == 0 ) {
 		if( pairing.stage != PairingStage::None )
 			cancelPairing( false, "bridge" );
+	} else if( strcmp( type, "noKey" ) == 0 ) {
+		// Our bridge (by its ID) knows us but can't authenticate: stay connected, idle, so it
+		// can show us as here while we wait to be unpaired (or for it to find its key and
+		// authenticate after all). Unauthenticated, so a stand-in could say it too, but we
+		// keep looking for another bridge with our ID and move to it if one turns up.
+		if( settings.isPaired() && pairing.stage == PairingStage::None && !bridgeHasNoKey ) {
+			ESP_LOGW( TAG, "The bridge has no key for us; staying connected, and looking for another" );
+			bridgeHasNoKey = true;
+			bridge.setLookingElsewhere( true );
+		}
 	} else {
 		char safe[32];
 		ESP_LOGW( TAG, "Ignoring %s before authentication", Text::printable( type, safe, sizeof( safe ) ) );
@@ -1701,7 +1715,7 @@ static void checkTimers() {
 	// A paired device gives a bridge kAuthTimeout to authenticate. One that doesn't (a
 	// stand-in advertising our bridge's ID, say) is dropped and its address avoided for a
 	// while, so the device gets back to looking for the real one.
-	if( bridge.isConnected() && !session.authenticated() && settings.isPaired() && now - connectedAt >= kAuthTimeout ) {
+	if( bridge.isConnected() && !session.authenticated() && settings.isPaired() && !bridgeHasNoKey && now - connectedAt >= kAuthTimeout ) {
 		ESP_LOGW( TAG, "The bridge didn't authenticate within %u s; closing the connection", (unsigned)( kAuthTimeout / 1000 ) );
 		bridge.avoidCurrent();
 		dropBridge( false );
@@ -1825,7 +1839,8 @@ void loop() {
 	statusLed.update( pairing.stage == PairingStage::Confirmed ? StatusLed::Mode::PairingConfirmed
 					  : pairingShown()                         ? StatusLed::Mode::Pairing
 					  : portal.active()                        ? StatusLed::Mode::Setup
-					  : WiFi.status() == WL_CONNECTED          ? StatusLed::Mode::Connected
+					  : session.authenticated()                ? StatusLed::Mode::Connected
+					  : WiFi.status() == WL_CONNECTED          ? StatusLed::Mode::OnWifi
 					  :                                          StatusLed::Mode::Searching,
 					  keysDown != 0, asleep );
 
@@ -1890,7 +1905,8 @@ void loop() {
 		switch( message.kind ) {
 			case BridgeClient::Message::Kind::Connected:
 				session.reset();
-				connectedAt = millis();
+				connectedAt    = millis();
+				bridgeHasNoKey = false;
 				sendHello();
 				refreshScreen();
 				break;

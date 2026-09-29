@@ -98,7 +98,7 @@ struct TrafficEntry: Identifiable {
 			case "wake":           return "Asked the deck to wake"
 			case "setupMode":      return object["enabled"] as? Bool == true ? "Asked the deck to enter setup mode" : "Asked the deck to leave setup mode"
 			case "unpair":         return "Unpaired: asked the deck to delete its pairing key"
-			case "devOTA":         return ( object["sealedHash"] as? String ).map { !$0.isEmpty } == true ? "Allowed uploads from PlatformIO" : "Turned off uploads from PlatformIO"
+			case "devOTA":         return ( object["sealedHash"] as? String ).map { !$0.isEmpty } == true ? "Allowed uploads through PlatformIO" : "Turned off uploads through PlatformIO"
 			case "factoryReset":   return "Asked the deck to reset to factory settings"
 			case "encryptStorage": return "Asked the deck to encrypt its storage"
 			case "firmwareBegin":
@@ -110,6 +110,7 @@ struct TrafficEntry: Identifiable {
 			case "pairRequest":    return "Pairing: asked the deck to pair"
 			case "pairNonce":      return "Pairing: sent this Mac's nonce"
 			case "pairCancel":     return "Pairing cancelled on this Mac"
+			case "noKey":          return "Told the deck this Mac has no key for it, so it waits"
 			default:               return "Sent \(plain( type ))"
 		}
 	}

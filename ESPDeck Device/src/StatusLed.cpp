@@ -83,6 +83,11 @@ void StatusLed::update( Mode mode, bool keyDown, bool asleep ) {
 			show( level, (uint8_t)( level * 3 / 4 ), 0 );    // yellow (a touch less green reads as yellow on WS2812s)
 			break;
 		}
+		case Mode::OnWifi: {
+			uint8_t level = pulseLevel();
+			show( level / 5, level, level / 5 );     // green with a little white in it
+			break;
+		}
 		case Mode::Pairing:
 			if( ( millis() / kPairingBlink ) % 2 == 0 )
 				show( kPairingLevel, 0, kPairingLevel );

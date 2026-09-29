@@ -300,6 +300,8 @@ struct DeviceSettingsView: View {
 			SecuritySection( controller: controller, device: device, name: settings.name )
 
 			DeveloperSection( controller: controller, device: device )
+
+			StatusLightSection()
 		}
 		.formStyle( .grouped )
 	}
@@ -481,7 +483,7 @@ private struct DeveloperSection: View {
 		let allowed   = device.status.devOTA ?? false
 
 		Section {
-			Toggle( "Allow uploads from PlatformIO", isOn: Binding {
+			Toggle( "Allow uploads through PlatformIO", isOn: Binding {
 				allowed
 			} set: { on in
 				controller.setDevOTA( device: device.id, enabled: on )
@@ -577,7 +579,7 @@ private struct DeveloperPasswordRows: View {
 		let offline = controller.devices.filter { device in
 			!device.isOnline && controller.settings( device.id ).map { $0.devOTA && !$0.isDemo } == true
 		}.compactMap { controller.settings( $0.id )?.name }
-		var text = "Connected devices that allow uploads from PlatformIO get the new password right away. Save it as ota_password.txt again afterward."
+		var text = "Connected devices that allow uploads through PlatformIO get the new password right away. Save it as ota_password.txt again afterward."
 		if !offline.isEmpty {
 			let names = ListFormatter.localizedString( byJoining: offline )
 			text += " \(names) \(offline.count == 1 ? "is" : "are") offline and will keep the old password; turn uploads off and on again for \(offline.count == 1 ? "it" : "them") later."
@@ -600,7 +602,7 @@ private struct OwnPasswordSheet: View {
 				Section {
 					SecureField( "Password", text: $password, prompt: Text( "At least 8 characters" ) )
 				} footer: {
-					Text( problem != nil && !password.isEmpty ? problem! : "Replaces this Mac's developer password. Connected devices that allow uploads from PlatformIO get it right away." )
+					Text( problem != nil && !password.isEmpty ? problem! : "Replaces this Mac's developer password. Connected devices that allow uploads through PlatformIO get it right away." )
 				}
 			}
 			.formStyle( .grouped )
@@ -835,21 +837,79 @@ private struct NetworkNameRow: View {
 					.foregroundStyle( Color.secondary )
 			} else {
 				HStack {
-					Button( proposed.map { "Use \u{201C}\($0)\u{201D}" } ?? "Use Device Name" ) {
+					Button( proposed.map { "Change to \u{201C}\($0)\u{201D}" } ?? "Change to Device Name" ) {
 						controller.setHostname( device: device.id, proposed )
 					}
 					.disabled( !settable || proposed == nil || proposed == current )
 					.help( "Name it after the device, as your router will list it" )
+					Spacer()
 					Button( "Reset" ) { controller.setHostname( device: device.id, nil ) }
 						.disabled( !settable || current == settings.defaultHostname )
 						.help( "Back to \(settings.defaultHostname)" )
 				}
 				.buttonStyle( .borderless )
-				Text( "The device restarts to use a new name. Depending on your router, the old name can stay in its list for a while, until the device's address is renewed. Uploads from PlatformIO use the new name too." )
+				Text( "The device restarts to use a new name. Depending on your router, the old name can stay in its list for a while, until the device's address is renewed. Uploads through PlatformIO use the new name too." )
 					.font( .caption )
 					.foregroundStyle( Color.secondary )
 			}
 		}
 		.padding( .vertical, 2 )
+	}
+}
+
+/// What the dev board's status light means (StatusLed in the firmware).
+private struct StatusLightSection: View {
+	private enum Style { case solid, pulsing, blinking }
+
+	private struct Entry: Identifiable {
+		let color   : Color
+		let style   : Style
+		let title   : String
+		let meaning : String
+		var id: String { title }
+	}
+
+	private static let entries: [Entry] = [
+		Entry( color: .blue, style: .pulsing, title: "Pulsing blue", meaning: "Setup mode" ),
+		Entry( color: .yellow, style: .pulsing, title: "Pulsing yellow", meaning: "Looking for Wi-Fi" ),
+		Entry( color: Color( red: 0.55, green: 0.95, blue: 0.6 ), style: .pulsing, title: "Pulsing pale green", meaning: "On Wi-Fi, looking for ESPDeck Bridge or waiting on it (to be unpaired, say)" ),
+		Entry( color: .green, style: .solid, title: "Green", meaning: "Connected to ESPDeck Bridge; brighter while data moves" ),
+		Entry( color: .white, style: .solid, title: "White", meaning: "A key is pressed" ),
+		Entry( color: Color( red: 0.85, green: 0.2, blue: 0.85 ), style: .blinking, title: "Blinking magenta", meaning: "Pairing; steady once it's confirmed on the deck" ),
+	]
+
+	var body: some View {
+		Section {
+			ForEach( Self.entries ) { entry in
+				HStack( spacing: 12 ) {
+					light( entry )
+					VStack( alignment: .leading, spacing: 1 ) {
+						Text( entry.title )
+						Text( entry.meaning )
+							.font( .caption )
+							.foregroundStyle( Color.secondary )
+					}
+				}
+				.accessibilityElement( children: .combine )
+			}
+		} header: {
+			SectionHeader( "Status Light" )
+		} footer: {
+			Text( "The light on the ESP32 board. While the deck is asleep, green is off and the others are very dim." )
+		}
+	}
+
+	private func light( _ entry: Entry ) -> some View {
+		Circle()
+			.fill( entry.color )
+			.overlay( Circle().strokeBorder( Color.secondary.opacity( 0.4 ), lineWidth: 1 ) )   // white on white
+			.frame( width: 14, height: 14 )
+			.phaseAnimator( entry.style == .solid ? [ 1.0 ] : [ 1.0, 0.2 ] ) { view, opacity in
+				view.opacity( opacity )
+			} animation: { _ in
+				entry.style == .blinking ? .linear( duration: 0.01 ).delay( 0.25 ) : .easeInOut( duration: 1 )
+			}
+			.frame( width: 28 )
+			.accessibilityHidden( true )
 	}
 }

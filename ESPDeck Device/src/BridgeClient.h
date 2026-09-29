@@ -4,7 +4,9 @@
 // A paired device only connects to bridges whose TXT "id" is the one it paired with, and
 // prefers the address where it last authenticated. An address whose handshake failed or
 // stalled is avoided for kAvoidTime (except that last good one), so something else on the
-// network advertising the bridge's ID can't keep the device from its real bridge.
+// network advertising the bridge's ID can't keep the device from its real bridge. While
+// connected to a bridge that knows us but can't authenticate (noKey), it keeps looking for
+// another with our ID (setLookingElsewhere), and moves to one if it turns up.
 //
 // mDNS queries take a few seconds, so they run on a discovery task of their own; loop()
 // hands it requests and picks up the results, and never blocks.
@@ -63,6 +65,11 @@ public:
 	// (unless it's the last one that authenticated). Call before disconnect().
 	void avoidCurrent();
 
+	// While connected: every kLookInterval, look for another bridge with our ID; if one turns
+	// up, drop this connection (a Disconnected message follows) and connect to that one.
+	// Off again once the connection goes.
+	void setLookingElsewhere( bool on );
+
 	// Drops the connection. No Disconnected message follows; the caller resets its own state.
 	// retrySoon skips the backoff (used to start over with a fresh hello).
 	void disconnect( bool retrySoon = false );
@@ -96,13 +103,14 @@ private:
 		char     preferred[64];
 		Endpoint lastGood;
 		Avoided  avoided[kMaxAvoided];
+		Endpoint exclude;   // the connection we have, when looking elsewhere
 	};
 
 	void runDiscovery();
 	bool discover( const Request &request, Endpoint &found );
 
 	// Called by loop().
-	void requestDiscovery();
+	void requestDiscovery( Endpoint exclude = {} );
 	void abandonDiscovery();
 	bool takeDiscoveryResult( bool &found, Endpoint &endpoint );
 
@@ -122,6 +130,8 @@ private:
 	Endpoint                      current_              = {};   // the connection's (or attempt's) address
 	Endpoint                      lastGood_             = {};   // where the last handshake succeeded
 	Avoided                       avoided_[kMaxAvoided] = {};
+	bool                          lookingElsewhere_     = false;
+	uint32_t                      nextLook_             = 0;
 
 	// Discovery requests and results, under discoveryMutex_. Results carry the request's id,
 	// so one that arrives after Wi-Fi dropped is ignored.

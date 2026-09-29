@@ -20,8 +20,10 @@ enum PairingKeyStore {
 	private static var missing: Set<String> = []
 	private static let missingLimit = 256
 
-	static func key( for deviceID: String ) -> Data? {
+	/// recheck: go to the Keychain even if it said last time it had none.
+	static func key( for deviceID: String, recheck: Bool = false ) -> Data? {
 		if let cached = cache[deviceID] { return cached }
+		if recheck { missing.remove( deviceID ) }
 		if missing.contains( deviceID ) { return nil }
 		var definitelyMissing = true
 		for dataProtection in [ true, false ] {

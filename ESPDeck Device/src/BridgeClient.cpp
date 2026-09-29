@@ -29,6 +29,7 @@ namespace {
 	constexpr uint32_t kQueryTimeout    = 3000;    // ms per mDNS query
 	constexpr size_t   kMaxResults      = 20;
 	constexpr uint32_t kAvoidTime       = 600000;  // ms an address that failed a handshake is skipped
+	constexpr uint32_t kLookInterval    = 30000;   // ms between looks for another bridge (setLookingElsewhere)
 
 	constexpr uint8_t  kOpcodeText      = 0x01;
 	constexpr uint8_t  kOpcodeBinary    = 0x02;
@@ -91,16 +92,42 @@ void BridgeClient::loop() {
 			break;
 
 		case State::Connected:
+			if( !lookingElsewhere_ )
+				break;
+			if( discovering_ ) {
+				Endpoint endpoint;
+				bool     found;
+				if( takeDiscoveryResult( found, endpoint ) && found ) {
+					esp_ip4_addr_t address = { endpoint.address };
+					ESP_LOGI( TAG, "Another bridge with our ID at " IPSTR ":%u; trying it", IP2STR( &address ), endpoint.port );
+					teardown();
+					enqueue( Message::Kind::Disconnected );
+					connect( endpoint );
+				}
+			} else if( (int32_t)( now - nextLook_ ) >= 0 ) {
+				nextLook_ = now + kLookInterval;
+				requestDiscovery( current_ );
+			}
 			break;
 	}
 }
 
+void BridgeClient::setLookingElsewhere( bool on ) {
+	if( on == lookingElsewhere_ )
+		return;
+	lookingElsewhere_ = on;
+	nextLook_         = millis() + kLookInterval;
+	if( !on && discovering_ )
+		abandonDiscovery();
+}
+
 // MARK: - Discovery
 
-void BridgeClient::requestDiscovery() {
+void BridgeClient::requestDiscovery( Endpoint exclude ) {
 	{
 		std::lock_guard<std::mutex> lock( discoveryMutex_ );
 		requestID_++;
+		request_.exclude = exclude;
 		strlcpy( request_.preferred, preferred_, sizeof( request_.preferred ) );
 		request_.lastGood = lastGood_;
 		memcpy( request_.avoided, avoided_, sizeof( avoided_ ) );
@@ -206,7 +233,7 @@ bool BridgeClient::discover( const Request &request, Endpoint &found ) {
 				if( entry.endpoint.address == ip && entry.endpoint.port == result->port && entry.until > now )
 					avoided = true;
 			}
-			if( avoided )
+			if( avoided || ( ip == request.exclude.address && result->port == request.exclude.port ) )
 				continue;
 			bool lastGood = request.lastGood.address == ip && request.lastGood.port == result->port;
 			int  score    = ( lastGood ? 2 : 0 ) + ( sameSubnet( address->addr.u_addr.ip4, local, mask ) ? 1 : 0 );
@@ -270,6 +297,11 @@ void BridgeClient::connect( const Endpoint &endpoint ) {
 }
 
 void BridgeClient::teardown() {
+	if( lookingElsewhere_ ) {
+		lookingElsewhere_ = false;
+		if( discovering_ )
+			abandonDiscovery();
+	}
 	if( client_ ) {
 		esp_websocket_client_destroy( client_ );   // stops and joins the client's task
 		client_ = nullptr;

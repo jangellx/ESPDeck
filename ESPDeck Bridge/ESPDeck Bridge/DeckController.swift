@@ -306,7 +306,7 @@ final class DeckController {
 	func setDevOTA( device id: String, enabled: Bool ) {
 		guard let device = device( id ), let client = device.client else { return }
 		guard !enabled || ( device.protocolVersion ?? 0 ) >= Self.devOTAProtocol else {
-			lastError = "Uploads from PlatformIO need firmware 4.0.0 or later on the deck."
+			lastError = "Uploads through PlatformIO need firmware 4.0.0 or later on the deck."
 			return
 		}
 		server.sendDevOTA( passwordHash: enabled ? Self.devOTAHash( developerPasswordCreatingIfNeeded() ) : nil, to: client )

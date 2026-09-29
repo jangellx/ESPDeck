@@ -1,7 +1,8 @@
 // The dev board's RGB LED as a status light:
 //   setup mode              pulsing blue
 //   looking for Wi-Fi       pulsing yellow
-//   connected               solid green at 25%, pulsing brighter while data moves
+//   on Wi-Fi, no bridge     pulsing pale green (looking for the bridge, or waiting on one)
+//   connected to the bridge solid green at 25%, pulsing brighter while data moves
 //   a key pressed or held   white, for at least a moment even on a quick tap
 //   pairing                 blinking magenta (the Pedal has no screen for the code), steady
 //                           once confirmed on the deck
@@ -16,6 +17,7 @@ public:
 	enum class Mode : uint8_t {
 		Setup,
 		Searching,
+		OnWifi,
 		Connected,
 		Pairing,
 		PairingConfirmed,

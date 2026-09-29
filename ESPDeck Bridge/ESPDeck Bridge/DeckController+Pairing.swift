@@ -176,11 +176,32 @@ extension DeckController {
 				: hello.pairedBridge.isEmpty ? .unpaired
 				: hello.pairedBridge != config.settings.bridgeID ? .pairedElsewhere : .keyMissing
 			listNewDevice( client, hello, reason )
+			// Still here, even though it can't be used until it's unpaired and paired again.
+			if reason == .keyMissing || reason == .pairedElsewhere { server.send( .noKey, to: client ) }
+			if reason == .keyMissing { recheckKey( client, deviceID: hello.id ) }
 			return
 		}
 
 		sendAuth( client, key: key, handshake: &handshake )
 		handshakes[client] = handshake
+	}
+
+	/// A deck waiting because its key couldn't be read: the Keychain may only have failed for
+	/// a while, so read it again every minute, and authenticate it if it's back.
+	private func recheckKey( _ client: ClientID, deviceID: String ) {
+		Task { [weak self] in
+			while true {
+				try? await Task.sleep( for: .seconds( 60 ) )
+				guard let self, self.newDevices.contains( where: { $0.client == client && $0.reason == .keyMissing } ) else { return }
+				guard let key = PairingKeyStore.key( for: deviceID, recheck: true ) else { continue }
+				guard var handshake = self.handshakes[client] else { return }
+				print( "[Pairing] Found the key for \(deviceID) again; authenticating" )
+				self.newDevices.removeAll { $0.client == client }
+				self.sendAuth( client, key: key, handshake: &handshake )
+				self.handshakes[client] = handshake
+				return
+			}
+		}
 	}
 
 	private func sendAuth( _ client: ClientID, key: Data, handshake: inout Handshake ) {

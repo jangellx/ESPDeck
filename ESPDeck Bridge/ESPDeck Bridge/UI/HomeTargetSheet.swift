@@ -61,7 +61,7 @@ struct HomeTargetSheet: View {
 					.padding( .bottom, 2 )
 			}
 			.contentMargins( .top, 8, for: .scrollContent )
-			.navigationTitle( "Accessories & Scenes" )
+			.navigationTitle( "Home" )
 			.navigationBarTitleDisplayMode( .inline )
 			.toolbar {
 				ToolbarItem( placement: .cancellationAction ) {
