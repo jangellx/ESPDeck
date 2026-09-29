@@ -192,6 +192,13 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		if name.isEmpty { name = defaultName }
 	}
 
+	/// What the device calls itself on the network (DHCP, and Bonjour as <hostname>.local):
+	/// "espdeck-67e8", from the last two bytes of its MAC address, whatever it's named.
+	var hostname: String {
+		let bytes = id.split( separator: ":" ).suffix( 2 ).joined().lowercased()
+		return bytes.isEmpty ? "espdeck" : "espdeck-\(bytes)"
+	}
+
 	/// The name the device calls itself until it's renamed: "ESPDeck 67E8", from the last two
 	/// bytes of its MAC address.
 	var defaultName: String {

@@ -127,6 +127,9 @@ struct DeviceSettingsView: View {
 				LabeledContent( "Stream Deck", value: deckDescription( settings, device ) )
 				FirmwareRow( controller: controller, device: device, title: settings.defaultName )
 				LabeledContent( "MAC Address", value: deviceID )
+				// What routers list it as; the name is fixed, whatever the device is called.
+				LabeledContent( "Hostname", value: settings.hostname )
+					.help( "The device's name on your network, as your router lists it; also \(settings.hostname).local over Bonjour. It doesn't change when the device is renamed." )
 				if let ip = device.ip, online {
 					LabeledContent( "IP Address", value: ip )
 				}
