@@ -45,9 +45,10 @@ extension DeckController {
 		}
 
 		let step = keys[key].slider?.step ?? SliderLevel.defaultStep
-		keys[key].slider = SliderKey( level: level, raises: !partnerRaises, partner: partner, step: step, style: keys[key].slider?.style ?? style )
+		let facing = keys[key].slider?.labelsFacing ?? true
+		keys[key].slider = SliderKey( level: level, raises: !partnerRaises, partner: partner, step: step, style: keys[key].slider?.style ?? style, labelsFacing: facing )
 		var other        = KeyAssignment()
-		other.slider     = SliderKey( level: level, raises: partnerRaises, partner: key, step: step, style: keys[key].slider?.style ?? style )
+		other.slider     = SliderKey( level: level, raises: partnerRaises, partner: key, step: step, style: keys[key].slider?.style ?? style, labelsFacing: facing )
 		copyTarget( from: keys[key], to: &other )
 		keys[partner]    = other
 
@@ -117,7 +118,7 @@ extension DeckController {
 			var other = keys[slider.partner]
 			copyTarget( from: keys[key], to: &other )
 			other.slider = SliderKey( level: slider.level, raises: other.slider.map { $0.partner == key ? $0.raises : !slider.raises } ?? !slider.raises,
-									  partner: key, step: slider.step, style: slider.style )
+									  partner: key, step: slider.step, style: slider.style, labelsFacing: slider.labelsFacing )
 			keys[slider.partner] = other
 		}
 		config.settings.devices[index].keys = keys

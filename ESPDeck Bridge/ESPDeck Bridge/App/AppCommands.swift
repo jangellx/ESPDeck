@@ -138,9 +138,10 @@ extension AppDelegate {
 			UIMenu( options: .displayInline, children: [
 				UIKeyCommand( title: "Test Action", action: #selector( testAction ), input: "t", modifierFlags: .command ),
 			] ),
-			UIMenu( options: .displayInline, children: TargetMode.allCases.map { mode in
-				UICommand( title: "Assign \(mode == .accessory ? "Accessory" : mode.rawValue)…", action: #selector( assignTarget( _: ) ),
-						   propertyList: mode.rawValue )
+			// ⌥⌘1–4, in the order of the picker's tabs.
+			UIMenu( options: .displayInline, children: TargetMode.allCases.enumerated().map { index, mode in
+				UIKeyCommand( title: "Assign \(mode.rawValue)…", action: #selector( assignTarget( _: ) ), input: "\(index + 1)",
+							  modifierFlags: [ .command, .alternate ], propertyList: mode.rawValue )
 			} ),
 		] )
 		builder.insertSibling( keyMenu, afterMenu: deviceMenu.identifier )

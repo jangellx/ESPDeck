@@ -74,4 +74,28 @@ struct SliderKey: Codable, Equatable {
 	/// How far one press (or one repeat) moves the level, in percent.
 	var step    = SliderLevel.defaultStep
 	var style   = SliderStyle.chevron
+	/// Keys one above the other: labels on the edges facing each other (the upper key's at its
+	/// bottom, the lower's at its top), rather than where the deck puts every label.
+	var labelsFacing = true
+
+	init( level: SliderLevel, raises: Bool, partner: Int, step: Double = SliderLevel.defaultStep, style: SliderStyle = .chevron, labelsFacing: Bool = true ) {
+		self.level        = level
+		self.raises       = raises
+		self.partner      = partner
+		self.step         = step
+		self.style        = style
+		self.labelsFacing = labelsFacing
+	}
+
+	/// Missing or unreadable settings (from an earlier version) take their defaults; only the
+	/// level, direction and partner are needed.
+	init( from decoder: Decoder ) throws {
+		let container = try decoder.container( keyedBy: CodingKeys.self )
+		level        = try container.decode( SliderLevel.self, forKey: .level )
+		raises       = try container.decode( Bool.self, forKey: .raises )
+		partner      = try container.decode( Int.self, forKey: .partner )
+		step         = container.lenient( Double.self, forKey: .step ) ?? SliderLevel.defaultStep
+		style        = container.lenient( SliderStyle.self, forKey: .style ) ?? .chevron
+		labelsFacing = container.lenient( Bool.self, forKey: .labelsFacing ) ?? true
+	}
 }

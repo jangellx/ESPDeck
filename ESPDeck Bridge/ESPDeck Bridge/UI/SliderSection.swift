@@ -2,8 +2,9 @@
 //  SliderSection.swift
 //  ESPDeck Bridge
 //
-//  The inspector's settings for a slider key: which key it pairs with (from a 3 × 3 grid
-//  around it), which way each key moves the level, the step, and the pair's icons.
+//  The inspector's settings for a Level key (a slider in the code): which key it pairs with
+//  (from a cross of the keys beside it), which way each key moves the level, the step, the
+//  pair's icons, and where stacked keys put their labels.
 //
 
 import SwiftUI
@@ -13,6 +14,9 @@ struct SliderSection: View {
 	let deviceID   : String
 	let key        : Int
 	let levels     : [SliderLevel]
+
+	/// A key beside this one that already does something, waiting for Replace.
+	@State private var replacing: Int?
 
 	/// Steps offered by the Step stepper, in percent.
 	private static let steps: [Double] = [ 1, 2, 5, 10, 15, 20, 25, 30, 40, 50 ]
@@ -36,15 +40,28 @@ struct SliderSection: View {
 
 			LabeledContent {
 				SliderPartnerGrid( controller: controller, deviceID: deviceID, key: key, partner: slider?.partner ) { partner in
-					controller.makeSlider( device: deviceID, key: key, partner: partner, level: slider?.level ?? levels.first ?? .brightness )
+					if slider?.partner != partner && controller.assignment( deviceID, key: partner ).kind != nil {
+						replacing = partner
+					} else {
+						pair( with: partner, level: slider?.level )
+					}
 				}
 			} label: {
 				VStack( alignment: .leading, spacing: 4 ) {
 					Text( "Other Key" )
-					Text( slider.map { "Key \($0.partner + 1)" } ?? "Choose the key beside this one that goes with it. Its current setup is replaced." )
+					Text( slider.map { "Key \($0.partner + 1)" } ?? "Choose the key beside this one that goes with it." )
 						.font( .caption )
 						.foregroundStyle( Color.secondary )
 				}
+			}
+			.padding( .vertical, 6 )
+			.confirmationDialog( "Replace Key \( ( replacing ?? 0 ) + 1 )?", isPresented: Binding( get: { replacing != nil }, set: { if !$0 { replacing = nil } } ) ) {
+				Button( "Replace", role: .destructive ) {
+					if let partner = replacing { pair( with: partner, level: slider?.level ) }
+					replacing = nil
+				}
+			} message: {
+				Text( "It already has \( replacing.flatMap { controller.defaultName( for: controller.assignment( deviceID, key: $0 ) ) } ?? "something" ) on it. Making it this key's other Level key replaces that." )
 			}
 
 			if let slider {
@@ -66,19 +83,38 @@ struct SliderSection: View {
 					controller.updateSlider( device: deviceID, key: key ) { $0.step = next }
 				}
 
+				let horizontal = controller.isHorizontalPair( device: deviceID, key, slider.partner )
+				if !horizontal {
+					Picker( "Labels", selection: Binding {
+						slider.labelsFacing
+					} set: { facing in
+						controller.updateSlider( device: deviceID, key: key ) { $0.labelsFacing = facing }
+					} ) {
+						Text( "Facing Each Other" ).tag( true )
+						Text( "Like Other Keys" ).tag( false )
+					}
+				}
+
 				VStack( alignment: .leading, spacing: 8 ) {
 					Text( "Icons" )
-					StylePicker( selection: slider.style,
-								 horizontal: controller.isHorizontalPair( device: deviceID, key, slider.partner ) ) { style in
+					StylePicker( selection: slider.style, horizontal: horizontal ) { style in
 						controller.updateSlider( device: deviceID, key: key ) { $0.style = style }
 					}
 				}
+				.padding( .top, 6 )
+				.padding( .bottom, 4 )
+
+				LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 			}
 		} header: {
-			SectionHeader( "Slider" )
+			SectionHeader( "Level" )
 		} footer: {
-			Text( "Press either key to step the level; hold it to keep stepping (the delay and speed are on the Device page). The upper (or left) key shows the name and the other the level, unless they have their own labels. Either key can also have any icon, under Icons." )
+			Text( "Tap either key to step once. Hold to keep stepping." )
 		}
+	}
+
+	private func pair( with partner: Int, level: SliderLevel? ) {
+		controller.makeSlider( device: deviceID, key: key, partner: partner, level: level ?? levels.first ?? .brightness )
 	}
 }
 
@@ -112,13 +148,13 @@ private struct SliderPartnerGrid: View {
 								.frame( width: Self.cell, height: Self.cell )
 								.help( "Off the edge of the deck" )
 						} else if dr == 0 && dc == 0 {
-							keyCell( r * cols + c, style: .this )
+							thisKey
 						} else {
 							let index = r * cols + c
 							Button {
 								onPick( index )
 							} label: {
-								keyCell( index, style: index == partner ? .chosen : .choice )
+								keyCell( index, chosen: index == partner )
 							}
 							.buttonStyle( .plain )
 							.help( index == partner ? "Paired with Key \(index + 1)" : "Pair with Key \(index + 1)" )
@@ -129,57 +165,75 @@ private struct SliderPartnerGrid: View {
 		}
 	}
 
-	private enum CellStyle { case this, chosen, choice }
+	/// The middle: once paired, this key as it looks; before that, a marker.
+	@ViewBuilder private var thisKey: some View {
+		if partner != nil {
+			keyCell( key, chosen: false )
+				.help( "This key" )
+		} else {
+			RoundedRectangle( cornerRadius: 6, style: .continuous )
+				.strokeBorder( Color.accentColor, style: StrokeStyle( lineWidth: 2, dash: [ 4, 3 ] ) )
+				.overlay {
+					Image( systemName: "smallcircle.filled.circle" )
+						.foregroundStyle( .tint )
+				}
+				.frame( width: Self.cell, height: Self.cell )
+				.help( "This key" )
+		}
+	}
 
-	private func keyCell( _ index: Int, style: CellStyle ) -> some View {
+	private func keyCell( _ index: Int, chosen: Bool ) -> some View {
 		let preview = controller.device( deviceID ).flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
 		return ZStack {
 			RoundedRectangle( cornerRadius: 6, style: .continuous )
-				.fill( style == .this ? Color.accentColor : Color( white: 0.13 ) )
-			if let preview, style != .this {
+				.fill( Color( white: 0.13 ) )
+			if let preview {
 				Image( uiImage: preview )
 					.resizable()
 					.clipShape( RoundedRectangle( cornerRadius: 6, style: .continuous ) )
-					.opacity( 0.8 )
 			}
-			Text( "\(index + 1)" )
-				.font( .caption.weight( .semibold ) )
-				.foregroundStyle( .white )
-				.shadow( radius: 2 )
 		}
 		.frame( width: Self.cell, height: Self.cell )
 		.overlay {
 			RoundedRectangle( cornerRadius: 6, style: .continuous )
-				.strokeBorder( style == .chosen ? Color.accentColor : Color( white: 0.35 ), lineWidth: style == .chosen ? 3 : 1 )
+				.strokeBorder( chosen ? Color.accentColor : Color( white: 0.35 ), lineWidth: chosen ? 3 : 1 )
 		}
 		.accessibilityLabel( "Key \(index + 1)" )
 	}
 }
 
-/// The icon sets for a pair: each shows the raising key's symbol and the lowering one's,
-/// pointing the way the pair is laid out.
+/// The icon sets for a pair, four to a row: each shows the raising key's symbol and the
+/// lowering one's, pointing the way the pair is laid out.
 private struct StylePicker: View {
 	let selection  : SliderStyle
 	let horizontal : Bool
 	let onPick     : ( SliderStyle ) -> Void
 
 	var body: some View {
-		LazyVGrid( columns: [ GridItem( .adaptive( minimum: 58 ), spacing: 8 ) ], alignment: .leading, spacing: 8 ) {
-			ForEach( SliderStyle.allCases ) { style in
-				Button {
-					onPick( style )
-				} label: {
-					HStack( spacing: 4 ) {
-						Image( systemName: style.symbol( raises: horizontal ? false : true, horizontal: horizontal ) )
-						Image( systemName: style.symbol( raises: horizontal ? true : false, horizontal: horizontal ) )
+		Grid( horizontalSpacing: 8, verticalSpacing: 8 ) {
+			ForEach( Array( stride( from: 0, to: SliderStyle.allCases.count, by: 4 ) ), id: \.self ) { start in
+				GridRow {
+					ForEach( SliderStyle.allCases[start..<min( start + 4, SliderStyle.allCases.count )] ) { style in
+						button( style )
 					}
-					.frame( width: 58, height: 32 )
-					.background( RoundedRectangle( cornerRadius: 6, style: .continuous ).fill( style == selection ? Color.accentColor.opacity( 0.2 ) : Color( uiColor: .tertiarySystemFill ) ) )
-					.overlay( RoundedRectangle( cornerRadius: 6, style: .continuous ).strokeBorder( style == selection ? Color.accentColor : Color.clear, lineWidth: 2 ) )
-					.contentShape( Rectangle() )
 				}
-				.buttonStyle( .plain )
 			}
 		}
+	}
+
+	private func button( _ style: SliderStyle ) -> some View {
+		Button {
+			onPick( style )
+		} label: {
+			HStack( spacing: 4 ) {
+				Image( systemName: style.symbol( raises: !horizontal, horizontal: horizontal ) )
+				Image( systemName: style.symbol( raises: horizontal, horizontal: horizontal ) )
+			}
+			.frame( width: 58, height: 32 )
+			.background( RoundedRectangle( cornerRadius: 6, style: .continuous ).fill( style == selection ? Color.accentColor.opacity( 0.2 ) : Color( uiColor: .tertiarySystemFill ) ) )
+			.overlay( RoundedRectangle( cornerRadius: 6, style: .continuous ).strokeBorder( style == selection ? Color.accentColor : Color.clear, lineWidth: 2 ) )
+			.contentShape( Rectangle() )
+		}
+		.buttonStyle( .plain )
 	}
 }

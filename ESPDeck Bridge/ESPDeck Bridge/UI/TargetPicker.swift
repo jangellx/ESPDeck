@@ -12,7 +12,7 @@ import HomeKit
 import SwiftUI
 
 enum TargetMode: String, CaseIterable, Identifiable {
-	case accessory = "Accessories"
+	case accessory = "Accessory"
 	case scene     = "Scene"
 	case shortcut  = "Shortcut"
 	/// Keys only: page commands.

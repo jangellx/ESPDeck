@@ -35,31 +35,24 @@ struct KeyInspectorView: View {
 						}
 						.pickerStyle( .segmented )
 					}
-					// Lights and fans with a level: switch it, or step the level with two keys.
+					// Lights and fans with a level: switch them, or step the level with two keys.
 					if !levels.isEmpty {
 						Picker( "Type", selection: sliderTypeBinding ) {
 							Text( "Toggle" ).tag( false )
-							Text( "Slider" ).tag( true )
+							Text( "Level" ).tag( true )
 						}
 						.pickerStyle( .segmented )
 					}
-					if kind == .page {
-						// The command is chosen above; Go to Page needs its page.
-						if assignment.action == .goToPage {
-							let pageCount = controller.pageCount( device: deviceID )
-							Stepper( value: Binding {
-								min( max( assignment.pageNumber ?? 1, 1 ), max( pageCount, 1 ) )
-							} set: { page in
-								controller.update( device: deviceID, key: key ) { $0.pageNumber = page }
-							}, in: 1...max( pageCount, 1 ) ) {
-								LabeledContent( "Page", value: "\(min( assignment.pageNumber ?? 1, max( pageCount, 1 ) )) of \(pageCount)" )
-							}
+					// The command is chosen above; Go to Page needs its page.
+					if kind == .page && assignment.action == .goToPage {
+						let pageCount = controller.pageCount( device: deviceID )
+						Stepper( value: Binding {
+							min( max( assignment.pageNumber ?? 1, 1 ), max( pageCount, 1 ) )
+						} set: { page in
+							controller.update( device: deviceID, key: key ) { $0.pageNumber = page }
+						}, in: 1...max( pageCount, 1 ) ) {
+							LabeledContent( "Page", value: "\(min( assignment.pageNumber ?? 1, max( pageCount, 1 ) )) of \(pageCount)" )
 						}
-					} else {
-						if !isSlider {
-							onPressMenu
-						}
-						LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 					}
 				}
 			} header: {
@@ -72,24 +65,31 @@ struct KeyInspectorView: View {
 						.foregroundStyle( Color.secondary )   // not .secondary: see SectionHeader
 						.textCase( nil )
 				}
-			} footer: {
-				// In the footer, so the button sits right under the section it tests.
-				VStack( alignment: .leading, spacing: 10 ) {
-					Pill {
-						Button( "Test Action" ) { controller.press( device: deviceID, key: key ) }
-							.disabled( assignment.kind == nil || assignment.action == .none )
-					}
-					.font( .body )   // footers use a smaller font; match the other pills
-					.frame( maxWidth: .infinity )
-					if assignment.isToggleShortcut {
-						Text( "Each press runs the shortcut with \u{201C}on\u{201D} or \u{201C}off\u{201D} as its Shortcut Input: the state the key is switching to. If the shortcut ends with Stop and Output of \u{201C}on\u{201D} or \u{201C}off\u{201D}, the key shows that state instead." )
-					}
-				}
-				.padding( .top, 4 )
 			}
 
-			if isSlider {
-				SliderSection( controller: controller, deviceID: deviceID, key: key, levels: levels )
+			// What a press does: Toggle (or the kind's actions), or Level's two keys.
+			if let kind = assignment.kind, kind != .page {
+				if isSlider {
+					SliderSection( controller: controller, deviceID: deviceID, key: key, levels: levels )
+				} else {
+					Section {
+						onPressMenu
+						stateRow
+					} header: {
+						SectionHeader( levels.isEmpty ? "Action" : "Toggle" )
+					} footer: {
+						if assignment.isToggleShortcut {
+							Text( "Each press runs the shortcut with \u{201C}on\u{201D} or \u{201C}off\u{201D} as its Shortcut Input: the state the key is switching to. If the shortcut ends with Stop and Output of \u{201C}on\u{201D} or \u{201C}off\u{201D}, the key shows that state instead." )
+						}
+					}
+				}
+			}
+
+			PillRow {
+				Pill {
+					Button( "Test Action" ) { controller.press( device: deviceID, key: key ) }
+						.disabled( assignment.kind == nil || ( assignment.action == .none && assignment.slider == nil ) )
+				}
 			}
 
 			Section {
@@ -142,18 +142,34 @@ struct KeyInspectorView: View {
 
 					Pill {
 						Button( "Clear Key", role: .destructive ) { controller.window.confirmingClearKey = true }
-							.confirmationDialog( "Clear Key \(key + 1)?", isPresented: confirmingClear ) {
-								Button( "Clear Key", role: .destructive ) { controller.clear( device: deviceID, key: key ) }
-							} message: {
-								Text( "This removes the key's accessory, action, label, background color, and icons." )
-							}
 					}
 				}
 			}
 		}
 		.formStyle( .grouped )
+		// On the form, not the Clear Key button: rows scrolled out of view aren't built, and
+		// the Delete key (Edit ▸ Clear Key) then got no dialog until the button came into view.
+		.confirmationDialog( "Clear Key \(key + 1)?", isPresented: confirmingClear ) {
+			if let partner = assignment.slider?.partner {
+				Button( "Clear Both Level Keys", role: .destructive ) { controller.clear( device: deviceID, key: key ) }
+				Button( "Clear Key \(key + 1) Only", role: .destructive ) { controller.clear( device: deviceID, key: key, keepingPartner: true ) }
+					.help( "Key \(partner + 1) stays, as an ordinary key" )
+			} else {
+				Button( "Clear Key", role: .destructive ) { controller.clear( device: deviceID, key: key ) }
+			}
+		} message: {
+			if let partner = assignment.slider?.partner {
+				Text( "This removes the key's accessory, action, label, background color, and icons. It's one of a pair of Level keys with Key \(partner + 1), which can be cleared too, or kept as an ordinary key." )
+			} else {
+				Text( "This removes the key's accessory, action, label, background color, and icons." )
+			}
+		}
 		.onChange( of: key ) { choosingPartner = false }
 		.onChange( of: assignment.slider != nil ) { if assignment.slider != nil { choosingPartner = false } }
+	}
+
+	private var stateRow: some View {
+		LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 	}
 
 	private var levels: [SliderLevel] { controller.sliderLevels( for: assignment ) }

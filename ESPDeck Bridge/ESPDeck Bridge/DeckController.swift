@@ -224,13 +224,18 @@ final class DeckController {
 		assignmentsChanged( device: id )
 	}
 
-	func clear( device id: String, key: Int ) {
+	/// A Level pair's other key is cleared too, unless `keepingPartner`: then it stays as an
+	/// ordinary key for the same accessory.
+	func clear( device id: String, key: Int, keepingPartner: Bool = false ) {
 		guard let index = config.settings.deviceIndex( id ), key < config.settings.devices[index].keys.count else { return }
 		recordUndo( device: id, "Clear Key" )
-		// A slider pair goes together.
 		if let partner = config.settings.devices[index].keys[key].slider?.partner, partner < config.settings.devices[index].keys.count,
 		   config.settings.devices[index].keys[partner].slider?.partner == key {
-			config.settings.devices[index].keys[partner] = KeyAssignment()
+			if keepingPartner {
+				config.settings.devices[index].keys[partner].slider = nil
+			} else {
+				config.settings.devices[index].keys[partner] = KeyAssignment()
+			}
 		}
 		config.settings.devices[index].keys[key] = KeyAssignment()
 		config.removeUnusedIcons()
@@ -607,8 +612,13 @@ final class DeckController {
 		}
 		if let slider = assignment.slider {
 			// Up or down (right or left, side by side), whatever the kind's own symbol is.
-			face.symbol    = slider.style.symbol( raises: slider.raises, horizontal: isHorizontalPair( device: id, key, slider.partner ) )
+			let horizontal = isHorizontalPair( device: id, key, slider.partner )
+			face.symbol    = slider.style.symbol( raises: slider.raises, horizontal: horizontal )
 			face.doorArrow = nil
+			// One above the other: the labels on the edges that face each other.
+			if !horizontal && slider.labelsFacing {
+				face.labelOnTop = slider.partner < key
+			}
 		}
 		applyCustomIcon( iconName( for: state, of: assignment ), to: &face )
 
