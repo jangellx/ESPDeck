@@ -88,6 +88,9 @@ struct KeyInspectorView: View {
 					}
 					// Between the heading and the section: which press the section is about.
 					pressTabs
+					// Over Home | Shortcut | Page: what that press controls.
+					SectionHeader( "Controlling" )
+						.padding( .top, 6 )
 				}
 			}
 
