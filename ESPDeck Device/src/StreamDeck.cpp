@@ -216,8 +216,34 @@ void StreamDeck::clientTask( void *arg ) {
 		usb_host_client_handle_events( self->client_, portMAX_DELAY );
 }
 
-// New devices and unplugs reach us through the HID driver; nothing to do here.
-void StreamDeck::clientEventCallback( const usb_host_client_event_msg_t *, void * ) {
+// Stream Decks reach us through the HID driver, which ignores anything that isn't HID
+// without a word, so log every device here: a deck that never shows up can then be told
+// apart from one that never attached.
+void StreamDeck::clientEventCallback( const usb_host_client_event_msg_t *message, void *arg ) {
+	StreamDeck *self = static_cast<StreamDeck *>( arg );
+	if( message->event == USB_HOST_CLIENT_EVENT_DEV_GONE ) {
+		ESP_LOGI( TAG, "USB device unplugged" );
+		return;
+	}
+	if( message->event != USB_HOST_CLIENT_EVENT_NEW_DEV )
+		return;
+
+	uint8_t                  address = message->new_dev.address;
+	usb_device_handle_t      device  = nullptr;
+	const usb_device_desc_t *desc    = nullptr;
+	usb_device_info_t        info    = {};
+	if( usb_host_device_open( self->client_, address, &device ) != ESP_OK ) {
+		ESP_LOGI( TAG, "USB device plugged in (address %u)", address );
+		return;
+	}
+	if( usb_host_get_device_descriptor( device, &desc ) == ESP_OK && usb_host_device_info( device, &info ) == ESP_OK ) {
+		// Class 0x09 is a hub, which this firmware doesn't support; 0x00 means per interface (HID for a deck).
+		ESP_LOGI( TAG, "USB device plugged in: %04X:%04X, class 0x%02X, %s speed", desc->idVendor, desc->idProduct, desc->bDeviceClass,
+				  info.speed == USB_SPEED_LOW ? "low" : info.speed == USB_SPEED_FULL ? "full" : "high" );
+		if( desc->bDeviceClass == USB_CLASS_HUB )
+			ESP_LOGW( TAG, "That's a USB hub; a Stream Deck behind a hub isn't supported" );
+	}
+	usb_host_device_close( self->client_, device );
 }
 
 // Called on whichever client owns the endpoint: ours for control transfers, the HID
