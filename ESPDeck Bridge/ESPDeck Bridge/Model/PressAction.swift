@@ -29,6 +29,8 @@ struct PressAction: Codable, Equatable {
 	var action          = KeyAction.none
 	var pageNumber      : Int?
 	var others          : [KeyMember]?
+	var scenes          : [UUID]?
+	var sceneTiming     : SceneTiming?
 
 	/// nil for an assignment that does nothing.
 	init?( _ assignment: KeyAssignment ) {
@@ -43,6 +45,8 @@ struct PressAction: Codable, Equatable {
 		action          = assignment.action
 		pageNumber      = assignment.pageNumber
 		others          = assignment.others
+		scenes          = assignment.scenes
+		sceneTiming     = assignment.sceneTiming
 	}
 
 	/// As a key assignment, for the picker and for performing it.
@@ -58,6 +62,8 @@ struct PressAction: Codable, Equatable {
 		assignment.action          = action
 		assignment.pageNumber      = pageNumber
 		assignment.others          = others
+		assignment.scenes          = scenes
+		assignment.sceneTiming     = sceneTiming
 		return assignment
 	}
 
@@ -74,5 +80,7 @@ struct PressAction: Codable, Equatable {
 		action          = container.lenient( KeyAction.self, forKey: .action ) ?? .none
 		pageNumber      = container.lenient( Int.self, forKey: .pageNumber )
 		others          = container.lenientArray( of: KeyMember.self, forKey: .others )
+		scenes          = container.lenientArray( of: UUID.self, forKey: .scenes )
+		sceneTiming     = container.lenient( SceneTiming.self, forKey: .sceneTiming )
 	}
 }

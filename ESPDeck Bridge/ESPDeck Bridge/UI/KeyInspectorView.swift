@@ -39,25 +39,7 @@ struct KeyInspectorView: View {
 	var body: some View {
 		Form {
 			Section {
-				// Like a Home app button: each kind of press can do its own thing. Level keys
-				// repeat when held; their double tap is a switch in the Level section.
-				if !isSlider {
-					Picker( "Press", selection: Binding { controller.window.pressKind } set: { controller.window.pressKind = $0 } ) {
-						ForEach( PressKind.allCases ) { kind in
-							// A dot marks each press that does something.
-							Text( assignment.press( kind ) != nil ? "• \(kind.rawValue)" : kind.rawValue ).tag( kind )
-						}
-					}
-					.pickerStyle( .segmented )
-					.labelsHidden()
-					if pressKind != .tap && controller.device( deviceID )?.status.presses != true {
-						Text( "Double taps and holds need the latest firmware (4.1.0 from today or later) on the device." )
-							.font( .caption )
-							.foregroundStyle( Color.secondary )
-					}
-				}
-
-				TargetPicker( controller: controller, assignment: editing, modes: TargetMode.allCases,
+				TargetPicker( controller: controller, assignment: editing, modes: TargetMode.keyModes,
 							  edit: { change in edit( change ) },
 							  modeRequest: modeRequest ) { target in
 					edit { $0.bind( to: target ) }
@@ -94,13 +76,17 @@ struct KeyInspectorView: View {
 				}
 			} header: {
 				let cols = max( controller.layout( deviceID ).cols, 1 )
-				HStack( alignment: .firstTextBaseline ) {
-					SectionHeader( "Key \(key + 1)" )
-					Spacer()
-					Text( "Row \(key / cols + 1), Column \(key % cols + 1)" )
-						.font( .subheadline )
-						.foregroundStyle( Color.secondary )   // not .secondary: see SectionHeader
-						.textCase( nil )
+				VStack( alignment: .leading, spacing: 10 ) {
+					HStack( alignment: .firstTextBaseline ) {
+						SectionHeader( "Key \(key + 1)" )
+						Spacer()
+						Text( "Row \(key / cols + 1), Column \(key % cols + 1)" )
+							.font( .subheadline )
+							.foregroundStyle( Color.secondary )   // not .secondary: see SectionHeader
+							.textCase( nil )
+					}
+					// Between the heading and the section: which press the section is about.
+					pressTabs
 				}
 			}
 
@@ -111,6 +97,18 @@ struct KeyInspectorView: View {
 				} else {
 					Section {
 						onPressMenu
+						// A key with accessories and scenes: when the scenes run.
+						if !editing.members.isEmpty, !( editing.scenes ?? [] ).isEmpty {
+							Picker( "Scenes Run", selection: Binding {
+								editing.sceneTiming ?? .everyPress
+							} set: { timing in
+								edit { $0.sceneTiming = timing == .everyPress ? nil : timing }
+							} ) {
+								ForEach( SceneTiming.allCases ) { timing in
+									Text( timing.title ).tag( timing )
+								}
+							}
+						}
 						stateRow
 					} header: {
 						SectionHeader( pressKind != .tap ? pressKind.rawValue : levels.isEmpty ? "Action" : "Toggle" )
@@ -209,6 +207,28 @@ struct KeyInspectorView: View {
 		}
 		.onChange( of: key ) { choosingPartner = false }
 		.onChange( of: assignment.slider != nil ) { if assignment.slider != nil { choosingPartner = false } }
+	}
+
+	@ViewBuilder
+	private var pressTabs: some View {
+		// Like a Home app button: each kind of press can do its own thing. Level keys
+		// repeat when held; their double tap is a switch in the Level section.
+		if !isSlider {
+			Picker( "Press", selection: Binding { controller.window.pressKind } set: { controller.window.pressKind = $0 } ) {
+				ForEach( PressKind.allCases ) { kind in
+					// A dot marks each press that does something.
+					Text( assignment.press( kind ) != nil ? "• \(kind.rawValue)" : kind.rawValue ).tag( kind )
+				}
+			}
+			.pickerStyle( .segmented )
+			.labelsHidden()
+			if pressKind != .tap && controller.device( deviceID )?.status.presses != true {
+				Text( "Double taps and holds need the latest firmware (4.1.0 from today or later) on the device." )
+					.font( .caption )
+					.foregroundStyle( Color.secondary )
+			}
+		}
+
 	}
 
 	private var stateRow: some View {

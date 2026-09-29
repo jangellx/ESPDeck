@@ -40,6 +40,17 @@ struct KeyAssignment: Codable, Equatable {
 	var slider          : SliderKey?
 	/// Go to Page: the page, from 1.
 	var pageNumber      : Int?
+	/// Scenes the key runs besides its accessories, or besides `actionSetID` on a scenes-only
+	/// key; nil for none.
+	var scenes          : [UUID]?
+	/// When a key with accessories runs its scenes; nil is every press.
+	var sceneTiming     : SceneTiming?
+
+	/// Every scene the key runs, in order.
+	var allScenes: [UUID] {
+		( kind == .scene ? [ actionSetID ].compactMap { $0 } : [] ) + ( scenes ?? [] )
+	}
+
 	/// What a double tap and a hold do, besides the tap (this assignment); nil for nothing.
 	var doubleTap       : PressAction?
 	var hold            : PressAction?
@@ -119,8 +130,74 @@ extension KeyAssignment {
 		backgroundColor = container.lenient( String.self, forKey: .backgroundColor )
 		slider          = container.lenient( SliderKey.self, forKey: .slider )
 		pageNumber      = container.lenient( Int.self, forKey: .pageNumber )
+		scenes          = container.lenientArray( of: UUID.self, forKey: .scenes )
+		sceneTiming     = container.lenient( SceneTiming.self, forKey: .sceneTiming )
 		doubleTap       = container.lenient( PressAction.self, forKey: .doubleTap )
 		hold            = container.lenient( PressAction.self, forKey: .hold )
+	}
+}
+
+/// When a key's scenes run, if it has accessories too: every press, or only a press that
+/// turns the accessories on, or off.
+enum SceneTiming: String, Codable, CaseIterable, Identifiable {
+	case everyPress
+	case turningOn
+	case turningOff
+
+	var id: String { rawValue }
+
+	var title: String {
+		switch self {
+			case .everyPress: "Every Press"
+			case .turningOn:  "When Turning On"
+			case .turningOff: "When Turning Off"
+		}
+	}
+
+	func runs( activating: Bool ) -> Bool {
+		switch self {
+			case .everyPress: true
+			case .turningOn:  activating
+			case .turningOff: !activating
+		}
+	}
+}
+
+extension KeyAssignment {
+	/// What the Accessories & Scenes sheet chose. The key accessory stays first if it's still
+	/// chosen; with no accessories, the first scene heads a scenes-only key.
+	mutating func setHomeTargets( accessories: [KeyMember], scenes chosen: [UUID] ) {
+		var accessories = accessories
+		if let current = members.first, let index = accessories.firstIndex( of: current ), index > 0 {
+			accessories.insert( accessories.remove( at: index ), at: 0 )
+		}
+		let oldKind = kind
+		shortcutID      = nil
+		shortcutName    = nil
+		shortcutToggles = nil
+		shortcutState   = nil
+		pageNumber      = nil
+		if let first = accessories.first {
+			kind        = first.kind
+			accessoryID = first.accessoryID
+			serviceID   = first.serviceID
+			others      = accessories.count > 1 ? Array( accessories.dropFirst() ) : nil
+			actionSetID = nil
+			scenes      = chosen.isEmpty ? nil : chosen
+		} else if let first = chosen.first {
+			kind        = .scene
+			accessoryID = nil
+			serviceID   = nil
+			others      = nil
+			actionSetID = first
+			scenes      = chosen.count > 1 ? Array( chosen.dropFirst() ) : nil
+		} else {
+			kind = nil; accessoryID = nil; serviceID = nil; others = nil; actionSetID = nil; scenes = nil
+		}
+		if kind != .power && kind != .fan { slider = nil }
+		if kind != oldKind || !actions.contains( action ) {
+			action = kind == nil ? .none : actions.first ?? .none
+		}
 	}
 }
 

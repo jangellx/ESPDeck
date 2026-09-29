@@ -281,11 +281,9 @@ final class HomeObserver: NSObject {
 		guard !homes.isEmpty else { throw HomeActionError.noHome }
 
 		if kind == .scene {
-			guard let scene = actionSet( assignment.actionSetID ) else { throw HomeActionError.notFound }
-			try await scene.home.executeActionSet( scene.actionSet )
-			// A scene's changes come from this app, so HomeKit doesn't report them back.
-			refreshWatched( after: .milliseconds( 1500 ) )
-			return "Ran scene \u{201C}\(scene.actionSet.name)\u{201D}"
+			let ran = try await runScenes( assignment.allScenes )
+			guard !ran.isEmpty else { throw HomeActionError.notFound }
+			return "Ran \(ran)"
 		}
 
 		let members = assignment.members.filter { $0.kind.targetCharacteristicType != nil }
@@ -329,6 +327,10 @@ final class HomeObserver: NSObject {
 		}
 		var summary = "\(verb): \(done.joined( separator: ", " ))"
 		if !failures.isEmpty { summary += "; failed: \(failures.joined( separator: ", " ))" }
+		// Scenes with the accessories, when the key's timing says so.
+		if let scenes = assignment.scenes, !scenes.isEmpty, ( assignment.sceneTiming ?? .everyPress ).runs( activating: activate ) {
+			if let ran = try? await runScenes( scenes ), !ran.isEmpty { summary += "; ran \(ran)" }
+		}
 		return summary
 	}
 
@@ -411,6 +413,33 @@ final class HomeObserver: NSObject {
 	func takeLevelError() -> String? {
 		defer { levelError = nil }
 		return levelError
+	}
+
+	/// Runs scenes in order; "scene “Evening”" or "scenes “A”, “B”". Missing ones are skipped.
+	private func runScenes( _ ids: [UUID] ) async throws -> String {
+		var names: [String] = []
+		for id in ids {
+			guard let scene = actionSet( id ) else { continue }
+			try await scene.home.executeActionSet( scene.actionSet )
+			names.append( "\u{201C}\(scene.actionSet.name)\u{201D}" )
+		}
+		// A scene's changes come from this app, so HomeKit doesn't report them back.
+		if !names.isEmpty { refreshWatched( after: .milliseconds( 1500 ) ) }
+		return names.isEmpty ? "" : ( names.count == 1 ? "scene " : "scenes " ) + names.joined( separator: ", " )
+	}
+
+	/// An accessory's state as HomeKit last knew it, for lists (not watched, so possibly stale).
+	func lastKnownState( of target: HomeTarget ) -> ( state: KeyState, value: Any? ) {
+		guard let type = target.kind.displayCharacteristicType, let accessory = accessory( target.accessoryID ),
+			  let characteristic = Self.characteristic( type, serviceID: target.serviceID, in: accessory ) else {
+			return ( .standard, nil )
+		}
+		let value = characteristic.value
+		return ( target.kind.state( for: value ), value )
+	}
+
+	func isReachable( accessoryID: UUID? ) -> Bool {
+		accessory( accessoryID )?.isReachable ?? false
 	}
 
 	/// Remembers each door's direction from its current state (HMCharacteristicValueDoorState:

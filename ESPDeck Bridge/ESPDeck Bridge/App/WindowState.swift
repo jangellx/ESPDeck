@@ -59,7 +59,7 @@ final class WindowState {
 	/// same press on several keys.
 	var pressKind           = PressKind.tap
 	/// The key picker's tab last chosen: a blank key's picker opens on it.
-	var lastKeyTargetMode   = TargetMode.accessory
+	var lastKeyTargetMode   = TargetMode.home
 	/// Key ▸ Assign Accessory/Scene/Shortcut: the mode the key's picker switches to.
 	var requestedTargetMode : TargetMode?
 	/// File ▸ Reset Bridge…, asking first.

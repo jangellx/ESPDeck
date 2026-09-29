@@ -12,16 +12,26 @@ import HomeKit
 import SwiftUI
 
 enum TargetMode: String, CaseIterable, Identifiable {
+	/// One accessory (sleep triggers, which watch one).
 	case accessory = "Accessory"
 	case scene     = "Scene"
+	/// Keys and commands: any mix of accessories and scenes, from a Home-style sheet.
+	case home      = "Accessories & Scenes"
 	case shortcut  = "Shortcut"
 	/// Keys only: page commands.
 	case page      = "Page"
 
 	var id: String { rawValue }
 
-	/// Everywhere but keys (sleep and wake commands, triggers).
-	static let homeModes: [TargetMode] = [ .accessory, .scene, .shortcut ]
+	/// Keys, and sleep and wake commands.
+	static let keyModes: [TargetMode]  = [ .home, .shortcut, .page ]
+	static let homeModes: [TargetMode] = [ .home, .shortcut ]
+
+	/// The tab showing a kind among `modes`: accessories and scenes share Accessories & Scenes.
+	static func of( _ kind: KeyKind?, in modes: [TargetMode] ) -> TargetMode {
+		let mode = TargetMode( kind: kind )
+		return modes.contains( .home ) && ( mode == .accessory || mode == .scene ) ? .home : mode
+	}
 
 	init( kind: KeyKind? ) {
 		switch kind {
@@ -33,7 +43,8 @@ enum TargetMode: String, CaseIterable, Identifiable {
 	}
 
 	func includes( _ target: HomeTarget ) -> Bool {
-		TargetMode( kind: target.kind ) == self
+		let mode = TargetMode( kind: target.kind )
+		return mode == self || ( self == .home && ( mode == .accessory || mode == .scene ) )
 	}
 
 	/// Submenu for targets without a room or folder.
@@ -73,6 +84,7 @@ extension KeyAssignment {
 		if kind != .page {
 			pageNumber = nil
 		}
+		scenes = nil   // a single target
 		if target?.kind != nil {
 			if kindChanged || !actions.contains( action ) {
 				action = actions.first ?? .none
@@ -97,6 +109,8 @@ struct TargetPicker: View {
 	let onSelect   : ( HomeTarget? ) -> Void
 
 	private var multiple: Bool { edit != nil && mode == .accessory }
+	/// The Accessories & Scenes sheet is up.
+	@State private var choosing = false
 
 	@State private var mode   = TargetMode.accessory
 	@State private var search = ""
@@ -112,7 +126,7 @@ struct TargetPicker: View {
 					ForEach( modes ) { mode in
 						// A dot marks the tab holding what the key does now, to find it again after
 						// looking through the others.
-						let assigned = assignment.kind != nil && TargetMode( kind: assignment.kind ) == mode
+						let assigned = assignment.kind != nil && TargetMode.of( assignment.kind, in: modes ) == mode
 						Text( assigned ? "• \(mode.rawValue)" : mode.rawValue ).tag( mode )
 					}
 				}
@@ -121,6 +135,8 @@ struct TargetPicker: View {
 
 			if mode == .page {
 				pageRows
+			} else if mode == .home {
+				chosenRows
 			} else {
 				homeRows( targets )
 			}
@@ -133,12 +149,65 @@ struct TargetPicker: View {
 		.onChange( of: modeRequest?.wrappedValue ) { takeModeRequest() }
 		.onChange( of: mode ) {
 			search = ""
-			if modes.count == TargetMode.allCases.count {   // a key's picker
+			if modes == TargetMode.keyModes {   // a key's picker
 				controller.window.lastKeyTargetMode = mode
 			}
 			if mode == .shortcut && !controller.shortcutsLoaded {
 				controller.reloadShortcuts()
 			}
+		}
+	}
+
+	/// Accessories & Scenes: what the key controls (the starred accessory decides its state),
+	/// each removable, and the sheet to choose them.
+	@ViewBuilder
+	private var chosenRows: some View {
+		let targets = controller.home.targets()
+		let scenes  = assignment.allScenes
+		if TargetMode( kind: assignment.kind ) == .accessory {
+			memberRows( targets, adding: false )
+		}
+		ForEach( scenes, id: \.self ) { id in
+			HStack( spacing: 10 ) {
+				Image( systemName: "sparkles" )
+					.foregroundStyle( Color.orange )
+				VStack( alignment: .leading, spacing: 1 ) {
+					Text( targets.first { $0.actionSetID == id }?.name ?? "Missing Scene" )
+						.lineLimit( 1 )
+					Text( [ severalHomes ? targets.first { $0.actionSetID == id }?.home : nil, "Scene" ].compactMap { $0 }.joined( separator: " · " ) )
+						.font( .caption )
+						.foregroundStyle( .secondary )
+				}
+				.frame( maxWidth: .infinity, alignment: .leading )
+				Button {
+					edit? { assignment in
+						assignment.setHomeTargets( accessories: assignment.members, scenes: assignment.allScenes.filter { $0 != id } )
+					}
+				} label: {
+					Image( systemName: "minus.circle.fill" )
+						.foregroundStyle( .red )
+				}
+				.buttonStyle( .borderless )
+				.help( "Remove" )
+			}
+		}
+
+		let chosen = !assignment.members.isEmpty || !scenes.isEmpty
+		Button {
+			choosing = true
+		} label: {
+			Label( chosen ? "Change Accessories & Scenes…" : "Choose Accessories & Scenes…", systemImage: chosen ? "checklist" : "plus" )
+		}
+		.disabled( edit == nil )
+		.sheet( isPresented: $choosing ) {
+			HomeTargetSheet( controller: controller, accessories: assignment.members, scenes: scenes ) { accessories, scenes in
+				edit? { $0.setHomeTargets( accessories: accessories, scenes: scenes ) }
+			}
+		}
+		if targets.isEmpty {
+			Text( emptyExplanation )
+				.font( .caption )
+				.foregroundStyle( .secondary )
 		}
 	}
 
@@ -232,7 +301,7 @@ struct TargetPicker: View {
 
 	/// The key accessory (starred) and the others, then a menu to add more.
 	@ViewBuilder
-	private func memberRows( _ targets: [HomeTarget] ) -> some View {
+	private func memberRows( _ targets: [HomeTarget], adding: Bool = true ) -> some View {
 		let members   = TargetMode( kind: assignment.kind ) == .accessory ? assignment.members : []
 		let canAddMore = members.first.map { $0.kind.targetCharacteristicType != nil } ?? true
 
@@ -284,7 +353,9 @@ struct TargetPicker: View {
 			.foregroundStyle( .secondary )
 		}
 
-		if canAddMore {
+		if !adding {
+			EmptyView()   // the sheet adds them
+		} else if canAddMore {
 			// The hint sits under the button, in the same row.
 			VStack( alignment: .leading, spacing: 4 ) {
 				Menu {
@@ -336,10 +407,14 @@ struct TargetPicker: View {
 		edit? { assignment in
 			let members = assignment.members
 			if members.first == member {
-				// Promote the next one, or unbind.
+				// Promote the next one, or unbind (a key with scenes keeps them).
 				guard members.count > 1 else {
-					assignment.bind( to: nil )
-					assignment.others = nil
+					if assignment.allScenes.isEmpty {
+						assignment.bind( to: nil )
+						assignment.others = nil
+					} else {
+						assignment.setHomeTargets( accessories: [], scenes: assignment.allScenes )
+					}
 					return
 				}
 				assignment.setKeyMember( members[1], others: Array( members.dropFirst( 2 ) ) )
@@ -399,8 +474,8 @@ struct TargetPicker: View {
 							menuItem( target, title: "\(target.name) (\(target.kind.title))" )
 						}
 					}
-				case .page:
-					EmptyView()   // pageRows, not this menu
+				case .page, .home:
+					EmptyView()   // pageRows and chosenRows, not this menu
 			}
 		} label: {
 			// Menus size to their label, so shorten long names before they push the row wider.
@@ -479,6 +554,8 @@ struct TargetPicker: View {
 					return controller.shortcutsLoaded ? "Missing Shortcut" : ( assignment.shortcutName ?? "Shortcut" )
 				case .page:
 					return assignment.action.title
+				case .home:
+					return "Missing"
 			}
 		}
 		let home = severalHomes ? target.home.map { "\($0) › " } ?? "" : ""
@@ -528,7 +605,7 @@ struct TargetPicker: View {
 
 	private func syncMode() {
 		// A blank key keeps the tab the last key was on.
-		let bound = assignment.kind == nil && modes.count == TargetMode.allCases.count ? controller.window.lastKeyTargetMode : TargetMode( kind: assignment.kind )
+		let bound = assignment.kind == nil && modes == TargetMode.keyModes ? controller.window.lastKeyTargetMode : TargetMode.of( assignment.kind, in: modes )
 		mode = modes.contains( bound ) ? bound : ( modes.first ?? .accessory )
 		if mode == .shortcut && !controller.shortcutsLoaded {
 			controller.reloadShortcuts()
@@ -540,7 +617,7 @@ struct TargetPicker: View {
 			case .accessory: severalHomes ? "Search accessories, rooms, Homes, or types" : "Search accessories, rooms, or types"
 			case .scene:     "Search scenes"
 			case .shortcut:  "Search shortcuts or folders"
-			case .page:      ""
+			case .page, .home: ""
 		}
 	}
 

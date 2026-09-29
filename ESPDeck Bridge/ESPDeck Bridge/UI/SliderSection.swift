@@ -118,7 +118,7 @@ struct SliderSection: View {
 						controller.updateSlider( device: deviceID, key: key ) { $0.doubleTapToEnd = on }
 					} )
 					.toggleStyle( .switch )
-					Text( "To 100% with the key that increases, 0% with the other. Off, tapping quickly just steps." )
+					Text( "To 100% with the key that increases, 0% with the other. When off, tapping quickly just steps." )
 						.font( .caption )
 						.foregroundStyle( Color.secondary )
 				}
