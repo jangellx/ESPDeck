@@ -411,6 +411,11 @@ struct USBSetupView: View {
 				Label( message, systemImage: "exclamationmark.triangle.fill" )
 					.foregroundStyle( .orange )
 			}
+			// Where the button was pressed, not only in step 4 further down.
+			if case .joined( let network ) = setup.wifi {
+				Label( "Joined \u{201C}\(network)\u{201D}. The board keeps this network from now on.", systemImage: "checkmark.circle.fill" )
+					.foregroundStyle( .green )
+			}
 		} header: {
 			SectionHeader( "2. Set Up Wi-Fi" )
 		} footer: {
