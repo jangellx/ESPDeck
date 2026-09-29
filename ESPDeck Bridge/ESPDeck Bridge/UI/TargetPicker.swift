@@ -110,7 +110,10 @@ struct TargetPicker: View {
 			if modes.count > 1 {
 				Picker( "Controls", selection: $mode ) {
 					ForEach( modes ) { mode in
-						Text( mode.rawValue ).tag( mode )
+						// A dot marks the tab holding what the key does now, to find it again after
+						// looking through the others.
+						let assigned = assignment.kind != nil && TargetMode( kind: assignment.kind ) == mode
+						Text( assigned && self.mode != mode ? "\(mode.rawValue) •" : mode.rawValue ).tag( mode )
 					}
 				}
 				.pickerStyle( .segmented )

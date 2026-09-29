@@ -49,7 +49,7 @@ enum KeyAction: String, Codable, CaseIterable, Identifiable {
 	case lock, unlock
 	case run
 	case runShortcut
-	case nextPage, previousPage, goToPage, pageNumber
+	case nextPage, previousPage, firstPage, lastPage, goToPage, pageNumber
 
 	var id: String { rawValue }
 
@@ -67,6 +67,8 @@ enum KeyAction: String, Codable, CaseIterable, Identifiable {
 			case .runShortcut: "Run Shortcut"
 			case .nextPage:     "Next Page"
 			case .previousPage: "Previous Page"
+			case .firstPage:    "First Page"
+			case .lastPage:     "Last Page"
 			case .goToPage:     "Go to Page"
 			case .pageNumber:   "Show Page Number"
 		}
@@ -150,7 +152,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case .contact, .temperature: [ .none ]
 			case .scene:                 [ .run, .none ]
 			case .shortcut:              [ .runShortcut, .none ]
-			case .page:                  [ .nextPage, .previousPage, .goToPage, .pageNumber ]
+			case .page:                  [ .nextPage, .previousPage, .firstPage, .lastPage, .goToPage, .pageNumber ]
 		}
 	}
 

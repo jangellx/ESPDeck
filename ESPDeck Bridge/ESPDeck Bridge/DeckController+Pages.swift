@@ -27,7 +27,7 @@ extension DeckController {
 		stopSliders( device: id )
 		config.settings.devices[index].currentPage = page
 		window.selectedKey = min( window.selectedKey, max( layout( id ).keyCount - 1, 0 ) )
-		assignmentsChanged( device: id )
+		assignmentsChanged( device: id, ripple: true )
 	}
 
 	/// A new page after this one, which the deck then shows.
@@ -130,6 +130,8 @@ extension DeckController {
 		switch assignment.action {
 			case .nextPage:     showPage( device: id, current + 1 )
 			case .previousPage: showPage( device: id, current - 1 )
+			case .firstPage:    showPage( device: id, 0 )
+			case .lastPage:     showPage( device: id, pageCount( device: id ) - 1 )
 			case .goToPage:     showPage( device: id, ( assignment.pageNumber ?? 1 ) - 1 )
 			default:            break
 		}
@@ -140,6 +142,8 @@ extension DeckController {
 		switch assignment.action {
 			case .nextPage:     return "chevron.right"
 			case .previousPage: return "chevron.left"
+			case .firstPage:    return "chevron.left.to.line"
+			case .lastPage:     return "chevron.right.to.line"
 			case .goToPage:     return Self.numberSymbol( assignment.pageNumber ?? 1, shape: "circle" )
 			default:            return "doc"   // drawn as a page with the number on it (KeyFace.pageNumber)
 		}
