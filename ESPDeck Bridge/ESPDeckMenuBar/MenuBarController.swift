@@ -95,16 +95,28 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 		menu.removeAllItems()
 
-		// The decks, each opening its Keys page.
+		// The Home, then the decks, each opening its Keys page.
 		let heading = NSMenuItem( title: deckHeading, action: nil, keyEquivalent: "" )
 		heading.isEnabled = false
+		heading.image     = Self.symbol( "house.fill", color: .systemOrange )
 		menu.addItem( heading )
 		for deck in decks {
-			let item = NSMenuItem( title: deck.title, action: #selector( showDeck( _: ) ), keyEquivalent: "" )
+			// The app sends "Name: state" or "Name (demo)": the state goes on a second line.
+			let parts = deck.title.components( separatedBy: ": " )
+			let name  = parts.count > 1 ? parts.dropLast().joined( separator: ": " ) : deck.title
+			let state = parts.count > 1 ? parts.last : nil
+			let item  = NSMenuItem( title: name, action: #selector( showDeck( _: ) ), keyEquivalent: "" )
 			item.target            = self
 			item.representedObject = deck.id
-			item.image             = Self.statusImage( level: deck.level )
+			item.image             = Self.deckImage( level: deck.level )
 			item.indentationLevel  = 1
+			if let state {
+				if #available( macOS 14.4, * ) {
+					item.subtitle = state.prefix( 1 ).uppercased() + state.dropFirst()
+				} else {
+					item.title = deck.title
+				}
+			}
 			menu.addItem( item )
 		}
 		menu.addItem( .separator() )
@@ -119,10 +131,12 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 		let configure = NSMenuItem( title: "Configure…", action: #selector( openConfiguration ), keyEquivalent: "," )
 		configure.target = self
+		configure.image  = Self.symbol( "gearshape" )
 		menu.addItem( configure )
 
 		let usbSetup = NSMenuItem( title: "Set Up a Device over USB…", action: #selector( openUSBSetup ), keyEquivalent: "" )
 		usbSetup.target = self
+		usbSetup.image  = Self.symbol( "cable.connector" )
 		menu.addItem( usbSetup )
 
 		let login = NSMenuItem( title: "Launch at Login", action: #selector( toggleLaunchAtLogin ), keyEquivalent: "" )
@@ -134,21 +148,60 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 		let quit = NSMenuItem( title: "Quit ESPDeck Bridge", action: #selector( quit ), keyEquivalent: "q" )
 		quit.target = self
+		quit.image  = Self.symbol( "power" )
 		menu.addItem( quit )
 	}
 
 	/// Matches the configuration window: yellow circle while waiting, white check on
 	/// green when found, white exclamation mark on red for a problem, dashed circle for a
 	/// demo deck.
-	/// The app's own icon, menu-bar sized; faded while no deck is connected.
+	/// The app icon's design as a menu bar template: a Stream Deck Mini's 3 × 2 keys with the
+	/// bottom-middle one lit. The lit key is filled while a deck is connected and outlined
+	/// otherwise. A template, so the menu bar tints it for light, dark and selected states.
 	private static func statusIcon( connected: Bool ) -> NSImage {
-		let icon  = NSWorkspace.shared.icon( forFile: Bundle.main.bundlePath )
-		let image = NSImage( size: NSSize( width: 18, height: 18 ), flipped: false ) { rect in
-			icon.draw( in: rect, from: .zero, operation: .sourceOver, fraction: connected ? 1 : 0.45 )
+		let image = NSImage( size: NSSize( width: 18, height: 18 ), flipped: true ) { rect in
+			let key: CGFloat = 4.6, gap: CGFloat = 1.6, line: CGFloat = 1.2
+			let width  = key * 3 + gap * 2
+			let height = key * 2 + gap
+			let origin = CGPoint( x: rect.midX - width / 2, y: rect.midY - height / 2 )
+			NSColor.black.set()
+			for row in 0..<2 {
+				for col in 0..<3 {
+					let frame = NSRect( x: origin.x + CGFloat( col ) * ( key + gap ), y: origin.y + CGFloat( row ) * ( key + gap ), width: key, height: key )
+					if row == 1 && col == 1 && connected {
+						NSBezierPath( roundedRect: frame, xRadius: 1.2, yRadius: 1.2 ).fill()
+					} else {
+						let outline = NSBezierPath( roundedRect: frame.insetBy( dx: line / 2, dy: line / 2 ), xRadius: 0.9, yRadius: 0.9 )
+						outline.lineWidth = line
+						outline.stroke()
+					}
+				}
+			}
 			return true
 		}
+		image.isTemplate = true
 		image.accessibilityDescription = connected ? "ESPDeck Bridge, connected" : "ESPDeck Bridge, no deck connected"
 		return image
+	}
+
+	/// A menu-sized SF Symbol, in a colour or (without one) as a template like the menu's text.
+	private static func symbol( _ name: String, color: NSColor? = nil ) -> NSImage? {
+		var configuration = NSImage.SymbolConfiguration( pointSize: 13, weight: .regular )
+		if let color {
+			configuration = configuration.applying( .init( paletteColors: [ color ] ) )
+		}
+		return NSImage( systemSymbolName: name, accessibilityDescription: nil )?.withSymbolConfiguration( configuration )
+	}
+
+	/// A deck, coloured by its state: green connected, yellow connecting or asleep, red a
+	/// problem, grey dashed a demo.
+	private static func deckImage( level: Int ) -> NSImage? {
+		switch level {
+			case 1:  symbol( "square.grid.3x2.fill", color: .systemGreen )
+			case 2:  symbol( "exclamationmark.square.fill", color: .systemRed )
+			case 3:  symbol( "square.dashed", color: .secondaryLabelColor )
+			default: symbol( "square.grid.3x2.fill", color: .systemYellow )
+		}
 	}
 
 	private static func statusImage( level: Int ) -> NSImage? {
