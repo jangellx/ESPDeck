@@ -8,6 +8,8 @@
 
 #include "StreamDeck.h"
 
+struct Font;
+
 class KeyImage {
 public:
 	enum class TextStyle : uint8_t {
@@ -19,7 +21,10 @@ public:
 
 	// Allocates a size × size canvas (and the encoder's buffers). Safe to call again with a
 	// different size.
-	bool begin( uint16_t size );
+	bool begin( uint16_t size ) { return begin( size, size ); }
+	// A width × height canvas, for a deck's extra screen (the Neo's info bar, the +'s touch
+	// strip). Only None and Rotate180 transforms suit one that isn't square.
+	bool begin( uint16_t width, uint16_t height );
 
 	void fill( uint8_t red, uint8_t green, uint8_t blue );
 
@@ -30,6 +35,10 @@ public:
 	// White, anti-aliased lines of text centred on a background (0xRRGGBB, black by
 	// default). Uses the largest of the style's fonts in which every line fits.
 	void drawText( const char *const *lines, size_t count, uint32_t background = 0x000000, TextStyle style = TextStyle::Label );
+
+	// A square RGB888 icon (iconSize × iconSize) and one line of white text beside it, the
+	// pair centred on black.
+	void drawIconAndText( const uint8_t *icon, int iconSize, const char *text );
 
 	// A filled, anti-aliased circle (0xRRGGBB) centred on black, diameter a fraction of the key.
 	void drawDot( uint32_t color, float diameter );
@@ -42,11 +51,13 @@ private:
 	void release();
 	void setPixel( int x, int y, uint8_t value );
 	void blendWhite( int x, int y, uint8_t level );   // level 0–15
+	void drawLine( const Font &font, const char *line, int x, int baseline );
 	void applyTransform( StreamDeck::Transform transform );
 	size_t encodeBMP();
 	size_t encodeJPEG();
 
-	uint16_t size_     = 0;
+	uint16_t width_    = 0;
+	uint16_t height_   = 0;
 	uint8_t *canvas_   = nullptr;   // RGB888, top row first
 	uint8_t *scratch_  = nullptr;   // the canvas after the transform, 16-byte aligned for the JPEG encoder
 	uint8_t *output_   = nullptr;   // kMaxImageSize

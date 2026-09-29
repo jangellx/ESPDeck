@@ -374,6 +374,17 @@ void StreamDeck::handleConnected( hid_host_device_handle_t handle ) {
 		readFeatureString( handle, 0x04, kShortFeatureSize, 5, info.firmware, sizeof( info.firmware ) );
 	}
 
+	// From python-elgato-streamdeck and Elgato's HID documentation.
+	if( info.pid == 0x009A ) {          // Neo: info bar, flipped both ways like its keys
+		info.screenWidth     = 248;
+		info.screenHeight    = 58;
+		info.screenTransform = Transform::Rotate180;
+	} else if( info.pid == 0x0084 ) {   // +: touch strip, upright
+		info.screenWidth     = 800;
+		info.screenHeight    = 100;
+		info.screenTransform = Transform::None;
+	}
+
 	// info_ is in place before input reports start, since handleInputReport() reads it
 	// without the mutex.
 	xSemaphoreTake( mutex_, portMAX_DELAY );
@@ -395,7 +406,44 @@ void StreamDeck::handleConnected( hid_host_device_handle_t handle ) {
 	}
 
 	ESP_LOGI( TAG, "%s connected (PID 0x%04X, %u × %u keys, serial %s, firmware %s)", info.model, info.pid, info.rows, info.cols, info.serial, info.firmware );
+	prepareDeck( handle );
 	post( EventType::Connected );
+}
+
+// Like python-elgato-streamdeck's open(): an empty image report ends any image a previous
+// connection left half-sent (the board restarted mid-upload, say), which would otherwise
+// swallow the start of the next one. And the deck's own sleep timer goes off, so only
+// ESPDeck's decides when the keys go dark.
+void StreamDeck::prepareDeck( hid_host_device_handle_t handle ) {
+	xSemaphoreTake( mutex_, portMAX_DELAY );
+	Protocol protocol = info_.protocol;
+	if( info_.format != Format::None ) {
+		size_t size = reportSize( protocol );
+		memset( report_, 0, size );
+		report_[0] = kImageReportID;
+		esp_err_t err = sendReport( size );
+		if( err != ESP_OK )
+			ESP_LOGW( TAG, "Couldn't reset the image stream: %s", esp_err_to_name( err ) );
+	}
+	xSemaphoreGive( mutex_ );
+
+	// A seconds count of 0 turns sleep off; feature reports are sized as for setBrightness().
+	// The Original's equivalent isn't documented.
+	uint8_t payload[kLongFeatureSize] = {};
+	size_t  length = kLongFeatureSize;
+	if( protocol == Protocol::Main ) {
+		payload[0] = 0x03;
+		payload[1] = 0x0D;
+	} else if( protocol == Protocol::Mini ) {
+		payload[0] = 0x0B;
+		payload[1] = 0xA2;
+		length     = kShortFeatureSize;
+	} else {
+		return;
+	}
+	esp_err_t err = hid_class_request_set_report( handle, HID_REPORT_TYPE_FEATURE, payload[0], payload, length );
+	if( err != ESP_OK )
+		ESP_LOGW( TAG, "Couldn't turn off the deck's own sleep timer: %s", esp_err_to_name( err ) );
 }
 
 void StreamDeck::handleDisconnected( hid_host_device_handle_t handle ) {
@@ -724,6 +772,64 @@ esp_err_t StreamDeck::setKeyImage( uint8_t key, const uint8_t *image, size_t len
 
 	if( err != ESP_OK )
 		ESP_LOGW( TAG, "Key %u image upload failed after %u bytes: %s", key, (unsigned)sent, esp_err_to_name( err ) );
+	return err;
+}
+
+// The Neo's info bar: the key header with command 0x0B. The +'s touch strip: command 0x0C
+// with a 16-byte header placing the image (x, y, width, height), then last, page, length.
+esp_err_t StreamDeck::setScreenImage( const uint8_t *image, size_t length ) {
+	if( !image || length == 0 )
+		return ESP_ERR_INVALID_ARG;
+	if( !mutex_ )
+		return ESP_ERR_INVALID_STATE;
+
+	xSemaphoreTake( mutex_, portMAX_DELAY );
+	if( !handle_ || info_.screenWidth == 0 ) {
+		xSemaphoreGive( mutex_ );
+		return ESP_ERR_INVALID_STATE;
+	}
+
+	bool      plus   = info_.pid == 0x0084;
+	size_t    size   = reportSize( info_.protocol );
+	size_t    header = plus ? 16 : 8;
+	esp_err_t err    = ESP_OK;
+	size_t    sent   = 0;
+	for( uint16_t page = 0; sent < length; page++ ) {
+		size_t chunk = std::min( size - header, length - sent );
+		bool   last  = sent + chunk == length;
+
+		memset( report_, 0, size );
+		report_[0] = kImageReportID;
+		if( plus ) {
+			report_[1]  = 0x0C;
+			report_[6]  = info_.screenWidth & 0xFF;    // x and y (bytes 2–5) stay 0
+			report_[7]  = info_.screenWidth >> 8;
+			report_[8]  = info_.screenHeight & 0xFF;
+			report_[9]  = info_.screenHeight >> 8;
+			report_[10] = last ? 0x01 : 0x00;
+			report_[11] = page & 0xFF;
+			report_[12] = page >> 8;
+			report_[13] = chunk & 0xFF;
+			report_[14] = chunk >> 8;
+		} else {
+			report_[1] = 0x0B;
+			report_[3] = last ? 0x01 : 0x00;
+			report_[4] = chunk & 0xFF;
+			report_[5] = chunk >> 8;
+			report_[6] = page & 0xFF;
+			report_[7] = page >> 8;
+		}
+		memcpy( report_ + header, image + sent, chunk );
+
+		err = sendReport( size );
+		if( err != ESP_OK )
+			break;
+		sent += chunk;
+	}
+	xSemaphoreGive( mutex_ );
+
+	if( err != ESP_OK )
+		ESP_LOGW( TAG, "Screen image upload failed after %u bytes: %s", (unsigned)sent, esp_err_to_name( err ) );
 	return err;
 }
 

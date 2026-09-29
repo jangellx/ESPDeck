@@ -56,30 +56,32 @@ void KeyImage::release() {
 	canvas_  = nullptr;
 	scratch_ = nullptr;
 	output_  = nullptr;
-	size_    = 0;
+	width_   = 0;
+	height_  = 0;
 }
 
-bool KeyImage::begin( uint16_t size ) {
-	if( size == size_ && canvas_ )
+bool KeyImage::begin( uint16_t width, uint16_t height ) {
+	if( width == width_ && height == height_ && canvas_ )
 		return true;
 
 	release();
-	size_t bytes = (size_t)size * size * 3;
+	size_t bytes = (size_t)width * height * 3;
 	canvas_  = (uint8_t *)heap_caps_malloc( bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT );
 	scratch_ = (uint8_t *)heap_caps_aligned_alloc( 16, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT );
 	output_  = (uint8_t *)heap_caps_malloc( kMaxImageSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT );
-	if( !size || !canvas_ || !scratch_ || !output_ ) {
+	if( !width || !height || !canvas_ || !scratch_ || !output_ ) {
 		release();
 		return false;
 	}
-	size_ = size;
+	width_  = width;
+	height_ = height;
 	return true;
 }
 
 // MARK: - Drawing
 
 void KeyImage::fill( uint8_t red, uint8_t green, uint8_t blue ) {
-	for( size_t i = 0; i < (size_t)size_ * size_; i++ ) {
+	for( size_t i = 0; i < (size_t)width_ * height_; i++ ) {
 		canvas_[i * 3]     = red;
 		canvas_[i * 3 + 1] = green;
 		canvas_[i * 3 + 2] = blue;
@@ -88,17 +90,16 @@ void KeyImage::fill( uint8_t red, uint8_t green, uint8_t blue ) {
 
 void KeyImage::drawDot( uint32_t color, float diameter ) {
 	fill( 0, 0, 0 );
-	float   center = size_ / 2.0f;
-	float   radius = size_ * diameter / 2.0f;
+	float   radius = std::min( width_, height_ ) * diameter / 2.0f;
 	uint8_t rgb[3] = { (uint8_t)( color >> 16 ), (uint8_t)( color >> 8 ), (uint8_t)color };
-	for( int y = 0; y < size_; y++ ) {
-		for( int x = 0; x < size_; x++ ) {
-			float dx = x + 0.5f - center, dy = y + 0.5f - center;
+	for( int y = 0; y < height_; y++ ) {
+		for( int x = 0; x < width_; x++ ) {
+			float dx = x + 0.5f - width_ / 2.0f, dy = y + 0.5f - height_ / 2.0f;
 			// Coverage from the distance to the edge: 1 inside, 0 outside, a ramp across one pixel.
 			float coverage = std::min( 1.0f, std::max( 0.0f, radius + 0.5f - sqrtf( dx * dx + dy * dy ) ) );
 			if( coverage <= 0 )
 				continue;
-			uint8_t *pixel = canvas_ + ( (size_t)y * size_ + x ) * 3;
+			uint8_t *pixel = canvas_ + ( (size_t)y * width_ + x ) * 3;
 			for( int c = 0; c < 3; c++ )
 				pixel[c] = (uint8_t)( rgb[c] * coverage + 0.5f );
 		}
@@ -106,9 +107,9 @@ void KeyImage::drawDot( uint32_t color, float diameter ) {
 }
 
 void KeyImage::setPixel( int x, int y, uint8_t value ) {
-	if( x < 0 || y < 0 || x >= size_ || y >= size_ )
+	if( x < 0 || y < 0 || x >= width_ || y >= height_ )
 		return;
-	memset( canvas_ + ( (size_t)y * size_ + x ) * 3, value, 3 );
+	memset( canvas_ + ( (size_t)y * width_ + x ) * 3, value, 3 );
 }
 
 bool KeyImage::drawQR( const char *text ) {
@@ -124,20 +125,22 @@ bool KeyImage::drawQR( const char *text ) {
 		return false;
 	}
 
-	int scale = size_ / ( qrSize + 2 * kQuietZone );
+	int side  = std::min( width_, height_ );
+	int scale = side / ( qrSize + 2 * kQuietZone );
 	if( scale < 1 ) {
-		ESP_LOGW( TAG, "A %d-module QR code doesn't fit on a %u px key", qrSize, size_ );
+		ESP_LOGW( TAG, "A %d-module QR code doesn't fit on a %d px key", qrSize, side );
 		return false;
 	}
 
-	int origin = ( size_ - qrSize * scale ) / 2;
+	int originX = ( width_ - qrSize * scale ) / 2;
+	int origin  = ( height_ - qrSize * scale ) / 2;
 	for( int y = 0; y < qrSize; y++ ) {
 		for( int x = 0; x < qrSize; x++ ) {
 			if( !qrModules[y * qrSize + x] )
 				continue;
 			for( int dy = 0; dy < scale; dy++ ) {
 				for( int dx = 0; dx < scale; dx++ )
-					setPixel( origin + x * scale + dx, origin + y * scale + dy, 0 );
+					setPixel( originX + x * scale + dx, origin + y * scale + dy, 0 );
 			}
 		}
 	}
@@ -158,16 +161,16 @@ namespace {
 		return width;
 	}
 
-	// Every character is in the font, and the block fits in room × room.
-	bool fits( const Font &font, const char *const *lines, size_t count, int room ) {
-		if( font.capHeight + (int)( count - 1 ) * font.lineHeight > room )
+	// Every character is in the font, and the block fits in across × down.
+	bool fits( const Font &font, const char *const *lines, size_t count, int across, int down ) {
+		if( font.capHeight + (int)( count - 1 ) * font.lineHeight > down )
 			return false;
 		for( size_t i = 0; i < count; i++ ) {
 			for( const char *c = lines[i]; *c; c++ ) {
 				if( !glyphFor( font, *c ) )
 					return false;
 			}
-			if( lineWidth( font, lines[i] ) > room )
+			if( lineWidth( font, lines[i] ) > across )
 				return false;
 		}
 		return true;
@@ -175,9 +178,9 @@ namespace {
 }
 
 void KeyImage::blendWhite( int x, int y, uint8_t level ) {
-	if( level == 0 || x < 0 || y < 0 || x >= size_ || y >= size_ )
+	if( level == 0 || x < 0 || y < 0 || x >= width_ || y >= height_ )
 		return;
-	uint8_t *pixel = canvas_ + ( (size_t)y * size_ + x ) * 3;
+	uint8_t *pixel = canvas_ + ( (size_t)y * width_ + x ) * 3;
 	for( int i = 0; i < 3; i++ )
 		pixel[i] = (uint8_t)( pixel[i] + ( 255 - pixel[i] ) * level / 15 );
 }
@@ -190,19 +193,20 @@ void KeyImage::drawText( const char *const *lines, size_t count, uint32_t backgr
 	// Largest first; the last one is used even if it doesn't fit. LabelSmall is for labels
 	// like "Connecting" on 72 px keys (the MK.2) and 80 px ones (the Mini).
 	constexpr int kMargin = 3;
-	int           room    = size_ - 2 * kMargin;
+	int           across  = width_ - 2 * kMargin;
+	int           down    = height_ - 2 * kMargin;
 	const Font   *choices[4];
 	size_t        options = 0;
 	if( style == TextStyle::Big )
 		choices[options++] = &kBigFont;
-	if( size_ >= 96 )
+	if( std::min( width_, height_ ) >= 96 )
 		choices[options++] = &kLabelLargeFont;
 	choices[options++] = &kLabelFont;
 	choices[options++] = &kLabelSmallFont;
 
 	const Font *font = choices[options - 1];
 	for( size_t i = 0; i < options; i++ ) {
-		if( fits( *choices[i], lines, count, room ) ) {
+		if( fits( *choices[i], lines, count, across, down ) ) {
 			font = choices[i];
 			break;
 		}
@@ -210,46 +214,69 @@ void KeyImage::drawText( const char *const *lines, size_t count, uint32_t backgr
 
 	// Centre the block from the first line's cap height to the last line's baseline.
 	int block = font->capHeight + (int)( count - 1 ) * font->lineHeight;
-	int top   = ( size_ - block ) / 2;
-	for( size_t i = 0; i < count; i++ ) {
-		int baseline = top + font->capHeight + (int)i * font->lineHeight;
-		int x        = ( size_ - lineWidth( *font, lines[i] ) ) / 2;
-		for( const char *c = lines[i]; *c; c++ ) {
-			const FontGlyph *glyph = glyphFor( *font, *c );
-			if( !glyph )
-				glyph = glyphFor( *font, '?' );
-			if( !glyph )
-				continue;
+	int top   = ( height_ - block ) / 2;
+	for( size_t i = 0; i < count; i++ )
+		drawLine( *font, lines[i], ( width_ - lineWidth( *font, lines[i] ) ) / 2, top + font->capHeight + (int)i * font->lineHeight );
+}
 
-			const uint8_t *bits = font->bitmap + glyph->offset;
-			for( int row = 0; row < glyph->height; row++ ) {
-				for( int col = 0; col < glyph->width; col++ ) {
-					int     index = row * glyph->width + col;
-					uint8_t level = index % 2 == 0 ? bits[index / 2] >> 4 : bits[index / 2] & 0x0F;
-					blendWhite( x + glyph->left + col, baseline - glyph->top + row, level );
-				}
-			}
-			x += glyph->advance;
+void KeyImage::drawIconAndText( const uint8_t *icon, int iconSize, const char *text ) {
+	fill( 0, 0, 0 );
+	const Font &font  = iconSize >= 64 ? kLabelLargeFont : kLabelFont;
+	int         gap   = iconSize / 4;
+	int         x     = ( width_ - ( iconSize + gap + lineWidth( font, text ) ) ) / 2;
+	int         top   = ( height_ - iconSize ) / 2;
+	for( int y = 0; y < iconSize; y++ ) {
+		int row = top + y;
+		if( row < 0 || row >= height_ )
+			continue;
+		for( int col = 0; col < iconSize; col++ ) {
+			if( x + col >= 0 && x + col < width_ )
+				memcpy( canvas_ + ( (size_t)row * width_ + x + col ) * 3, icon + ( (size_t)y * iconSize + col ) * 3, 3 );
 		}
+	}
+	drawLine( font, text, x + iconSize + gap, ( height_ + font.capHeight ) / 2 );
+}
+
+// One line of white text, starting at x, sitting on the baseline.
+void KeyImage::drawLine( const Font &font, const char *line, int x, int baseline ) {
+	for( const char *c = line; *c; c++ ) {
+		const FontGlyph *glyph = glyphFor( font, *c );
+		if( !glyph )
+			glyph = glyphFor( font, '?' );
+		if( !glyph )
+			continue;
+
+		const uint8_t *bits = font.bitmap + glyph->offset;
+		for( int row = 0; row < glyph->height; row++ ) {
+			for( int col = 0; col < glyph->width; col++ ) {
+				int     index = row * glyph->width + col;
+				uint8_t level = index % 2 == 0 ? bits[index / 2] >> 4 : bits[index / 2] & 0x0F;
+				blendWhite( x + glyph->left + col, baseline - glyph->top + row, level );
+			}
+		}
+		x += glyph->advance;
 	}
 }
 
 // MARK: - Encoding
 
 // Output pixel (x, y) comes from the source pixel given in PROTOCOL.md's transform table.
+// The transposing ones need a square canvas; a key's always is.
 void KeyImage::applyTransform( Transform transform ) {
-	int last = size_ - 1;
-	for( int y = 0; y < size_; y++ ) {
-		for( int x = 0; x < size_; x++ ) {
+	if( width_ != height_ && transform != Transform::None && transform != Transform::Rotate180 )
+		transform = Transform::None;
+	int lastX = width_ - 1, lastY = height_ - 1;
+	for( int y = 0; y < height_; y++ ) {
+		for( int x = 0; x < width_; x++ ) {
 			int sx = x, sy = y;
 			switch( transform ) {
 				case Transform::None:      break;
-				case Transform::Transpose: sx = y;        sy = x;        break;
-				case Transform::Rotate90:  sx = y;        sy = last - x; break;
-				case Transform::Rotate270: sx = last - y; sy = x;        break;
-				case Transform::Rotate180: sx = last - x; sy = last - y; break;
+				case Transform::Transpose: sx = y;         sy = x;         break;
+				case Transform::Rotate90:  sx = y;         sy = lastY - x; break;
+				case Transform::Rotate270: sx = lastX - y; sy = x;         break;
+				case Transform::Rotate180: sx = lastX - x; sy = lastY - y; break;
 			}
-			memcpy( scratch_ + ( (size_t)y * size_ + x ) * 3, canvas_ + ( (size_t)sy * size_ + sx ) * 3, 3 );
+			memcpy( scratch_ + ( (size_t)y * width_ + x ) * 3, canvas_ + ( (size_t)sy * width_ + sx ) * 3, 3 );
 		}
 	}
 }
@@ -271,8 +298,8 @@ const uint8_t *KeyImage::encode( StreamDeck::Format format, Transform transform,
 // each padded to four bytes.
 size_t KeyImage::encodeBMP() {
 	constexpr size_t kHeader = 54;
-	size_t rowSize = ( (size_t)size_ * 3 + 3 ) & ~(size_t)3;
-	size_t length  = kHeader + rowSize * size_;
+	size_t rowSize = ( (size_t)width_ * 3 + 3 ) & ~(size_t)3;
+	size_t length  = kHeader + rowSize * height_;
 	if( length > kMaxImageSize )
 		return 0;
 
@@ -282,31 +309,31 @@ size_t KeyImage::encodeBMP() {
 	writeLE32( output_ + 2, length );
 	writeLE32( output_ + 10, kHeader );
 	writeLE32( output_ + 14, 40 );
-	writeLE32( output_ + 18, size_ );
-	writeLE32( output_ + 22, size_ );             // positive height: bottom-up
+	writeLE32( output_ + 18, width_ );
+	writeLE32( output_ + 22, height_ );           // positive height: bottom-up
 	writeLE16( output_ + 26, 1 );                 // planes
 	writeLE16( output_ + 28, 24 );                // bits per pixel
-	writeLE32( output_ + 34, rowSize * size_ );
+	writeLE32( output_ + 34, rowSize * height_ );
 	writeLE32( output_ + 38, 2835 );              // 72 dpi
 	writeLE32( output_ + 42, 2835 );
 
-	for( int y = 0; y < size_; y++ ) {
-		const uint8_t *source = scratch_ + (size_t)( size_ - 1 - y ) * size_ * 3;
+	for( int y = 0; y < height_; y++ ) {
+		const uint8_t *source = scratch_ + (size_t)( height_ - 1 - y ) * width_ * 3;
 		uint8_t       *row    = output_ + kHeader + (size_t)y * rowSize;
-		for( int x = 0; x < size_; x++ ) {
+		for( int x = 0; x < width_; x++ ) {
 			row[x * 3]     = source[x * 3 + 2];
 			row[x * 3 + 1] = source[x * 3 + 1];
 			row[x * 3 + 2] = source[x * 3];
 		}
-		memset( row + size_ * 3, 0, rowSize - size_ * 3 );
+		memset( row + width_ * 3, 0, rowSize - width_ * 3 );
 	}
 	return length;
 }
 
 size_t KeyImage::encodeJPEG() {
 	jpeg_enc_config_t config = {};
-	config.width       = size_;
-	config.height      = size_;
+	config.width       = width_;
+	config.height      = height_;
 	config.src_type    = JPEG_PIXEL_FORMAT_RGB888;
 	config.subsampling = JPEG_SUBSAMPLE_420;
 	config.quality     = kJPEGQuality;
@@ -321,7 +348,7 @@ size_t KeyImage::encodeJPEG() {
 	}
 
 	int length = 0;
-	err = jpeg_enc_process( encoder, scratch_, size_ * size_ * 3, output_, kMaxImageSize, &length );
+	err = jpeg_enc_process( encoder, scratch_, width_ * height_ * 3, output_, kMaxImageSize, &length );
 	jpeg_enc_close( encoder );
 	if( err != JPEG_ERR_OK ) {
 		ESP_LOGW( TAG, "jpeg_enc_process failed: %d", (int)err );

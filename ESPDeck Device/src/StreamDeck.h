@@ -84,6 +84,10 @@ public:
 		bool      reversed;    // wire key IDs run right to left within each row
 		char      serial[33];
 		char      firmware[33];
+		// A screen besides the keys (the Neo's info bar, the +'s touch strip); 0 × 0 if none.
+		uint16_t  screenWidth;
+		uint16_t  screenHeight;
+		Transform screenTransform;
 
 		uint8_t keyCount() const { return rows * cols; }
 	};
@@ -105,6 +109,9 @@ public:
 	// Uploads a ready-to-display image (keySize square, in the model's format, transform
 	// already applied) to a key.
 	esp_err_t setKeyImage( uint8_t key, const uint8_t *image, size_t length );
+
+	// Uploads a JPEG (screenWidth × screenHeight, screenTransform applied) to the extra screen.
+	esp_err_t setScreenImage( const uint8_t *image, size_t length );
 
 	// 0–100.
 	esp_err_t setBrightness( uint8_t percent );
@@ -137,6 +144,7 @@ private:
 	void shrinkOversizedOut( hid_host_device_handle_t handle );
 	void closeOutput();
 	esp_err_t sendReport( size_t length );
+	void prepareDeck( hid_host_device_handle_t handle );
 	esp_err_t submitAndWait( bool control );
 	uint8_t wireKey( uint8_t key ) const;
 	void post( EventType type, uint8_t key = 0 );

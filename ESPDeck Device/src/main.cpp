@@ -25,6 +25,7 @@
 #include "esp_timer.h"
 #include "nvs_flash.h"
 
+#include "AppIcon.h"
 #include "BridgeClient.h"
 #include "Config.h"
 #include "Crypto.h"
@@ -52,6 +53,7 @@ static BridgeClient     bridge;
 static Settings         settings;
 static SetupPortal      portal( settings );
 static KeyImage         keyImage;
+static KeyImage         screenImage;   // the deck's extra screen, if it has one
 static KeyUploader      uploader;
 static Session          session;
 static FirmwareUpdate   firmware;
@@ -754,6 +756,20 @@ static void refreshScreen( bool redraw ) {
 			break;
 	}
 	applyBrightness();
+}
+
+// The app icon and "ESPDeck" on the Neo's info bar or the +'s touch strip, instead of
+// whatever the deck showed at power-up. Drawn once per connection; brightness and sleep
+// apply to it too.
+static void showDeckScreen() {
+	if( deckInfo.screenWidth == 0 || !screenImage.begin( deckInfo.screenWidth, deckInfo.screenHeight ) )
+		return;
+	bool large = deckInfo.screenHeight >= kAppIconLargeSize + 10;
+	screenImage.drawIconAndText( large ? kAppIconLarge : kAppIconSmall, large ? kAppIconLargeSize : kAppIconSmallSize, "ESPDeck" );
+	size_t         length = 0;
+	const uint8_t *image  = screenImage.encode( StreamDeck::Format::JPEG, deckInfo.screenTransform, length );
+	if( image )
+		deck.setScreenImage( image, length );
 }
 
 // MARK: - Pairing
@@ -1473,6 +1489,7 @@ static void handleDeckEvent( const StreamDeck::Event &event ) {
 			lastActivity  = millis();
 			wake( "deck" );
 			refreshScreen( true );   // also sets the brightness
+			showDeckScreen();
 			sendDeck();
 			break;
 		case StreamDeck::EventType::Disconnected:
