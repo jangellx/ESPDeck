@@ -268,7 +268,8 @@ struct USBSetupView: View {
 				pickingFile = true
 			}
 		} ) ) {
-			Text( controller.updates.latestFirmware.map { "Latest release (\($0.version.description))" } ?? "Latest release" )
+			// As in Updates.
+			Text( controller.updates.latestFirmware.map { "Latest release (\($0.version.description))" } ?? "No signed release yet" )
 				.tag( USBSetup.Source.release as USBSetup.Source? )
 			if let chosenFile = setup.chosenFile {
 				Text( "\(chosenFile.url.lastPathComponent) (\(chosenFile.version))" )
@@ -410,6 +411,9 @@ struct USBSetupView: View {
 		Picker( "Network", selection: $ssid ) {
 			if setup.networks.isEmpty {
 				Text( setup.findingNetworks ? "Looking for networks…" : "No networks found" ).tag( "" )
+			} else if ssid.isEmpty {
+				// Otherwise the popup shows the first network, as if it were chosen.
+				Text( "Choose…" ).tag( "" )
 			}
 			ForEach( setup.networks ) { network in
 				Label {

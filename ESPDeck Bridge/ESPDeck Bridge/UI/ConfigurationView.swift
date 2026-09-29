@@ -169,9 +169,17 @@ private struct Sidebar: View {
 									.accessibilityLabel( "Firmware update available" )
 								}
 							}
-							Text( status.text.components( separatedBy: ": " ).last ?? "" )
-								.font( .caption )
-								.foregroundStyle( .secondary )
+							// Firmware, then the state; an ⓘ explains a state that needs fixing.
+							HStack( spacing: 4 ) {
+								let state = ( status.text.components( separatedBy: ": " ).last ?? "" ).capitalizedFirst
+								Text( device.firmware.map { "\($0) · \(state)" } ?? state )
+									.foregroundStyle( .secondary )
+								if let explanation = controller.statusExplanation( device: device ) {
+									InfoButton( help: "About \(state)", text: explanation )
+										.imageScale( .small )
+								}
+							}
+							.font( .caption )
 						}
 					} icon: {
 						StatusIndicator( level: status.level )

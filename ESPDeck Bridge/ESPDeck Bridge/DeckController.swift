@@ -1179,6 +1179,21 @@ final class DeckController {
 		return StatusItem( text: "\(name): connected", level: .ok )
 	}
 
+	/// For a device that isn't working normally: what's wrong and how to fix it.
+	func statusExplanation( device: DeckDevice ) -> String? {
+		if settings( device.id )?.isDemo == true { return nil }
+		guard device.isOnline else {
+			return "ESPDeck Bridge can't reach this device. Check that it has power and is on the same Wi-Fi network as this Mac; after a restart or a firmware update it takes a few seconds to come back. If its Wi-Fi network has changed, set it up again: plug it into this Mac for USB Setup, or hold its top-left and bottom-right keys for 5 seconds to open its setup page."
+		}
+		if device.status.setupMode {
+			return "The device is in setup mode: its keys show QR codes for joining its own Wi-Fi network and opening its setup page, and it doesn't run your keys. Finish on its setup page, press its Exit key, or choose Exit Setup Mode on the Device page."
+		}
+		if !device.deck.connected {
+			return "The device is online, but no Stream Deck is working with it. Check the Stream Deck's USB cable and the OTG adapter, and that the power supply gives at least 2 A. With firmware 4.1.0 or later, the Log page shows what the device saw when something was plugged in."
+		}
+		return nil
+	}
+
 	var serverStatus: StatusItem? {
 		switch server.listenerState {
 			case .listening:          config.settings.devices.allSatisfy( \.isDemo ) ? StatusItem( text: "Waiting for an ESP32…", level: .waiting ) : nil
