@@ -988,6 +988,9 @@ static void handleAuth( cJSON *json ) {
 
 	// What the unauthenticated hello left out (the Wi-Fi network).
 	sendStatus( "session" );
+	// And the deck as it is now: one plugged in while the device waited to be paired sent its
+	// deck message before there was a session, so the Mac still has the hello's.
+	sendDeck();
 
 	// Plugged in before the Mac connected (at boot, say) but never recognized as a deck.
 	StreamDeck::UsbDevice usb = deck.lastUsbDevice();
