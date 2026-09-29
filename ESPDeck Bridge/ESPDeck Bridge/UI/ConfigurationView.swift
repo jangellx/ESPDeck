@@ -364,25 +364,7 @@ private struct DeviceDetailView: View {
 
 			switch page {
 				case .keys:
-					HStack( spacing: 0 ) {
-						ScrollView( [ .vertical, .horizontal ] ) {
-							VStack( spacing: 14 ) {
-								DeckGridView( controller: controller, deviceID: deviceID, selection: keyBinding )
-								LabelPositionControl( controller: controller, deviceID: deviceID )
-								if let device = controller.device( deviceID ), controller.settings( deviceID )?.isDemo != true {
-									TransferStatusView( device: device )
-										.frame( maxWidth: 520 )
-								}
-							}
-							.padding( 24 )
-						}
-						.frame( minWidth: 380, idealWidth: 580, maxWidth: 600 )
-
-						Divider()
-
-						KeyInspectorView( controller: controller, deviceID: deviceID, key: selectedKey )
-							.frame( minWidth: 380, maxWidth: .infinity, maxHeight: .infinity )
-					}
+					KeysPageView( controller: controller, deviceID: deviceID, selection: keyBinding )
 				case .device:
 					DeviceSettingsView( controller: controller, deviceID: deviceID )
 				case .log:
@@ -410,7 +392,7 @@ private struct DeviceDetailView: View {
 }
 
 /// Under the deck preview, since it applies to every key on the deck.
-private struct LabelPositionControl: View {
+struct LabelPositionControl: View {
 	let controller : DeckController
 	let deviceID   : String
 

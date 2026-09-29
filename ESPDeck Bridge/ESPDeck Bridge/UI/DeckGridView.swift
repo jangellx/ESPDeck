@@ -11,15 +11,33 @@ import SwiftUI
 struct DeckGridView: View {
 	let controller         : DeckController
 	let deviceID           : String
+	/// Each key's side; see fittingKeySize(for:in:).
+	let keySize            : CGFloat
 	@Binding var selection : Int
 
-	/// The simulated deck fits this width; larger decks get smaller keys.
-	private static let maxWidth: CGFloat = 520
+	/// Keys at full size, and the smallest they get when zoomed out.
+	static let fullKeySize : CGFloat = 96
+	static let minKeySize  : CGFloat = 24
+	private static let padding: CGFloat = 22
+
+	private static func spacing( _ layout: DeckLayout ) -> CGFloat {
+		layout.cols > 5 ? 10 : 14
+	}
+
+	/// The largest key size (up to full size) at which the whole deck fits in `space`.
+	static func fittingKeySize( for layout: DeckLayout, in space: CGSize ) -> CGFloat {
+		let spacing = spacing( layout )
+		let cols    = CGFloat( max( layout.cols, 1 ) )
+		let rows    = CGFloat( max( layout.rows, 1 ) )
+		let across  = ( space.width  - 2 * padding - spacing * ( cols - 1 ) ) / cols
+		let down    = ( space.height - 2 * padding - spacing * ( rows - 1 ) ) / rows
+		return max( minKeySize, min( fullKeySize, across, down ) ).rounded( .down )
+	}
 
 	var body: some View {
 		let layout  = controller.layout( deviceID )
-		let spacing = layout.cols > 5 ? 10.0 : 14.0
-		let size    = min( 96, ( Self.maxWidth - 44 - spacing * CGFloat( layout.cols - 1 ) ) / CGFloat( layout.cols ) )
+		let spacing = Self.spacing( layout )
+		let size    = keySize
 
 		Grid( horizontalSpacing: spacing, verticalSpacing: spacing ) {
 			ForEach( 0..<layout.rows, id: \.self ) { row in
@@ -30,7 +48,7 @@ struct DeckGridView: View {
 				}
 			}
 		}
-		.padding( 22 )
+		.padding( Self.padding )
 		.background( RoundedRectangle( cornerRadius: 26, style: .continuous ).fill( Color( white: 0.13 ) ) )
 		.overlay( RoundedRectangle( cornerRadius: 26, style: .continuous ).strokeBorder( Color( white: 0.25 ), lineWidth: 1 ) )
 	}
