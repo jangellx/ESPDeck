@@ -107,8 +107,8 @@ struct TrafficLogView: View {
 	}
 }
 
-/// Under the simulated deck: how far the physical deck is through its updates, or the
-/// last message when it's caught up.
+/// Under the simulated deck: how far the physical deck is through its updates. Nothing once
+/// it's caught up (the sidebar and the Log page already say so).
 struct TransferStatusView: View {
 	let device: DeckDevice
 
@@ -127,14 +127,6 @@ struct TransferStatusView: View {
 						Text( "\(last.direction == .sent ? "↑" : last.direction == .received ? "↓" : "•") \(last.summary)" )
 							.lineLimit( 1 )
 					}
-				}
-			} else {
-				Label( "The deck is up to date", systemImage: "checkmark.circle" )
-					.foregroundStyle( .secondary )
-				if let last = device.log.last {
-					Text( "Last: \(last.direction == .sent ? "↑" : last.direction == .received ? "↓" : "•") \(last.summary) · \(last.date.formatted( date: .omitted, time: .standard ))" )
-						.lineLimit( 1 )
-						.foregroundStyle( .secondary )
 				}
 			}
 		}
