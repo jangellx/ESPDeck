@@ -29,6 +29,10 @@ final class DeckDevice: Identifiable {
 	var keys     : [RenderedKey?] = []
 	var pressed  : Set<Int> = []
 
+	/// The last page change: when, and what each key showed before it, so the Keys page's
+	/// preview can pop the new page in a key at a time.
+	var pageChange: ( at: Date, previews: [UIImage?] )?
+
 	/// Set when another key goes down during a press, so chords (like the setup-mode
 	/// corner hold) don't trigger key actions.
 	@ObservationIgnored var chord        = false

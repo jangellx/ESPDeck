@@ -38,14 +38,12 @@ struct DeckGridView: View {
 		let layout  = controller.layout( deviceID )
 		let spacing = Self.spacing( layout )
 		let size    = keySize
-		let page    = controller.currentPage( device: deviceID )
 
 		Grid( horizontalSpacing: spacing, verticalSpacing: spacing ) {
 			ForEach( 0..<layout.rows, id: \.self ) { row in
 				GridRow {
 					ForEach( 0..<layout.cols, id: \.self ) { column in
-						DeckKeyView( controller: controller, deviceID: deviceID, index: row * layout.cols + column, size: size,
-									 page: page, diagonal: row + column, selection: $selection )
+						DeckKeyView( controller: controller, deviceID: deviceID, index: row * layout.cols + column, size: size, selection: $selection )
 					}
 				}
 			}
@@ -61,19 +59,24 @@ private struct DeckKeyView: View {
 	let deviceID           : String
 	let index              : Int
 	let size               : CGFloat
-	/// A new page ripples in from the top left, as the deck's keys fill in over USB.
-	let page               : Int
-	let diagonal           : Int
+	/// A new page pops in a key at a time, as the deck's keys fill in over USB: each key keeps
+	/// the old page's image until its turn, then swaps.
 	@Binding var selection : Int
 	@State private var isTargeted = false
+	/// The page change this key has already swapped for.
+	@State private var swappedFor: Date?
 
-	private static let rippleStep: Double = 0.04   // s per diagonal
+	private static let rippleStep: Double = 0.025   // s per key, about the deck's own pace
 
 	var body: some View {
 		let device   = controller.device( deviceID )
 		let selected = selection == index
 		let pressed  = device?.pressed.contains( index ) ?? false
-		let preview  = device.flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
+		let change   = device?.pageChange
+		let current  = device.flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
+		// Only just after the change: a key that appears later (another page, back again) doesn't.
+		let waiting  = change.map { $0.at != swappedFor && index < $0.previews.count && -$0.at.timeIntervalSinceNow < 1 } ?? false
+		let preview  = waiting ? change?.previews[index] : current
 		let radius   = size * 0.125
 
 		Group {
@@ -84,16 +87,6 @@ private struct DeckKeyView: View {
 			} else {
 				Color.black
 			}
-		}
-		// Dims at once on a page change, then each diagonal comes up in turn.
-		.keyframeAnimator( initialValue: 1.0, trigger: page ) { content, level in
-			content
-				.opacity( level )
-				.scaleEffect( 0.86 + 0.14 * level )
-		} keyframes: { _ in
-			LinearKeyframe( 0.15, duration: 0.01 )
-			LinearKeyframe( 0.15, duration: Double( diagonal ) * Self.rippleStep )
-			SpringKeyframe( 1.0, duration: 0.25 )
 		}
 		.frame( width: size, height: size )
 		.clipShape( RoundedRectangle( cornerRadius: radius, style: .continuous ) )
@@ -156,6 +149,13 @@ private struct DeckKeyView: View {
 					.onChange( of: frame ) { controller.previewKeyFrames[index] = frame; controller.previewDevice = deviceID }
 					.onDisappear { controller.previewKeyFrames[index] = nil }
 			}
+		}
+		.task( id: change?.at ) {
+			guard let at = change?.at else { return }
+			let due = at.addingTimeInterval( Double( index ) * Self.rippleStep )
+			if due > Date() { try? await Task.sleep( for: .seconds( due.timeIntervalSinceNow ) ) }
+			guard !Task.isCancelled else { return }
+			swappedFor = at
 		}
 		.accessibilityLabel( "Key \(index + 1)" )
 		.accessibilityAddTraits( selected ? [ .isButton, .isSelected ] : .isButton )
