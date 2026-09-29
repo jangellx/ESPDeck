@@ -233,7 +233,10 @@ bool BridgeClient::discover( const Request &request, Endpoint &found ) {
 				if( entry.endpoint.address == ip && entry.endpoint.port == result->port && entry.until > now )
 					avoided = true;
 			}
-			if( avoided || ( ip == request.exclude.address && result->port == request.exclude.port ) )
+			// Looking elsewhere: not the bridge we have, at this address or any other of its own.
+			bool ours = ( ip == request.exclude.address && result->port == request.exclude.port )
+			            || ( request.exclude.host[0] && result->hostname && strncasecmp( result->hostname, request.exclude.host, sizeof( request.exclude.host ) - 1 ) == 0 );
+			if( avoided || ours )
 				continue;
 			bool lastGood = request.lastGood.address == ip && request.lastGood.port == result->port;
 			int  score    = ( lastGood ? 2 : 0 ) + ( sameSubnet( address->addr.u_addr.ip4, local, mask ) ? 1 : 0 );
@@ -247,7 +250,8 @@ bool BridgeClient::discover( const Request &request, Endpoint &found ) {
 
 	bool ok = bestResult != nullptr;
 	if( ok ) {
-		found = { bestAddress.addr, bestResult->port };
+		found = { bestAddress.addr, bestResult->port, {} };
+		strlcpy( found.host, bestResult->hostname ? bestResult->hostname : "", sizeof( found.host ) );
 		char host[40], id[48];
 		ESP_LOGI( TAG, "Found %s (id %s) at " IPSTR ":%u%s", Text::printable( bestResult->hostname, host, sizeof( host ) ),
 				  Text::printable( txtValue( bestResult, "id" ), id, sizeof( id ) ), IP2STR( &bestAddress ), bestResult->port,

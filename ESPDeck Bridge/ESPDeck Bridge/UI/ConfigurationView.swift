@@ -129,9 +129,9 @@ private struct Sidebar: View {
 
 	var body: some View {
 		List( selection: listSelection ) {
-			if !controller.newDevices.isEmpty {
+			if !controller.listedNewDevices.isEmpty {
 				Section {
-					ForEach( controller.newDevices ) { device in
+					ForEach( controller.listedNewDevices ) { device in
 						Label {
 							VStack( alignment: .leading, spacing: 1 ) {
 								Text( device.hello.name )

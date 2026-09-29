@@ -90,6 +90,7 @@ private:
 	struct Endpoint {
 		uint32_t address;   // IPv4, network byte order as lwIP keeps it
 		uint16_t port;
+		char     host[32];  // its mDNS host name: a Mac on Ethernet and Wi-Fi has two addresses
 	};
 
 	struct Avoided {

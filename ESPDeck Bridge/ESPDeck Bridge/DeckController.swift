@@ -1238,9 +1238,24 @@ final class DeckController {
 	}
 
 	/// One device's state in a few words, with its indicator.
+	/// A known device that's connected but can't be authenticated (this Mac lost its key, or
+	/// it's paired elsewhere): shown on its own row, not again under New Devices.
+	func stuckConnection( for id: String ) -> NewDevice? {
+		newDevices.first { $0.hello.id == id && !$0.reason.canPair && $0.reason != .oldFirmware }
+	}
+
+	/// New Devices, without known devices that are only stuck (stuckConnection).
+	var listedNewDevices: [NewDevice] {
+		let known = Set( devices.map( \.id ) )
+		return newDevices.filter { !known.contains( $0.hello.id ) || stuckConnection( for: $0.hello.id )?.client != $0.client }
+	}
+
 	func status( device: DeckDevice ) -> StatusItem {
 		let name = settings( device.id )?.name ?? device.id
 		if settings( device.id )?.isDemo == true { return StatusItem( text: "\(name): demo deck", level: .demo ) }
+		if !device.isOnline, let stuck = stuckConnection( for: device.id ) {
+			return StatusItem( text: "\(name): \(stuck.reason.status)", level: .problem )
+		}
 		guard device.isOnline else { return StatusItem( text: "\(name): offline", level: .waiting ) }
 		if device.status.setupMode { return StatusItem( text: "\(name): setup mode", level: .waiting ) }
 		if !device.deck.connected  { return StatusItem( text: "\(name): no Stream Deck", level: .waiting ) }
@@ -1251,6 +1266,9 @@ final class DeckController {
 	/// For a device that isn't working normally: what's wrong and how to fix it.
 	func statusExplanation( device: DeckDevice ) -> String? {
 		if settings( device.id )?.isDemo == true { return nil }
+		if !device.isOnline, let stuck = stuckConnection( for: device.id ) {
+			return "It's on the network and connected to this Mac, but can't be used. " + stuck.reason.explanation
+		}
 		guard device.isOnline else {
 			return "ESPDeck Bridge can't reach this device. Check that it has power and is on the same Wi-Fi network as this Mac; after a restart or a firmware update it takes a few seconds to come back. If its Wi-Fi network has changed, set it up again: plug it into this Mac for USB Setup, or hold its top-left and bottom-right keys for 5 seconds to open its setup page."
 		}
@@ -1307,7 +1325,7 @@ final class DeckController {
 			let state  = status.text.components( separatedBy: ": " ).last ?? ""
 			return DeckMenuEntry( id: device.id, title: status.level == .demo ? "\(name) (demo)" : "\(name): \(state)", level: status.level )
 		}
-		let new = newDevices.map { device in
+		let new = listedNewDevices.map { device in
 			DeckMenuEntry( id: SidebarItem.newDevice( device.client ), title: "\(device.hello.name): \(device.reason.status)",
 						   level: device.reason.canPair ? .waiting : .problem, isNew: true )
 		}

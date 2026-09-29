@@ -439,11 +439,11 @@ private struct FindDevicesSheet: View {
 					.foregroundStyle( .secondary )
 			}
 
-			if !controller.newDevices.isEmpty {
+			if !controller.listedNewDevices.isEmpty {
 				VStack( alignment: .leading, spacing: 10 ) {
 					Text( "On Your Network" )
 						.font( .headline )
-					ForEach( controller.newDevices ) { device in
+					ForEach( controller.listedNewDevices ) { device in
 						row( icon: "lock.shield", title: device.hello.name,
 							 detail: device.reason.detail, action: device.reason.action ) {
 							selection = SidebarItem.newDevice( device.client )
@@ -466,7 +466,7 @@ private struct FindDevicesSheet: View {
 				}
 			}
 
-			if controller.newDevices.isEmpty && usbBoards.isEmpty {
+			if controller.listedNewDevices.isEmpty && usbBoards.isEmpty {
 				VStack( alignment: .leading, spacing: 10 ) {
 					Text( "Nothing yet. Make sure the dev kit is powered, and on the same Wi-Fi network as this Mac." )
 						.foregroundStyle( .secondary )
