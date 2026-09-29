@@ -55,6 +55,8 @@ final class DeckController {
 	@ObservationIgnored private var shortcutIcons: [String: UIImage] = [:]
 	@ObservationIgnored private var shortcutIconRequests: Set<String> = []
 	@ObservationIgnored private var shortcutsLoading = false
+	/// Keys ("device/key") whose HomeKit write or scene hasn't finished yet.
+	@ObservationIgnored private var keysInFlight: Set<String> = []
 	private static let shortcutIconSize = 160
 
 	/// Connected devices that haven't authenticated, for the sidebar's New Devices.
@@ -859,7 +861,21 @@ final class DeckController {
 			return
 		}
 
+		// A key pressed again before HomeKit has finished its last command is ignored, like a
+		// shortcut that's still running: the second press would otherwise decide Toggle from
+		// the state before the first one landed. This lasts until HomeKit accepts the command
+		// (a fraction of a second), not while a garage door moves.
+		let inFlight = id.flatMap { id in key.map { "\(id)/\($0)" } }
+		if let inFlight {
+			guard !keysInFlight.contains( inFlight ) else {
+				logEvent( "\(context): ignored; its last command hasn't finished", device: id )
+				return
+			}
+			keysInFlight.insert( inFlight )
+		}
+
 		Task {
+			defer { if let inFlight { keysInFlight.remove( inFlight ) } }
 			do {
 				let summary = try await home.perform( assignment )
 				lastError = nil
