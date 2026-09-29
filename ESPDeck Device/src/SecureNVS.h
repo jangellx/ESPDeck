@@ -2,8 +2,10 @@
 // and the other settings), with ESP-IDF's HMAC-based NVS encryption: the XTS keys that encrypt
 // NVS are derived by the chip's HMAC peripheral from a 256-bit key in an eFuse key block
 // (purpose HMAC_UP, read- and write-protected), which no software can read back. It doesn't
-// need flash encryption. Burning that key can't be undone, so it only happens when the paired
-// bridge asks (encryptStorage), never by itself: a device without the key keeps plain NVS.
+// need flash encryption. Burning that key can't be undone, so it only happens at two moments:
+// when a new device (nothing secret stored yet) saves its first Wi-Fi network, unless Standard
+// storage was chosen for its setup (encryptForSetup(), from Settings), and when the paired
+// bridge asks (encryptStorage, encrypt()). A device without the key keeps plain NVS.
 //
 // Arduino's initArduino() sets up NVS before setup() with nvs_flash_init(). The build wraps
 // that call (-Wl,--wrap=nvs_flash_init, in src/CMakeLists.txt) so it comes here instead, which
@@ -52,4 +54,17 @@ namespace SecureNVS {
 	//      encrypted, verify (~0.1 s).     so the device starts in setup mode, unpaired.
 	// NVS is unusable afterwards until the restart.
 	Outcome encrypt( const char *&error );
+
+	// The same for a new device saving its first Wi-Fi network (Settings::setCredentials()),
+	// before the credentials are stored, so they never touch plain flash. The entries so far
+	// (its name, say) move across. There's no restart: once it returns Encrypted, NVS is
+	// encrypted and in use, though every handle opened before is invalid (open it again).
+	// If the move fails after the burn (Failed), NVS is set up plain again with the entries,
+	// so the setup can go on; the next start encrypts them (init()), and restartWanted() asks
+	// for that start. Refused leaves NVS plain and as it was.
+	Outcome encryptForSetup( const char *&error );
+
+	// The key is burned but NVS is still plain until the next start (encryptForSetup() fell
+	// back); restart once nothing is in the middle of something.
+	bool restartWanted();
 }

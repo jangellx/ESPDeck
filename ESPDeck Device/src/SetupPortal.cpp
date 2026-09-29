@@ -14,6 +14,7 @@
 #include "esp_random.h"
 
 #include "Config.h"
+#include "SecureNVS.h"
 #include "Text.h"
 
 static const char *TAG = "Setup";
@@ -113,6 +114,8 @@ button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:13px 16p
 button:disabled{opacity:.5;cursor:default}
 .hint{font-size:14px;color:var(--muted);margin:4px 0 0}
 .error{color:var(--bad);margin-top:12px}
+.check{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:400;color:var(--text);margin:18px 0 0}
+.check input{width:20px;height:20px;margin:0;padding:0;flex:none;-webkit-appearance:checkbox;appearance:auto;accent-color:var(--accent)}
 .hidden{display:none}
 </style></head><body><main>
 <h1>ESPDeck Setup</h1>
@@ -126,6 +129,8 @@ button:disabled{opacity:.5;cursor:default}
 <div id="manualbox" class="hidden"><label for="ssid">Network name</label><input id="ssid" maxlength="32" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
 <div id="passbox"><label for="pass">Password</label>
 <div class="row"><input id="pass" type="password" maxlength="63" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="secondary small" id="show">Show</button></div></div>
+<div id="encbox" class="hidden"><label class="check" for="enc"><input id="enc" type="checkbox" checked>Encrypt stored secrets (recommended)</label>
+<p class="hint">Burns a one-time key into this chip, so encryption stays on for good. The Wi-Fi network, name and pairing can still be changed.</p></div>
 <p class="hint error hidden" id="formerr"></p>
 <button class="primary" id="save" type="submit">Save &amp; Connect</button>
 </form>
@@ -136,7 +141,7 @@ button:disabled{opacity:.5;cursor:default}
 </main>
 <script>
 const $=id=>document.getElementById(id),KEEP='\u0001keep',OTHER='\u0001other',sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let st={},nets=[],keepFor=null,nameEdited=false,saveError='';
+let st={},nets=[],keepFor=null,nameEdited=false,encEdited=false,saveError='';
 function bars(r){const n=r>-60?4:r>-70?3:r>-80?2:1;return '▂▄▆█'.slice(0,n)+'▁'.repeat(4-n)}
 function opt(v,t){const o=document.createElement('option');o.value=v;o.textContent=t;$('net').appendChild(o)}
 function fillNets(){
@@ -174,13 +179,16 @@ function render(){
  $('exitcard').classList.toggle('hidden',!st.canExit||st.leaving);
  $('pairtext').textContent=st.paired?'Paired with ESPDeck Bridge '+st.bridge+'.':'Not paired. Pair it from ESPDeck Bridge on your Mac.';
  $('unpair').classList.toggle('hidden',!st.paired);
- $('fw').textContent='Firmware '+st.firmware;
+ $('encbox').classList.toggle('hidden',!st.encryptOffered);
+ if(!encEdited)$('enc').checked=!st.standardStorage;
+ $('fw').textContent='Firmware '+st.firmware+(st.storage==='encrypted'?' · stored secrets encrypted':'');
  if(st.saveError!==saveError){saveError=st.saveError;err(saveError)}
  if(keepFor!==(st.configured?st.ssid:null))fillNets();
 }
 async function poll(){try{st=await(await fetch('/status')).json();render()}catch(e){}setTimeout(poll,1500)}
 $('net').onchange=update;
 $('name').oninput=()=>nameEdited=true;
+$('enc').onchange=()=>encEdited=true;
 $('rescan').onclick=()=>scan(true);
 $('show').onclick=()=>{const p=$('pass'),s=p.type==='password';p.type=s?'text':'password';$('show').textContent=s?'Hide':'Show'};
 $('form').onsubmit=async e=>{
@@ -191,7 +199,8 @@ $('form').onsubmit=async e=>{
  if(pass&&pass.length<8)return err('Wi-Fi passwords have at least 8 characters.');
  $('save').disabled=true;
  try{
-  const r=await(await fetch('/save',{method:'POST',body:new URLSearchParams({name,ssid,password:pass})})).json();
+  const f={name,ssid,password:pass};if(st.encryptOffered)f.encrypt=$('enc').checked?'1':'0';
+  const r=await(await fetch('/save',{method:'POST',body:new URLSearchParams(f)})).json();
   if(r.ok){nameEdited=false;$('pass').value='';if(ssid)$('net').value=KEEP}else err(r.error||'Couldn’t save.');
  }catch(e){err('Couldn’t reach ESPDeck.')}
  $('save').disabled=false;
@@ -388,7 +397,7 @@ void SetupPortal::trackConnection() {
 			settings_.setCredentials( pendingSSID_, pendingPassword_ );
 			settings_.markCredentialsWork();
 			memset( pendingPassword_, 0, sizeof( pendingPassword_ ) );
-			ESP_LOGI( TAG, "Joined %s as %s", ssid, WiFi.localIP().toString().c_str() );
+			ESP_LOGI( TAG, "Joined %s as %s (storage %s)", ssid, WiFi.localIP().toString().c_str(), SecureNVS::stateName() );
 		} else if( now - connectStart_ >= kConnectTimeout ) {
 			timedOut_   = true;
 			connecting_ = false;
@@ -550,6 +559,11 @@ void SetupPortal::handleStatus() {
 	cJSON_AddBoolToObject( json, "paired", settings_.isPaired() );
 	addString( json, "bridge", settings_.pairedBridge() );
 	addString( json, "firmware", firmwareVersion() );
+	addString( json, "storage", SecureNVS::stateName() );
+	// A new device with plain storage: saving its first network encrypts storage, unless the
+	// page's checkbox (Settings::standardStorage()) says Standard.
+	cJSON_AddBoolToObject( json, "encryptOffered", settings_.isNew() && SecureNVS::state() == SecureNVS::State::Plain );
+	cJSON_AddBoolToObject( json, "standardStorage", settings_.standardStorage() );
 	char *text = cJSON_PrintUnformatted( json );
 	sendJSON( 200, text ? text : "{}" );
 	cJSON_free( text );
@@ -583,6 +597,9 @@ void SetupPortal::handleSave() {
 	}
 
 	settings_.setName( name.c_str() );
+	// The checkbox, on a new device: applies when the network is saved, once it works.
+	if( webServer.hasArg( "encrypt" ) && settings_.isNew() && SecureNVS::state() == SecureNVS::State::Plain )
+		settings_.setStandardStorage( webServer.arg( "encrypt" ) != "1" );
 	if( !ssid.isEmpty() ) {
 		strlcpy( pendingSSID_, ssid.c_str(), sizeof( pendingSSID_ ) );
 		strlcpy( pendingPassword_, password.c_str(), sizeof( pendingPassword_ ) );

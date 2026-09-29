@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 
+#include "SecureNVS.h"
 #include "Text.h"
 
 static const char *TAG = "Settings";
@@ -21,6 +22,9 @@ namespace {
 	// kept it under "otaHash"; that one is dropped, so updating turns uploads off once.
 	constexpr const char *kOTAHashKey    = "otaHash4";
 	constexpr const char *kOldOTAHashKey = "otaHash";
+
+	// Standard storage was chosen for the setup (Settings::standardStorage()).
+	constexpr const char *kStandardStorageKey = "plainStorage";
 
 	Preferences preferences;
 
@@ -54,6 +58,7 @@ void Settings::begin() {
 		otaPasswordHash_[0] = '\0';
 	paired_ = bridgeID_[0] && preferences.isKey( "pairingKey" )
 	          && preferences.getBytes( "pairingKey", pairingKey_, sizeof( pairingKey_ ) ) == sizeof( pairingKey_ );
+	standardStorage_ = preferences.getBool( kStandardStorageKey, false );
 
 	// Left behind by older firmware: the setup password (now made fresh each time) and the
 	// upload password hash that travelled in the clear.
@@ -69,12 +74,52 @@ void Settings::begin() {
 }
 
 void Settings::setCredentials( const char *ssid, const char *password ) {
+	if( encryptsAtSetup() )
+		encryptForSetup();
 	strlcpy( ssid_, ssid ? ssid : "", sizeof( ssid_ ) );
 	strlcpy( password_, password ? password : "", sizeof( password_ ) );
 	verified_ = false;
 	preferences.putString( "ssid", ssid_ );
 	preferences.putString( "password", password_ );
 	preferences.putBool( "verified", false );
+}
+
+// A new device's first network: NVS becomes encrypted before the credentials go in. What's
+// there already (the name, say) moves across. If that fails, storage stays plain, or
+// becomes plain again until the next start encrypts it (SecureNVS::encryptForSetup()); either
+// way the setup goes on.
+void Settings::encryptForSetup() {
+	ESP_LOGW( TAG, "First network on a new device: encrypting storage before saving it" );
+	preferences.end();   // its handle doesn't survive NVS being set up again
+	const char        *error   = nullptr;
+	SecureNVS::Outcome outcome = SecureNVS::encryptForSetup( error );
+	if( !preferences.begin( kNamespace, false ) )
+		ESP_LOGE( TAG, "Opening NVS again failed; the settings won't be saved" );
+	switch( outcome ) {
+		case SecureNVS::Outcome::Encrypted:
+			ESP_LOGI( TAG, "Storage is encrypted" );
+			break;
+		case SecureNVS::Outcome::Refused:
+			ESP_LOGE( TAG, "Not encrypting storage (%s); keeping it plain", error );
+			break;
+		case SecureNVS::Outcome::Failed:
+			ESP_LOGE( TAG, "%s Storage stays plain until the next start encrypts it.", error );
+			break;
+	}
+}
+
+bool Settings::encryptsAtSetup() const {
+	return isNew() && !standardStorage_ && SecureNVS::ready() && SecureNVS::state() == SecureNVS::State::Plain;
+}
+
+void Settings::setStandardStorage( bool standard ) {
+	if( standard == standardStorage_ )
+		return;
+	standardStorage_ = standard;
+	if( standard )
+		preferences.putBool( kStandardStorageKey, true );
+	else
+		preferences.remove( kStandardStorageKey );
 }
 
 void Settings::markCredentialsWork() {

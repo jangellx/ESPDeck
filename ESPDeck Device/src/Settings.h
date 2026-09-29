@@ -2,7 +2,8 @@
 // orientation, the sleep timeout, the pairing (the key K and the bridge ID), and the password
 // hash for uploads from PlatformIO (DevOTA). Brightness lives with the key assignments in
 // ImageCache. The setup access point's password isn't stored; SetupPortal makes a new one
-// each time. NVS is encrypted once the bridge has asked for it (SecureNVS).
+// each time. NVS is encrypted when a new device saves its first network, unless Standard
+// storage was chosen for its setup, or later when the bridge asks for it (SecureNVS).
 #pragma once
 
 #include <cstddef>
@@ -22,8 +23,21 @@ public:
 	const char *password() const       { return password_; }
 	// Whether the stored credentials have ever connected.
 	bool        credentialsWork() const { return verified_; }
+	// On a new device, encrypts storage first (encryptsAtSetup()), so the credentials are
+	// never stored in plain flash.
 	void        setCredentials( const char *ssid, const char *password );
 	void        markCredentialsWork();
+
+	// Nothing secret stored yet: no network saved and not paired (a new or reset device).
+	bool        isNew() const { return !hasCredentials() && !paired_; }
+	// Standard storage (plain NVS) was chosen for setting up this device, over Improv or on
+	// the setup page, so its first network doesn't encrypt storage. Kept, in plain NVS, until
+	// a factory reset.
+	bool        standardStorage() const { return standardStorage_; }
+	void        setStandardStorage( bool standard );
+	// Whether storing credentials now encrypts storage first: a new device with plain
+	// storage and a free eFuse key block, and Standard wasn't chosen.
+	bool        encryptsAtSetup() const;
 
 	// Names are checked with Text::isValidName(); false (and unchanged) if it isn't one.
 	const char *name() const { return name_; }
@@ -66,4 +80,7 @@ private:
 	char     bridgeID_[kMaxBridgeID + 1] = {};
 	uint8_t  pairingKey_[32]             = {};
 	char     otaPasswordHash_[65]        = {};
+	bool     standardStorage_            = false;
+
+	void     encryptForSetup();
 };

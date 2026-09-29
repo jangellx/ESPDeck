@@ -1,8 +1,9 @@
 // Wi-Fi provisioning for setup mode: a WPA2/WPA3 access point "ESPDeck-XXXX" at 192.168.4.1
 // with a new random password each time setup mode starts, a DNS server that answers every
 // name with that address, and a captive-portal web page for the device name and Wi-Fi
-// network. The station interface stays up (or keeps trying) the whole time, so an existing
-// connection to the Mac survives.
+// network (and, on a new device, whether saving that network encrypts storage). The station
+// interface stays up (or keeps trying) the whole time, so an existing connection to the Mac
+// survives.
 //
 // Only phones on the access point get answers: requests from the home network are refused,
 // the page's own requests must name 192.168.4.1 as their Host (so a web page elsewhere can't

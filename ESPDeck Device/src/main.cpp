@@ -1010,9 +1010,9 @@ static void leaveSetupMode( const char *reason ) {
 
 // MARK: - Factory reset
 
-// Erases everything the device has learned (Wi-Fi, name, pairing, settings, the setup
-// network's password, and the image cache) and restarts. It comes back in setup mode.
-// The firmware itself stays.
+// Erases everything the device has learned (Wi-Fi, name, pairing, settings, a choice of
+// Standard storage, and the image cache) and restarts. It comes back in setup mode, as new.
+// The firmware itself stays, and so does an eFuse key (NVS starts over encrypted).
 static void factoryReset( const char *reason ) {
 	ESP_LOGW( TAG, "Factory reset (%s)", reason );
 	disableLoopWDT();   // erasing the image cache takes longer than the watchdog allows
@@ -1669,6 +1669,18 @@ void loop() {
 		leaveSetupMode( "improv" );
 	if( portal.takeResetRequest() )
 		factoryReset( "requested on the setup page" );
+
+	// Encrypting storage for a new device's first network fell back to plain storage after
+	// burning the key (SecureNVS::encryptForSetup()); the next start encrypts it, so restart
+	// once setup is over.
+	if( SecureNVS::restartWanted() && !portal.active() && !firmware.active() && !restartPending && !DevOTA::active() ) {
+		ESP_LOGW( TAG, "Restarting to finish encrypting storage" );
+		disableLoopWDT();
+		if( bridge.isConnected() )
+			dropBridge( false );
+		delay( 200 );
+		esp_restart();
+	}
 	if( screen == Screen::Setup && portal.canExit() != setupExitShown )
 		refreshScreen( true );   // add or remove the Exit key
 

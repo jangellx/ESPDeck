@@ -17,6 +17,7 @@
 #include "freertos/semphr.h"
 
 #include "Config.h"
+#include "SecureNVS.h"
 #include "Text.h"
 
 static const char *TAG = "Improv";
@@ -43,6 +44,7 @@ namespace {
 	// ESPDeck's own commands. The spec numbers its commands up from 0x01 and reserves
 	// nothing for vendors, so these count down from the top of the range.
 	constexpr uint8_t  kWiFiNetwork     = 0xFE;   // the saved network's name, never its password
+	constexpr uint8_t  kStorage         = 0xFD;   // how NVS is kept; with data, Standard or encrypted for the setup
 
 	volatile bool      gotIP            = false;   // set on the Wi-Fi event task
 
@@ -225,6 +227,25 @@ void Improv::handleCommand( uint8_t command, const uint8_t *data, size_t length 
 			break;
 		}
 
+		case kStorage: {
+			// With one byte, a new device's setup gets Standard storage (0) or encrypted
+			// storage (1, the default) when it saves its first network. Answers the storage
+			// ("plain", "encrypted", "unsupported") and what that first network will do:
+			// "encrypt", "standard", or "none" when there's no choice (not new, or not plain).
+			if( length > 1 || ( length == 1 && data[0] > 1 ) ) {
+				sendError( Error::InvalidRPC );
+				return;
+			}
+			bool plain = SecureNVS::state() == SecureNVS::State::Plain;
+			if( length == 1 && plain && settings_.standardStorage() != ( data[0] == 0 ) ) {
+				settings_.setStandardStorage( data[0] == 0 );
+				ESP_LOGI( TAG, "Setup storage: %s", data[0] == 0 ? "Standard" : "encrypted" );
+			}
+			const char *setup = !plain || !settings_.isNew() ? "none" : settings_.standardStorage() ? "standard" : "encrypt";
+			sendResult( kStorage, { SecureNVS::stateName(), setup } );
+			break;
+		}
+
 		case kRequestScan:
 			if( !scanWanted_ ) {
 				scanWanted_   = true;
@@ -249,7 +270,9 @@ Improv::State Improv::currentState() const {
 	return State::Ready;
 }
 
-// The new credentials are only saved once they work; until then the old ones stay.
+// The new credentials are only saved once they work; until then the old ones stay. On a new
+// device, saving them encrypts storage first (Settings::setCredentials()), so the key is only
+// burned for a network that works.
 void Improv::startConnecting( const char *ssid, const char *password ) {
 	strlcpy( ssid_, ssid, sizeof( ssid_ ) );
 	strlcpy( password_, password, sizeof( password_ ) );
@@ -275,7 +298,7 @@ void Improv::trackConnection() {
 		settings_.setCredentials( ssid_, password_ );
 		settings_.markCredentialsWork();
 		memset( password_, 0, sizeof( password_ ) );
-		ESP_LOGI( TAG, "Joined %s as %s", safe, WiFi.localIP().toString().c_str() );
+		ESP_LOGI( TAG, "Joined %s as %s (storage %s)", safe, WiFi.localIP().toString().c_str(), SecureNVS::stateName() );
 		sendState( State::Provisioned );
 		// No URL: the device's only web page is the setup page, which isn't running once
 		// it's on the network.

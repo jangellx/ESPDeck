@@ -27,6 +27,7 @@ namespace {
 	constexpr const char *kMarkerKey       = "moving";
 
 	bool             initialized = false;
+	bool             needRestart = false;   // see restartWanted()
 	SecureNVS::State current     = SecureNVS::State::Plain;
 
 	// One NVS entry, copied to RAM while NVS is erased and set up again encrypted.
@@ -295,6 +296,20 @@ namespace {
 		ESP_LOGI( TAG, "NVS encrypted: %u entries moved", (unsigned)entries.size() );
 		return true;
 	}
+
+	// encryptForSetup()'s way on when the move failed after the burn: NVS erased and set up
+	// plain again, holding `entries`. init() finds them at the next start and encrypts them.
+	bool fallBack( const std::vector<Entry> &entries ) {
+		nvs_flash_deinit();
+		esp_err_t err = nvs_flash_erase();
+		if( err == ESP_OK )
+			err = nvs_flash_init_partition( NVS_DEFAULT_PART_NAME );
+		if( err != ESP_OK ) {
+			ESP_LOGE( TAG, "Setting NVS up plain again failed: %s", esp_err_to_name( err ) );
+			return false;
+		}
+		return writeAll( entries );
+	}
 }
 
 // MARK: - Startup
@@ -376,65 +391,89 @@ const char *SecureNVS::stateName() {
 
 // MARK: - Encrypting
 
+namespace {
+	// encrypt() and encryptForSetup(). forSetup: no restart follows, so NVS must be left usable.
+	SecureNVS::Outcome run( const char *&error, bool forSetup ) {
+		using Outcome = SecureNVS::Outcome;
+		using State   = SecureNVS::State;
+
+		error = nullptr;
+		if( current != State::Plain || !initialized ) {
+			error = current == State::Encrypted ? "Storage is already encrypted."
+			        : current == State::Unsupported ? "This chip has no free eFuse key block."
+			        : "Storage isn't available.";
+			return Outcome::Refused;
+		}
+		esp_efuse_block_t block = esp_efuse_find_unused_key_block();
+		if( block == EFUSE_BLK_KEY_MAX ) {
+			current = State::Unsupported;
+			error   = "This chip has no free eFuse key block.";
+			return Outcome::Refused;
+		}
+
+		// 1. Everything in NVS, in RAM.
+		std::vector<Entry> entries;
+		if( !readAll( entries ) ) {
+			wipe( entries );
+			error = "Reading the stored settings failed.";
+			return Outcome::Refused;
+		}
+
+		// 2. The key. Wi-Fi is on (the request came over it, or the device just joined a
+		// network), so esp_fill_random() is a true random source.
+		uint8_t key[32];
+		esp_fill_random( key, sizeof( key ) );
+		ESP_LOGW( TAG, "Burning the NVS key into eFuse key block %d (HMAC_UP, read- and write-protected)", (int)block );
+		esp_err_t err = esp_efuse_write_key( block, ESP_EFUSE_KEY_PURPOSE_HMAC_UP, key, sizeof( key ) );
+		memset( key, 0, sizeof( key ) );
+		esp_efuse_block_t burned;
+		if( !findKey( burned ) ) {
+			ESP_LOGE( TAG, "Burning the key failed: %s", esp_err_to_name( err ) );
+			wipe( entries );
+			error = "Burning the eFuse key failed; nothing changed.";
+			return Outcome::Refused;
+		}
+		current = State::Encrypted;
+		if( err != ESP_OK || burned != block )
+			ESP_LOGW( TAG, "Burning reported %s; using the key in block %d", esp_err_to_name( err ), (int)burned );
+
+		nvs_sec_cfg_t keys = {};
+		if( !deriveKeys( burned, keys ) ) {
+			// NVS is untouched (and still in use, plain); after the restart it can't be read either.
+			ESP_LOGE( TAG, "Deriving the NVS keys failed" );
+			wipe( entries );
+			needRestart = forSetup;
+			error       = "The key is burned, but deriving the storage keys from it failed.";
+			return Outcome::Failed;
+		}
+
+		// 3 and 4.
+		bool moved = moveInto( keys, entries );
+		memset( &keys, 0, sizeof( keys ) );
+		if( !moved && forSetup ) {
+			ESP_LOGE( TAG, "Moving to encrypted NVS failed; keeping it plain until the next start" );
+			initialized = fallBack( entries );
+			needRestart = true;
+		}
+		wipe( entries );
+		if( !moved ) {
+			error = "The key is burned, but moving the settings failed.";
+			return Outcome::Failed;
+		}
+		return Outcome::Encrypted;
+	}
+}
+
 SecureNVS::Outcome SecureNVS::encrypt( const char *&error ) {
-	error = nullptr;
-	if( current != State::Plain || !initialized ) {
-		error = current == State::Encrypted ? "Storage is already encrypted."
-		        : current == State::Unsupported ? "This chip has no free eFuse key block."
-		        : "Storage isn't available.";
-		return Outcome::Refused;
-	}
-	esp_efuse_block_t block = esp_efuse_find_unused_key_block();
-	if( block == EFUSE_BLK_KEY_MAX ) {
-		current = State::Unsupported;
-		error   = "This chip has no free eFuse key block.";
-		return Outcome::Refused;
-	}
+	return run( error, false );
+}
 
-	// 1. Everything in NVS, in RAM.
-	std::vector<Entry> entries;
-	if( !readAll( entries ) ) {
-		wipe( entries );
-		error = "Reading the stored settings failed.";
-		return Outcome::Refused;
-	}
+SecureNVS::Outcome SecureNVS::encryptForSetup( const char *&error ) {
+	return run( error, true );
+}
 
-	// 2. The key. Wi-Fi is on (the request came over it), so esp_fill_random() is a true
-	// random source.
-	uint8_t key[32];
-	esp_fill_random( key, sizeof( key ) );
-	ESP_LOGW( TAG, "Burning the NVS key into eFuse key block %d (HMAC_UP, read- and write-protected)", (int)block );
-	esp_err_t err = esp_efuse_write_key( block, ESP_EFUSE_KEY_PURPOSE_HMAC_UP, key, sizeof( key ) );
-	memset( key, 0, sizeof( key ) );
-	esp_efuse_block_t burned;
-	if( !findKey( burned ) ) {
-		ESP_LOGE( TAG, "Burning the key failed: %s", esp_err_to_name( err ) );
-		wipe( entries );
-		error = "Burning the eFuse key failed; nothing changed.";
-		return Outcome::Refused;
-	}
-	current = State::Encrypted;
-	if( err != ESP_OK || burned != block )
-		ESP_LOGW( TAG, "Burning reported %s; using the key in block %d", esp_err_to_name( err ), (int)burned );
-
-	nvs_sec_cfg_t keys = {};
-	if( !deriveKeys( burned, keys ) ) {
-		// NVS is untouched; after the restart it can't be read either.
-		ESP_LOGE( TAG, "Deriving the NVS keys failed" );
-		wipe( entries );
-		error = "The key is burned, but deriving the storage keys from it failed.";
-		return Outcome::Failed;
-	}
-
-	// 3 and 4.
-	bool moved = moveInto( keys, entries );
-	memset( &keys, 0, sizeof( keys ) );
-	wipe( entries );
-	if( !moved ) {
-		error = "The key is burned, but moving the settings failed.";
-		return Outcome::Failed;
-	}
-	return Outcome::Encrypted;
+bool SecureNVS::restartWanted() {
+	return needRestart;
 }
 
 // MARK: - The wrapped nvs_flash_init()
