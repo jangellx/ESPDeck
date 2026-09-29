@@ -83,14 +83,26 @@ extension DeckController {
 		assignmentsChanged( device: id )
 	}
 
-	/// Removes the page the deck shows; the one before it (or after, for the first) is shown.
-	func deletePage( device id: String ) {
+	/// Nothing on it but Next and Previous Page keys.
+	func isPageEmpty( device id: String, _ page: Int ) -> Bool {
+		guard let pages = settings( id )?.pages, page < pages.count else { return true }
+		return pages[page].allSatisfy { key in
+			( key.kind == nil && key.icons.isEmpty && key.label.isEmpty && key.backgroundColor == nil )
+				|| ( key.kind == .page && ( key.action == .nextPage || key.action == .previousPage ) )
+		}
+	}
+
+	/// Removes a page (the one the deck shows unless given); the one before it (or after, for
+	/// the first) is shown if it was that one.
+	func deletePage( device id: String, _ page: Int? = nil ) {
 		guard let index = config.settings.deviceIndex( id ), config.settings.devices[index].pages.count > 1 else { return }
-		recordUndo( device: id, "Delete Page" )
 		var settings = config.settings.devices[index]
-		let removed  = settings.currentPage
+		let removed  = min( page ?? settings.currentPage, settings.pages.count - 1 )
+		recordUndo( device: id, "Delete Page" )
 		settings.pages.remove( at: removed )
-		settings.currentPage = max( removed - 1, 0 )
+		if settings.currentPage > removed || settings.currentPage >= settings.pages.count {
+			settings.currentPage = max( settings.currentPage - 1, 0 )
+		}
 		for page in settings.pages.indices {
 			for key in settings.pages[page].indices where settings.pages[page][key].kind == .page {
 				if let number = settings.pages[page][key].pageNumber, number > removed + 1 {

@@ -19,7 +19,7 @@ struct KeysPageView: View {
 
 	@State private var dragStartWidth : Double?
 	@State private var pinchStartSize : CGFloat?
-	@State private var confirmingDeletePage = false
+	@State private var deletingPage: Int?
 
 	private static let minPreviewWidth   : CGFloat = 300
 	private static let minInspectorWidth : CGFloat = 380
@@ -90,48 +90,87 @@ struct KeysPageView: View {
 		}
 	}
 
-	/// Which page the deck shows (and this page edits), and adding or deleting one.
+	/// "Page ① ② ③ +", as in Elgato's software: the deck shows (and this page edits) the
+	/// highlighted one. Right-click a page to delete it.
 	private var pageBar: some View {
 		let count   = controller.pageCount( device: deviceID )
 		let current = controller.currentPage( device: deviceID )
-		return HStack( spacing: 8 ) {
-			Button {
-				controller.showPage( device: deviceID, current - 1 )
-			} label: {
-				Image( systemName: "chevron.left" )
-			}
-			.buttonStyle( .borderless )
-			.disabled( current == 0 )
-			.help( "Previous page" )
-
-			Text( "Page \(current + 1) of \(count)" )
-				.monospacedDigit()
-
-			Button {
-				controller.showPage( device: deviceID, current + 1 )
-			} label: {
-				Image( systemName: "chevron.right" )
-			}
-			.buttonStyle( .borderless )
-			.disabled( current + 1 >= count )
-			.help( "Next page" )
-
-			Spacer()
-
-			Button( "Add Page", systemImage: "plus" ) { controller.addPage( device: deviceID ) }
-				.help( "Add a page after this one. This page's lower-right key becomes Next Page, and what was there moves to the new page." )
-			Button( "Delete Page…", systemImage: "trash", role: .destructive ) { confirmingDeletePage = true }
-				.disabled( count <= 1 )
-				.confirmationDialog( "Delete page \(current + 1)?", isPresented: $confirmingDeletePage ) {
-					Button( "Delete Page", role: .destructive ) { controller.deletePage( device: deviceID ) }
-				} message: {
-					Text( "Its keys are removed. Edit ▸ Undo brings it back." )
+		return HStack( spacing: 6 ) {
+			Text( "Page" )
+				.foregroundStyle( Color.secondary )
+			ScrollView( .horizontal, showsIndicators: false ) {
+				HStack( spacing: 6 ) {
+					ForEach( 0..<count, id: \.self ) { page in
+						pageButton( page, current: current, pills: count >= 10 )
+					}
+					Button {
+						controller.addPage( device: deviceID )
+					} label: {
+						Image( systemName: "plus" )
+							.frame( width: 22, height: 22 )
+							.background( Circle().strokeBorder( Color.secondary.opacity( 0.5 ), lineWidth: 1 ) )
+							.contentShape( Circle() )
+					}
+					.buttonStyle( .plain )
+					.help( "Add a page after this one. This page's lower-right key becomes Next Page, and what was there moves to the new page." )
 				}
+				.padding( .vertical, 1 )
+			}
+			Spacer( minLength: 0 )
+			Button {
+				requestDelete( current )
+			} label: {
+				Image( systemName: "trash" )
+			}
+			.buttonStyle( .borderless )
+			.disabled( count <= 1 )
+			.help( "Delete this page" )
 		}
-		.labelStyle( .titleAndIcon )
 		.controlSize( .small )
 		.padding( .horizontal, 14 )
 		.padding( .vertical, 8 )
+		.confirmationDialog( "Confirm Delete Page", isPresented: Binding( get: { deletingPage != nil }, set: { if !$0 { deletingPage = nil } } ),
+							 titleVisibility: .visible ) {
+			Button( "Delete Page", role: .destructive ) {
+				if let page = deletingPage { controller.deletePage( device: deviceID, page ) }
+				deletingPage = nil
+			}
+		} message: {
+			Text( "Are you sure you want to delete this page and all keys?" )
+		}
+	}
+
+	/// A number in a circle (a pill from 10 pages); filled for the page shown.
+	private func pageButton( _ page: Int, current: Int, pills: Bool ) -> some View {
+		let selected = page == current
+		return Button {
+			controller.showPage( device: deviceID, page )
+		} label: {
+			Text( "\(page + 1)" )
+				.font( .callout.weight( selected ? .semibold : .regular ) )
+				.monospacedDigit()
+				.foregroundStyle( selected ? Color.white : Color.primary )
+				.frame( minWidth: 22, minHeight: 22 )
+				.padding( .horizontal, pills ? 6 : 0 )
+				.background( Capsule().fill( selected ? Color.accentColor : Color.clear ) )
+				.overlay( Capsule().strokeBorder( selected ? Color.clear : Color.secondary.opacity( 0.5 ), lineWidth: 1 ) )
+				.contentShape( Capsule() )
+		}
+		.buttonStyle( .plain )
+		.help( "Page \(page + 1)" )
+		.contextMenu {
+			Button( "Delete Page \(page + 1)…", systemImage: "trash", role: .destructive ) { requestDelete( page ) }
+				.disabled( controller.pageCount( device: deviceID ) <= 1 )
+		}
+	}
+
+	/// Asks first unless the page has nothing on it but Next and Previous.
+	private func requestDelete( _ page: Int ) {
+		if controller.isPageEmpty( device: deviceID, page ) {
+			controller.deletePage( device: deviceID, page )
+		} else {
+			deletingPage = page
+		}
 	}
 
 	/// Smallest and full size at either end of the slider; Size to Fit goes back to the
