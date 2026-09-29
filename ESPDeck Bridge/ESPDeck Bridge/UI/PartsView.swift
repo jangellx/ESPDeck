@@ -347,6 +347,8 @@ struct GuideStep {
 /// A step's title, and the rest under it in the body font.
 struct GuideStepText: View {
 	let step: GuideStep
+	/// The detail in the primary colour, not grey (in a form, next to other rows).
+	var primaryDetail = false
 
 	var body: some View {
 		VStack( alignment: .leading, spacing: 3 ) {
@@ -354,7 +356,7 @@ struct GuideStepText: View {
 				.font( .headline )
 				.fixedSize( horizontal: false, vertical: true )
 			Text( LocalizedStringKey( step.detail ) )
-				.foregroundStyle( .secondary )
+				.foregroundStyle( primaryDetail ? Color.primary : Color.secondary )
 				.fixedSize( horizontal: false, vertical: true )
 		}
 	}

@@ -571,7 +571,7 @@ struct USBSetupView: View {
 	private var assemblySection: some View {
 		Section {
 			VStack( alignment: .leading, spacing: 14 ) {
-				GuideStepText( step: PartsView.unplugStep )
+				GuideStepText( step: PartsView.unplugStep, primaryDetail: true )
 				Button {
 					showAssembly()
 				} label: {
@@ -580,7 +580,7 @@ struct USBSetupView: View {
 						Image( systemName: "chevron.right" )
 					}
 				}
-				.buttonStyle( .bordered )   // only the button, not the whole row, is clickable
+				.buttonStyle( .borderedProminent )   // only the button, not the whole row, is clickable
 				.frame( maxWidth: .infinity )
 			}
 			.padding( .vertical, 6 )
