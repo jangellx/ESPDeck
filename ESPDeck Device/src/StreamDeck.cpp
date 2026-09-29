@@ -42,6 +42,7 @@ namespace {
 		{ 0x0080, "Stream Deck MK.2",           Protocol::Main,     3, 5,  72, Format::JPEG, Transform::Rotate180, false },
 		{ 0x00A5, "Stream Deck MK.2 Scissor",   Protocol::Main,     3, 5,  72, Format::JPEG, Transform::Rotate180, false },
 		{ 0x00B9, "Stream Deck 15-Key Module",  Protocol::Main,     3, 5,  72, Format::JPEG, Transform::Rotate180, false },
+		{ 0x00E4, "Stream Deck 15-Key Module (Scissor)", Protocol::Main, 3, 5, 72, Format::JPEG, Transform::Rotate180, false },
 		{ 0x006C, "Stream Deck XL",             Protocol::Main,     4, 8,  96, Format::JPEG, Transform::Rotate180, false },
 		{ 0x008F, "Stream Deck XL V2",          Protocol::Main,     4, 8,  96, Format::JPEG, Transform::Rotate180, false },
 		{ 0x00BA, "Stream Deck 32-Key Module",  Protocol::Main,     4, 8,  96, Format::JPEG, Transform::Rotate180, false },
@@ -58,6 +59,9 @@ namespace {
 	constexpr size_t   kMaxReportSize   = 8191;
 	constexpr uint16_t kMaxPeriodicOut  = 128;   // the host's limit with CONFIG_USB_HOST_HW_BUFFER_BIAS_IN
 	constexpr uint16_t kFullSpeedPacket = 64;    // the most an interrupt packet can be at full speed
+	// ESP-IDF's host splits an interrupt transfer into at most this many packets (it asserts
+	// otherwise), so the Original's 8191-byte reports go out as several transfers.
+	constexpr size_t   kMaxInterruptPackets = 32;
 
 	size_t reportSize( Protocol protocol ) {
 		return protocol == Protocol::Original ? 8191 : 1024;
@@ -500,7 +504,8 @@ void StreamDeck::readFeatureString( hid_host_device_handle_t handle, uint8_t rep
 // MARK: - Output transfers
 
 // Caller holds mutex_; info_ is already set.
-// Some decks (the MK.2 Scissor) run at full speed with their high-speed endpoint sizes: a
+// Most current decks (the MK.2 Scissor, XL, Neo, Mini 2022, Original) are high-speed parts
+// that keep their high-speed endpoint sizes at full speed: a
 // 512-byte interrupt IN and a 1024-byte interrupt OUT, where full speed allows 64. The host's
 // FIFOs take IN packets up to 600 bytes (biased towards IN in sdkconfig.defaults) but periodic
 // OUT only up to 128, and claiming the interface allocates every endpoint, so the claim fails.
@@ -558,6 +563,7 @@ bool StreamDeck::openOutput( hid_host_device_handle_t handle ) {
 
 	interface_    = params.iface_num;
 	outEndpoint_  = 0;
+	outPacket_    = 0;
 	useInterrupt_ = false;
 	stuck_        = false;
 
@@ -571,6 +577,7 @@ bool StreamDeck::openOutput( hid_host_device_handle_t handle ) {
 			if( ep && !( ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK )
 			    && ( ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK ) == USB_BM_ATTRIBUTES_XFER_INT ) {
 				outEndpoint_ = ep->bEndpointAddress;
+				outPacket_   = USB_EP_DESC_GET_MPS( ep );
 				ESP_LOGI( TAG, "Interrupt OUT 0x%02X: max packet %u bytes, interval %u", ep->bEndpointAddress, ep->wMaxPacketSize, ep->bInterval );
 			}
 		}
@@ -648,10 +655,20 @@ esp_err_t StreamDeck::sendReport( size_t length ) {
 		return submitAndWait( true );
 	}
 
-	memcpy( transfer_->data_buffer, report_, length );
-	transfer_->bEndpointAddress = outEndpoint_;
-	transfer_->num_bytes        = length;
-	return submitAndWait( false );
+	// In pieces of whole packets, the last one short: on the wire that's the same packets as
+	// one transfer, which the deck reassembles into the report.
+	size_t most = outPacket_ ? outPacket_ * kMaxInterruptPackets : length;
+	for( size_t sent = 0; sent < length; ) {
+		size_t piece = std::min( most, length - sent );
+		memcpy( transfer_->data_buffer, report_ + sent, piece );
+		transfer_->bEndpointAddress = outEndpoint_;
+		transfer_->num_bytes        = piece;
+		esp_err_t err = submitAndWait( false );
+		if( err != ESP_OK )
+			return err;
+		sent += piece;
+	}
+	return ESP_OK;
 }
 
 // MARK: - Output

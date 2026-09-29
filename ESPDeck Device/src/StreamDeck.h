@@ -161,6 +161,7 @@ private:
 	SemaphoreHandle_t        transferSem_  = nullptr;
 	uint8_t                  interface_    = 0;
 	uint8_t                  outEndpoint_  = 0;         // 0 if the interface has none
+	uint16_t                 outPacket_    = 0;         // its max packet size
 	bool                     useInterrupt_ = false;
 	bool                     outShrunk_    = false;     // shrinkOversizedOut() cut its packets to 64 bytes
 	bool                     stuck_        = false;     // a transfer never completed; wait for unplug

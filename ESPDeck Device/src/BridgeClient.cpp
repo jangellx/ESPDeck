@@ -20,7 +20,7 @@ static const char *TAG = "Bridge";
 
 namespace {
 	constexpr uint32_t kMinBackoff      = 1000;
-	constexpr uint32_t kMaxBackoff      = 30000;
+	constexpr uint32_t kMaxBackoff      = 10000;   // a relaunched bridge is found within ~15 s
 	constexpr uint32_t kConnectTimeout  = 15000;
 	constexpr int      kPingInterval    = 5;       // s
 	constexpr int      kPongTimeout     = 10;      // s

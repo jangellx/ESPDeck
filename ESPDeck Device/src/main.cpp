@@ -580,7 +580,7 @@ static void showPairingKeys() {
 	} );
 }
 
-// Connected to a bridge that doesn't know this device yet.
+// Set up, but not paired with a bridge yet.
 static void showNotPairedKeys() {
 	if( !deckHasLayout() )
 		return;
@@ -717,7 +717,8 @@ static Screen desiredScreen() {
 		return Screen::Updating;
 	if( chordHeld && millis() - chordSince >= kSetupCountdown && deckHasLayout() )
 		return Screen::SetupCountdown;
-	if( bridge.isConnected() && !session.authenticated() && !settings.isPaired() )
+	// Also while no bridge is found: pairing is still what it needs.
+	if( !session.authenticated() && !settings.isPaired() && settings.hasCredentials() )
 		return Screen::NotPaired;
 	if( settings.isPaired() && settings.hasCredentials() && !session.authenticated() && !asleep
 	    && ( !hadSession || millis() - sessionLostAt >= kConnectingGrace ) )

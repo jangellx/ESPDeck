@@ -30,8 +30,9 @@ struct DeckInfo: Codable, Equatable {
 
 	/// The layout to render for, when the report is complete and plausible.
 	var layout: DeckLayout? {
-		guard connected, let rows, let cols, let keySize, Self.rowRange.contains( rows ), Self.columnRange.contains( cols ),
-			  Self.keySizeRange.contains( keySize ) else { return nil }
+		guard connected, let rows, let cols, Self.rowRange.contains( rows ), Self.columnRange.contains( cols ) else { return nil }
+		// A deck without images (the Pedal) reports a key size of 0; its grid still shows.
+		guard let keySize = format == KeyImageFormat.none ? 72 : keySize, Self.keySizeRange.contains( keySize ) else { return nil }
 		return DeckLayout( model: model ?? "Stream Deck", rows: rows, cols: cols, keySize: keySize,
 						   format: format ?? .jpeg, transform: transform ?? .none )
 	}
