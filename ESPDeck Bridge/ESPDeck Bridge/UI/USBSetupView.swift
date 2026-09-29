@@ -18,6 +18,8 @@ struct USBSetupView: View {
 	@State private var ssid             = ""
 	@State private var otherSSID        = ""
 	@State private var password         = ""
+	/// "Encrypt stored secrets", for a new board with plain storage.
+	@State private var encrypt          = true
 	@State private var pickingFile      = false
 	@State private var fileProblem      : String?
 	@State private var confirmingOlder  = false
@@ -55,6 +57,10 @@ struct USBSetupView: View {
 		.onChange( of: savedSSID ) { if let savedSSID { ssid = savedSSID } }
 		.onChange( of: setup.networks ) {
 			if ssid.isEmpty, let first = savedSSID ?? setup.networks.first?.ssid { ssid = first }
+		}
+		// On unless Standard was chosen for this board before.
+		.onChange( of: setup.selectedBoard?.espDeck?.storage?.setup, initial: true ) { _, choice in
+			encrypt = choice != "standard"
 		}
 		.fileImporter( isPresented: $pickingFile, allowedContentTypes: [ .data ] ) { result in
 			if case .success( let url ) = result { choose( url ) }
@@ -195,6 +201,9 @@ struct USBSetupView: View {
 			} else {
 				lines.append( "Wi-Fi: \(network.ssid)" + ( network.connected ? "" : " (not connected)" ) )
 			}
+		}
+		if let storage = board.espDeck?.storage {
+			lines.append( storage.isEncrypted ? "Stored secrets: encrypted" : "Stored secrets: not encrypted" )
 		}
 		if let hardware = board.hardware {
 			lines.append( hardware )
@@ -357,6 +366,14 @@ struct USBSetupView: View {
 			}
 			SecureField( "Password", text: $password )
 				.onSubmit( join )
+			if storageChoice {
+				VStack( alignment: .leading, spacing: 4 ) {
+					Toggle( "Encrypt stored secrets (recommended)", isOn: $encrypt )
+					Text( "Permanent for this chip, which gets a one-time key; the Wi-Fi network, name and pairing stay changeable." )
+						.font( .caption )
+						.foregroundStyle( .secondary )
+				}
+			}
 
 			// While joining, the button makes way for a spinner.
 			HStack {
@@ -435,9 +452,15 @@ struct USBSetupView: View {
 		return nil
 	}
 
+	/// A new board with plain storage (firmware 4.1.0 and later): joining encrypts it unless
+	/// the box is unchecked.
+	private var storageChoice: Bool {
+		setup.selectedBoard?.espDeck?.storage?.offersChoice ?? false
+	}
+
 	private func join() {
 		guard wifiProblem == nil else { return }
-		setup.join( ssid: joinSSID, password: password )
+		setup.join( ssid: joinSSID, password: password, encrypt: storageChoice ? encrypt : nil )
 	}
 
 	// MARK: - Name

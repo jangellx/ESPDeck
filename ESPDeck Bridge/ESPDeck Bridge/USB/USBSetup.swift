@@ -7,10 +7,10 @@
 //  with Improv. Once on Wi-Fi it finds this bridge by itself, and pairing takes over.
 //
 //  Other ESP32 work may be going on at this Mac, so a port is open only briefly: once
-//  when a board appears, to ask what it runs and which network it's set up for (only on
-//  the ESP32's own USB port, where opening can't restart it), and for each action the user
-//  starts. Retries happen only
-//  while a board this app just restarted is expected back.
+//  when a board appears, to ask what it runs, which network it's set up for and how it
+//  stores its settings (only on the ESP32's own USB port, where opening can't restart it),
+//  and for each action the user starts. Retries happen only while a board this app just
+//  restarted is expected back.
 //
 
 import Foundation
@@ -84,6 +84,8 @@ final class USBSetup {
 		var name     : String
 		/// The network it's set up for; nil from firmware that doesn't say (before 4.1.0).
 		var network  : SavedNetwork?
+		/// How it stores its settings; nil from firmware that doesn't say (before 4.1.0).
+		var storage  : Storage?
 
 		var isESPDeck: Bool { firmware == FirmwareImage.projectName }
 	}
@@ -94,6 +96,20 @@ final class USBSetup {
 		var ssid      : String
 		/// Whether it's on that network now.
 		var connected : Bool
+	}
+
+	/// How the board stores its settings (Wi-Fi password, pairing key), and what joining a
+	/// network will do about it. See PROTOCOL.md, USB (Improv serial).
+	struct Storage: Equatable {
+		/// "plain", "encrypted", or "unsupported" (plain, and the chip can't encrypt).
+		var state : String
+		/// What saving its first network does: "encrypt", "standard", or "none" when there's
+		/// nothing to choose (it's set up already, or its storage isn't plain).
+		var setup : String
+
+		var isEncrypted: Bool { state == "encrypted" }
+		/// A new board with plain storage: joining a network encrypts it, unless Standard is chosen.
+		var offersChoice: Bool { state == "plain" && setup != "none" }
 	}
 
 	enum Answer: Equatable {
@@ -222,9 +238,12 @@ final class USBSetup {
 		static let getInfo    = 0x03
 		static let scan       = 0x04
 		static let deviceName = 0x06
-		/// ESPDeck's own command (firmware 4.1.0 and later): the saved network's name, and
-		/// "YES" or "NO" for whether it's on it. Earlier firmware answers unknownCommand.
+		/// ESPDeck's own commands (firmware 4.1.0 and later); earlier firmware answers
+		/// unknownCommand. The saved network's name, and "YES" or "NO" for whether it's on it:
 		static let wifiNetwork = 0xFE
+		/// The storage and what the first network will do (Storage); with one byte, chooses
+		/// Standard (0) or encrypted (1) storage for a new board's setup first.
+		static let storage     = 0xFD
 
 		static let unknownCommand = 0x02
 
@@ -397,7 +416,10 @@ final class USBSetup {
 					guard packet.type == Improv.typeResult, packet.value == Improv.getInfo, packet.strings.count >= 4 else { return nil }
 					return DeviceInfo( firmware: packet.strings[0], version: packet.strings[1], chip: packet.strings[2], name: packet.strings[3] )
 				} ) {
-					if info.isESPDeck { info.network = await askNetwork() }
+					if info.isESPDeck {
+						info.network = await askNetwork()
+						info.storage = await askStorage()
+					}
 					answer = .answered( info )
 				}
 				closePort()
@@ -419,6 +441,28 @@ final class USBSetup {
 			return nil
 		}
 		return answer ?? nil
+	}
+
+	/// How an ESPDeck board stores its settings, on the port that's open; with `encrypt`,
+	/// first chooses that for a new board's setup. Nil as for askNetwork().
+	private func askStorage( choosing encrypt: Bool? = nil ) async -> Storage? {
+		guard send( Improv.storage, data: encrypt.map { Data( [ $0 ? 1 : 0 ] ) } ?? Data() ) else { return nil }
+		let answer = await wait( .milliseconds( encrypt == nil ? 700 : 2000 ) ) { packet -> Storage?? in
+			if packet.type == Improv.typeResult, packet.value == Improv.storage, packet.strings.count >= 2 {
+				return Storage( state: packet.strings[0], setup: packet.strings[1] )
+			}
+			if packet.type == Improv.typeError, packet.value != 0 { return .some( nil ) }
+			return nil
+		}
+		return answer ?? nil
+	}
+
+	private func updateStorage( _ path: String, _ storage: Storage? ) {
+		update( path ) { board in
+			guard case .answered( var info ) = board.answer, let storage else { return }
+			info.storage = storage
+			board.answer = .answered( info )
+		}
 	}
 
 	/// Asks a board the user picked, e.g. one on a USB-to-serial chip.
@@ -596,8 +640,10 @@ final class USBSetup {
 		}
 	}
 
-	/// Sends the network and password, and waits for the board to join or give up.
-	func join( ssid: String, password: String ) {
+	/// Sends the network and password, and waits for the board to join or give up. For a new
+	/// board with plain storage, `encrypt` chooses first whether joining encrypts its storage
+	/// (burning its one-time key) or keeps it Standard; nil when there's no choice.
+	func join( ssid: String, password: String, encrypt: Bool? ) {
 		guard let board = selectedBoard, let info = board.espDeck else { return }
 		let data: Data
 		switch Self.wifiSettings( ssid: ssid, password: password ) {
@@ -610,7 +656,21 @@ final class USBSetup {
 		joinedBoard = nil
 		withSelectedBoard { [weak self] path in
 			guard let self else { return }
-			guard openPort( path ), send( Improv.sendWiFi, data: data ) else {
+			guard openPort( path ) else {
+				wifi = .failed( "Couldn't reach the board." )
+				return
+			}
+			if let encrypt {
+				// Standard must be confirmed before the network goes out: otherwise joining
+				// would encrypt, which can't be undone.
+				let storage = await askStorage( choosing: encrypt )
+				updateStorage( path, storage )
+				if !encrypt && storage.map( { $0.setup == "encrypt" } ) != false {
+					wifi = .failed( "The board didn't confirm Standard storage, so the network wasn't sent. Try again." )
+					return
+				}
+			}
+			guard send( Improv.sendWiFi, data: data ) else {
 				wifi = .failed( "Couldn't reach the board." )
 				return
 			}
@@ -628,6 +688,10 @@ final class USBSetup {
 					guard case .answered( var info ) = board.answer, info.network != nil else { return }
 					info.network = SavedNetwork( ssid: ssid, connected: true )
 					board.answer = .answered( info )
+				}
+				// A new board encrypted its storage before saving the network (or kept it Standard).
+				if board.espDeck?.storage != nil {
+					updateStorage( path, await askStorage() )
 				}
 			}
 			wifi = switch joined {

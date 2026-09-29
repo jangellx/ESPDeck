@@ -2,10 +2,12 @@
 //  DeckController+Storage.swift
 //  ESPDeck Bridge
 //
-//  Encrypting a device's stored secrets (PROTOCOL.md, encryptStorage): firmware 4.1.0 and
-//  later can encrypt its NVS (Wi-Fi password, pairing key, developer password hash) with a key
-//  it burns into a one-time eFuse on the chip. That's permanent, so it only happens when the
-//  user chooses it: once after pairing (Standard or Encrypted), or later on the Device page.
+//  Encrypting a device's stored secrets (PROTOCOL.md, Storage encryption): firmware 4.1.0
+//  and later can encrypt its NVS (Wi-Fi password, pairing key, developer password hash) with a
+//  key it burns into a one-time eFuse on the chip. A new device does that itself when it's
+//  first given Wi-Fi (over USB or on its setup page), unless Standard was chosen there. One
+//  that was set up with plain storage is moved over here (encryptStorage), only when the user
+//  chooses it on its Device page, which recommends it; the bridge never does it by itself.
 //
 
 import Foundation
@@ -33,7 +35,6 @@ extension DeckController {
 
 	/// After the user confirmed: the device burns its eFuse key, encrypts, and restarts.
 	func encryptStorage( device id: String ) {
-		storageChoicePending.remove( id )
 		guard let device = device( id ), let client = device.client, canEncryptStorage( device ) else { return }
 		print( "[DeckController] Encrypting the storage of \(id)" )
 		logEvent( "Encrypting stored secrets", device: id )
@@ -49,11 +50,6 @@ extension DeckController {
 		storageEncryptionRequests[id] = ( client, timeout )
 	}
 
-	/// The user chose Standard after pairing: nothing to do, and no more asking.
-	func keepStandardStorage( device id: String ) {
-		storageChoicePending.remove( id )
-	}
-
 	func storageStatus( _ status: DeviceMessage.StorageStatus, device: DeckDevice ) {
 		switch status.state {
 			case .encrypting:
@@ -62,17 +58,6 @@ extension DeckController {
 				let message = status.message ?? "The device couldn't encrypt its storage."
 				logEvent( "Encrypting stored secrets failed: \(message)", device: device.id )
 				endStorageEncryption( device.id, .failed( message ) )
-		}
-	}
-
-	/// A pairing just completed: ask how to store secrets, if there's a choice to make. Its
-	/// Device page asks, so show that if the user is still on the pairing page.
-	func storagePaired( _ hello: DeviceHello, client: ClientID ) {
-		guard hello.status.storage == "plain" else { return }
-		storageChoicePending.insert( hello.id )
-		if window.selection == SidebarItem.newDevice( client ) || window.selection == hello.id {
-			window.selection = hello.id
-			window.page      = .device
 		}
 	}
 

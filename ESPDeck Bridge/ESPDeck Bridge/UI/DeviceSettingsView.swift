@@ -108,10 +108,6 @@ struct DeviceSettingsView: View {
 		let online = device.isOnline
 
 		Form {
-			if controller.storageChoicePending.contains( deviceID ) {
-				StorageChoiceSection( controller: controller, device: device, name: settings.name )
-			}
-
 			Section {
 				// Renamed on Return or when the field loses focus; an empty field goes back to the current name.
 				TextField( "Name", text: $nameDraft, prompt: Text( settings.defaultName ) )
@@ -278,66 +274,17 @@ struct DeviceSettingsView: View {
 	}
 }
 
-/// Wording shared by the choice after pairing and the Security section.
+/// Wording for the Security section.
 private enum StorageText {
 	static func confirmTitle( _ name: String ) -> String { "Encrypt the secrets stored on \(name)?" }
 
-	static let confirmMessage = "This encrypts the Wi-Fi password, pairing key and developer password stored on the dev kit, so someone who takes it and reads its flash can't recover them.\n\nTurning encryption on is permanent: it burns a one-time key into the chip, so this dev kit always encrypts what it stores from now on. What it stores isn't locked in: you can still change its Wi-Fi network, rename it, pair it again or reset it, and it keeps working and updating as before.\n\nKeep the deck powered for the few seconds it takes. It restarts when it's done."
+	static let confirmMessage = "This encrypts the Wi-Fi password, pairing key and developer password stored on the dev kit, so someone who takes it and reads its flash can't recover them. Its settings and pairing move across, so it keeps working as it does now.\n\nTurning encryption on is permanent: it burns a one-time key into the chip, so this dev kit always encrypts what it stores from now on. What it stores isn't locked in: you can still change its Wi-Fi network, rename it, pair it again or reset it, and it keeps working and updating as before.\n\nKeep the deck powered for the few seconds it takes. It restarts when it's done."
 
-	static let learnMore = "The dev kit keeps your Wi-Fi password, its pairing key and the developer password in its flash. With Standard, anyone who takes it can read them over USB, and the pairing key could let them trigger this deck's actions from your network. Encrypted stores them with a key burned into the chip that no software can read, so the flash alone gives nothing away.\n\nOnly the encryption is permanent: the key can't be removed, so this dev kit always encrypts what it stores. The settings themselves can still be changed any time (Wi-Fi network, name, pairing), and updates, factory reset and the web installer work as before (a reset starts over with empty storage, still encrypted). ESPDeck Bridge won't install firmware older than 4.1.0 on it, since that can't read encrypted storage."
+	static let learnMore = "The dev kit keeps your Wi-Fi password, its pairing key and the developer password in its flash. Unencrypted (Standard), anyone who takes it can read them over USB, and the pairing key could let them trigger this deck's actions from your network. Encrypted stores them with a key burned into the chip that no software can read, so the flash alone gives nothing away. New devices are encrypted when they're first set up, over USB or on their setup page, unless Standard is chosen there.\n\nOnly the encryption is permanent: the key can't be removed, so this dev kit always encrypts what it stores. The settings themselves can still be changed any time (Wi-Fi network, name, pairing), and updates, factory reset and the web installer work as before (a reset starts over with empty storage, still encrypted). ESPDeck Bridge won't install firmware older than 4.1.0 on it, since that can't read encrypted storage."
 }
 
-/// Asked once after pairing: keep secrets in plain flash (Standard), or encrypt them with the
-/// chip's one-time key (Encrypted).
-private struct StorageChoiceSection: View {
-	let controller : DeckController
-	let device     : DeckDevice
-	let name       : String
-
-	@State private var confirming = false
-
-	var body: some View {
-		Section {
-			Text( "How should this deck store its Wi-Fi password and pairing key?" )
-			choice( "Standard", detail: "Stored as-is in the dev kit's flash. Fine for hobby use; you can switch to Encrypted later." ) {
-				controller.keepStandardStorage( device: device.id )
-			}
-			choice( "Encrypted", detail: "Recommended for installed or shared setups. Once on, encryption can't be turned off, but the Wi-Fi, name and pairing can still be changed." ) {
-				confirming = true
-			}
-			.disabled( !controller.canEncryptStorage( device ) )
-			DisclosureGroup( "Learn More" ) {
-				Text( StorageText.learnMore )
-					.font( .callout )
-					.foregroundStyle( .secondary )
-			}
-		} header: {
-			SectionHeader( "Stored Secrets" )
-		}
-		.confirmationDialog( StorageText.confirmTitle( name ), isPresented: $confirming, titleVisibility: .visible ) {
-			Button( "Encrypt" ) { controller.encryptStorage( device: device.id ) }
-		} message: {
-			Text( StorageText.confirmMessage )
-		}
-	}
-
-	private func choice( _ title: String, detail: String, action: @escaping () -> Void ) -> some View {
-		Button( action: action ) {
-			VStack( alignment: .leading, spacing: 2 ) {
-				Text( title )
-					.font( .body.weight( .semibold ) )
-				Text( detail )
-					.font( .caption )
-					.foregroundStyle( .secondary )
-			}
-			.frame( maxWidth: .infinity, alignment: .leading )
-			.contentShape( Rectangle() )
-		}
-		.buttonStyle( .borderless )
-	}
-}
-
-/// How the device stores its secrets, and encrypting them (Standard → Encrypted only).
+/// How the device stores its secrets, and encrypting them (Standard → Encrypted only). A
+/// device still on Standard gets a recommendation to encrypt, never a question it must answer.
 private struct SecuritySection: View {
 	let controller : DeckController
 	let device     : DeckDevice
@@ -350,7 +297,9 @@ private struct SecuritySection: View {
 
 		Section {
 			LabeledContent( "Stored Secrets", value: stateText( storage ) )
-			if storage != "encrypted" {
+			if storage == "plain" && device.isOnline && controller.storageEncryption[device.id] != .encrypting {
+				recommendation
+			} else if storage != "encrypted" && controller.storageEncryption[device.id] != .encrypting {
 				HStack {
 					Button( "Encrypt Stored Secrets…" ) { confirming = true }
 						.disabled( !controller.canEncryptStorage( device ) )
@@ -375,13 +324,47 @@ private struct SecuritySection: View {
 		} header: {
 			SectionHeader( "Security" )
 		} footer: {
-			Text( "Standard keeps the Wi-Fi password, pairing key and developer password in the dev kit's flash as they are. Encrypted protects them with a key burned into the chip, so reading the flash doesn't reveal them. Turning encryption on is permanent (the chip's key can't be removed), but the Wi-Fi network, name and pairing stay changeable as usual." )
+			Text( "Standard keeps the Wi-Fi password, pairing key and developer password in the dev kit's flash as they are. Encrypted protects them with a key burned into the chip, so reading the flash doesn't reveal them. New devices are encrypted when they're first set up, unless Standard is chosen there. Turning encryption on is permanent (the chip's key can't be removed), but the Wi-Fi network, name and pairing stay changeable as usual." )
 		}
 		.confirmationDialog( StorageText.confirmTitle( name ), isPresented: $confirming, titleVisibility: .visible ) {
 			Button( "Encrypt" ) { controller.encryptStorage( device: device.id ) }
 		} message: {
 			Text( StorageText.confirmMessage )
 		}
+	}
+
+	/// For a device on Standard storage: a highlighted suggestion with the button, which the
+	/// user can act on or leave.
+	private var recommendation: some View {
+		HStack( alignment: .top, spacing: 10 ) {
+			Image( systemName: "lock.shield.fill" )
+				.font( .title2 )
+				.foregroundStyle( .tint )
+			VStack( alignment: .leading, spacing: 6 ) {
+				Text( "Encrypt stored secrets (recommended)" )
+					.font( .body.weight( .semibold ) )
+				Text( "Its Wi-Fi password and pairing key are stored unencrypted, so anyone who takes the dev kit can read them over USB. Encrypting keeps its settings and pairing; only the encryption itself is permanent." )
+					.font( .caption )
+					.foregroundStyle( .secondary )
+				HStack {
+					Button( "Encrypt Stored Secrets…" ) { confirming = true }
+						.disabled( !controller.canEncryptStorage( device ) )
+					if let note = unavailableNote( device.status.storage ) {
+						Text( note )
+							.font( .caption )
+							.foregroundStyle( .secondary )
+					}
+				}
+				DisclosureGroup( "Learn More" ) {
+					Text( StorageText.learnMore )
+						.font( .callout )
+						.foregroundStyle( .secondary )
+				}
+			}
+		}
+		.padding( 10 )
+		.frame( maxWidth: .infinity, alignment: .leading )
+		.background( Color.accentColor.opacity( 0.08 ), in: RoundedRectangle( cornerRadius: 8 ) )
 	}
 
 	private func stateText( _ storage: String? ) -> String {
