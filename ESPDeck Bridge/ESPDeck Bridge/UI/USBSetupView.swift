@@ -242,7 +242,9 @@ struct USBSetupView: View {
 				}
 				Button( "Install Firmware" ) { installTapped() }
 					.buttonStyle( .borderedProminent )
-					.disabled( setup.selectedBoard == nil || setup.install.isBusy )
+					// Nothing to install while "No signed release yet" is chosen.
+					.disabled( setup.selectedBoard == nil || setup.install.isBusy
+							   || ( setup.source == .release && controller.updates.latestFirmware == nil ) )
 			}
 			.confirmationDialog( olderTitle, isPresented: $confirmingOlder, titleVisibility: .visible ) {
 				Button( "Install Older Firmware" ) { setup.installFirmware() }
