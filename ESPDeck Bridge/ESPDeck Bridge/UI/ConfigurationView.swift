@@ -422,9 +422,9 @@ struct LabelPositionControl: View {
 
 	private var labels: some View {
 		HStack( spacing: 10 ) {
-			Text( "Key Labels" )
+			Text( "Labels" )
 				.foregroundStyle( .secondary )
-			Picker( "Key Labels", selection: Binding {
+			Picker( "Labels", selection: Binding {
 				controller.settings( deviceID )?.labelPosition ?? .bottom
 			} set: { position in
 				controller.setLabelPosition( device: deviceID, position )
