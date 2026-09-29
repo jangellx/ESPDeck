@@ -34,7 +34,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		}
 		controller.onDecksChange = { [weak self] heading, decks in
 			guard let self else { return }
-			menuBar?.updateDecks( heading: heading, ids: decks.map( \.id ), titles: decks.map( \.title ), levels: decks.map { $0.level.rawValue } )
+			menuBar?.updateDecks( heading: heading, ids: decks.map( \.id ), titles: decks.map( \.title ), levels: decks.map( \.menuLevel ) )
 			// The Device menu lists the devices by name.
 			let names = controller.devices.map { controller.settings( $0.id )?.name ?? $0.id }
 			if names != deviceMenuNames {
@@ -90,7 +90,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 
 	func menuBarShowDevice( id: String ) {
 		controller.window.selection = id
-		controller.window.page      = .keys
+		if !id.hasPrefix( SidebarItem.newPrefix ) {
+			controller.window.page = .keys   // a new device has one page
+		}
 		menuBarOpenConfiguration()
 	}
 

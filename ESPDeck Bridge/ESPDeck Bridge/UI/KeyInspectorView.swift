@@ -93,7 +93,7 @@ struct KeyInspectorView: View {
 			} header: {
 				SectionHeader( "Icons" )
 			} footer: {
-				Text( "Click a state to choose an SF Symbol, or drag an image onto it. States without their own icon use Default's, filled for On; a dashed outline marks them." )
+				Text( "Click a state to choose an SF Symbol, or drag an image onto it. States without their own icon use Default's, filled for On. Icons with dashed outlines are set to Default." )
 			}
 
 			// Copy and Paste together, then a divider, then the destructive Clear Key.

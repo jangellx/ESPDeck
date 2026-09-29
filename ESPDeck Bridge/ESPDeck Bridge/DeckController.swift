@@ -1098,14 +1098,18 @@ final class DeckController {
 
 	/// The menu bar's lines under its deck list (which shows each deck's own status).
 	var statusItems: [StatusItem] {
-		let pending = newDevices.map { StatusItem( text: "\($0.hello.name): waiting to be paired", level: .waiting ) }
-		return [ serverStatus ].compactMap { $0 } + pending + [ homeStatus ] + updates.statusItems
+		[ serverStatus ].compactMap { $0 } + [ homeStatus ] + updates.statusItems
 	}
 
 	struct DeckMenuEntry: Equatable {
 		var id    : String
 		var title : String
 		var level : StatusItem.Level
+		/// Under New Devices: not paired with this Mac yet.
+		var isNew = false
+
+		/// For the menu bar plugin: StatusItem.Level's values, and 4 for a new device.
+		var menuLevel: Int { isNew ? 4 : level.rawValue }
 	}
 
 	/// The Home's name, "HomeKit" with several Homes, or HomeKit's state before it's ready.
@@ -1117,7 +1121,7 @@ final class DeckController {
 		}
 	}
 
-	/// Real decks in sidebar order, then demo decks.
+	/// Real decks in sidebar order, then new devices, then demo decks.
 	var deckMenuEntries: [DeckMenuEntry] {
 		let entries = devices.map { device in
 			let status = status( device: device )
@@ -1125,7 +1129,11 @@ final class DeckController {
 			let state  = status.text.components( separatedBy: ": " ).last ?? ""
 			return DeckMenuEntry( id: device.id, title: status.level == .demo ? "\(name) (demo)" : "\(name): \(state)", level: status.level )
 		}
-		return entries.filter { $0.level != .demo } + entries.filter { $0.level == .demo }
+		let new = newDevices.map { device in
+			DeckMenuEntry( id: SidebarItem.newDevice( device.client ), title: "\(device.hello.name): \(device.reason.status)",
+						   level: device.reason.canPair ? .waiting : .problem, isNew: true )
+		}
+		return entries.filter { $0.level != .demo } + new + entries.filter { $0.level == .demo }
 	}
 
 	// MARK: - Launch at Login

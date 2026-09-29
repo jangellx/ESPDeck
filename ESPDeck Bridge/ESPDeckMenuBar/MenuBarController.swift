@@ -82,6 +82,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		DockPresence.update()   // a window that just opened makes the app regular first
 		NSApp.activate()
 		NSApp.activate( ignoringOtherApps: true )
+		DockPresence.logState( "activate requested" )
 	}
 
 	func closeWindows( titled title: String ) {
@@ -97,8 +98,8 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 		// The Home, then the decks, each opening its Keys page.
 		let heading = NSMenuItem( title: deckHeading, action: nil, keyEquivalent: "" )
-		heading.isEnabled = false
-		heading.image     = Self.symbol( "house.fill", color: .systemOrange )
+		heading.isEnabled       = false
+		heading.attributedTitle = Self.title( deckHeading, icon: Self.symbol( "house.fill", color: .systemOrange ), dimmed: true )
 		menu.addItem( heading )
 		for deck in decks {
 			// The app sends "Name: state" or "Name (demo)": the state goes on a second line.
@@ -108,7 +109,6 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 			let item  = NSMenuItem( title: name, action: #selector( showDeck( _: ) ), keyEquivalent: "" )
 			item.target            = self
 			item.representedObject = deck.id
-			item.image             = Self.deckImage( level: deck.level )
 			item.indentationLevel  = 1
 			if let state {
 				if #available( macOS 14.4, * ) {
@@ -117,14 +117,15 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 					item.title = deck.title
 				}
 			}
+			item.attributedTitle = Self.title( item.title, icon: Self.deckImage( level: deck.level ) )
 			menu.addItem( item )
 		}
 		menu.addItem( .separator() )
 
 		for ( index, line ) in statusLines.enumerated() {
 			let item = NSMenuItem( title: line, action: nil, keyEquivalent: "" )
-			item.isEnabled = false
-			item.image     = Self.statusImage( level: index < statusLevels.count ? statusLevels[index] : 0 )
+			item.isEnabled       = false
+			item.attributedTitle = Self.title( line, icon: Self.statusImage( level: index < statusLevels.count ? statusLevels[index] : 0 ), dimmed: true )
 			menu.addItem( item )
 		}
 		menu.addItem( .separator() )
@@ -184,6 +185,34 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		return image
 	}
 
+	/// A title with its icon in front. macOS 27 gives a menu item's own image no room unless
+	/// the item also shows a state (a checkmark), but an attachment in the title gets its
+	/// space. The icon sits in a fixed-width box so the titles line up.
+	private static func title( _ text: String, icon: NSImage?, dimmed: Bool = false ) -> NSAttributedString {
+		let font  = NSFont.menuFont( ofSize: 0 )
+		let title = NSMutableAttributedString()
+		if let icon {
+			let side: CGFloat = 16
+			let box = NSImage( size: NSSize( width: side, height: side ), flipped: false ) { rect in
+				let size = icon.size
+				icon.draw( in: NSRect( x: rect.midX - size.width / 2, y: rect.midY - size.height / 2, width: size.width, height: size.height ) )
+				return true
+			}
+			let attachment = NSTextAttachment()
+			attachment.image  = box
+			attachment.bounds = NSRect( x: 0, y: ( font.capHeight - side ) / 2, width: side, height: side )
+			title.append( NSAttributedString( attachment: attachment ) )
+			title.append( NSAttributedString( string: " " ) )
+		}
+		title.append( NSAttributedString( string: text ) )
+		var attributes: [NSAttributedString.Key: Any] = [ .font: font ]
+		if dimmed {
+			attributes[.foregroundColor] = NSColor.secondaryLabelColor   // an attributed title isn't greyed when disabled
+		}
+		title.addAttributes( attributes, range: NSRange( location: 0, length: title.length ) )
+		return title
+	}
+
 	/// A menu-sized SF Symbol, in a colour or (without one) as a template like the menu's text.
 	private static func symbol( _ name: String, color: NSColor? = nil ) -> NSImage? {
 		var configuration = NSImage.SymbolConfiguration( pointSize: 13, weight: .regular )
@@ -194,12 +223,13 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	}
 
 	/// A deck, coloured by its state: green connected, yellow connecting or asleep, red a
-	/// problem, grey dashed a demo.
+	/// problem, grey dashed a demo, and the sidebar's shield for a new device.
 	private static func deckImage( level: Int ) -> NSImage? {
 		switch level {
 			case 1:  symbol( "square.grid.3x2.fill", color: .systemGreen )
 			case 2:  symbol( "exclamationmark.square.fill", color: .systemRed )
 			case 3:  symbol( "square.dashed", color: .secondaryLabelColor )
+			case 4:  symbol( "lock.shield", color: .controlAccentColor )
 			default: symbol( "square.grid.3x2.fill", color: .systemYellow )
 		}
 	}

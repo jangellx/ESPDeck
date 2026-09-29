@@ -9,6 +9,7 @@
 //
 
 import AppKit
+import os
 
 @MainActor
 enum DockPresence {
@@ -61,6 +62,29 @@ enum DockPresence {
 	/// request"), and that would be the one request that carries the click's permission.
 	static func windowWillOpen() {
 		expectingWindowUntil = Date( timeIntervalSinceNow: 5 )
+		logState( "window requested" )
+		// Timers in the common modes, so they also fire while a menu is tracking.
+		for delay in [ 0.5, 1.5, 3 ] {
+			RunLoop.main.add( Timer( timeInterval: delay, repeats: false ) { _ in
+				MainActor.assumeIsolated { logState( "\(delay) s later" ) }
+			}, forMode: .common )
+		}
+	}
+
+	/// Activation diagnostics:
+	/// `log show --last 5m --info --predicate 'subsystem == "com.tmproductions.espdeck"'`
+	private static let log = Logger( subsystem: "com.tmproductions.espdeck", category: "activation" )
+
+	static func logState( _ event: String ) {
+		let policy = switch NSApp.activationPolicy() {
+			case .regular:   "regular"
+			case .accessory: "accessory"
+			default:         "prohibited"
+		}
+		let front   = NSWorkspace.shared.frontmostApplication?.localizedName ?? "none"
+		let key     = NSApp.keyWindow.map { "'\($0.title)'" } ?? "none"
+		let windows = openWindows.map { "'\($0.title)' visible \($0.isVisible) key \($0.isKeyWindow)" }.joined( separator: ", " )
+		log.info( "\(event, privacy: .public): pid \(ProcessInfo.processInfo.processIdentifier) active \(NSApp.isActive) policy \(policy, privacy: .public) frontmost \(front, privacy: .public) key \(key, privacy: .public) windows [\(windows, privacy: .public)]" )
 	}
 
 	/// UIKit builds the window asynchronously, sometimes well after the click that asked for
@@ -69,10 +93,12 @@ enum DockPresence {
 	private static func focusExpectedWindow() {
 		guard Date() < expectingWindowUntil, let window = openWindows.first( where: \.isVisible ) else { return }
 		expectingWindowUntil = .distantPast
+		logState( "window appeared" )
 		update()   // regular now that a window is on screen
 		NSApp.activate()
 		NSApp.activate( ignoringOtherApps: true )
 		window.makeKeyAndOrderFront( nil )
+		logState( "activated for window" )
 	}
 
 	static func closeWindows() {
