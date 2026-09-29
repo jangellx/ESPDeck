@@ -200,3 +200,111 @@ extension DeckController {
 		return home.level( ref ).map { "\(Int( $0.rounded() ))%" }
 	}
 }
+
+// MARK: - Moving Level keys
+
+extension DeckController {
+	/// A drag that would split a Level pair (its other key can't come along), waiting for the
+	/// user to choose.
+	struct PendingLevelMove: Equatable {
+		var device  : String
+		var source  : Int
+		var target  : Int
+		var partner : Int
+	}
+
+	/// A key dragged onto another. Ordinary keys swap. A Level key dropped beside its partner
+	/// moves alone and the pair turns to match; dropped elsewhere, the pair moves together
+	/// (keys in the way swap into the places it left). If its partner would land off the deck,
+	/// `pendingLevelMove` is set for the view to ask about.
+	func moveKey( device id: String, from source: Int, to target: Int ) {
+		guard source != target, let index = config.settings.deviceIndex( id ) else { return }
+		config.settings.devices[index].ensureKey( max( source, target ) )
+		let keys = config.settings.devices[index].keys
+		// Dropping an ordinary key on a Level key moves the Level key the other way.
+		let ( moving, destination ) = isPairedSlider( keys, source ) ? ( source, target ) : isPairedSlider( keys, target ) ? ( target, source ) : ( -1, -1 )
+		guard moving >= 0, let partner = keys[moving].slider?.partner else {
+			swapKeys( device: id, source, target )
+			return
+		}
+
+		let layout = layout( id )
+		let cols   = max( layout.cols, 1 )
+		func place( _ key: Int ) -> ( row: Int, col: Int ) { ( key / cols, key % cols ) }
+		func beside( _ first: Int, _ second: Int ) -> Bool {
+			let a = place( first ), b = place( second )
+			return abs( a.row - b.row ) + abs( a.col - b.col ) == 1
+		}
+
+		if destination == partner || beside( destination, partner ) {
+			// The two trade places, or this key moves round its partner.
+			recordUndo( device: id, "Move Key" )
+			let swapped = isSwapped( keys, moving, partner, cols: cols )
+			config.settings.devices[index].keys.swapAt( moving, destination )
+			Self.remapSliders( &config.settings.devices[index].keys ) { $0 == moving ? destination : $0 == destination ? moving : $0 }
+			let newMoving  = destination
+			let newPartner = destination == partner ? moving : partner
+			orient( index: index, newMoving, newPartner, swapped: swapped, cols: cols )
+			assignmentsChanged( device: id )
+			return
+		}
+
+		// The pair moves as a block.
+		let from = place( moving ), to = place( destination ), other = place( partner )
+		let row  = other.row + to.row - from.row, col = other.col + to.col - from.col
+		guard row >= 0, col >= 0, row < layout.rows, col < cols else {
+			pendingLevelMove = PendingLevelMove( device: id, source: moving, target: destination, partner: partner )
+			return
+		}
+		let partnerTarget = row * cols + col
+		recordUndo( device: id, "Move Keys" )
+		let swapped = isSwapped( keys, moving, partner, cols: cols )
+		var moved   = keys
+		config.settings.devices[index].ensureKey( partnerTarget )
+		moved       = config.settings.devices[index].keys
+		let old     = moved
+		var mapping: [Int: Int] = [ moving: destination, partner: partnerTarget ]
+		let displaced = [ destination, partnerTarget ].filter { $0 != moving && $0 != partner }
+		let vacated   = [ moving, partner ].filter { $0 != destination && $0 != partnerTarget }
+		for ( from, to ) in zip( displaced, vacated ) { mapping[from] = to }
+		for ( from, to ) in mapping { moved[to] = old[from] }
+		Self.remapSliders( &moved ) { mapping[$0] ?? $0 }
+		config.settings.devices[index].keys = moved
+		orient( index: index, destination, partnerTarget, swapped: swapped, cols: cols )
+		assignmentsChanged( device: id )
+	}
+
+	/// After asking: move the key alone and clear its partner, which couldn't come along.
+	func moveKeyClearingPartner( _ move: PendingLevelMove ) {
+		guard let index = config.settings.deviceIndex( move.device ) else { return }
+		recordUndo( device: move.device, "Move Key" )
+		config.settings.devices[index].keys[move.partner] = KeyAssignment()
+		config.settings.devices[index].keys[move.source].slider = nil
+		config.settings.devices[index].keys.swapAt( move.source, move.target )
+		Self.remapSliders( &config.settings.devices[index].keys ) { $0 == move.source ? move.target : $0 == move.target ? move.source : $0 }
+		config.removeUnusedIcons()
+		assignmentsChanged( device: move.device )
+	}
+
+	private func isPairedSlider( _ keys: [KeyAssignment], _ key: Int ) -> Bool {
+		guard key < keys.count, let partner = keys[key].slider?.partner, partner < keys.count else { return false }
+		return keys[partner].slider?.partner == key
+	}
+
+	/// The key above (or right) raises by default.
+	private static func raisesByDefault( _ key: Int, partner: Int, cols: Int ) -> Bool {
+		let row = key / cols, other = partner / cols
+		return row != other ? row < other : key % cols > partner % cols
+	}
+
+	private func isSwapped( _ keys: [KeyAssignment], _ key: Int, _ partner: Int, cols: Int ) -> Bool {
+		( keys[key].slider?.raises ?? true ) != Self.raisesByDefault( key, partner: partner, cols: cols )
+	}
+
+	/// Sets which key raises for the pair's new layout, keeping a swap the user made.
+	private func orient( index: Int, _ key: Int, _ partner: Int, swapped: Bool, cols: Int ) {
+		let raises = Self.raisesByDefault( key, partner: partner, cols: cols ) != swapped
+		config.settings.devices[index].keys[key].slider?.raises     = raises
+		config.settings.devices[index].keys[partner].slider?.raises = !raises
+	}
+}

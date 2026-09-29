@@ -120,7 +120,7 @@ private struct DeckKeyView: View {
 			switch items.first {
 				case .key( let source ):
 					guard source != index else { return false }
-					controller.swapKeys( device: deviceID, source, index )
+					controller.moveKey( device: deviceID, from: source, to: index )
 					selection = index   // the selection follows the dragged key
 				case .image( let image ):
 					selection = index

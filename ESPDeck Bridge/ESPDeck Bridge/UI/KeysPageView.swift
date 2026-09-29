@@ -129,6 +129,16 @@ struct KeysPageView: View {
 		.controlSize( .small )
 		.padding( .horizontal, 14 )
 		.padding( .vertical, 8 )
+		.confirmationDialog( "Move Key \( ( controller.pendingLevelMove?.source ?? 0 ) + 1 ) Alone?",
+							 isPresented: Binding( get: { controller.pendingLevelMove != nil }, set: { if !$0 { controller.pendingLevelMove = nil } } ),
+							 titleVisibility: .visible ) {
+			Button( "Move It and Clear Key \( ( controller.pendingLevelMove?.partner ?? 0 ) + 1 )", role: .destructive ) {
+				if let move = controller.pendingLevelMove { controller.moveKeyClearingPartner( move ) }
+				controller.pendingLevelMove = nil
+			}
+		} message: {
+			Text( "It's a Level key paired with Key \( ( controller.pendingLevelMove?.partner ?? 0 ) + 1 ), which would land off the edge of the deck if they moved together." )
+		}
 		.confirmationDialog( "Confirm Delete Page", isPresented: Binding( get: { deletingPage != nil }, set: { if !$0 { deletingPage = nil } } ),
 							 titleVisibility: .visible ) {
 			Button( "Delete Page", role: .destructive ) {

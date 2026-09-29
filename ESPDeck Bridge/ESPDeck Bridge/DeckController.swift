@@ -57,6 +57,8 @@ final class DeckController {
 	@ObservationIgnored private var shortcutsLoading = false
 	/// Keys ("device/key") whose HomeKit write or scene hasn't finished yet.
 	@ObservationIgnored private var keysInFlight: Set<String> = []
+	/// A drag that would split a Level pair, for the Keys page to ask about.
+	var pendingLevelMove: PendingLevelMove?
 	/// Slider keys being held ("device/key"): their repeat.
 	@ObservationIgnored var sliderRepeats: [String: Task<Void, Never>] = [:]
 	/// The configuration window's, for Edit ▸ Undo; see DeckController+Undo.
