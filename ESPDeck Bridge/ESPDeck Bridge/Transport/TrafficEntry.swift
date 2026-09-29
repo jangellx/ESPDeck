@@ -148,6 +148,15 @@ struct TrafficEntry: Identifiable {
 				let state  = status["setupMode"] as? Bool == true ? "in setup mode" : status["asleep"] as? Bool == true ? "asleep" : "awake"
 				let why    = ( object["reason"] as? String ).map { " (\(DeviceStatus.describe( reason: plain( $0 ) )))" } ?? ""
 				return "The deck is \(state)\(why)"
+			case "usbDevice":
+				guard let vid = object["vid"] as? Int, let pid = object["pid"] as? Int else {
+					return "Something was plugged into the USB port, but it couldn't be identified"
+				}
+				let id = String( format: "%04X:%04X", vid, pid )
+				if object["class"] as? Int == 0x09 {
+					return "A USB hub (\(id)) was plugged in; a Stream Deck behind a hub isn't supported"
+				}
+				return vid == 0x0FD9 ? "An Elgato device (\(id)) was plugged in" : "A USB device (\(id)) was plugged in; it isn't a Stream Deck"
 			case "need":           return "The deck asked for an image it doesn't have"
 			case "shown":          return "\(key( object ).capitalizedFirst) now shows its image"
 			case "keyDown":        return "\(key( object ).capitalizedFirst) pressed"

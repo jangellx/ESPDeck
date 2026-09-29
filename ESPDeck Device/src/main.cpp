@@ -305,6 +305,19 @@ static void sendStatus( const char *reason ) {
 	sendJSON( json );
 }
 
+// Whatever was plugged into the USB port, for the Mac's log: a Stream Deck that never shows
+// up is otherwise indistinguishable from nothing plugged in.
+static void sendUsbDevice( const StreamDeck::UsbDevice &device ) {
+	cJSON *json = cJSON_CreateObject();
+	cJSON_AddStringToObject( json, "type", "usbDevice" );
+	if( device.vid != 0 ) {
+		cJSON_AddNumberToObject( json, "vid", device.vid );
+		cJSON_AddNumberToObject( json, "pid", device.pid );
+		cJSON_AddNumberToObject( json, "class", device.deviceClass );
+	}
+	sendJSON( json );
+}
+
 static void sendKey( const char *type, uint8_t key ) {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", type );
@@ -947,6 +960,11 @@ static void handleAuth( cJSON *json ) {
 
 	// What the unauthenticated hello left out (the Wi-Fi network).
 	sendStatus( "session" );
+
+	// Plugged in before the Mac connected (at boot, say) but never recognized as a deck.
+	StreamDeck::UsbDevice usb = deck.lastUsbDevice();
+	if( usb.seen && !deckConnected )
+		sendUsbDevice( usb );
 }
 
 // Renamed since the last hello (over Improv, or on the setup page) while connected: inside a
@@ -1472,6 +1490,9 @@ static void handleDeckEvent( const StreamDeck::Event &event ) {
 		case StreamDeck::EventType::KeyUp:
 			ESP_LOGI( TAG, "Deck key %u up (forwarded %d)", event.key, ( keysForwarded & keyBit( event.key ) ) != 0 );
 			handleKeyUp( event.key );
+			break;
+		case StreamDeck::EventType::UsbDevice:
+			sendUsbDevice( deck.lastUsbDevice() );
 			break;
 	}
 }

@@ -143,6 +143,9 @@ enum DeviceMessage {
 	case firmwareStatus( FirmwareStatus )
 	/// The answer to encryptStorage.
 	case storageStatus( StorageStatus )
+	/// Something was plugged into the deck's USB port (firmware 4.1.0 and later). Only for
+	/// the log, which describes it from the JSON.
+	case usbDevice
 
 	struct FirmwareStatus {
 		enum State: String {
@@ -253,6 +256,8 @@ enum DeviceMessage {
 			case "storageStatus":
 				guard let state = envelope.state.flatMap( StorageStatus.State.init( rawValue: ) ) else { return nil }
 				self = .storageStatus( StorageStatus( state: state, message: envelope.message ) )
+			case "usbDevice":
+				self = .usbDevice
 			default:
 				return nil
 		}

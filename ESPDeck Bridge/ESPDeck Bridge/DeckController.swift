@@ -703,7 +703,7 @@ final class DeckController {
 		guard let id = clientDevices[client], let device = device( id ) else { return }
 
 		switch message {
-			case .hello, .auth, .pairResponse, .pairReveal, .pairConfirm, .pairCancel:
+			case .hello, .auth, .pairResponse, .pairReveal, .pairConfirm, .pairCancel, .usbDevice:
 				break
 
 			case .firmwareStatus( let status ):

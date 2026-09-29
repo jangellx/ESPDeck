@@ -35,6 +35,15 @@ public:
 		Disconnected,
 		KeyDown,
 		KeyUp,
+		UsbDevice,   // any USB device was plugged in; see lastUsbDevice()
+	};
+
+	// What was last plugged into the USB port, Stream Deck or not. vid is 0 if it couldn't be read.
+	struct UsbDevice {
+		bool     seen;          // false until something has been plugged in
+		uint16_t vid;
+		uint16_t pid;
+		uint8_t  deviceClass;   // 0x09 is a hub; 0x00 means per interface (HID for a deck)
 	};
 
 	struct Event {
@@ -91,6 +100,7 @@ public:
 
 	bool isConnected() const;
 	Info info() const;
+	UsbDevice lastUsbDevice() const;
 
 	// Uploads a ready-to-display image (keySize square, in the model's format, transform
 	// already applied) to a key.
@@ -129,13 +139,15 @@ private:
 	esp_err_t submitAndWait( bool control );
 	uint8_t wireKey( uint8_t key ) const;
 	void post( EventType type, uint8_t key = 0 );
+	void recordUsbDevice( const UsbDevice &device );
 
 	QueueHandle_t            events_       = nullptr;
 	QueueHandle_t            requests_     = nullptr;
-	SemaphoreHandle_t        mutex_        = nullptr;   // guards handle_, info_, report_ and the output transfer
+	SemaphoreHandle_t        mutex_        = nullptr;   // guards handle_, info_, usbDevice_, report_ and the output transfer
 
 	hid_host_device_handle_t handle_       = nullptr;
 	Info                     info_         = {};
+	UsbDevice                usbDevice_    = {};
 	uint8_t                  keyStates_[kMaxKeys] = {};
 	uint8_t                 *report_       = nullptr;   // one output report, built before sending
 
