@@ -27,6 +27,9 @@ enum SidebarItem {
 struct ConfigurationView: View {
 	let controller: DeckController
 
+	/// Decks needing unpairing whose keys and settings were asked for anyway.
+	@State private var showingStuckDevice: Set<String> = []
+
 	private var window: WindowState { controller.window }
 
 	private var selection: Binding<String?> {
@@ -51,8 +54,13 @@ struct ConfigurationView: View {
 				NewDeviceView( controller: controller, client: client )
 					.id( client )
 			} else if let id = window.selection, controller.device( id ) != nil {
-				DeviceDetailView( controller: controller, deviceID: id )
-					.id( id )
+				if let stuck = controller.stuckConnection( for: id ), controller.device( id )?.isOnline != true, !showingStuckDevice.contains( id ) {
+					NeedsUnpairingView( controller: controller, deviceID: id, stuck: stuck ) { showingStuckDevice.insert( id ) }
+						.id( id )
+				} else {
+					DeviceDetailView( controller: controller, deviceID: id )
+						.id( id )
+				}
 			} else {
 				ContentUnavailableView {
 					Label( "No Device Selected", systemImage: "square.grid.3x2" )
@@ -120,6 +128,16 @@ private struct Sidebar: View {
 	/// Until then, the list's own selection changes are ignored: clicking a button in a row
 	/// also selects the row, before or after the button's action.
 	@State private var holdSelectionUntil = Date.distantPast
+	@State private var showNotConnected   = false
+
+	/// Connected decks, and demo decks (never connected, always usable).
+	private var connectedDevices: [DeckDevice] {
+		controller.devices.filter { $0.isOnline || controller.settings( $0.id )?.isDemo == true }
+	}
+
+	private var notConnectedDevices: [DeckDevice] {
+		controller.devices.filter { !$0.isOnline && controller.settings( $0.id )?.isDemo != true }
+	}
 
 	private var listSelection: Binding<String?> {
 		Binding { selection } set: { item in
@@ -152,50 +170,34 @@ private struct Sidebar: View {
 			}
 
 			Section {
-				if controller.devices.isEmpty {
-					Text( "No devices yet" )
+				if connectedDevices.isEmpty {
+					Text( controller.devices.isEmpty ? "No devices yet" : "None connected" )
 						.foregroundStyle( .secondary )
 				}
-				ForEach( controller.devices ) { device in
-					let status = controller.status( device: device )
-					Label {
-						VStack( alignment: .leading, spacing: 1 ) {
-							// The update arrow on the name's line, not centred on the row.
-							HStack {
-								Text( controller.settings( device.id )?.name ?? device.id )
-								Spacer( minLength: 4 )
-								if controller.updates.firmwareUpdateAvailable( for: device ), let latest = controller.updates.latestFirmware {
-									Button {
-										holdSelectionUntil = Date( timeIntervalSinceNow: 0.5 )
-										selection          = SidebarItem.updates
-									} label: {
-										Image( systemName: "arrow.up.circle.fill" )
-											.foregroundStyle( .tint )
-									}
-									.buttonStyle( .borderless )
-									.help( "Firmware \(latest.version.description) is available. Click to open Updates." )
-									.accessibilityLabel( "Firmware update available" )
-								}
-							}
-							// Firmware, then the state; an ⓘ explains a state that needs fixing.
-							HStack( spacing: 4 ) {
-								let state = ( status.text.components( separatedBy: ": " ).last ?? "" ).capitalizedFirst
-								Text( device.firmware.map { "\($0) · \(state)" } ?? state )
-									.foregroundStyle( .secondary )
-								if let explanation = controller.statusExplanation( device: device ) {
-									InfoButton( help: "About \(state)", text: explanation )
-										.imageScale( .small )
-								}
-							}
-							.font( .caption )
-						}
-					} icon: {
-						StatusIndicator( level: status.level )
-					}
-					.tag( device.id )
+				ForEach( connectedDevices ) { device in
+					deviceRow( device )
 				}
 			} header: {
 				SectionHeader( "Devices", sidebar: true )
+			}
+
+			// Decks that aren't connected, to look at or copy from; closed at first.
+			let away = notConnectedDevices
+			if !away.isEmpty {
+				Section( isExpanded: $showNotConnected ) {
+					ForEach( away ) { device in
+						deviceRow( device )
+					}
+				} header: {
+					HStack {
+						SectionHeader( "Not Connected", sidebar: true )
+						Spacer()
+						Text( "\(away.count)" )
+							.font( .subheadline )
+							.foregroundStyle( Color.secondary )
+							.textCase( nil )
+					}
+				}
 			}
 
 			Section {
@@ -284,6 +286,46 @@ private struct Sidebar: View {
 			}
 		}
 		.listStyle( .sidebar )
+	}
+
+	@ViewBuilder
+	private func deviceRow( _ device: DeckDevice ) -> some View {
+		let status = controller.status( device: device )
+		Label {
+			VStack( alignment: .leading, spacing: 1 ) {
+				// The update arrow on the name's line, not centred on the row.
+				HStack {
+					Text( controller.settings( device.id )?.name ?? device.id )
+					Spacer( minLength: 4 )
+					if controller.updates.firmwareUpdateAvailable( for: device ), let latest = controller.updates.latestFirmware {
+						Button {
+							holdSelectionUntil = Date( timeIntervalSinceNow: 0.5 )
+							selection          = SidebarItem.updates
+						} label: {
+							Image( systemName: "arrow.up.circle.fill" )
+								.foregroundStyle( .tint )
+						}
+						.buttonStyle( .borderless )
+						.help( "Firmware \(latest.version.description) is available. Click to open Updates." )
+						.accessibilityLabel( "Firmware update available" )
+					}
+				}
+				// Firmware, then the state; an ⓘ explains a state that needs fixing.
+				HStack( spacing: 4 ) {
+					let state = ( status.text.components( separatedBy: ": " ).last ?? "" ).capitalizedFirst
+					Text( device.firmware.map { "\($0) · \(state)" } ?? state )
+						.foregroundStyle( .secondary )
+					if let explanation = controller.statusExplanation( device: device ) {
+						InfoButton( help: "About \(state)", text: explanation )
+							.imageScale( .small )
+					}
+				}
+				.font( .caption )
+			}
+		} icon: {
+			StatusIndicator( level: status.level )
+		}
+		.tag( device.id )
 	}
 }
 

@@ -63,6 +63,12 @@ enum PairingKeyStore {
 		return nil
 	}
 
+	/// The Keychain said it has no key for this device (errSecItemNotFound), rather than
+	/// failing to answer: checking again won't find one.
+	static func isMissing( _ deviceID: String ) -> Bool {
+		missing.contains( deviceID )
+	}
+
 	/// A key read() found.
 	static func remember( _ key: Data, for deviceID: String ) {
 		cache[deviceID] = key

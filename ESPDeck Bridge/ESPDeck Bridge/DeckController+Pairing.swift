@@ -178,7 +178,9 @@ extension DeckController {
 			listNewDevice( client, hello, reason )
 			// Still here, even though it can't be used until it's unpaired and paired again.
 			if reason == .keyMissing || reason == .pairedElsewhere { server.send( .noKey, to: client ) }
-			if reason == .keyMissing { recheckKey( client, deviceID: hello.id ) }
+			// Only when reading the key failed: when the Keychain says there's none, there's
+			// nothing to wait for.
+			if reason == .keyMissing && !PairingKeyStore.isMissing( hello.id ) { recheckKey( client, deviceID: hello.id ) }
 			return
 		}
 

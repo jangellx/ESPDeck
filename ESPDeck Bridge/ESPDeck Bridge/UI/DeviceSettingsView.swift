@@ -17,6 +17,7 @@ struct DeviceSettingsView: View {
 	@State private var nameDraft        = ""
 	@State private var brightness       = 80.0
 	@State private var confirmingReset  = false
+	@State private var copyingDeck      = false
 	@FocusState private var nameFocused: Bool
 
 	private static let sleepChoices: [( title: String, seconds: Int )] = [
@@ -108,6 +109,17 @@ struct DeviceSettingsView: View {
 		let online = device.isOnline
 
 		Form {
+			// A deck with nothing on it yet (new, say): offer another deck's setup.
+			if settings.pages.allSatisfy( { $0.allSatisfy( \.isEmpty ) } ), !controller.copySources( for: deviceID ).isEmpty {
+				Section {
+					HStack {
+						Label( "Start from another deck's keys and settings?", systemImage: "square.on.square" )
+						Spacer()
+						Button( "Copy From Deck…" ) { copyingDeck = true }
+					}
+				}
+			}
+
 			Section {
 				// Renamed on Return or when the field loses focus; an empty field goes back to the current name.
 				TextField( "Name", text: $nameDraft, prompt: Text( settings.defaultName ) )
@@ -275,13 +287,17 @@ struct DeviceSettingsView: View {
 				HStack {
 					Button( "Factory Reset Device…", role: .destructive ) { confirmingReset = true }
 						.disabled( !online )
-						.confirmationDialog( "Factory reset \(settings.name)?", isPresented: $confirmingReset ) {
-							Button( "Factory Reset", role: .destructive ) { controller.factoryReset( device: deviceID ) }
-						} message: {
-							Text( "The ESPDeck erases its Wi-Fi settings, name, pairing, and stored key images, and restarts in setup mode as if new. Its key layout stays in ESPDeck Bridge and returns once you set it up and pair it again." )
+						.sheet( isPresented: $confirmingReset ) {
+							FactoryResetSheet( controller: controller, deviceID: deviceID )
 						}
 					InfoButton( help: "About Factory Reset",
-								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It restarts in setup mode as if new. Its key layout stays in ESPDeck Bridge and comes back once you set it up and pair it again." )
+								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It restarts in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again it gets back its own settings, or another deck's." )
+				}
+				HStack {
+					Button( "Copy From Deck…" ) { copyingDeck = true }
+						.disabled( controller.copySources( for: deviceID ).isEmpty )
+					InfoButton( help: "About Copy From Deck",
+								text: "Copies another deck's keys and settings onto this one: choose which (keys and pages, name, network name, display, sleep, key presses). Any deck ESPDeck Bridge knows can be copied, including ones that aren't connected. Pairing keys and Wi-Fi passwords are never copied." )
 				}
 				HStack {
 					Button( "Forget Device…", role: .destructive ) { controller.window.confirmingForget = true }
@@ -304,6 +320,11 @@ struct DeviceSettingsView: View {
 			StatusLightSection()
 		}
 		.formStyle( .grouped )
+		// Here rather than on a button: a Form only builds the rows on screen, and the offer
+		// at the top opens it too.
+		.sheet( isPresented: $copyingDeck ) {
+			CopyDeckSheet( controller: controller, deviceID: deviceID )
+		}
 	}
 
 	private func deckDescription( _ settings: DeviceSettings, _ device: DeckDevice ) -> String {

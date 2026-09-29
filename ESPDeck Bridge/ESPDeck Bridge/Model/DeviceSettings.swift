@@ -160,6 +160,12 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	var onSleep       = KeyAssignment()
 	var onWake        = KeyAssignment()
 
+	/// Its name on the network when it isn't the original (defaultHostname), as it last
+	/// reported; kept so it can be restored.
+	var hostname      : String?
+	/// When it last had a session with this bridge.
+	var lastSeen      : Date?
+
 	init( id: String, name: String ) {
 		self.id   = id
 		self.name = name
@@ -198,6 +204,8 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		sleepTriggers = container.lenientArray( of: SleepTrigger.self, forKey: .sleepTriggers ) ?? []
 		onSleep       = container.lenient( KeyAssignment.self, forKey: .onSleep ) ?? KeyAssignment()
 		onWake        = container.lenient( KeyAssignment.self, forKey: .onWake ) ?? KeyAssignment()
+		hostname      = container.lenient( String.self, forKey: .hostname )
+		lastSeen      = container.lenient( Date.self, forKey: .lastSeen )
 		if name.isEmpty { name = defaultName }
 	}
 
@@ -236,6 +244,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	private enum CodingKeys: String, CodingKey {
 		case id, name, isDemo, pages, gridColumns, currentPage, layout, brightness, orientation, sleepTimeout, devOTA, labelPosition
 		case repeatDelay, repeatRate, doubleTapWindow, holdTime, sleepTriggers, onSleep, onWake
+		case hostname, lastSeen
 		case keys   // before pages
 	}
 
@@ -260,6 +269,8 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		try container.encode( sleepTriggers, forKey: .sleepTriggers )
 		try container.encode( onSleep, forKey: .onSleep )
 		try container.encode( onWake, forKey: .onWake )
+		try container.encodeIfPresent( hostname, forKey: .hostname )
+		try container.encodeIfPresent( lastSeen, forKey: .lastSeen )
 	}
 
 	/// A page whose unreadable keys become empty ones (see lenientArray(of:forKey:placeholder:)).
@@ -399,11 +410,14 @@ struct BridgeSettings: Codable, Equatable {
 	var usbScanning = true
 	/// The symbols last chosen for a pair of slider keys; new pairs start with them.
 	var sliderStyle = SliderStyle.chevron
+	/// Settings to give a device when it next connects (after a factory reset, or copied
+	/// while it was offline), by device ID.
+	var pendingRestores: [String: PendingRestore] = [:]
 
 	init() {}
 
 	private enum CodingKeys: String, CodingKey {
-		case homeID, devices, legacyKeys, bridgeID, updates, usbScanning, sliderStyle
+		case homeID, devices, legacyKeys, bridgeID, updates, usbScanning, sliderStyle, pendingRestores
 		case keys   // single-deck version
 	}
 
@@ -415,6 +429,7 @@ struct BridgeSettings: Codable, Equatable {
 		updates     = container.lenient( UpdateSettings.self, forKey: .updates ) ?? UpdateSettings()
 		usbScanning = container.lenient( Bool.self, forKey: .usbScanning ) ?? true
 		sliderStyle = container.lenient( SliderStyle.self, forKey: .sliderStyle ) ?? .chevron
+		pendingRestores = container.lenient( [String: PendingRestore].self, forKey: .pendingRestores ) ?? [:]
 		legacyKeys  = container.lenientArray( of: KeyAssignment.self, forKey: .legacyKeys, placeholder: KeyAssignment() )
 					  ?? container.lenientArray( of: KeyAssignment.self, forKey: .keys, placeholder: KeyAssignment() )
 		if !devices.isEmpty { legacyKeys = nil }
@@ -429,6 +444,7 @@ struct BridgeSettings: Codable, Equatable {
 		try container.encode( updates, forKey: .updates )
 		try container.encode( usbScanning, forKey: .usbScanning )
 		try container.encode( sliderStyle, forKey: .sliderStyle )
+		if !pendingRestores.isEmpty { try container.encode( pendingRestores, forKey: .pendingRestores ) }
 	}
 
 	func deviceIndex( _ id: String ) -> Int? {

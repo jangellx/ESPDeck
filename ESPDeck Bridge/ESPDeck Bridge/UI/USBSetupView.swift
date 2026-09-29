@@ -202,6 +202,12 @@ struct USBSetupView: View {
 				lines.append( "Wi-Fi: \(network.ssid)" + ( network.connected ? "" : " (not connected)" ) )
 			}
 		}
+		if let hostname = board.espDeck?.network?.hostname {
+			lines.append( "Network name: \(hostname) (\(hostname).local)" )
+		}
+		if let paired = board.espDeck?.pairedBridge {
+			lines.append( paired.isEmpty ? "Not paired" : paired == controller.config.settings.bridgeID ? "Paired with this Mac" : "Paired with another ESPDeck Bridge" )
+		}
 		if let storage = board.espDeck?.storage {
 			lines.append( storage.isEncrypted ? "Stored secrets: encrypted" : "Stored secrets: not encrypted" )
 		}

@@ -952,8 +952,9 @@ static void onBridgeDown() {
 	firmware.abort();
 	if( pairing.stage != PairingStage::None )
 		endPairing();
-	keysForwarded = 0;
-	swallowKeys   = keysDown != 0;
+	keysForwarded  = 0;
+	swallowKeys    = keysDown != 0;
+	bridgeHasNoKey = false;
 	session.reset();
 	refreshScreen();
 }
@@ -1909,8 +1910,9 @@ void loop() {
 	if( screen == Screen::Setup && portal.canExit() != setupExitShown )
 		refreshScreen( true );   // add or remove the Exit key
 
-	// Unpairing on the setup page ends the session too.
-	if( session.authenticated() && !settings.isPaired() )
+	// Unpairing on the setup page or over USB ends the session too, or the idle wait on a
+	// bridge without our key: connecting again, it's a new device there, ready to pair.
+	if( ( session.authenticated() || bridgeHasNoKey ) && !settings.isPaired() )
 		dropBridge( true );
 	bridge.setPreferredBridge( settings.pairedBridge() );
 	bridge.loop();

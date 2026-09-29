@@ -802,6 +802,9 @@ final class DeckController {
 				if let value = status.devOTA {
 					updateMirror( id ) { $0.devOTA = value }
 				}
+				if let value = status.hostname {
+					updateMirror( id ) { $0.hostname = value == $0.defaultHostname ? nil : value }
+				}
 				if status.asleep || status.setupMode {
 					device.pressed = []
 					device.chord   = false
@@ -907,6 +910,8 @@ final class DeckController {
 			if let value = hello.settings.sleepTimeout { settings.sleepTimeout = value }
 			if let value = hello.status.devOTA         { settings.devOTA = value }
 			if let layout = hello.deck.layout          { settings.layout = layout }
+			if let value = hello.status.hostname       { settings.hostname = value == settings.defaultHostname ? nil : value }
+			settings.lastSeen = Date()
 		}
 
 		guard let device = device( hello.id ) else { return }
@@ -933,6 +938,7 @@ final class DeckController {
 		renderAll( device: hello.id )
 		sendRepeatKeys( device: hello.id )
 		firmwareReconnected( device )
+		applyPendingRestore( device: hello.id )
 		storageReconnected( device )
 		updates.deviceConnected( hello.id )
 	}

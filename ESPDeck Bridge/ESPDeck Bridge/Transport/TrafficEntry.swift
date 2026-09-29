@@ -171,7 +171,7 @@ struct TrafficEntry: Identifiable {
 				}
 				return vid == 0x0FD9 ? "An Elgato device (\(id)) was plugged in" : "A USB device (\(id)) was plugged in; it isn't a Stream Deck"
 			case "need":           return "The deck asked for an image it doesn't have"
-			case "shown":          return "\(key( object ).capitalizedFirst) now shows its image"
+			case "shown":          return "\(key( object ).capitalizedFirst) is now showing its image"
 			case "keyDown":        return "\(key( object ).capitalizedFirst) pressed"
 			case "keyUp":          return "\(key( object ).capitalizedFirst) released"
 			case "keyRepeat":      return "\(key( object ).capitalizedFirst) held: repeat"

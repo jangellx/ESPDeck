@@ -140,7 +140,7 @@ enum DeviceMessage {
 	case keyRepeat( Int )
 	/// What kind of press it was, judged on the device (see HostMessage.keyModes).
 	case keyPress( Int, PressKind )
-	/// A key now shows this image on the deck (uploaded, or it already did).
+	/// A key is now showing this image on the deck (uploaded, or it already did).
 	case shown( key: Int, hash: String )
 	case auth( proof: Data )
 	/// Pairing (protocol 4): the deck's public key and its commitment to it and its nonce.

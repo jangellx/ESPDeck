@@ -86,6 +86,8 @@ final class USBSetup {
 		var network  : SavedNetwork?
 		/// How it stores its settings; nil from firmware that doesn't say (before 4.1.0).
 		var storage  : Storage?
+		/// The bridge it's paired with, "" if none; nil from firmware that doesn't say.
+		var pairedBridge: String?
 
 		var isESPDeck: Bool { firmware == FirmwareImage.projectName }
 	}
@@ -96,6 +98,8 @@ final class USBSetup {
 		var ssid      : String
 		/// Whether it's on that network now.
 		var connected : Bool
+		/// Its name on the network (hostname); nil from firmware that doesn't say.
+		var hostname  : String?
 	}
 
 	/// How the board stores its settings (Wi-Fi password, pairing key), and what joining a
@@ -208,6 +212,16 @@ final class USBSetup {
 	private(set) var findingNetworks = false
 	private(set) var wifi            = WiFi.idle
 	private(set) var rename          = Rename.idle
+	private(set) var unpairing       = Unpairing.idle
+	/// The board `unpairing` is about.
+	private(set) var unpairingPath   : String?
+
+	enum Unpairing: Equatable {
+		case idle
+		case working
+		case done
+		case failed( String )
+	}
 	private(set) var joinedBoard     : JoinedBoard?
 
 	@ObservationIgnored private var watching           = false
@@ -248,6 +262,8 @@ final class USBSetup {
 		/// The storage and what the first network will do (Storage); with one byte, chooses
 		/// Standard (0) or encrypted (1) storage for a new board's setup first.
 		static let storage     = 0xFD
+		/// The bridge ID it's paired with ("" if none); with 0x00, unpairs it first.
+		static let pairing     = 0xFC
 
 		static let unknownCommand = 0x02
 
@@ -432,8 +448,9 @@ final class USBSetup {
 					return DeviceInfo( firmware: packet.strings[0], version: packet.strings[1], chip: packet.strings[2], name: packet.strings[3] )
 				} ) {
 					if info.isESPDeck {
-						info.network = await askNetwork()
-						info.storage = await askStorage()
+						info.network      = await askNetwork()
+						info.storage      = await askStorage()
+						info.pairedBridge = await askPairing()
 					}
 					answer = .answered( info )
 				}
@@ -450,7 +467,8 @@ final class USBSetup {
 		guard send( Improv.wifiNetwork ) else { return nil }
 		let answer = await wait( .milliseconds( 700 ) ) { packet -> SavedNetwork?? in
 			if packet.type == Improv.typeResult, packet.value == Improv.wifiNetwork, let ssid = packet.strings.first {
-				return SavedNetwork( ssid: DeviceMessage.displayName( ssid ) ?? "", connected: packet.strings.count > 1 && packet.strings[1] == "YES" )
+				return SavedNetwork( ssid: DeviceMessage.displayName( ssid ) ?? "", connected: packet.strings.count > 1 && packet.strings[1] == "YES",
+									 hostname: packet.strings.count > 2 ? DeviceSettings.hostname( from: packet.strings[2] ) : nil )
 			}
 			if packet.type == Improv.typeError, packet.value != 0 { return .some( nil ) }
 			return nil
@@ -470,6 +488,47 @@ final class USBSetup {
 			return nil
 		}
 		return answer ?? nil
+	}
+
+	/// The bridge an ESPDeck board is paired with ("" if none), on the port that's open; with
+	/// `unpair`, unpairs it first. Nil as for askNetwork().
+	private func askPairing( unpair: Bool = false ) async -> String? {
+		guard send( Improv.pairing, data: unpair ? Data( [ 0 ] ) : Data() ) else { return nil }
+		let answer = await wait( .milliseconds( unpair ? 2000 : 700 ) ) { packet -> String?? in
+			if packet.type == Improv.typeResult, packet.value == Improv.pairing { return .some( packet.strings.first ?? "" ) }
+			if packet.type == Improv.typeError, packet.value != 0 { return .some( nil ) }
+			return nil
+		}
+		return answer ?? nil
+	}
+
+	/// The board for a device, where one is plugged in and has answered: by its USB serial
+	/// number (the ESP32-S3's own port), else by name.
+	func board( forDevice id: String ) -> Board? {
+		boards.first { $0.port.deviceID == id }
+			?? controller?.settings( id ).flatMap { settings in boards.first { $0.espDeck?.name == settings.name } }
+	}
+
+	/// Unpairs a board over USB, as its setup page's Unpair does. It then connects as a new
+	/// device, ready to pair.
+	func unpair( _ board: Board ) {
+		let path = board.port.path
+		unpairingPath = path
+		unpairing     = .working
+		enqueue { [weak self] in
+			guard let self else { return }
+			defer { closePort() }
+			guard openPort( path ), let paired = await askPairing( unpair: true ) else {
+				unpairing = .failed( "The board didn't answer. Its firmware may be older than 4.1.0, which can't be unpaired over USB: use its setup page, or a factory reset." )
+				return
+			}
+			update( path ) { board in
+				guard case .answered( var info ) = board.answer else { return }
+				info.pairedBridge = paired
+				board.answer      = .answered( info )
+			}
+			unpairing = paired.isEmpty ? .done : .failed( "The board is still paired." )
+		}
 	}
 
 	private func updateStorage( _ path: String, _ storage: Storage? ) {
