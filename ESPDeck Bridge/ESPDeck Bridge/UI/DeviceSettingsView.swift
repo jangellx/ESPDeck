@@ -182,6 +182,39 @@ struct DeviceSettingsView: View {
 			}
 			.disabled( !online )
 
+			Section {
+				LabeledContent( "Repeat Delay" ) {
+					HStack {
+						Slider( value: Binding {
+							settings.repeatDelay
+						} set: { delay in
+							controller.updateSettings( device: deviceID ) { $0.repeatDelay = ( delay * 10 ).rounded() / 10 }
+						}, in: DeviceSettings.repeatDelayRange, step: 0.1 )
+						.frame( maxWidth: 200 )
+						Text( settings.repeatDelay.formatted( .number.precision( .fractionLength( 1 ) ) ) + " s" )
+							.monospacedDigit()
+							.frame( width: 44, alignment: .trailing )
+					}
+				}
+				LabeledContent( "Repeat Speed" ) {
+					HStack {
+						Slider( value: Binding {
+							settings.repeatRate
+						} set: { rate in
+							controller.updateSettings( device: deviceID ) { $0.repeatRate = rate.rounded() }
+						}, in: DeviceSettings.repeatRateRange, step: 1 )
+						.frame( maxWidth: 200 )
+						Text( "\(Int( settings.repeatRate )) / s" )
+							.monospacedDigit()
+							.frame( width: 44, alignment: .trailing )
+					}
+				}
+			} header: {
+				SectionHeader( "Slider Keys" )
+			} footer: {
+				Text( "Holding a slider key (Keys page ▸ Type ▸ Slider) steps it again and again: after the delay, this many steps a second." )
+			}
+
 			ForEach( settings.sleepTriggers ) { trigger in
 				TriggerSection( controller: controller, deviceID: deviceID, trigger: trigger )
 			}

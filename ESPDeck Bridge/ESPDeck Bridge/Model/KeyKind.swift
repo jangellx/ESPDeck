@@ -71,6 +71,8 @@ enum KeyAction: String, Codable, CaseIterable, Identifiable {
 enum KeyKind: String, Codable, CaseIterable, Identifiable {
 	case garageDoor
 	case power
+	/// A fan (or purifier) switched with Active rather than On, like most fans in HomeKit.
+	case fan
 	case lock
 	case contact
 	case temperature
@@ -83,6 +85,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 		switch self {
 			case .garageDoor:  "Garage Door"
 			case .power:       "On/Off"
+			case .fan:         "Fan"
 			case .lock:        "Lock"
 			case .contact:     "Contact Sensor"
 			case .temperature: "Temperature"
@@ -96,6 +99,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 		switch self {
 			case .garageDoor:  HMCharacteristicTypeCurrentDoorState
 			case .power:       HMCharacteristicTypePowerState
+			case .fan:         HMCharacteristicTypeActive
 			case .lock:        HMCharacteristicTypeCurrentLockMechanismState
 			case .contact:     HMCharacteristicTypeContactState
 			case .temperature: HMCharacteristicTypeCurrentTemperature
@@ -108,6 +112,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 		switch self {
 			case .garageDoor: HMCharacteristicTypeTargetDoorState
 			case .power:      HMCharacteristicTypePowerState
+			case .fan:        HMCharacteristicTypeActive
 			case .lock:       HMCharacteristicTypeTargetLockMechanismState
 			default:          nil
 		}
@@ -122,7 +127,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 	var states: [KeyState] {
 		switch self {
 			case .garageDoor: [ .open, .closed, .opening, .closing, .stopped, .obstructed ]
-			case .power:      [ .on, .off ]
+			case .power, .fan: [ .on, .off ]
 			case .lock:       [ .locked, .unlocked, .jammed ]
 			case .contact:    [ .open, .closed ]
 			default:          []
@@ -132,7 +137,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 	var actions: [KeyAction] {
 		switch self {
 			case .garageDoor:            [ .toggle, .open, .close, .none ]
-			case .power:                 [ .toggle, .turnOn, .turnOff, .none ]
+			case .power, .fan:           [ .toggle, .turnOn, .turnOff, .none ]
 			case .lock:                  [ .toggle, .lock, .unlock, .none ]
 			case .contact, .temperature: [ .none ]
 			case .scene:                 [ .run, .none ]
@@ -158,6 +163,9 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 				}
 			case .power:
 				return number.boolValue ? .on : .off
+			case .fan:
+				// HMCharacteristicValueActivationState: 0 inactive, 1 active
+				return number.intValue == 1 ? .on : .off
 			case .lock:
 				// HMCharacteristicValueLockMechanismState
 				switch number.intValue {
@@ -178,7 +186,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 	func isActive( _ state: KeyState ) -> Bool {
 		switch self {
 			case .garageDoor: state == .open || state == .opening
-			case .power:      state == .on
+			case .power, .fan: state == .on
 			case .lock:       state != .locked
 			default:          false
 		}
@@ -189,6 +197,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 		switch self {
 			case .garageDoor: activate ? 0 : 1
 			case .power:      activate
+			case .fan:        activate ? 1 : 0
 			case .lock:       activate ? 0 : 1
 			default:          nil
 		}
@@ -212,6 +221,9 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case ( .power, .turnOn ):      return true
 			case ( .power, .turnOff ):     return false
 			case ( .power, .toggle ):      return current != .on
+			case ( .fan, .turnOn ):        return 1
+			case ( .fan, .turnOff ):       return 0
+			case ( .fan, .toggle ):        return current == .on ? 0 : 1
 			case ( .lock, .unlock ):       return 0
 			case ( .lock, .lock ):         return 1
 			case ( .lock, .toggle ):       return current == .locked ? 0 : 1
@@ -229,6 +241,8 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case ( .garageDoor, _ ):                                                          "door.garage.closed"
 			case ( .power, .on ):                                                             "lightbulb.fill"
 			case ( .power, _ ):                                                               "lightbulb"
+			case ( .fan, .on ):                                                               "fan.fill"
+			case ( .fan, _ ):                                                                 "fan"
 			case ( .lock, .unlocked ):                                                        "lock.open.fill"
 			case ( .lock, .jammed ):                                                          "lock.trianglebadge.exclamationmark.fill"
 			case ( .lock, _ ):                                                                "lock.fill"
@@ -254,7 +268,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 	func tint( for state: KeyState ) -> Color {
 		switch ( self, state ) {
 			case ( .garageDoor, _ ):   .white
-			case ( .power, .on ), ( .shortcut, .on ): Color( red: 1, green: 0.76, blue: 0.18 )   // amber
+			case ( .power, .on ), ( .fan, .on ), ( .shortcut, .on ): Color( red: 1, green: 0.76, blue: 0.18 )   // amber
 			case ( _, .unknown ):      .gray
 			case ( _, .jammed ):       .red
 			case ( _, .unlocked ), ( _, .open ): .orange

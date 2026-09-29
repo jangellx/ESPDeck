@@ -50,6 +50,7 @@ extension DeckController {
 		}
 
 		var assignment = clipboard.assignment
+		assignment.slider = nil   // half of a pair pastes as an ordinary key
 		for ( state, name ) in assignment.icons where !name.hasPrefix( KeyAssignment.symbolPrefix ) {
 			assignment.icons[state] = clipboard.images[name].flatMap { config.importIcon( $0 ) }
 		}

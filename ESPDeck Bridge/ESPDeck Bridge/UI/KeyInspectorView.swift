@@ -14,6 +14,9 @@ struct KeyInspectorView: View {
 
 	private var assignment: KeyAssignment { controller.assignment( deviceID, key: key ) }
 
+	/// Slider chosen for this key, before its other key is picked.
+	@State private var choosingPartner = false
+
 	var body: some View {
 		Form {
 			Section {
@@ -32,9 +35,19 @@ struct KeyInspectorView: View {
 						}
 						.pickerStyle( .segmented )
 					}
-					Picker( "On Press", selection: binding( \.action ) ) {
-						ForEach( assignment.actions ) { action in
-							Text( action.title ).tag( action )
+					// Lights and fans with a level: switch it, or step the level with two keys.
+					if !levels.isEmpty {
+						Picker( "Type", selection: sliderTypeBinding ) {
+							Text( "Toggle" ).tag( false )
+							Text( "Slider" ).tag( true )
+						}
+						.pickerStyle( .segmented )
+					}
+					if !isSlider {
+						Picker( "On Press", selection: binding( \.action ) ) {
+							ForEach( assignment.actions ) { action in
+								Text( action.title ).tag( action )
+							}
 						}
 					}
 					LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
@@ -63,6 +76,10 @@ struct KeyInspectorView: View {
 					}
 				}
 				.padding( .top, 4 )
+			}
+
+			if isSlider {
+				SliderSection( controller: controller, deviceID: deviceID, key: key, levels: levels )
 			}
 
 			Section {
@@ -125,6 +142,26 @@ struct KeyInspectorView: View {
 			}
 		}
 		.formStyle( .grouped )
+		.onChange( of: key ) { choosingPartner = false }
+		.onChange( of: assignment.slider != nil ) { if assignment.slider != nil { choosingPartner = false } }
+	}
+
+	private var levels: [SliderLevel] { controller.sliderLevels( for: assignment ) }
+
+	private var isSlider: Bool { assignment.slider != nil || choosingPartner }
+
+	/// Slider waits for the other key to be chosen; Toggle ends the pair (clearing its other key).
+	private var sliderTypeBinding: Binding<Bool> {
+		Binding {
+			isSlider
+		} set: { slider in
+			if slider {
+				choosingPartner = true
+			} else {
+				choosingPartner = false
+				controller.removeSlider( device: deviceID, key: key )
+			}
+		}
 	}
 
 	/// Shared with Edit ▸ Clear Key.

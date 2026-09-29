@@ -61,6 +61,9 @@ extension KeyAssignment {
 			shortcutToggles = nil
 		}
 		shortcutState = nil
+		if kind != .power && kind != .fan {
+			slider = nil
+		}
 		if target?.kind != nil {
 			if kindChanged || !actions.contains( action ) {
 				action = actions.first ?? .none

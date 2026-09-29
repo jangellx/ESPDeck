@@ -134,6 +134,14 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	/// Where every key's label goes. Drawn by the bridge, so it works offline too.
 	var labelPosition = LabelPosition.bottom
 
+	/// Holding a slider key: how long before it starts repeating, and how often it repeats.
+	var repeatDelay   = DeviceSettings.defaultRepeatDelay    // seconds
+	var repeatRate    = DeviceSettings.defaultRepeatRate     // per second
+	static let defaultRepeatDelay = 0.5
+	static let defaultRepeatRate  = 6.0
+	static let repeatDelayRange   = 0.2...1.5
+	static let repeatRateRange    = 2.0...20.0
+
 	var sleepTriggers : [SleepTrigger] = []
 	/// Run when the deck goes to sleep or wakes, however that happened.
 	var onSleep       = KeyAssignment()
@@ -158,6 +166,8 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		sleepTimeout  = container.lenient( Int.self, forKey: .sleepTimeout ) ?? 0
 		devOTA        = container.lenient( Bool.self, forKey: .devOTA ) ?? false
 		labelPosition = container.lenient( LabelPosition.self, forKey: .labelPosition ) ?? .bottom
+		repeatDelay   = container.lenient( Double.self, forKey: .repeatDelay ) ?? Self.defaultRepeatDelay
+		repeatRate    = container.lenient( Double.self, forKey: .repeatRate ) ?? Self.defaultRepeatRate
 		sleepTriggers = container.lenientArray( of: SleepTrigger.self, forKey: .sleepTriggers ) ?? []
 		onSleep       = container.lenient( KeyAssignment.self, forKey: .onSleep ) ?? KeyAssignment()
 		onWake        = container.lenient( KeyAssignment.self, forKey: .onWake ) ?? KeyAssignment()
@@ -193,11 +203,13 @@ struct BridgeSettings: Codable, Equatable {
 	var updates    = UpdateSettings()
 	/// USB Setup watches for boards plugged into the Mac.
 	var usbScanning = true
+	/// The symbols last chosen for a pair of slider keys; new pairs start with them.
+	var sliderStyle = SliderStyle.chevron
 
 	init() {}
 
 	private enum CodingKeys: String, CodingKey {
-		case homeID, devices, legacyKeys, bridgeID, updates, usbScanning
+		case homeID, devices, legacyKeys, bridgeID, updates, usbScanning, sliderStyle
 		case keys   // single-deck version
 	}
 
@@ -208,6 +220,7 @@ struct BridgeSettings: Codable, Equatable {
 		bridgeID    = container.lenient( String.self, forKey: .bridgeID ).flatMap { $0.isEmpty ? nil : $0 } ?? UUID().uuidString.lowercased()
 		updates     = container.lenient( UpdateSettings.self, forKey: .updates ) ?? UpdateSettings()
 		usbScanning = container.lenient( Bool.self, forKey: .usbScanning ) ?? true
+		sliderStyle = container.lenient( SliderStyle.self, forKey: .sliderStyle ) ?? .chevron
 		legacyKeys  = container.lenientArray( of: KeyAssignment.self, forKey: .legacyKeys, placeholder: KeyAssignment() )
 					  ?? container.lenientArray( of: KeyAssignment.self, forKey: .keys, placeholder: KeyAssignment() )
 		if !devices.isEmpty { legacyKeys = nil }
@@ -221,6 +234,7 @@ struct BridgeSettings: Codable, Equatable {
 		try container.encode( bridgeID, forKey: .bridgeID )
 		try container.encode( updates, forKey: .updates )
 		try container.encode( usbScanning, forKey: .usbScanning )
+		try container.encode( sliderStyle, forKey: .sliderStyle )
 	}
 
 	func deviceIndex( _ id: String ) -> Int? {

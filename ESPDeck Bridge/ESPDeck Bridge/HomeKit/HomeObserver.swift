@@ -87,6 +87,11 @@ final class HomeObserver: NSObject {
 	@ObservationIgnored private var observedHomes       : [HMHome] = []
 	@ObservationIgnored private var rebuildTask         : Task<Void, Never>?
 	@ObservationIgnored private var rebuildPending      = false
+	/// Slider keys: the level being written to each characteristic, and which have a write
+	/// under way.
+	@ObservationIgnored private var levelGoals          : [CharacteristicRef: Double] = [:]
+	@ObservationIgnored private var levelWriters        : Set<CharacteristicRef> = []
+	@ObservationIgnored private var levelError          : String?
 
 	override init() {
 		super.init()
@@ -225,6 +230,11 @@ final class HomeObserver: NSObject {
 				let types = Set( service.characteristics.map( \.characteristicType ) )
 				for kind in KeyKind.allCases {
 					guard let type = kind.displayCharacteristicType, types.contains( type ) else { continue }
+					// Active also switches TVs, purifiers and valves: a fan here is something with a
+					// speed and no On (which makes it an On/Off target already).
+					if kind == .fan && ( !types.contains( HMCharacteristicTypeRotationSpeed ) || types.contains( HMCharacteristicTypePowerState ) ) {
+						continue
+					}
 
 					// "Garage Lift Side Door" rather than "Garage Lift Side Door – Lift Side Door".
 					let serviceName = service.name
@@ -320,6 +330,86 @@ final class HomeObserver: NSObject {
 		var summary = "\(verb): \(done.joined( separator: ", " ))"
 		if !failures.isEmpty { summary += "; failed: \(failures.joined( separator: ", " ))" }
 		return summary
+	}
+
+	// MARK: - Slider keys
+
+	/// The levels a key's accessory (its service) can have adjusted.
+	func levels( for assignment: KeyAssignment ) -> [SliderLevel] {
+		guard assignment.kind == .power || assignment.kind == .fan, let accessory = accessory( assignment.accessoryID ) else { return [] }
+		return SliderLevel.allCases.filter { level in
+			Self.characteristic( level.characteristicType, serviceID: assignment.serviceID, in: accessory ) != nil
+		}
+	}
+
+	/// The level as the key shows it: the value being written while a slider key is held,
+	/// else the last known one.
+	func level( _ ref: CharacteristicRef ) -> Double? {
+		levelGoals[ref] ?? ( values[ref] as? NSNumber )?.doubleValue
+	}
+
+	/// One step of a slider key. The new level shows at once; the writes are coalesced, so
+	/// while one is on its way the next press just moves the goal, and only the latest goal is
+	/// written after it. Raising a level that's off also turns it on. Returns the new level.
+	@discardableResult
+	func adjust( _ assignment: KeyAssignment ) -> Double? {
+		guard let slider = assignment.slider, let ref = assignment.sliderRef, let kind = assignment.kind,
+			  let accessory = accessory( ref.accessoryID ),
+			  let characteristic = Self.characteristic( ref.characteristicType, serviceID: ref.serviceID, in: accessory ) else { return nil }
+
+		let metadata = characteristic.metadata
+		let low      = metadata?.minimumValue?.doubleValue ?? 0
+		let high     = metadata?.maximumValue?.doubleValue ?? 100
+		let base     = level( ref ) ?? ( characteristic.value as? NSNumber )?.doubleValue ?? low
+		var goal     = min( max( base + ( slider.raises ? slider.step : -slider.step ), low ), high )
+		if let step = metadata?.stepValue?.doubleValue, step > 0 {
+			goal = min( max( ( goal / step ).rounded() * step, low ), high )
+		}
+		levelGoals[ref] = goal
+		values[ref]     = NSNumber( value: goal )
+		onChange?( ref )
+
+		// Every accessory the key controls that has the level (a group moves together).
+		let targets = assignment.members.compactMap { member -> HMCharacteristic? in
+			guard let other = self.accessory( member.accessoryID ) else { return nil }
+			return Self.characteristic( ref.characteristicType, serviceID: member.serviceID, in: other )
+		}
+		if slider.raises, let power = assignment.characteristicRef, !kind.isActive( kind.state( for: values[power] ) ),
+		   let targetType = kind.targetCharacteristicType, let on = kind.targetValue( activate: true ),
+		   let switchCharacteristic = Self.characteristic( targetType, serviceID: ref.serviceID, in: accessory ) {
+			Task { try? await switchCharacteristic.writeValue( on ) }
+		}
+		writeLevel( ref, to: targets, integer: metadata?.format != HMCharacteristicMetadataFormatFloat )
+		return goal
+	}
+
+	/// Writes the goal until what was written is the goal (it may move meanwhile).
+	private func writeLevel( _ ref: CharacteristicRef, to targets: [HMCharacteristic], integer: Bool ) {
+		guard !levelWriters.contains( ref ) else { return }
+		levelWriters.insert( ref )
+		Task {
+			var written: Double?
+			while let goal = levelGoals[ref], goal != written {
+				let value: NSNumber = integer ? NSNumber( value: Int( goal.rounded() ) ) : NSNumber( value: goal )
+				for target in targets {
+					do {
+						try await target.writeValue( value )
+					} catch {
+						levelError = error.localizedDescription
+					}
+				}
+				written = goal
+			}
+			levelGoals[ref] = nil
+			levelWriters.remove( ref )
+			refreshWatched( after: .milliseconds( 1000 ) )
+		}
+	}
+
+	/// The last slider write that failed, for the log; read and cleared by the caller.
+	func takeLevelError() -> String? {
+		defer { levelError = nil }
+		return levelError
 	}
 
 	/// Remembers each door's direction from its current state (HMCharacteristicValueDoorState:

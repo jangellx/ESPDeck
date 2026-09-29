@@ -36,6 +36,8 @@ struct KeyAssignment: Codable, Equatable {
 	var icons       : [String: String] = [:]
 	/// "#RRGGBB" base of the key's background gradient; nil is plain black.
 	var backgroundColor : String?
+	/// One of a pair of keys stepping a level up and down, instead of the key's action.
+	var slider          : SliderKey?
 
 	var isToggleShortcut: Bool { kind == .shortcut && shortcutToggles == true }
 
@@ -43,6 +45,12 @@ struct KeyAssignment: Codable, Equatable {
 	var states: [KeyState] { isToggleShortcut ? [ .on, .off ] : kind?.states ?? [] }
 
 	var actions: [KeyAction] { isToggleShortcut ? [ .toggle, .turnOn, .turnOff, .none ] : kind?.actions ?? [] }
+
+	/// The level a slider key adjusts.
+	var sliderRef: CharacteristicRef? {
+		guard let slider, let accessoryID else { return nil }
+		return CharacteristicRef( accessoryID: accessoryID, serviceID: serviceID, characteristicType: slider.level.characteristicType )
+	}
 
 	/// The key accessory, then the others.
 	var members: [KeyMember] {
@@ -93,6 +101,7 @@ extension KeyAssignment {
 		others          = container.lenientArray( of: KeyMember.self, forKey: .others )
 		icons           = container.lenient( [String: String].self, forKey: .icons ) ?? [:]
 		backgroundColor = container.lenient( String.self, forKey: .backgroundColor )
+		slider          = container.lenient( SliderKey.self, forKey: .slider )
 	}
 }
 

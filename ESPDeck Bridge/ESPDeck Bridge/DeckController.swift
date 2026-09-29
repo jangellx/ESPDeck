@@ -57,6 +57,8 @@ final class DeckController {
 	@ObservationIgnored private var shortcutsLoading = false
 	/// Keys ("device/key") whose HomeKit write or scene hasn't finished yet.
 	@ObservationIgnored private var keysInFlight: Set<String> = []
+	/// Slider keys being held ("device/key"): their repeat.
+	@ObservationIgnored var sliderRepeats: [String: Task<Void, Never>] = [:]
 	private static let shortcutIconSize = 160
 
 	/// Connected devices that haven't authenticated, for the sidebar's New Devices.
@@ -162,7 +164,11 @@ final class DeckController {
 	func update( device id: String, key: Int, _ change: ( inout KeyAssignment ) -> Void ) {
 		guard let index = config.settings.deviceIndex( id ) else { return }
 		config.settings.devices[index].ensureKey( key )
+		let before = config.settings.devices[index].keys[key]
 		change( &config.settings.devices[index].keys[key] )
+		if before.slider != nil || config.settings.devices[index].keys[key].slider != nil {
+			syncSliderPartner( device: index, key: key, before: before )
+		}
 		assignmentsChanged( device: id, deferPush: true )
 	}
 
@@ -202,11 +208,17 @@ final class DeckController {
 		guard first != second, let index = config.settings.deviceIndex( id ) else { return }
 		config.settings.devices[index].ensureKey( max( first, second ) )
 		config.settings.devices[index].keys.swapAt( first, second )
+		Self.remapSliders( &config.settings.devices[index].keys ) { $0 == first ? second : $0 == second ? first : $0 }
 		assignmentsChanged( device: id )
 	}
 
 	func clear( device id: String, key: Int ) {
 		guard let index = config.settings.deviceIndex( id ), key < config.settings.devices[index].keys.count else { return }
+		// A slider pair goes together.
+		if let partner = config.settings.devices[index].keys[key].slider?.partner, partner < config.settings.devices[index].keys.count,
+		   config.settings.devices[index].keys[partner].slider?.partner == key {
+			config.settings.devices[index].keys[partner] = KeyAssignment()
+		}
 		config.settings.devices[index].keys[key] = KeyAssignment()
 		config.removeUnusedIcons()
 		assignmentsChanged( device: id )
@@ -386,6 +398,11 @@ final class DeckController {
 				keys[row * targetLayout.cols + col] = from.key( row * sourceLayout.cols + col )
 			}
 		}
+		// Slider pairs follow their keys to the new positions.
+		Self.remapSliders( &keys ) { old in
+			let row = old / max( sourceLayout.cols, 1 ), col = old % max( sourceLayout.cols, 1 )
+			return row < targetLayout.rows && col < targetLayout.cols ? row * targetLayout.cols + col : nil
+		}
 		config.settings.devices[index].keys = keys
 		config.removeUnusedIcons()
 		assignmentsChanged( device: destination )
@@ -462,12 +479,13 @@ final class DeckController {
 
 	/// `deferPush` batches edits from the configuration UI (e.g. dragging the color
 	/// picker) so the ESP32 only receives the final image.
-	private func assignmentsChanged( device id: String? = nil, deferPush: Bool = false ) {
+	func assignmentsChanged( device id: String? = nil, deferPush: Bool = false ) {
 		var refs = Set<CharacteristicRef>()
 		for settings in config.settings.devices {
 			for key in settings.keys {
 				if let ref = key.characteristicRef { refs.insert( ref ) }
 				if let ref = key.alertRef { refs.insert( ref ) }
+				if let ref = key.sliderRef { refs.insert( ref ) }
 			}
 			for trigger in settings.sleepTriggers {
 				if let ref = trigger.source.characteristicRef { refs.insert( ref ) }
@@ -484,7 +502,7 @@ final class DeckController {
 
 	private func valueChanged( _ ref: CharacteristicRef ) {
 		for settings in config.settings.devices {
-			for ( index, key ) in settings.keys.enumerated() where key.characteristicRef == ref || key.alertRef == ref {
+			for ( index, key ) in settings.keys.enumerated() where key.characteristicRef == ref || key.alertRef == ref || key.sliderRef == ref {
 				render( device: settings.id, key: index )
 			}
 		}
@@ -552,10 +570,18 @@ final class DeckController {
 		face.doorArrow  = kind.doorArrow( for: state )
 		face.shortcutID = assignment.shortcutID
 		face.background = assignment.backgroundColor.flatMap( Color.init( hex: ) )
+		if let slider = assignment.slider {
+			// Up or down (right or left, side by side), whatever the kind's own symbol is.
+			face.symbol    = slider.style.symbol( raises: slider.raises, horizontal: isHorizontalPair( device: id, key, slider.partner ) )
+			face.doorArrow = nil
+		}
 		applyCustomIcon( iconName( for: state, of: assignment ), to: &face )
 
 		if assignment.showLabel {
 			var label = assignment.label.isEmpty ? defaultName( for: assignment ) : assignment.label
+			if assignment.slider != nil && assignment.label.isEmpty {
+				label = sliderLabel( for: assignment ) ?? label   // the level, e.g. "60%"
+			}
 			if kind == .temperature, let ref = assignment.characteristicRef, let celsius = home.values[ref] as? NSNumber {
 				let reading = Measurement( value: celsius.doubleValue, unit: UnitTemperature.celsius )
 				label = reading.formatted( .measurement( width: .narrow, numberFormatStyle: .number.precision( .fractionLength( 0...1 ) ) ) )
@@ -763,14 +789,23 @@ final class DeckController {
 
 			case .keyDown( let key ):
 				device.lastKeyActivity = Date()
-				if !device.pressed.isEmpty { device.chord = true }
+				if !device.pressed.isEmpty {
+					device.chord = true
+					stopSliders( device: id )
+				}
 				device.pressed.insert( key )
+				// Slider keys act on press, and repeat while held.
+				if !device.chord && assignment( id, key: key ).slider != nil {
+					startSlider( device: id, key: key )
+				}
 
 			case .keyUp( let key ):
 				// Act on release, and only for a lone press: holding two keys (the setup
 				// chord) shouldn't open the garage.
 				let wasPressed = device.pressed.remove( key ) != nil
-				if wasPressed && !device.chord {
+				if assignment( id, key: key ).slider != nil {
+					stopSlider( device: id, key: key )
+				} else if wasPressed && !device.chord {
 					press( device: id, key: key )
 				}
 				if device.pressed.isEmpty { device.chord = false }
@@ -839,6 +874,7 @@ final class DeckController {
 	private func clientDisconnected( _ client: ClientID ) {
 		handshakeEnded( client )
 		guard let id = clientDevices.removeValue( forKey: client ), let device = device( id ), device.client == client else { return }
+		stopSliders( device: id )
 		firmwareDisconnected( device )
 		device.disconnected()
 	}
@@ -854,6 +890,14 @@ final class DeckController {
 	/// `device` is whose log records it; `key`, when it's a key press, lets an On/Off
 	/// shortcut record its new state.
 	func perform( _ assignment: KeyAssignment, context: String, device id: String? = nil, key: Int? = nil ) {
+		// A slider key's Test Action: one step.
+		if let id, let key, assignment.slider != nil {
+			stepSlider( device: id, key: key )
+			if let ref = assignment.sliderRef, let level = home.level( ref ) {
+				logEvent( "\(context): \(assignment.slider?.level.title ?? "Level") \(Int( level.rounded() ))%", device: id )
+			}
+			return
+		}
 		guard let kind = assignment.kind, assignment.action != .none else { return }
 
 		if kind == .shortcut {
