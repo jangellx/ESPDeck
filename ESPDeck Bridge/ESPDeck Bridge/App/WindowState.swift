@@ -55,6 +55,8 @@ final class WindowState {
 	// Asked for by the menus, shown by the views (the same dialogs as their buttons).
 	var confirmingClearKey  = false
 	var confirmingForget    = false
+	/// The key picker's tab last chosen: a blank key's picker opens on it.
+	var lastKeyTargetMode   = TargetMode.accessory
 	/// Key ▸ Assign Accessory/Scene/Shortcut: the mode the key's picker switches to.
 	var requestedTargetMode : TargetMode?
 	/// Export Bridge or Import Bridge, from the File menu or the About page.

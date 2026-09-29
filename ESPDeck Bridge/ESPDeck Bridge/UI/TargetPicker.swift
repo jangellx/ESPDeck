@@ -130,6 +130,9 @@ struct TargetPicker: View {
 		.onChange( of: modeRequest?.wrappedValue ) { takeModeRequest() }
 		.onChange( of: mode ) {
 			search = ""
+			if modes.count == TargetMode.allCases.count {   // a key's picker
+				controller.window.lastKeyTargetMode = mode
+			}
 			if mode == .shortcut && !controller.shortcutsLoaded {
 				controller.reloadShortcuts()
 			}
@@ -521,7 +524,8 @@ struct TargetPicker: View {
 	}
 
 	private func syncMode() {
-		let bound = TargetMode( kind: assignment.kind )
+		// A blank key keeps the tab the last key was on.
+		let bound = assignment.kind == nil && modes.count == TargetMode.allCases.count ? controller.window.lastKeyTargetMode : TargetMode( kind: assignment.kind )
 		mode = modes.contains( bound ) ? bound : ( modes.first ?? .accessory )
 		if mode == .shortcut && !controller.shortcutsLoaded {
 			controller.reloadShortcuts()
