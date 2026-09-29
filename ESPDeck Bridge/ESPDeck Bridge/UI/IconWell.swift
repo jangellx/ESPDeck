@@ -19,6 +19,8 @@ struct IconWell: View {
 	let onDrop        : ( DroppedImage ) -> Void
 	let onPickSymbol  : ( String ) -> Void
 	let onRemove      : () -> Void
+	/// Offered first in the symbol picker.
+	var suggested     : [String] = []
 
 	private var removeTitle: String { "Remove \(title) Icon" }
 
@@ -41,13 +43,13 @@ struct IconWell: View {
 				.contentShape( Rectangle() )
 				.onTapGesture { showingSymbols = true }
 				.popover( isPresented: $showingSymbols ) {
-					SymbolPicker( current: customSymbol, removeTitle: removeTitle, canRemove: hasCustomIcon ) { name in
+					SymbolPicker( current: customSymbol, removeTitle: removeTitle, canRemove: hasCustomIcon, onPick: { name in
 						onPickSymbol( name )
 						showingSymbols = false
-					} onRemove: {
+					}, onRemove: {
 						onRemove()
 						showingSymbols = false
-					}
+					}, suggested: suggested )
 				}
 				.dropDestination( for: DroppedImage.self ) { items, _ in
 					guard let item = items.first else { return false }

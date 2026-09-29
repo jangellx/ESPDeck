@@ -16,7 +16,7 @@ enum TargetMode: String, CaseIterable, Identifiable {
 	case accessory = "Accessory"
 	case scene     = "Scene"
 	/// Keys and commands: any mix of accessories and scenes, from a Home-style sheet.
-	case home      = "Accessories & Scenes"
+	case home      = "Home"
 	case shortcut  = "Shortcut"
 	/// Keys only: page commands.
 	case page      = "Page"
@@ -27,7 +27,7 @@ enum TargetMode: String, CaseIterable, Identifiable {
 	static let keyModes: [TargetMode]  = [ .home, .shortcut, .page ]
 	static let homeModes: [TargetMode] = [ .home, .shortcut ]
 
-	/// The tab showing a kind among `modes`: accessories and scenes share Accessories & Scenes.
+	/// The tab showing a kind among `modes`: accessories and scenes share Home.
 	static func of( _ kind: KeyKind?, in modes: [TargetMode] ) -> TargetMode {
 		let mode = TargetMode( kind: kind )
 		return modes.contains( .home ) && ( mode == .accessory || mode == .scene ) ? .home : mode

@@ -156,7 +156,8 @@ struct KeyInspectorView: View {
 								  customSymbol: assignment.symbol( for: state ),
 								  onDrop: { controller.setIcon( dropped: $0, device: deviceID, key: key, state: state ) },
 								  onPickSymbol: { controller.setSymbol( $0, device: deviceID, key: key, state: state ) },
-								  onRemove: { controller.removeIcon( device: deviceID, key: key, state: state ) } )
+								  onRemove: { controller.removeIcon( device: deviceID, key: key, state: state ) },
+								  suggested: suggestedSymbols( assignment, state: state ) )
 					}
 				}
 				.padding( .vertical, 6 )
@@ -319,5 +320,15 @@ struct KeyInspectorView: View {
 		} set: { color in
 			controller.update( device: deviceID, key: key ) { $0.backgroundColor = color.hex }
 		}
+	}
+}
+
+extension KeyInspectorView {
+	/// Each of the key's accessories' symbols in `state`, the key accessory's first.
+	func suggestedSymbols( _ assignment: KeyAssignment, state: KeyState ) -> [String] {
+		var seen: Set<String> = []
+		return assignment.members
+			.map { controller.home.symbol( for: $0.kind, accessoryID: $0.accessoryID, serviceID: $0.serviceID, state: state ) }
+			.filter { seen.insert( $0 ).inserted }
 	}
 }

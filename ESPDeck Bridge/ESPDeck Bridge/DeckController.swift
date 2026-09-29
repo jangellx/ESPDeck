@@ -603,7 +603,8 @@ final class DeckController {
 		let state = override ?? state( device: id, key: key )
 		var face  = KeyFace()
 		face.labelOnTop = labelOnTop
-		face.symbol     = kind.symbol( for: state )
+		// The key accessory's (the first one chosen) look, as near as HomeKit lets us to Home's.
+		face.symbol     = home.symbol( for: kind, accessoryID: assignment.accessoryID, serviceID: assignment.serviceID, state: state )
 		face.tint       = kind.tint( for: state )
 		face.doorArrow  = kind.doorArrow( for: state )
 		face.shortcutID = assignment.shortcutID

@@ -33,11 +33,6 @@ struct HomeTargetSheet: View {
 
 		NavigationStack {
 			List {
-				Section {
-					SearchField( prompt: "Search accessories, scenes and rooms", text: $search )
-						.listRowBackground( Color.clear )
-						.listRowInsets( EdgeInsets( top: 0, leading: 0, bottom: 0, trailing: 0 ) )
-				}
 				ForEach( homes, id: \.self ) { home in
 					let inHome = targets.filter { ( $0.home ?? "" ) == home }
 					let homeScenes = inHome.filter { $0.kind == .scene }
@@ -58,6 +53,14 @@ struct HomeTargetSheet: View {
 						.foregroundStyle( Color.secondary )
 				}
 			}
+			// Above the list rather than a section of it, which spaced it like one.
+			.safeAreaInset( edge: .top, spacing: 0 ) {
+				SearchField( prompt: "Search accessories, scenes and rooms", text: $search )
+					.padding( .horizontal, 20 )
+					.padding( .top, 6 )
+					.padding( .bottom, 2 )
+			}
+			.contentMargins( .top, 8, for: .scrollContent )
 			.navigationTitle( "Accessories & Scenes" )
 			.navigationBarTitleDisplayMode( .inline )
 			.toolbar {
@@ -76,7 +79,6 @@ struct HomeTargetSheet: View {
 					} label: {
 						Image( systemName: "checkmark" )
 					}
-					.buttonStyle( .borderedProminent )
 					.accessibilityLabel( "Done" )
 				}
 			}
@@ -126,7 +128,7 @@ struct HomeTargetSheet: View {
 		} else {
 			let state     = controller.home.lastKnownState( of: target ).state
 			let reachable = controller.home.isReachable( accessoryID: target.accessoryID )
-			Image( systemName: target.kind.symbol( for: state ) )
+			Image( systemName: controller.home.symbol( for: target.kind, accessoryID: target.accessoryID, serviceID: target.serviceID, state: state ) )
 				.resizable()
 				.scaledToFit()
 				.foregroundStyle( reachable ? tint( target.kind, state ) : Color.secondary )

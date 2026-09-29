@@ -14,6 +14,8 @@ struct SymbolPicker: View {
 	let canRemove   : Bool
 	let onPick      : ( String ) -> Void
 	let onRemove    : () -> Void
+	/// The key's accessories' own symbols, shown first.
+	var suggested   : [String] = []
 
 	@State private var query    = ""
 	@State private var category = "all"
@@ -45,21 +47,17 @@ struct SymbolPicker: View {
 			}
 
 			ScrollView {
-				LazyVGrid( columns: [ GridItem( .adaptive( minimum: 44 ), spacing: 6 ) ], spacing: 6 ) {
-					ForEach( symbols, id: \.self ) { name in
-						Button {
-							onPick( name )
-						} label: {
-							Image( systemName: name )
-								.font( .system( size: 20 ) )
-								.frame( width: 44, height: 40 )
-								.background( RoundedRectangle( cornerRadius: 6 ).fill( name == current ? Color.accentColor.opacity( 0.35 ) : Color.clear ) )
-								.contentShape( Rectangle() )
-						}
-						.buttonStyle( .plain )
-						.help( name )
+				if !suggested.isEmpty && query.isEmpty {
+					VStack( alignment: .leading, spacing: 4 ) {
+						Text( "Suggested" )
+							.font( .caption )
+							.foregroundStyle( .secondary )
+						grid( suggested )
+						Divider()
+							.padding( .vertical, 4 )
 					}
 				}
+				grid( symbols )
 			}
 
 			HStack {
@@ -74,5 +72,23 @@ struct SymbolPicker: View {
 		.padding( 14 )
 		.frame( width: 460, height: 420 )
 		.onAppear { searchFocused = true }
+	}
+
+	private func grid( _ names: [String] ) -> some View {
+		LazyVGrid( columns: [ GridItem( .adaptive( minimum: 44 ), spacing: 6 ) ], spacing: 6 ) {
+			ForEach( names, id: \.self ) { name in
+				Button {
+					onPick( name )
+				} label: {
+					Image( systemName: name )
+						.font( .system( size: 20 ) )
+						.frame( width: 44, height: 40 )
+						.background( RoundedRectangle( cornerRadius: 6 ).fill( name == current ? Color.accentColor.opacity( 0.35 ) : Color.clear ) )
+						.contentShape( Rectangle() )
+				}
+				.buttonStyle( .plain )
+				.help( name )
+			}
+		}
 	}
 }
