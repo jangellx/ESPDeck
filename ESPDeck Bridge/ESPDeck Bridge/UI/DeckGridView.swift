@@ -60,7 +60,7 @@ private struct DeckKeyView: View {
 	let index              : Int
 	let size               : CGFloat
 	/// A new page pops in a key at a time, as the deck's keys fill in over USB: each key keeps
-	/// the old page's image until its turn, then swaps.
+	/// the old page's image until its turn, then the new one fades up over it.
 	@Binding var selection : Int
 	@State private var isTargeted = false
 	/// The page change this key has already swapped for.
@@ -75,18 +75,29 @@ private struct DeckKeyView: View {
 		let change   = device?.pageChange
 		let current  = device.flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
 		// Only just after the change: a key that appears later (another page, back again) doesn't.
-		let waiting  = change.map { $0.at != swappedFor && index < $0.previews.count && -$0.at.timeIntervalSinceNow < 1 } ?? false
-		let preview  = waiting ? change?.previews[index] : current
+		let recent   = change.flatMap { index < $0.previews.count && -$0.at.timeIntervalSinceNow < 1 ? $0 : nil }
+		let waiting  = recent.map { $0.at != swappedFor } ?? false
+		let preview  = current
 		let radius   = size * 0.125
 
-		Group {
-			if let preview {
-				Image( uiImage: preview )
+		// On its turn the new image fades up quickly over the old one.
+		ZStack {
+			if let old = recent?.previews[index] {
+				Image( uiImage: old )
 					.resizable()
 					.interpolation( .high )
-			} else {
-				Color.black
 			}
+			Group {
+				if let current {
+					Image( uiImage: current )
+						.resizable()
+						.interpolation( .high )
+				} else {
+					Color.black
+				}
+			}
+			.opacity( waiting ? 0 : 1 )
+			.animation( .easeOut( duration: 0.12 ), value: waiting )
 		}
 		.frame( width: size, height: size )
 		.clipShape( RoundedRectangle( cornerRadius: radius, style: .continuous ) )

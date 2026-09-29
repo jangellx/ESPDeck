@@ -28,7 +28,10 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 		let window = UIWindow( windowScene: windowScene )
 		// On iPad every window is the configuration window: iPadOS disconnects and
 		// reconnects scenes on its own, and the app has no menu bar to reopen one from.
-		if app.consumeConfigurationRequest() || !Self.isMenuBarApp {
+		// With no decks set up yet (first launch, say), the launch window is the configuration
+		// window rather than a splash: there's nothing to do but set one up.
+		let noDecks = app.controller.config.settings.devices.allSatisfy( \.isDemo )
+		if app.consumeConfigurationRequest() || !Self.isMenuBarApp || noDecks {
 			windowScene.title = Self.windowTitle
 			windowScene.sizeRestrictions?.minimumSize = CGSize( width: 1040, height: 640 )
 			window.rootViewController = ConfigurationHostingController( controller: app.controller )

@@ -2,8 +2,8 @@
 //  AppDelegate.swift
 //  ESPDeck Bridge
 //
-//  Menu bar app: no Dock icon (LSUIElement), no window at launch. The configuration
-//  window opens from the menu bar item.
+//  Menu bar app: no Dock icon (LSUIElement), no window at launch (just a splash) unless no
+//  decks are set up yet. The configuration window opens from the menu bar item.
 //
 
 import UIKit
