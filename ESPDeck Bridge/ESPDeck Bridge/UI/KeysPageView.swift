@@ -3,8 +3,8 @@
 //  ESPDeck Bridge
 //
 //  The Keys page: the simulated deck beside the selected key's inspector, with a divider
-//  to drag between them. The deck is sized to fit its pane unless zoomed out, with the
-//  slider under it or by pinching on a trackpad.
+//  to drag between them. The deck is sized to fit its pane unless zoomed, with the bar under
+//  it, by pinching on a trackpad, or with View ▸ Zoom In / Zoom Out / Size to Fit.
 //
 
 import SwiftUI
@@ -16,8 +16,6 @@ struct KeysPageView: View {
 
 	/// The deck pane's width, set by dragging the divider.
 	@AppStorage( "keysPreviewWidth" ) private var previewWidth: Double = 580
-	/// The key size chosen with the slider or a pinch, or 0 to size the deck to fit.
-	@AppStorage( "keysKeySize" ) private var chosenKeySize: Double = 0
 
 	@State private var dragStartWidth : Double?
 	@State private var pinchStartSize : CGFloat?
@@ -26,6 +24,11 @@ struct KeysPageView: View {
 	private static let minInspectorWidth : CGFloat = 380
 	/// Around the deck and the controls under it, inside the scroll view.
 	private static let contentPadding    : CGFloat = 24
+	/// The divider's grab area, centred on its line.
+	private static let handleWidth       : CGFloat = 14
+	private static let keySizes          = DeckGridView.minKeySize...DeckGridView.fullKeySize
+
+	private var window: WindowState { controller.window }
 
 	var body: some View {
 		GeometryReader { geometry in
@@ -33,19 +36,25 @@ struct KeysPageView: View {
 			HStack( spacing: 0 ) {
 				previewPane
 					.frame( width: width )
-
 				Divider()
-					.overlay {
-						// Wider than the line, so it's easy to grab.
-						Color.clear
-							.frame( width: 10 )
-							.contentShape( Rectangle() )
-							.gesture( resizeGesture( current: width, total: geometry.size.width ) )
-							.accessibilityLabel( "Resize the deck preview" )
-					}
-
 				KeyInspectorView( controller: controller, deviceID: deviceID, key: selection )
 					.frame( maxWidth: .infinity, maxHeight: .infinity )
+			}
+			// Above both panes, so neither takes the clicks meant for it.
+			.overlay( alignment: .topLeading ) {
+				Color.clear
+					.frame( width: Self.handleWidth )
+					.frame( maxHeight: .infinity )
+					.contentShape( Rectangle() )
+					.offset( x: width - Self.handleWidth / 2 )
+					.onContinuousHover { phase in
+						switch phase {
+							case .active: controller.macBridge?.setResizeCursor( true )
+							case .ended:  if dragStartWidth == nil { controller.macBridge?.setResizeCursor( false ) }
+						}
+					}
+					.gesture( resizeGesture( current: width, total: geometry.size.width ) )
+					.accessibilityLabel( "Resize the deck preview" )
 			}
 		}
 	}
@@ -69,7 +78,7 @@ struct KeysPageView: View {
 					.frame( minWidth: geometry.size.width )   // centred while it's narrower
 				}
 				.simultaneousGesture( pinchGesture( current: keySize ) )
-				.onChange( of: fittingKeySize( in: geometry.size ), initial: true ) { currentFit = $1 }
+				.onChange( of: fittingKeySize( in: geometry.size ), initial: true ) { window.deckFitKeySize = $1 }
 			}
 
 			Divider()
@@ -77,22 +86,38 @@ struct KeysPageView: View {
 		}
 	}
 
-	/// Zoom out with the slider; Size to Fit goes back to the largest keys that fit.
+	/// Smallest and full size at either end of the slider; Size to Fit goes back to the
+	/// largest keys that fit.
 	private var zoomBar: some View {
-		HStack( spacing: 8 ) {
-			Image( systemName: "square.grid.4x3.fill" )
-				.imageScale( .small )
-				.foregroundStyle( Color.secondary )
-			Slider( value: sliderBinding, in: DeckGridView.minKeySize...DeckGridView.fullKeySize )
+		HStack( spacing: 6 ) {
+			Button {
+				window.zoomDeck( to: DeckGridView.minKeySize, range: Self.keySizes )
+			} label: {
+				Image( systemName: "square.grid.4x3.fill" )
+					.imageScale( .small )
+			}
+			.buttonStyle( .borderless )
+			.help( "Smallest keys" )
+
+			Slider( value: sliderBinding, in: Self.keySizes )
 				.frame( maxWidth: 180 )
 				.accessibilityLabel( "Deck preview size" )
-			Image( systemName: "square.grid.2x2.fill" )
-				.imageScale( .medium )
-				.foregroundStyle( Color.secondary )
-			Button( "Size to Fit" ) { chosenKeySize = 0 }
-				.disabled( chosenKeySize == 0 )
-				.help( "Size the deck preview to fit this pane" )
+
+			Button {
+				window.zoomDeck( to: DeckGridView.fullKeySize, range: Self.keySizes )
+			} label: {
+				Image( systemName: "square.grid.2x2.fill" )
+					.imageScale( .medium )
+			}
+			.buttonStyle( .borderless )
+			.help( "Full-size keys" )
+
+			Button( "Size to Fit" ) { window.deckKeySize = 0 }
+				.disabled( window.deckKeySize == 0 )
+				.help( "Size the deck preview to fit this pane (⌘0)" )
+				.padding( .leading, 6 )
 		}
+		.foregroundStyle( Color.secondary )
 		.controlSize( .small )
 		.padding( .horizontal, 14 )
 		.padding( .vertical, 8 )
@@ -101,30 +126,23 @@ struct KeysPageView: View {
 
 	// MARK: - Sizing
 
-	/// The space the deck itself can have is inside the scroll view's padding.
+	/// The deck itself gets the space inside the scroll view's padding.
 	private func fittingKeySize( in space: CGSize ) -> CGFloat {
 		let inner = CGSize( width: space.width - 2 * Self.contentPadding, height: space.height - 2 * Self.contentPadding )
 		return DeckGridView.fittingKeySize( for: controller.layout( deviceID ), in: inner )
 	}
 
 	private func keySize( in space: CGSize ) -> CGFloat {
-		chosenKeySize > 0 ? Self.clamp( CGFloat( chosenKeySize ) ) : fittingKeySize( in: space )
+		window.deckKeySize > 0 ? min( max( CGFloat( window.deckKeySize ), Self.keySizes.lowerBound ), Self.keySizes.upperBound ) : fittingKeySize( in: space )
 	}
 
 	/// The slider shows the current size, fitted or chosen; moving it chooses one.
 	private var sliderBinding: Binding<CGFloat> {
 		Binding {
-			chosenKeySize > 0 ? Self.clamp( CGFloat( chosenKeySize ) ) : currentFit
+			min( max( window.deckEffectiveKeySize, Self.keySizes.lowerBound ), Self.keySizes.upperBound )
 		} set: { size in
-			chosenKeySize = Double( Self.clamp( size ).rounded() )
+			window.zoomDeck( to: size, range: Self.keySizes )
 		}
-	}
-
-	/// The fitted size, for the slider (which sits outside the deck's GeometryReader).
-	@State private var currentFit: CGFloat = DeckGridView.fullKeySize
-
-	private static func clamp( _ size: CGFloat ) -> CGFloat {
-		min( max( size, DeckGridView.minKeySize ), DeckGridView.fullKeySize )
 	}
 
 	/// Pinching zooms from the size at the start of the pinch; never past full size.
@@ -133,7 +151,7 @@ struct KeysPageView: View {
 			.onChanged { value in
 				let start = pinchStartSize ?? current
 				pinchStartSize = start
-				chosenKeySize  = Double( Self.clamp( start * value.magnification ).rounded() )
+				window.zoomDeck( to: start * value.magnification, range: Self.keySizes )
 			}
 			.onEnded { _ in pinchStartSize = nil }
 	}
@@ -150,9 +168,13 @@ struct KeysPageView: View {
 			.onChanged { value in
 				let start = dragStartWidth ?? Double( current )
 				dragStartWidth = start
+				controller.macBridge?.setResizeCursor( true )
 				let maxWidth   = max( Self.minPreviewWidth, total - Self.minInspectorWidth )
 				previewWidth   = Double( min( max( CGFloat( start ) + value.translation.width, Self.minPreviewWidth ), maxWidth ) )
 			}
-			.onEnded { _ in dragStartWidth = nil }
+			.onEnded { _ in
+				dragStartWidth = nil
+				controller.macBridge?.setResizeCursor( false )
+			}
 	}
 }

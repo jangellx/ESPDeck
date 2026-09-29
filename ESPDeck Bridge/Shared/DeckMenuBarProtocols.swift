@@ -31,6 +31,10 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// Creates the status item. Called once, after the app finishes launching.
 	func install( host: DeckMenuBarHost )
 
+	/// The column-resize pointer (over the Keys page's divider), or the arrow again. SwiftUI's
+	/// pointer styles aren't available to Catalyst.
+	func setResizeCursor( _ active: Bool )
+
 	/// Replaces the informational lines at the top of the menu and the icon's connected state.
 	/// `levels` has one entry per line: 0 waiting (yellow), 1 OK (green check), 2 problem (red).
 	func update( statusLines: [String], levels: [Int], connected: Bool )

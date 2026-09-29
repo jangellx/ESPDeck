@@ -89,6 +89,16 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		DockPresence.logState( "activate requested" )
 	}
 
+	func setResizeCursor( _ active: Bool ) {
+		if !active {
+			NSCursor.arrow.set()
+		} else if #available( macOS 15, * ) {
+			NSCursor.columnResize.set()
+		} else {
+			NSCursor.resizeLeftRight.set()
+		}
+	}
+
 	func closeWindows( titled title: String ) {
 		for window in NSApp.windows where window.title == title {
 			window.close()

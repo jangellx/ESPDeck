@@ -84,7 +84,13 @@ extension AppDelegate {
 			UICommand( title: title, action: #selector( showSidebarItem( _: ) ), propertyList: item )
 		}
 		builder.insertChild( UIMenu( options: .displayInline, children: sidebarPages ), atStartOfMenu: .view )
-		builder.insertChild( UIMenu( options: .displayInline, children: pages ), atStartOfMenu: .view )
+		builder.insertChild( UIMenu( identifier: UIMenu.Identifier( "com.tmproductions.espdeck.pages" ), options: .displayInline, children: pages ), atStartOfMenu: .view )
+		// The Keys page's deck preview, for when there's no trackpad to pinch.
+		builder.insertSibling( UIMenu( options: .displayInline, children: [
+			UIKeyCommand( title: "Zoom In", action: #selector( zoomDeckIn ), input: "=", modifierFlags: .command ),
+			UIKeyCommand( title: "Zoom Out", action: #selector( zoomDeckOut ), input: "-", modifierFlags: .command ),
+			UIKeyCommand( title: "Size to Fit", action: #selector( sizeDeckToFit ), input: "0", modifierFlags: .command ),
+		] ), afterMenu: UIMenu.Identifier( "com.tmproductions.espdeck.pages" ) )
 
 		// Device
 		let devices = controller.devices.prefix( 9 ).enumerated().map { index, device in
@@ -251,6 +257,27 @@ extension AppDelegate {
 	@objc func showSidebarItem( _ sender: UICommand ) {
 		guard let item = sender.propertyList as? String else { return }
 		show( item )
+	}
+
+	// MARK: - Deck preview zoom
+
+	/// A step is an eighth of the full key size.
+	private func zoomDeck( by steps: CGFloat ) {
+		guard currentDevice != nil, window.page == .keys else { return }
+		window.zoomDeck( to: window.deckEffectiveKeySize + steps * DeckGridView.fullKeySize / 8,
+						 range: DeckGridView.minKeySize...DeckGridView.fullKeySize )
+	}
+
+	@objc func zoomDeckIn() {
+		zoomDeck( by: 1 )
+	}
+
+	@objc func zoomDeckOut() {
+		zoomDeck( by: -1 )
+	}
+
+	@objc func sizeDeckToFit() {
+		window.deckKeySize = 0
 	}
 
 	@objc func showPage( _ sender: UICommand ) {

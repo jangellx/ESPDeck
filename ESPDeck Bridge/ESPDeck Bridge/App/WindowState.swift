@@ -7,6 +7,8 @@
 //  menu bar menu can read and change it, and the views follow.
 //
 
+import CoreGraphics
+import Foundation
 import Observation
 
 @Observable
@@ -27,6 +29,23 @@ final class WindowState {
 	}
 	var page        = Page.keys
 	var selectedKey = 0
+
+	/// The Keys page's deck preview: its key size, or 0 to size it to fit (kept between
+	/// launches), and the size that fits as last laid out, which zooming starts from.
+	var deckKeySize = UserDefaults.standard.double( forKey: "keysKeySize" ) {
+		didSet { UserDefaults.standard.set( deckKeySize, forKey: "keysKeySize" ) }
+	}
+	var deckFitKeySize: CGFloat = 96
+
+	/// The preview's key size now, fitted or chosen.
+	var deckEffectiveKeySize: CGFloat {
+		deckKeySize > 0 ? CGFloat( deckKeySize ) : deckFitKeySize
+	}
+
+	/// Zooms the preview to a key size, from the smallest to full size (never beyond).
+	func zoomDeck( to size: CGFloat, range: ClosedRange<CGFloat> ) {
+		deckKeySize = Double( min( max( size, range.lowerBound ), range.upperBound ).rounded() )
+	}
 
 	/// Getting Started's sheet, and how the dev kit is being set up (nil until chosen: USB
 	/// where it's available). Here so USB Setup and the menus can open a sheet.
