@@ -19,12 +19,11 @@ extension HomeObserver {
 		guard kind == .power || kind == .fan, let accessory = accessory( accessoryID ) else { return fallback }
 		let service = accessory.services.first { $0.uniqueIdentifier == serviceID }
 		guard let base = Self.baseSymbol( kind: kind, accessory: accessory, service: service ) else { return fallback }
-		let on = state == .on
-		if on, UIImage( systemName: base + ".fill" ) != nil { return base + ".fill" }
-		return UIImage( systemName: base ) != nil ? base : fallback
+		guard UIImage( systemName: base ) != nil else { return fallback }
+		return SymbolCounterpart.variant( of: base, for: state == .on ? .on : .off )
 	}
 
-	/// Unfilled; `symbol(for:…)` fills it for On.
+	/// For Off; `symbol(for:…)` makes it On's (lamp.table.fill, lightswitch.on).
 	private static func baseSymbol( kind: KeyKind, accessory: HMAccessory, service: HMService? ) -> String? {
 		let name     = [ service?.name, accessory.name ].compactMap { $0 }.joined( separator: " " ).lowercased()
 		let has      = { ( words: [String] ) in words.contains { name.contains( $0 ) } }
@@ -54,7 +53,7 @@ extension HomeObserver {
 			if light { return "lightbulb" }
 		}
 		if type == HMServiceTypeSwitch || category == HMAccessoryCategoryTypeSwitch || category == HMAccessoryCategoryTypeProgrammableSwitch {
-			return "lightswitch.on"
+			return "lightswitch.off"
 		}
 		return nil
 	}

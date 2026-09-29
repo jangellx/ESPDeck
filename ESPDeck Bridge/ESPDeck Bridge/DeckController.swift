@@ -1191,10 +1191,8 @@ final class DeckController {
 	/// for On, door.garage.closed gives door.garage.open for Open. Off never gains a slash:
 	/// Default is the plain symbol, so Off only unfills it (lightbulb.fill gives lightbulb).
 	private func iconName( for state: KeyState, of assignment: KeyAssignment ) -> String? {
-		if assignment.icons[state.rawValue] == nil, let symbol = assignment.symbol( for: .standard ),
-		   let variant = SymbolCounterpart.symbol( pairing: symbol, for: state ),
-		   symbol.contains( "slash" ) || !variant.contains( "slash" ) {
-			return KeyAssignment.symbolPrefix + variant
+		if assignment.icons[state.rawValue] == nil, let symbol = assignment.symbol( for: .standard ) {
+			return KeyAssignment.symbolPrefix + SymbolCounterpart.variant( of: symbol, for: state )
 		}
 		return assignment.iconName( for: state )
 	}

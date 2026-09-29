@@ -2,8 +2,9 @@
 //  SymbolCounterpart.swift
 //  ESPDeck Bridge
 //
-//  Finds the SF Symbol that suits a key's opposite state: lightbulb.fill for On gives
-//  lightbulb for Off, door.garage.open gives door.garage.closed, lock gives lock.open.
+//  Finds the SF Symbol that suits a key's opposite state: lightswitch.on.square for On gives
+//  lightswitch.off.square for Off, lightbulb.fill gives lightbulb, door.garage.open gives
+//  door.garage.closed, lock gives lock.open.
 //
 
 import UIKit
@@ -15,11 +16,32 @@ enum SymbolCounterpart {
 		candidates( for: symbol, target: target ).first { $0 != symbol && UIImage( systemName: $0 ) != nil }
 	}
 
+	/// `symbol` as it should look in `state`, for a default icon: the matching variant, if
+	/// there is one, except that Off never gains a slash (the symbol itself is the plain one).
+	static func variant( of symbol: String, for state: KeyState ) -> String {
+		guard let variant = self.symbol( pairing: symbol, for: state ),
+			  symbol.contains( "slash" ) || !variant.contains( "slash" ) else { return symbol }
+		return variant
+	}
+
 	private static func candidates( for symbol: String, target: KeyState ) -> [String] {
 		let parts   = symbol.split( separator: "." ).map( String.init )
 		let filled  = parts.last == "fill"
 		let base    = filled ? Array( parts.dropLast() ) : parts
 		let join    = { ( parts: [String], fill: Bool ) in ( parts + ( fill ? [ "fill" ] : [] ) ).joined( separator: "." ) }
+
+		// A symbol with .on/.off in it (lightswitch.on.square), or poweron/poweroff: that part
+		// says the state, and the rest (square, fill) stays as it is.
+		if target == .on || target == .off {
+			let words: [String: String] = [ "on": "off", "off": "on", "poweron": "poweroff", "poweroff": "poweron" ]
+			if let index = base.firstIndex( where: { words[$0] != nil } ) {
+				let wanted = target == .on ? [ "on", "poweron" ] : [ "off", "poweroff" ]
+				guard !wanted.contains( base[index] ) else { return [] }   // already right
+				var swapped = base
+				swapped[index] = words[base[index]]!
+				return [ join( swapped, filled ) ]
+			}
+		}
 
 		switch target {
 			case .off:
@@ -27,7 +49,6 @@ enum SymbolCounterpart {
 				var result: [String] = []
 				if filled { result.append( join( base, false ) ) }
 				result.append( join( base + [ "slash" ], filled ) )
-				if base.last == "on" { result.append( join( base.dropLast() + [ "off" ], filled ) ) }
 				return result
 
 			case .on:
@@ -38,7 +59,6 @@ enum SymbolCounterpart {
 					result.append( join( base.dropLast(), true ) )
 				}
 				if !filled { result.append( join( base, true ) ) }
-				if base.last == "off" { result.append( join( base.dropLast() + [ "on" ], filled ) ) }
 				return result
 
 			case .closed, .locked:
