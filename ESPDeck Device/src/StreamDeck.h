@@ -162,6 +162,6 @@ private:
 	uint8_t                  interface_    = 0;
 	uint8_t                  outEndpoint_  = 0;         // 0 if the interface has none
 	bool                     useInterrupt_ = false;
-	bool                     outShrunk_    = false;     // shrinkOversizedOut() cut it to 64-byte packets
+	bool                     outShrunk_    = false;     // shrinkOversizedOut() cut its packets to 64 bytes
 	bool                     stuck_        = false;     // a transfer never completed; wait for unplug
 };

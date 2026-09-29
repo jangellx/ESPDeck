@@ -57,7 +57,7 @@ namespace {
 	constexpr uint8_t  kImageReportID   = 0x02;
 	constexpr size_t   kMaxReportSize   = 8191;
 	constexpr uint16_t kMaxPeriodicOut  = 128;   // the host's limit with CONFIG_USB_HOST_HW_BUFFER_BIAS_IN
-	constexpr uint16_t kFullSpeedPacket = 64;    // the most an interrupt endpoint takes at full speed
+	constexpr uint16_t kFullSpeedPacket = 64;    // the most an interrupt packet can be at full speed
 
 	size_t reportSize( Protocol protocol ) {
 		return protocol == Protocol::Original ? 8191 : 1024;
@@ -504,9 +504,9 @@ void StreamDeck::readFeatureString( hid_host_device_handle_t handle, uint8_t rep
 // 512-byte interrupt IN and a 1024-byte interrupt OUT, where full speed allows 64. The host's
 // FIFOs take IN packets up to 600 bytes (biased towards IN in sdkconfig.defaults) but periodic
 // OUT only up to 128, and claiming the interface allocates every endpoint, so the claim fails.
-// An oversized OUT endpoint is shrunk to 64 bytes in the host's copy of the descriptor, and
-// images go out as 64-byte reports: each one's header carries its own length and page, so the
-// deck takes short reports. (It ignores SET_REPORT, and 128-byte packets fail.)
+// An oversized OUT endpoint is shrunk to 64 bytes in the host's copy of the descriptor: the
+// deck's endpoint really takes 64-byte packets (128-byte ones fail, and it ignores SET_REPORT),
+// and it reassembles them into full 1024-byte reports.
 void StreamDeck::shrinkOversizedOut( hid_host_device_handle_t handle ) {
 	outShrunk_ = false;
 	hid_host_dev_params_t params = {};
@@ -535,7 +535,7 @@ void StreamDeck::shrinkOversizedOut( hid_host_device_handle_t handle ) {
 			usb_ep_desc_t *ep = const_cast<usb_ep_desc_t *>( usb_parse_endpoint_descriptor_by_index( intf, i, config->wTotalLength, &offset ) );
 			if( ep && !( ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK )
 			    && ( ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK ) == USB_BM_ATTRIBUTES_XFER_INT && USB_EP_DESC_GET_MPS( ep ) > kMaxPeriodicOut ) {
-				ESP_LOGI( TAG, "Interrupt OUT 0x%02X is %u bytes, more than the host takes; sending %u-byte reports", ep->bEndpointAddress, USB_EP_DESC_GET_MPS( ep ), kFullSpeedPacket );
+				ESP_LOGI( TAG, "Interrupt OUT 0x%02X is %u bytes, more than the host takes; sending %u-byte packets", ep->bEndpointAddress, USB_EP_DESC_GET_MPS( ep ), kFullSpeedPacket );
 				ep->wMaxPacketSize = kFullSpeedPacket;
 				outShrunk_         = true;
 			}
@@ -670,7 +670,7 @@ esp_err_t StreamDeck::setKeyImage( uint8_t key, const uint8_t *image, size_t len
 	}
 
 	Protocol  protocol = info_.protocol;
-	size_t    size     = outShrunk_ ? kFullSpeedPacket : reportSize( protocol );
+	size_t    size     = reportSize( protocol );
 	size_t    header   = headerSize( protocol );
 	uint8_t   wire     = wireKey( key );
 	esp_err_t err      = ESP_OK;
