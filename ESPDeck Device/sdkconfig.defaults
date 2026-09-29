@@ -17,6 +17,11 @@ CONFIG_SPIRAM_USE_MALLOC=y
 # computer attached, a USB-Serial-JTAG port (which gets the logs too)
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 
+# USB host FIFOs biased towards IN packets (up to 600 bytes instead of 408): the MK.2 Scissor
+# has a 512-byte interrupt IN endpoint even at full speed. Periodic OUT drops to 128 bytes;
+# StreamDeck::shrinkOversizedOut() handles its 1024-byte OUT endpoint.
+CONFIG_USB_HOST_HW_BUFFER_BIAS_IN=y
+
 # Image cache file names are "/deck/img/<32 hex>.img"
 CONFIG_LITTLEFS_OBJ_NAME_LEN=64
 

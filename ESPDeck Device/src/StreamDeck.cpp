@@ -56,6 +56,8 @@ namespace {
 	//   Main:     [0x02, 0x07, key, last, length LE16, page LE16] (8 bytes), 1024-byte reports
 	constexpr uint8_t  kImageReportID   = 0x02;
 	constexpr size_t   kMaxReportSize   = 8191;
+	constexpr uint16_t kMaxPeriodicOut  = 128;   // the host's limit with CONFIG_USB_HOST_HW_BUFFER_BIAS_IN
+	constexpr uint16_t kFullSpeedPacket = 64;    // the most an interrupt endpoint takes at full speed
 
 	size_t reportSize( Protocol protocol ) {
 		return protocol == Protocol::Original ? 8191 : 1024;
@@ -253,6 +255,18 @@ void StreamDeck::clientEventCallback( const usb_host_client_event_msg_t *message
 		if( desc->bDeviceClass == USB_CLASS_HUB )
 			ESP_LOGW( TAG, "That's a USB hub; a Stream Deck behind a hub isn't supported" );
 	}
+	// Its endpoints: the host's FIFOs limit how big their packets can be.
+	const usb_config_desc_t *config = nullptr;
+	if( usb_host_get_active_config_descriptor( device, &config ) == ESP_OK ) {
+		int offset = 0;
+		for( const usb_standard_desc_t *next = (const usb_standard_desc_t *)config; ( next = usb_parse_next_descriptor_of_type( next, config->wTotalLength, USB_B_DESCRIPTOR_TYPE_ENDPOINT, &offset ) ); ) {
+			const usb_ep_desc_t *ep = (const usb_ep_desc_t *)next;
+			static const char *const types[] = { "control", "isochronous", "bulk", "interrupt" };
+			ESP_LOGI( TAG, "  Endpoint 0x%02X: %s %s, max packet %u bytes, interval %u", ep->bEndpointAddress,
+					  types[ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK], ( ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK ) ? "IN" : "OUT",
+					  USB_EP_DESC_GET_MPS( ep ), ep->bInterval );
+		}
+	}
 	usb_host_device_close( self->client_, device );
 	self->recordUsbDevice( seen );
 }
@@ -323,6 +337,7 @@ void StreamDeck::handleConnected( hid_host_device_handle_t handle ) {
 	hid_host_device_config_t deviceConfig = {};
 	deviceConfig.callback     = interfaceCallback;
 	deviceConfig.callback_arg = this;
+	shrinkOversizedOut( handle );   // before the HID driver claims the interface
 	if( hid_host_device_open( handle, &deviceConfig ) != ESP_OK ) {
 		ESP_LOGW( TAG, "Couldn't open HID interface" );
 		return;
@@ -485,6 +500,50 @@ void StreamDeck::readFeatureString( hid_host_device_handle_t handle, uint8_t rep
 // MARK: - Output transfers
 
 // Caller holds mutex_; info_ is already set.
+// Some decks (the MK.2 Scissor) run at full speed with their high-speed endpoint sizes: a
+// 512-byte interrupt IN and a 1024-byte interrupt OUT, where full speed allows 64. The host's
+// FIFOs take IN packets up to 600 bytes (biased towards IN in sdkconfig.defaults) but periodic
+// OUT only up to 128, and claiming the interface allocates every endpoint, so the claim fails.
+// An oversized OUT endpoint is shrunk to 64 bytes in the host's copy of the descriptor, and
+// images go out as 64-byte reports: each one's header carries its own length and page, so the
+// deck takes short reports. (It ignores SET_REPORT, and 128-byte packets fail.)
+void StreamDeck::shrinkOversizedOut( hid_host_device_handle_t handle ) {
+	outShrunk_ = false;
+	hid_host_dev_params_t params = {};
+	usb_device_handle_t   device = nullptr;
+	esp_err_t err = hid_host_device_get_params( handle, &params );
+	// The HID driver hears about a new device before our client does, and until then opening
+	// it fails with ESP_ERR_INVALID_STATE.
+	for( int attempt = 0; err == ESP_OK; attempt++ ) {
+		err = usb_host_device_open( client_, params.addr, &device );
+		if( err != ESP_ERR_INVALID_STATE || attempt == 50 )
+			break;
+		err = ESP_OK;
+		vTaskDelay( pdMS_TO_TICKS( 10 ) );
+	}
+	if( err != ESP_OK ) {
+		ESP_LOGW( TAG, "Couldn't check the endpoints: %s", esp_err_to_name( err ) );
+		return;
+	}
+
+	const usb_config_desc_t *config = nullptr;
+	if( usb_host_get_active_config_descriptor( device, &config ) == ESP_OK ) {
+		int intfOffset = 0;
+		const usb_intf_desc_t *intf = usb_parse_interface_descriptor( config, params.iface_num, 0, &intfOffset );
+		for( int i = 0; intf && i < intf->bNumEndpoints; i++ ) {
+			int offset = intfOffset;
+			usb_ep_desc_t *ep = const_cast<usb_ep_desc_t *>( usb_parse_endpoint_descriptor_by_index( intf, i, config->wTotalLength, &offset ) );
+			if( ep && !( ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK )
+			    && ( ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK ) == USB_BM_ATTRIBUTES_XFER_INT && USB_EP_DESC_GET_MPS( ep ) > kMaxPeriodicOut ) {
+				ESP_LOGI( TAG, "Interrupt OUT 0x%02X is %u bytes, more than the host takes; sending %u-byte reports", ep->bEndpointAddress, USB_EP_DESC_GET_MPS( ep ), kFullSpeedPacket );
+				ep->wMaxPacketSize = kFullSpeedPacket;
+				outShrunk_         = true;
+			}
+		}
+	}
+	usb_host_device_close( client_, device );
+}
+
 bool StreamDeck::openOutput( hid_host_device_handle_t handle ) {
 	hid_host_dev_params_t params = {};
 	if( hid_host_device_get_params( handle, &params ) != ESP_OK )
@@ -565,6 +624,8 @@ esp_err_t StreamDeck::submitAndWait( bool control ) {
 		stuck_ = true;
 		return ESP_ERR_TIMEOUT;
 	}
+	if( transfer_->status != USB_TRANSFER_STATUS_COMPLETED )
+		ESP_LOGW( TAG, "Output report not delivered (transfer status %d, %d of %d bytes)", (int)transfer_->status, transfer_->actual_num_bytes, transfer_->num_bytes );
 	return transfer_->status == USB_TRANSFER_STATUS_COMPLETED ? ESP_OK : ESP_FAIL;
 }
 
@@ -609,7 +670,7 @@ esp_err_t StreamDeck::setKeyImage( uint8_t key, const uint8_t *image, size_t len
 	}
 
 	Protocol  protocol = info_.protocol;
-	size_t    size     = reportSize( protocol );
+	size_t    size     = outShrunk_ ? kFullSpeedPacket : reportSize( protocol );
 	size_t    header   = headerSize( protocol );
 	uint8_t   wire     = wireKey( key );
 	esp_err_t err      = ESP_OK;

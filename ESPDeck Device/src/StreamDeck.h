@@ -134,6 +134,7 @@ private:
 	bool identify( hid_host_device_handle_t handle, uint16_t vid, uint16_t pid, Info &info );
 	void readFeatureString( hid_host_device_handle_t handle, uint8_t reportID, size_t length, size_t offset, char *out, size_t outSize );
 	bool openOutput( hid_host_device_handle_t handle );
+	void shrinkOversizedOut( hid_host_device_handle_t handle );
 	void closeOutput();
 	esp_err_t sendReport( size_t length );
 	esp_err_t submitAndWait( bool control );
@@ -161,5 +162,6 @@ private:
 	uint8_t                  interface_    = 0;
 	uint8_t                  outEndpoint_  = 0;         // 0 if the interface has none
 	bool                     useInterrupt_ = false;
+	bool                     outShrunk_    = false;     // shrinkOversizedOut() cut it to 64-byte packets
 	bool                     stuck_        = false;     // a transfer never completed; wait for unplug
 };
