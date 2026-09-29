@@ -72,6 +72,13 @@ struct ConfigurationView: View {
 				}
 			}
 		}
+		.confirmationDialog( "Reset Bridge?", isPresented: Binding { window.confirmingResetBridge } set: { window.confirmingResetBridge = $0 },
+							 titleVisibility: .visible ) {
+			Button( "Reset Bridge", role: .destructive ) { controller.removeBridge() }
+			Button( "Export First…" ) { window.bridgeTransfer = .export }
+		} message: {
+			Text( "This Mac forgets every device's pairing, the devices and their key layouts, icons, triggers and commands, and the developer password, and starts over as a new bridge. Your decks then need unpairing on their setup pages before they can pair again. To keep them working on another Mac instead, export the bridge first." )
+		}
 		.sheet( item: Binding { window.bridgeTransfer } set: { window.bridgeTransfer = $0 } ) { sheet in
 			switch sheet {
 				case .export: ExportBridgeSheet( controller: controller )

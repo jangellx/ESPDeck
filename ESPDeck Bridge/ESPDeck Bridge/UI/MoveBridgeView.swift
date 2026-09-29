@@ -72,8 +72,11 @@ struct ExportBridgeSheet: View {
 
 		NavigationStack {
 			Form {
+				// Plain text over the form rather than a card of its own.
 				Section {
 					Text( "Saves this Mac's bridge in one file: its identity, the pairing keys of its \(devicesText( count )), the key layouts, icons, triggers and commands, and the developer password. On the other Mac, choose File ▸ Import Bridge… and enter the passphrase; the decks then connect to it without pairing again." )
+						.listRowBackground( Color.clear )
+						.listRowInsets( EdgeInsets( top: 0, leading: 4, bottom: 0, trailing: 4 ) )
 				}
 
 				Section {
@@ -105,9 +108,16 @@ struct ExportBridgeSheet: View {
 			}
 			.formStyle( .grouped )
 			.navigationTitle( "Export Bridge" )
+			.navigationBarTitleDisplayMode( .inline )   // centred between the buttons
 			.toolbar {
 				ToolbarItem( placement: .cancellationAction ) {
-					Button( "Cancel" ) { dismiss() }
+					Button {
+						dismiss()
+					} label: {
+						Image( systemName: "xmark" )
+					}
+					.accessibilityLabel( "Cancel" )
+					.help( "Cancel" )
 				}
 				ToolbarItem( placement: .confirmationAction ) {
 					Button( working ? "Encrypting…" : "Export…" ) {
@@ -121,7 +131,7 @@ struct ExportBridgeSheet: View {
 				}
 			}
 		}
-		.frame( minWidth: 480, minHeight: 460 )
+		.frame( minWidth: 520, minHeight: 640 )   // everything shows without scrolling
 		.fileExporter( isPresented: $exporting, document: document, contentType: .espDeckBridge, defaultFilename: "ESPDeck Bridge" ) { result in
 			switch result {
 				case .success:
@@ -246,9 +256,16 @@ struct ImportBridgeSheet: View {
 			}
 			.formStyle( .grouped )
 			.navigationTitle( "Import Bridge" )
+			.navigationBarTitleDisplayMode( .inline )
 			.toolbar {
 				ToolbarItem( placement: .cancellationAction ) {
-					Button( "Cancel" ) { dismiss() }
+					Button {
+						dismiss()
+					} label: {
+						Image( systemName: "xmark" )
+					}
+					.accessibilityLabel( "Cancel" )
+					.help( "Cancel" )
 				}
 				ToolbarItem( placement: .confirmationAction ) {
 					if archive == nil {

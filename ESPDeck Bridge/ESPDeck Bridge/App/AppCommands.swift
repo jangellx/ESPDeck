@@ -62,6 +62,8 @@ extension AppDelegate {
 		builder.insertSibling( UIMenu( options: .displayInline, children: [
 			UICommand( title: "Export Bridge…", action: #selector( showExportBridge ) ),
 			UICommand( title: "Import Bridge…", action: #selector( showImportBridge ) ),
+			// Forgetting every device at once; Export Bridge can do the same after saving.
+			UICommand( title: "Reset Bridge…", action: #selector( resetBridge ) ),
 		] ), afterMenu: fileItems.identifier )
 
 		// Edit: Undo/Redo, then Cut, Copy and Paste, which the configuration window answers for
@@ -317,6 +319,11 @@ extension AppDelegate {
 	/// The sheets show over the configuration window, which opens for them.
 	@objc func showExportBridge() {
 		window.bridgeTransfer = .export
+		menuBarOpenConfiguration()
+	}
+
+	@objc func resetBridge() {
+		window.confirmingResetBridge = true
 		menuBarOpenConfiguration()
 	}
 
