@@ -65,6 +65,10 @@ struct KeysPageView: View {
 	private var previewPane: some View {
 		VStack( spacing: 0 ) {
 			pageBar
+			// Zoom under the pages: the bar at the bottom holds the rest.
+			zoomBar
+				.padding( .horizontal, 14 )
+				.padding( .bottom, 8 )
 			Divider()
 
 			GeometryReader { geometry in
@@ -88,7 +92,6 @@ struct KeysPageView: View {
 			// Fixed under the deck, so they don't move when it scrolls or zooms.
 			VStack( spacing: 8 ) {
 				LabelPositionControl( controller: controller, deviceID: deviceID )
-				zoomBar
 				Text( "Shift-click a key to run it, as if pressed on the deck; hold a Level key to keep stepping." )
 					.font( .caption )
 					.foregroundStyle( Color.secondary )

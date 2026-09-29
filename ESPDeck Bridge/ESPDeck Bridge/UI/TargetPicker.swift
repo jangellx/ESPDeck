@@ -267,6 +267,18 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// Roughly what each page command's key shows.
+	private static func pageSymbol( _ action: KeyAction ) -> String {
+		switch action {
+			case .nextPage:     "chevron.right"
+			case .previousPage: "chevron.left"
+			case .firstPage:    "chevron.left.to.line"
+			case .lastPage:     "chevron.right.to.line"
+			case .goToPage:     "number.circle.fill"
+			default:            "doc.fill"
+		}
+	}
+
 	/// Keys only: which page command. Go to Page's number is the inspector's.
 	private var pageRows: some View {
 		LabeledContent( "Command" ) {
@@ -283,7 +295,7 @@ struct TargetPicker: View {
 					Text( "Choose…" ).tag( KeyAction.none )
 				}
 				ForEach( KeyKind.page.actions ) { action in
-					Text( action.title ).tag( action )
+					Label( action.title, systemImage: Self.pageSymbol( action ) ).tag( action )
 				}
 			}
 			.labelsHidden()

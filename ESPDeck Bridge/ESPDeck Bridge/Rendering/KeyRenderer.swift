@@ -111,32 +111,57 @@ struct KeyFaceView: View {
 	}
 }
 
-/// "doc" upside down, so its folded corner is at the lower right, with the number across it.
+/// The page's number cut out of a rounded square, its lower-right corner folded over.
 private struct PageNumber: View {
 	let number : Int
 	let tint   : Color
 
 	var body: some View {
 		GeometryReader { geometry in
-			let side = min( geometry.size.width, geometry.size.height )
+			let side = min( geometry.size.width, geometry.size.height ) * 0.86
+			let fold = side * 0.3
 			ZStack {
-				Image( systemName: "doc" )
-					.resizable()
-					.scaledToFit()
-					.fontWeight( .semibold )
-					.scaleEffect( x: 1, y: -1 )
-					.foregroundStyle( tint )
+				FoldedSquare( radius: side * 0.2, fold: fold )
+					.fill( tint )
 				Text( "\(number)" )
-					.font( .system( size: side * 0.32, weight: .bold, design: .rounded ) )
-					.minimumScaleFactor( 0.5 )
-					.lineLimit( 1 )
-					.foregroundStyle( tint )
-					.frame( width: side * 0.44 )
-					.offset( x: -side * 0.02, y: -side * 0.1 )   // above the fold
+					.font( .system( size: side * ( number > 9 ? 0.5 : 0.62 ), weight: .bold, design: .rounded ) )
+					.offset( x: -side * 0.03, y: -side * 0.03 )   // clear of the fold
+					.blendMode( .destinationOut )                 // the key shows through
+				// The flap, folded over the corner.
+				Path { path in
+					let x = side - fold, y = side - fold
+					path.move( to: CGPoint( x: x, y: side ) )
+					path.addLine( to: CGPoint( x: x, y: y + side * 0.05 ) )
+					path.addQuadCurve( to: CGPoint( x: x + side * 0.05, y: y ), control: CGPoint( x: x, y: y ) )
+					path.addLine( to: CGPoint( x: side, y: y ) )
+					path.closeSubpath()
+				}
+				.fill( Color.black.opacity( 0.3 ) )
 			}
+			.compositingGroup()
+			.frame( width: side, height: side )
 			.frame( width: geometry.size.width, height: geometry.size.height )
 		}
-		.environment( \.colorScheme, .light )
+	}
+}
+
+/// A rounded square whose lower-right corner is cut off diagonally, where it folds.
+private nonisolated struct FoldedSquare: Shape {
+	var radius : CGFloat
+	var fold   : CGFloat
+
+	func path( in rect: CGRect ) -> Path {
+		var path = Path()
+		path.move( to: CGPoint( x: rect.minX + radius, y: rect.minY ) )
+		path.addLine( to: CGPoint( x: rect.maxX - radius, y: rect.minY ) )
+		path.addQuadCurve( to: CGPoint( x: rect.maxX, y: rect.minY + radius ), control: CGPoint( x: rect.maxX, y: rect.minY ) )
+		path.addLine( to: CGPoint( x: rect.maxX, y: rect.maxY - fold ) )
+		path.addLine( to: CGPoint( x: rect.maxX - fold, y: rect.maxY ) )
+		path.addLine( to: CGPoint( x: rect.minX + radius, y: rect.maxY ) )
+		path.addQuadCurve( to: CGPoint( x: rect.minX, y: rect.maxY - radius ), control: CGPoint( x: rect.minX, y: rect.maxY ) )
+		path.addLine( to: CGPoint( x: rect.minX, y: rect.minY + radius ) )
+		path.addQuadCurve( to: CGPoint( x: rect.minX + radius, y: rect.minY ), control: CGPoint( x: rect.minX, y: rect.minY ) )
+		return path
 	}
 }
 
