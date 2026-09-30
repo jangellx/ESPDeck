@@ -29,6 +29,10 @@ enum SidebarItem {
 struct ConfigurationView: View {
 	let controller: DeckController
 
+	/// In-app links in explanation text: "[USB Setup](espdeck:usb-setup)".
+	static let linkScheme   = "espdeck"
+	static let usbSetupLink = "espdeck:usb-setup"
+
 	/// Decks needing unpairing whose keys and settings were asked for anyway.
 	@State private var showingStuckDevice: Set<String> = []
 
@@ -120,6 +124,12 @@ struct ConfigurationView: View {
 			if window.selection == nil { window.selection = controller.devices.first?.id }
 		}
 		.onDisappear { window.isShowing = false }
+		// In-app links in explanations, like [USB Setup](espdeck:usb-setup).
+		.environment( \.openURL, OpenURLAction { url in
+			guard url.scheme == Self.linkScheme else { return .systemAction }
+			if url.absoluteString == Self.usbSetupLink { window.selection = SidebarItem.usbSetup }
+			return .handled
+		} )
 		// Choosing a deck again shows its unpairing page again.
 		.onChange( of: window.selection ) { showingStuckDevice = [] }
 		.onChange( of: controller.newDevices.map { "\($0.client) \($0.hello.id)" } ) { old, _ in

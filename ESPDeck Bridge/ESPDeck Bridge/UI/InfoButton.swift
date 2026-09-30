@@ -8,12 +8,20 @@
 
 import SwiftUI
 
-/// An ⓘ that shows `text` in a popover; `help` is its tooltip and spoken name.
+/// An ⓘ that shows `text` in a popover; `help` is its tooltip and spoken name. The text is
+/// Markdown (bold, links; line breaks kept), and following a link closes the popover.
 struct InfoButton: View {
 	let help : String
 	let text : String
 
 	@State private var showing = false
+	@Environment( \.openURL ) private var openURL
+
+	/// `text` with its Markdown applied, or as it is if it isn't valid Markdown.
+	private var styled: AttributedString {
+		( try? AttributedString( markdown: text, options: .init( interpretedSyntax: .inlineOnlyPreservingWhitespace ) ) )
+			?? AttributedString( text )
+	}
 
 	var body: some View {
 		Button {
@@ -25,10 +33,15 @@ struct InfoButton: View {
 		.help( help )
 		.accessibilityLabel( help )
 		.popover( isPresented: $showing ) {
-			Text( text )
+			Text( styled )
 				.frame( width: 280 )
 				.fixedSize( horizontal: false, vertical: true )
 				.padding()
+				.environment( \.openURL, OpenURLAction { url in
+					showing = false
+					openURL( url )
+					return .handled
+				} )
 		}
 	}
 }

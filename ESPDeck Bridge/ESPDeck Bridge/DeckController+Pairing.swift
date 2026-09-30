@@ -28,9 +28,9 @@ struct NewDevice: Identifiable {
 		var explanation: String {
 			switch self {
 				case .unpaired:        "Not paired yet."
-				case .pairedElsewhere: "It's paired with another Mac's ESPDeck Bridge. Unpairing it is the first step: it then shows up here as a new device, ready to pair."
-				case .keyMissing:      "This Mac lost its pairing key for this deck, so they can't connect securely. Unpairing the deck is the first step: it then shows up here as a new device, ready to pair again."
-				case .oldFirmware:     "Its firmware is too old to pair with this version of ESPDeck Bridge. Update it over USB."
+				case .pairedElsewhere: "This deck is paired with another Mac's ESPDeck Bridge. Unpair it: it then shows up here as a new device, ready to pair."
+				case .keyMissing:      "This Mac lost its pairing key for this deck, so they can't connect securely. Unpair the deck: it then shows up here as a new device, ready to pair again."
+				case .oldFirmware:     "Deck firmware is too old to pair with this version of ESPDeck Bridge. Update it over USB."
 			}
 		}
 
@@ -38,9 +38,9 @@ struct NewDevice: Identifiable {
 		var steps: String? {
 			switch self {
 				case .pairedElsewhere:
-					"To use it here:\n1. Unpair the deck: over USB from its page here, on its setup page, or by forgetting it on the other Mac.\n2. It shows up under New Devices. Pair it."
+					"**To use it here:**\n1. Unpair the deck: [over USB](espdeck:usb-setup), or from its own setup page, or by forgetting it on the other Mac.\n2. Unpaired decks will show up under New Devices, ready to be paired."
 				case .keyMissing:
-					"To use it again:\n1. Unpair the deck: over USB from its page here, or on its setup page.\n2. It shows up under New Devices. Pair it, and its keys and settings come back."
+					"**To use it again:**\n1. Unpair the deck: [over USB](espdeck:usb-setup), or from its own setup page.\n2. The unpaired deck shows up under New Devices. Pair it, and its keys and settings come back."
 				case .unpaired, .oldFirmware:
 					nil
 			}
