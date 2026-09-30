@@ -151,20 +151,20 @@ struct ProblemRow: View {
 }
 
 extension View {
-	/// A bar along the bottom naming a problem further down, while there's one to show;
-	/// clicking it runs `reveal`. On the glass-era systems it's a safe-area bar, so content
-	/// scrolls under it; before that, an inset.
-	@ViewBuilder
+	/// A bar floating at the bottom naming a problem further down, while there's one to show;
+	/// clicking it runs `reveal`. An overlay rather than a safe-area bar: on Mac Catalyst a
+	/// safe-area bar kept (and stretched) its space after its content went away.
 	func problemBar( _ problem: BridgeProblem?, reveal: @escaping () -> Void ) -> some View {
-		if #available( iOS 26.0, * ) {
-			safeAreaBar( edge: .bottom ) {
-				if let problem { ProblemBar( title: problem.title, reveal: reveal ) }
-			}
-		} else {
-			safeAreaInset( edge: .bottom ) {
-				if let problem { ProblemBar( title: problem.title, reveal: reveal ).background( .bar ) }
+		overlay( alignment: .bottom ) {
+			if let problem {
+				ProblemBar( title: problem.title, reveal: reveal )
+					.background( .regularMaterial, in: RoundedRectangle( cornerRadius: 10, style: .continuous ) )
+					.overlay( RoundedRectangle( cornerRadius: 10, style: .continuous ).strokeBorder( Color.orange.opacity( 0.4 ), lineWidth: 1 ) )
+					.padding( 8 )
+					.transition( .move( edge: .bottom ).combined( with: .opacity ) )
 			}
 		}
+		.animation( .easeOut( duration: 0.2 ), value: problem )
 	}
 }
 
