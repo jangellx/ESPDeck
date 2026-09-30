@@ -56,7 +56,7 @@ extension DeckController {
 		print( "[DeckController] Imported bridge \(archive.bridgeID) from \(archive.macName): \(archive.devices.count) devices" )
 		restartAsReplacedBridge()
 		if !stored {
-			lastError = "Some pairing keys couldn't be stored in the Keychain. Those decks show under New Devices; unpair them on the deck's setup page and pair them again."
+			lastError = BridgeProblem( "Pairing Keys Not Saved", "Some pairing keys couldn't be stored in the Keychain. Those decks show under New Devices; unpair them on the deck's setup page and pair them again." )
 		}
 	}
 

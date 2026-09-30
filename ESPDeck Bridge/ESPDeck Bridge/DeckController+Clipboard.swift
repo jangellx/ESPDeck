@@ -47,7 +47,7 @@ extension DeckController {
 	func pasteKey( device id: String, key: Int ) {
 		guard let data = UIPasteboard.general.data( forPasteboardType: UTType.deckKeyAssignment.identifier ),
 			  let clipboard = try? JSONDecoder().decode( KeyClipboard.self, from: data ) else {
-			lastError = "There's no copied key to paste."
+			lastError = BridgeProblem( "Nothing to Paste", "There's no copied key to paste." )
 			return
 		}
 

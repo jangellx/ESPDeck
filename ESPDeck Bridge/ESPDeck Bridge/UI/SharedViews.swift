@@ -105,3 +105,22 @@ extension View {
 		modifier( SidebarAccent() )
 	}
 }
+
+/// A problem in the sidebar's Status section, laid out like the rows above it: an orange
+/// warning sign, the title in the body font, and what happened in a caption under it.
+struct ProblemRow: View {
+	let problem: BridgeProblem
+
+	var body: some View {
+		Label {
+			VStack( alignment: .leading, spacing: 1 ) {
+				Text( problem.title )
+				Text( problem.detail )
+					.secondaryCaption()
+			}
+		} icon: {
+			Image( systemName: "exclamationmark.triangle.fill" )
+				.foregroundStyle( .orange )
+		}
+	}
+}

@@ -303,13 +303,11 @@ private struct Sidebar: View {
 				if controller.macBridge != nil {
 					LaunchAtLoginRow( controller: controller )
 				}
-				if let error = controller.lastError {
-					WarningLabel( error )
-						.font( .caption )
+				if let problem = controller.lastError {
+					ProblemRow( problem: problem )
 				}
 				if let file = controller.config.unreadableSettings {
-					WarningLabel( "The settings couldn't be read, so ESPDeck Bridge started over. The old file is kept as \(file) in its Application Support folder." )
-						.font( .caption )
+					ProblemRow( problem: BridgeProblem( "Settings Reset", "The settings couldn't be read, so ESPDeck Bridge started over. The old file is kept as \(file) in its Application Support folder." ) )
 				}
 			} header: {
 				SectionHeader( "Status", sidebar: true )

@@ -21,7 +21,7 @@ final class DeckController {
 
 	/// One per configured device, in the same order as `config.settings.devices`.
 	private(set) var devices   : [DeckDevice] = []
-	var lastError              : String?
+	var lastError              : BridgeProblem?
 
 	/// The key selected in the configuration window, which Copy and Paste act on.
 	var focusedKey       : ( device: String, key: Int )?
@@ -208,7 +208,7 @@ final class DeckController {
 	/// Imports a dropped image as a state's icon.
 	func setIcon( data: Data, device id: String, key: Int, state: KeyState ) {
 		guard let name = config.importIcon( data ) else {
-			lastError = "That image couldn't be read."
+			lastError = BridgeProblem( "Image Not Added", "That image couldn't be read." )
 			return
 		}
 		recordUndo( device: id, "Change Icon" )
@@ -337,7 +337,7 @@ final class DeckController {
 	func setDevOTA( device id: String, enabled: Bool ) {
 		guard let device = device( id ), let client = device.client else { return }
 		guard !enabled || ( device.protocolVersion ?? 0 ) >= Self.devOTAProtocol else {
-			lastError = "Uploads through PlatformIO need firmware 4.0.0 or later on the deck."
+			lastError = BridgeProblem( "Uploads Not Allowed", "Uploads through PlatformIO need firmware 4.0.0 or later on the deck." )
 			return
 		}
 		server.sendDevOTA( passwordHash: enabled ? Self.devOTAHash( developerPasswordCreatingIfNeeded() ) : nil, to: client )
@@ -1065,7 +1065,7 @@ final class DeckController {
 				logEvent( "\(context): \(summary)", device: id )
 			} catch {
 				print( "[DeckController] \(context) failed: \(error)" )
-				lastError = "\(context): \(error.localizedDescription)"
+				lastError = BridgeProblem( "HomeKit Error", "\(context): \(error.localizedDescription)" )
 				logEvent( "\(context) failed: \(error.localizedDescription)", device: id )
 			}
 		}
@@ -1159,7 +1159,7 @@ final class DeckController {
 	private func runShortcut( _ assignment: KeyAssignment, context: String, device: String?, key: Int? ) {
 		guard let id = assignment.shortcutID else { return }
 		guard let macBridge else {
-			lastError = "Shortcuts can only run on the Mac."
+			lastError = BridgeProblem( "Shortcuts Unavailable", "Shortcuts can only run on the Mac." )
 			return
 		}
 
@@ -1182,7 +1182,11 @@ final class DeckController {
 		macBridge.startShortcut( id: id, input: input ) { [weak self] message, output in
 			guard let self else { return }
 			if let message {
-				lastError = "\(context): \(message)"
+				// Shortcuts' own wording doesn't say where to look.
+				let hint = message.localizedCaseInsensitiveContains( "required app is missing" )
+					? " Open \u{201C}\(name)\u{201D} in Shortcuts on this Mac to see which action needs an app that isn't installed here."
+					: ""
+				lastError = BridgeProblem( "Shortcut Error", "\(context): \(message)\(hint)" )
 				logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} failed: \(message)", device: device )
 				return
 			}

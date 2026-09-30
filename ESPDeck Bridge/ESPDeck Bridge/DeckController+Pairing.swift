@@ -268,7 +268,7 @@ extension DeckController {
 			if PairingKeyStore.store( key, for: handshake.hello.id ) {
 				print( "[DeckController] Paired with \(handshake.hello.name) (\(handshake.hello.id))\(state.replacing ? ", replacing the earlier pairing" : "")" )
 			} else {
-				lastError = "Couldn't save the pairing key for \(handshake.hello.name) in the Keychain. It works until it disconnects; pair it again then."
+				lastError = BridgeProblem( "Pairing Key Not Saved", "Couldn't save the pairing key for \(handshake.hello.name) in the Keychain. It works until it disconnects; pair it again then." )
 			}
 		}
 

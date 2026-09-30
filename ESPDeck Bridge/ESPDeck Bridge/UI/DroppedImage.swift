@@ -59,7 +59,7 @@ extension DeckController {
 		Task {
 			switch await dropped.iconPNG() {
 				case .success( let png ):     setIcon( data: png, device: id, key: key, state: state )
-				case .failure( let problem ): lastError = problem.localizedDescription
+				case .failure( let problem ): lastError = BridgeProblem( "Image Not Added", problem.localizedDescription )
 			}
 		}
 	}
