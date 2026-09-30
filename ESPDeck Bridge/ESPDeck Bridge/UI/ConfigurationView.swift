@@ -198,7 +198,7 @@ private struct Sidebar: View {
 							}
 						} icon: {
 							Image( systemName: "lock.shield" )
-								.foregroundStyle( .tint )
+								.sidebarAccent()
 						}
 						.tag( SidebarItem.newDevice( device.client ) )
 					}
@@ -256,18 +256,13 @@ private struct Sidebar: View {
 							let count = controller.usbSetup.boards.count
 							if count > 0 {
 								Spacer()
-								Text( "\(count)" )
-									.font( .caption.weight( .bold ).monospacedDigit() )
-									.foregroundStyle( .white )
-									.frame( minWidth: 18, minHeight: 18 )
-									.padding( .horizontal, count > 9 ? 3 : 0 )
-									.background( Capsule().fill( Color.accentColor ) )
+								SidebarBadge( count: count )
 									.help( count == 1 ? "1 board found; looking for more" : "\(count) boards found; looking for more" )
 									.accessibilityLabel( count == 1 ? "1 board plugged in" : "\(count) boards plugged in" )
 							} else if controller.usbSetup.scanning {
 								Spacer()
 								Image( systemName: "magnifyingglass.circle" )
-									.foregroundStyle( .tint )
+									.sidebarAccent()
 									.help( "Looking for boards plugged in over USB" )
 									.accessibilityLabel( "Looking for boards" )
 							}
@@ -283,7 +278,7 @@ private struct Sidebar: View {
 						Text( "Updates" )
 						if !controller.updates.statusItems.isEmpty {
 							Spacer()
-							Circle().fill( Color.accentColor ).frame( width: 8, height: 8 )
+							Circle().frame( width: 8, height: 8 ).sidebarAccent()
 						}
 					}
 				} icon: {
@@ -343,7 +338,7 @@ private struct Sidebar: View {
 							selection          = SidebarItem.updates
 						} label: {
 							Image( systemName: "arrow.up.circle.fill" )
-								.foregroundStyle( .tint )
+								.sidebarAccent()
 						}
 						.buttonStyle( .borderless )
 						.help( "Firmware \(latest.version.description) is available. Click to open Updates." )

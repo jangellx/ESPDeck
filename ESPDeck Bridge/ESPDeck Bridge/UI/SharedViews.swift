@@ -71,3 +71,37 @@ extension Sequence where Element: Hashable {
 		return filter { seen.insert( $0 ).inserted }
 	}
 }
+
+/// The accent colour, except on a selected sidebar row, where it would vanish into the blue
+/// selection: there it's the row's text colour (white).
+private struct SidebarAccent: ViewModifier {
+	@Environment( \.backgroundProminence ) private var prominence
+
+	func body( content: Content ) -> some View {
+		content.foregroundStyle( prominence == .increased ? AnyShapeStyle( .primary ) : AnyShapeStyle( .tint ) )
+	}
+}
+
+/// A count in a capsule, accent on white text, turned around on a selected sidebar row.
+struct SidebarBadge: View {
+	let count: Int
+
+	@Environment( \.backgroundProminence ) private var prominence
+
+	var body: some View {
+		let selected = prominence == .increased
+		Text( "\(count)" )
+			.font( .caption.weight( .bold ).monospacedDigit() )
+			.foregroundStyle( selected ? Color.accentColor : .white )
+			.frame( minWidth: 18, minHeight: 18 )
+			.padding( .horizontal, count > 9 ? 3 : 0 )
+			.background( Capsule().fill( selected ? Color.white : Color.accentColor ) )
+	}
+}
+
+extension View {
+	/// Accent-coloured, but white on a selected sidebar row (SidebarAccent).
+	func sidebarAccent() -> some View {
+		modifier( SidebarAccent() )
+	}
+}

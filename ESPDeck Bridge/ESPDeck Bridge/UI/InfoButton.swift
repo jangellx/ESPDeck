@@ -28,6 +28,7 @@ struct InfoButton: View {
 			showing = true
 		} label: {
 			Image( systemName: "info.circle" )
+				.sidebarAccent()   // white on a selected sidebar row
 		}
 		.buttonStyle( .borderless )
 		.help( help )
