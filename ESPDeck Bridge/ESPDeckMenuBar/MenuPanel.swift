@@ -3,12 +3,14 @@
 //  ESPDeckMenuBar
 //
 //  The menu bar item's menu, as a panel of our own. macOS 26 and later run a status item's
-//  NSMenu in another process, and WindowServer only lets an app come to the front after
-//  input in one of its own windows, so choosing Configure… from a real menu could never
-//  activate the window it opened. A click in this panel is the app's own input.
+//  NSMenu in another process, and WindowServer rejects an app's own activation requests
+//  unless they follow input that activated it, so choosing Configure… from a real menu
+//  (or from a non-activating panel) could never activate the window it opened.
 //
-//  It's a non-activating panel (as Spotlight's): it takes the keyboard without making the
-//  app active, so the app in front stays so, and its first click goes straight to the row.
+//  This is an ordinary, activating window: clicking a row makes WindowServer itself
+//  activate the app, as clicking any app's window does, and the row takes that same click,
+//  so the window its action opens comes up in an active app. Shown, it doesn't take the
+//  keyboard or activate anything; a click anywhere else closes it.
 //
 //  AppKit only: this bundle is loaded into a Catalyst app, where SwiftUI is the iOS one.
 //
@@ -39,7 +41,7 @@ final class MenuPanel: NSPanel {
 	private static let width: CGFloat = 280
 
 	init() {
-		super.init( contentRect: NSRect( x: 0, y: 0, width: Self.width, height: 100 ), styleMask: [ .nonactivatingPanel, .borderless ], backing: .buffered, defer: true )
+		super.init( contentRect: NSRect( x: 0, y: 0, width: Self.width, height: 100 ), styleMask: [ .borderless ], backing: .buffered, defer: true )
 		isFloatingPanel      = true
 		level                = .popUpMenu
 		hasShadow            = true
@@ -98,7 +100,7 @@ final class MenuPanel: NSPanel {
 		}
 	}
 
-	/// Takes the keyboard (for Esc) without activating the app: it's a non-activating panel.
+	/// Key once a click has activated the app (then Esc works).
 	override var canBecomeKey: Bool { true }
 
 	/// Never a main window: it doesn't count as an open window (DockPresence).
@@ -109,17 +111,33 @@ final class MenuPanel: NSPanel {
 		close()
 	}
 
-	/// A click elsewhere takes the keyboard away: close, as a menu would.
-	override func resignKey() {
-		super.resignKey()
-		close()
-	}
+	/// Watching for clicks outside it, in other apps and in this one, while it's shown.
+	private var monitors: [Any] = []
 
 	/// Closes and tells the owner.
 	override func close() {
 		guard isVisible else { return }
+		monitors.forEach( NSEvent.removeMonitor )
+		monitors = []
 		super.close()
 		onClose?()
+	}
+
+	/// A click anywhere but here closes it, as a menu would. (It isn't key while shown, so
+	/// losing the keyboard can't be the signal.)
+	private func watchForClicksElsewhere() {
+		let mask: NSEvent.EventTypeMask = [ .leftMouseDown, .rightMouseDown, .otherMouseDown ]
+		if let global = NSEvent.addGlobalMonitorForEvents( matching: mask, handler: { [weak self] _ in
+			MainActor.assumeIsolated { self?.close() }
+		} ) {
+			monitors.append( global )
+		}
+		if let local = NSEvent.addLocalMonitorForEvents( matching: mask, handler: { [weak self] event in
+			if event.window !== self { self?.close() }
+			return event
+		} ) {
+			monitors.append( local )
+		}
 	}
 
 	/// Shows it just under `button` (the status item's), kept on that screen.
@@ -132,7 +150,8 @@ final class MenuPanel: NSPanel {
 		var origin = NSPoint( x: anchor.minX, y: anchor.minY - size.height - 4 )
 		origin.x   = min( max( origin.x, screen.minX + 4 ), screen.maxX - size.width - 4 )
 		setFrame( NSRect( origin: origin, size: size ), display: true )
-		makeKeyAndOrderFront( nil )
+		orderFrontRegardless()   // without activating: only a click on a row does that
+		watchForClicksElsewhere()
 	}
 }
 
@@ -233,7 +252,7 @@ private final class MenuPanelRowView: NSView {
 	override func mouseEntered( with event: NSEvent ) { highlighted = action != nil }
 	override func mouseExited( with event: NSEvent ) { highlighted = false }
 
-	/// A click never goes to focusing the panel.
+	/// The click that activates the app is also the one that chooses the row.
 	override func acceptsFirstMouse( for event: NSEvent? ) -> Bool { true }
 
 	/// Chosen on release inside, as a menu item is.

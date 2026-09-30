@@ -20,6 +20,9 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 	private var panel        : MenuPanel?
 	/// When the panel last closed: a click on the icon that closed it shouldn't reopen it.
 	private var panelClosedAt = Date.distantPast
+	/// The app in front when the panel opened, to hand activation back to after a row that
+	/// opens no window (clicking the panel activated this app).
+	private var appBeforePanel: NSRunningApplication?
 	private var statusLines  : [String] = [ "Starting…" ]
 	private var statusLevels : [Int]    = [ 0 ]
 	private var connected    = false
@@ -158,6 +161,8 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		guard Date().timeIntervalSince( panelClosedAt ) > 0.25 else { return }
 		let panel = self.panel ?? makePanel()
 		self.panel = panel
+		let front = NSWorkspace.shared.frontmostApplication
+		appBeforePanel = front == NSRunningApplication.current ? nil : front
 		panel.setEntries( entries )
 		sender.highlight( true )
 		panel.show( below: sender )
@@ -318,9 +323,14 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		}
 	}
 
-	/// The panel's Launch at Login row.
+	/// The panel's Launch at Login row. The click activated this app; give the app that was
+	/// in front its activation back, since no window opens.
 	private func toggleLaunchAtLogin() {
 		setLaunchAtLogin( SMAppService.mainApp.status != .enabled )
+		guard let app = appBeforePanel, !DockPresence.hasOpenWindow else { return }
+		appBeforePanel = nil
+		NSApp.yieldActivation( to: app )
+		app.activate( from: .current, options: [] )
 	}
 
 	/// Registers or unregisters the app as a login item, opening System Settings if macOS
