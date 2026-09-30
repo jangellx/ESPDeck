@@ -144,6 +144,13 @@ enum DockPresence {
 		let policy: NSApplication.ActivationPolicy = hasOpenWindow ? .regular : .accessory
 		if NSApp.activationPolicy() != policy {
 			NSApp.setActivationPolicy( policy )
+			// The new Dock tile takes the icon Launch Services has on file (often the generic
+			// one for a build run from Xcode's DerivedData), not the one set at startup: set it
+			// again now and once the tile exists.
+			if policy == .regular {
+				NSApp.applicationIconImage = appIcon
+				DispatchQueue.main.async { NSApp.applicationIconImage = appIcon }
+			}
 		}
 	}
 }
