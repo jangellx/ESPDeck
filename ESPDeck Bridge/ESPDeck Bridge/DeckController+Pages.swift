@@ -30,6 +30,7 @@ extension DeckController {
 		// What each key shows now, which may still be the page before (changing twice quickly).
 		device( id )?.pageChange = ( Date(), device( id )?.displayedPreviews ?? [] )
 		config.settings.devices[index].currentPage = page
+		clearFailures( device: id )   // they were about the other page's keys
 		window.selectedKey = min( window.selectedKey, max( layout( id ).keyCount - 1, 0 ) )
 		assignmentsChanged( device: id )
 	}
@@ -154,5 +155,36 @@ extension DeckController {
 	/// "3.square.fill"; SF Symbols number them up to 50.
 	private static func numberSymbol( _ number: Int, shape: String ) -> String {
 		( 0...50 ).contains( number ) ? "\(number).\(shape).fill" : "number.\(shape).fill"
+	}
+}
+
+// MARK: - Failed keys
+
+extension DeckController {
+	/// How long a key shows that its action failed.
+	static let failureMarkDuration: Duration = .seconds( 10 )
+
+	/// Marks a key whose action failed with a warning triangle on the deck, for
+	/// failureMarkDuration: a hint to look at the bridge (Status, or the notification).
+	func flagFailure( device id: String, key: Int ) {
+		guard let device = device( id ) else { return }
+		device.failedKeys.insert( key )
+		device.failureTasks[key]?.cancel()
+		device.failureTasks[key] = Task { [weak self, weak device] in
+			try? await Task.sleep( for: Self.failureMarkDuration )
+			guard !Task.isCancelled, let self, let device else { return }
+			device.failedKeys.remove( key )
+			device.failureTasks[key] = nil
+			render( device: id, key: key )
+		}
+		render( device: id, key: key )
+	}
+
+	/// Takes every warning triangle off a deck (another page is showing).
+	func clearFailures( device id: String ) {
+		guard let device = device( id ) else { return }
+		device.failureTasks.values.forEach { $0.cancel() }
+		device.failureTasks = [:]
+		device.failedKeys   = []
 	}
 }

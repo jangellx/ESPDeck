@@ -31,6 +31,9 @@ final class DeckDevice: Identifiable {
 	var keys     : [RenderedKey?] = []
 	/// Keys held down on the deck (or shift-clicked in the preview).
 	var pressed  : Set<Int> = []
+	/// Keys whose last action failed: they show a warning triangle for a while (flagFailure).
+	@ObservationIgnored var failedKeys   : Set<Int> = []
+	@ObservationIgnored var failureTasks : [Int: Task<Void, Never>] = [:]
 
 	/// The last page change: when, and what each key showed before it, so the Keys page's
 	/// preview can pop the new page in a key at a time.

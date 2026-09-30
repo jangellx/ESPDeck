@@ -678,6 +678,7 @@ final class DeckController {
 		if override == nil, let ref = assignment.characteristicRef {
 			face.unreachable = !home.isReachable( ref )
 		}
+		face.failed = override == nil && device( id )?.failedKeys.contains( key ) == true
 		return face
 	}
 
@@ -701,7 +702,7 @@ final class DeckController {
 	}
 
 	/// Renders one key's image and sends it to the deck, now or after `pushDelay`.
-	private func render( device id: String, key: Int, deferPush: Bool = false ) {
+	func render( device id: String, key: Int, deferPush: Bool = false ) {
 		guard let device = device( id ), key < device.keys.count else { return }
 		let face = face( device: id, key: key )
 		guard let rendered = KeyRenderer.render( face, icon: artwork( for: face ), layout: layout( id ) ) else {
@@ -1069,7 +1070,8 @@ final class DeckController {
 				logEvent( "\(context): \(summary)", device: id )
 			} catch {
 				print( "[DeckController] \(context) failed: \(error)" )
-				lastError = BridgeProblem( "HomeKit Error", "\(context): \(error.localizedDescription)", notifies: true )
+				lastError = BridgeProblem( "HomeKit Error", "\(context): \(error.localizedDescription)" )
+				if let id, let key { flagFailure( device: id, key: key ) }
 				logEvent( "\(context) failed: \(error.localizedDescription)", device: id )
 			}
 		}
@@ -1191,7 +1193,8 @@ final class DeckController {
 					? " One of its actions needs an app that isn't installed on this Mac."
 					: ""
 				lastError = BridgeProblem( "Shortcut Error", "\(context): \(message)\(hint)",
-											link: assignment.shortcutName.flatMap { BridgeProblem.openShortcut( named: $0 ) }, notifies: true )
+											link: assignment.shortcutName.flatMap { BridgeProblem.openShortcut( named: $0 ) } )
+				if let device, let key { flagFailure( device: device, key: key ) }
 				logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} failed: \(message)", device: device )
 				return
 			}
