@@ -51,7 +51,7 @@ struct NeedsUnpairingView: View {
 				}
 				.frame( maxWidth: .infinity, alignment: .leading )
 
-				Button( "Show Its Keys and Settings", action: showDevice )
+				Button( "Show Keys and Settings", action: showDevice )
 					.buttonStyle( .borderless )
 			}
 			.frame( maxWidth: 480 )
@@ -65,14 +65,20 @@ struct NeedsUnpairingView: View {
 	private func usbUnpair( _ board: USBSetup.Board, setup: USBSetup ) -> some View {
 		VStack( alignment: .leading, spacing: 8 ) {
 			Label( "It's plugged into this Mac over USB.", systemImage: "cable.connector" )
-			HStack {
-				Button( "Unpair Over USB" ) { setup.unpair( board ) }
-					.prominentButtonStyle()
-					.disabled( setup.unpairing == .working )
-				if setup.unpairing == .working && setup.unpairingPath == board.port.path {
-					ProgressView().controlSize( .small )
+			Button( "Unpair Over USB", role: .destructive ) { setup.unpair( board ) }
+				.prominentButtonStyle()
+				.tint( .red )
+				.disabled( setup.unpairing == .working )
+				// Centred, with the spinner beside it rather than pushing it over.
+				.overlay( alignment: .trailing ) {
+					if setup.unpairing == .working && setup.unpairingPath == board.port.path {
+						ProgressView()
+							.controlSize( .small )
+							.offset( x: 28 )
+					}
 				}
-			}
+				.frame( maxWidth: .infinity )
+				.padding( .vertical, 4 )
 			switch setup.unpairingPath == board.port.path ? setup.unpairing : .idle {
 				case .done:
 					Text( "Unpaired. It reconnects as a new device in a moment, ready to pair." )

@@ -60,6 +60,21 @@ struct ConfigurationView: View {
 				if let stuck = controller.stuckConnection( for: id ), controller.device( id )?.isOnline != true, !showingStuckDevice.contains( id ) {
 					NeedsUnpairingView( controller: controller, deviceID: id, stuck: stuck ) { showingStuckDevice.insert( id ) }
 						.id( id )
+				} else if controller.stuckConnection( for: id ) != nil, controller.device( id )?.isOnline != true {
+					// Its keys and settings, asked for from the unpairing page: a way back to it.
+					VStack( spacing: 0 ) {
+						HStack {
+							Label( "Needs unpairing on the deck first", systemImage: "exclamationmark.circle.fill" )
+								.foregroundStyle( .red )
+							Spacer()
+							Button( "How to Unpair…" ) { showingStuckDevice.remove( id ) }
+						}
+						.padding( .horizontal, 16 )
+						.padding( .vertical, 8 )
+						Divider()
+						DeviceDetailView( controller: controller, deviceID: id )
+					}
+					.id( id )
 				} else {
 					DeviceDetailView( controller: controller, deviceID: id )
 						.id( id )
@@ -100,6 +115,8 @@ struct ConfigurationView: View {
 			if window.selection == nil { window.selection = controller.devices.first?.id }
 		}
 		.onDisappear { window.isShowing = false }
+		// Choosing a deck again shows its unpairing page again.
+		.onChange( of: window.selection ) { showingStuckDevice = [] }
 		.onChange( of: controller.newDevices.map { "\($0.client) \($0.hello.id)" } ) { old, _ in
 			// A new device that reconnected (with a new name, say) is listed again under a new
 			// connection: keep it selected.
@@ -297,10 +314,14 @@ private struct Sidebar: View {
 		let status = controller.status( device: device )
 		Label {
 			VStack( alignment: .leading, spacing: 1 ) {
-				// The update arrow on the name's line, not centred on the row.
+				// The update arrow and the ⓘ for a state that needs fixing on the name's line,
+				// so the state under it can use the row's width.
 				HStack {
 					Text( controller.settings( device.id )?.name ?? device.id )
 					Spacer( minLength: 4 )
+					if let explanation = controller.statusExplanation( device: device ) {
+						InfoButton( help: "About \(status.stateText)", text: explanation )
+					}
 					if controller.updates.firmwareUpdateAvailable( for: device ), let latest = controller.updates.latestFirmware {
 						Button {
 							holdSelectionUntil = Date( timeIntervalSinceNow: 0.5 )
@@ -314,17 +335,10 @@ private struct Sidebar: View {
 						.accessibilityLabel( "Firmware update available" )
 					}
 				}
-				// Firmware, then the state; an ⓘ explains a state that needs fixing.
-				HStack( spacing: 4 ) {
-					let state = status.stateText
-					Text( device.firmware.map { "\($0) · \(state)" } ?? state )
-						.foregroundStyle( .secondary )
-					if let explanation = controller.statusExplanation( device: device ) {
-						InfoButton( help: "About \(state)", text: explanation )
-							.imageScale( .small )
-					}
-				}
-				.font( .caption )
+				// Firmware, then the state.
+				Text( device.firmware.map { "\($0) · \(status.stateText)" } ?? status.stateText )
+					.font( .caption )
+					.foregroundStyle( .secondary )
 			}
 		} icon: {
 			StatusIndicator( level: status.level )
