@@ -106,7 +106,7 @@ struct USBSetupView: View {
 			.toggleStyle( .switch )
 		} footer: {
 			if setup.scanning {
-				Text( "When an ESP32 is plugged into this computer, ESPDeck Bridge briefly asks what it's running, then releases it." )
+				Text( "When an ESP32-S3 is plugged into this computer, ESPDeck Bridge briefly asks what it's running, then releases it." )
 			} else {
 				Text( "Scanning is off: ESPDeck Bridge doesn't watch or open USB ports. Turn it on to set up a board over USB." )
 			}
@@ -221,7 +221,7 @@ struct USBSetupView: View {
 		} else if let chip = board.espDeck?.chip {
 			lines.append( chip )
 		} else {
-			lines.append( "Looks like an ESP32 board. Its model is checked when installing." )
+			lines.append( "Looks like an ESP32 board; installing checks that it's an ESP32-S3." )
 		}
 		return lines
 	}
@@ -501,7 +501,7 @@ struct USBSetupView: View {
 				WarningLabel( message )
 			}
 		} header: {
-			SectionHeader( "3. Name Your Device" )
+			SectionHeader( "3. Name Your Deck" )
 		} footer: {
 			Text( "The device keeps its name. If it's connected to ESPDeck Bridge, the new name shows up there right away." )
 		}

@@ -69,7 +69,7 @@ final class USBSetup {
 			switch ( vendorID, productID ) {
 				case ( Self.espressif, 0x1001 ): "ESP32-S3 on its USB port"
 				case ( Self.espressif, 0x0009 ): "ESP32-S3 in flashing mode"
-				case ( Self.espressif, _ ):      "ESP32 running other firmware"
+				case ( Self.espressif, _ ):      "ESP32 board running other firmware"
 				case ( 0x1A86, _ ):              "Board on a USB serial chip (WCH)"
 				case ( 0x10C4, _ ):              "Board on a USB serial chip (Silicon Labs)"
 				case ( 0x0403, _ ):              "Board on a USB serial chip (FTDI)"

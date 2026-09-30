@@ -187,7 +187,7 @@ struct PartsView: View {
 	]
 
 	/// After USB Setup, here and at the end of USB Setup.
-	static let unplugStep = GuideStep( title: "Unplug it and put it together.",
+	static let unplugStep = GuideStep( title: "Unplug the board and put it together.",
 									   detail: "When USB Setup says the dev kit has joined your network, unplug it from this Mac and connect it to the Stream Deck and power." )
 
 	/// Connect to This Mac: plugging the dev kit in, and the way to USB Setup.

@@ -1317,7 +1317,7 @@ final class DeckController {
 	/// The server's problem, or while there are only demo decks, that it's waiting for one.
 	var serverStatus: StatusItem? {
 		switch server.listenerState {
-			case .listening:          config.settings.devices.allSatisfy( \.isDemo ) ? StatusItem( text: "Waiting for an ESP32…", level: .waiting ) : nil
+			case .listening:          config.settings.devices.allSatisfy( \.isDemo ) ? StatusItem( text: "Waiting for an ESP32-S3…", level: .waiting ) : nil
 			case .stopped:            StatusItem( text: "Server stopped", level: .problem )
 			case .failed( let text ): StatusItem( text: "Server failed: \(text)", level: .problem )
 		}

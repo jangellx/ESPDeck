@@ -24,7 +24,7 @@ enum FirmwareImage {
 
 		var errorDescription: String? {
 			switch self {
-				case .notFirmware:              "That file isn't ESP32 firmware."
+				case .notFirmware:              "That file isn't ESP32-S3 firmware."
 				case .wrongChip:                "That firmware is for a different kind of ESP32, not the ESP32-S3."
 				case .wrongProject( let name ): "That's firmware for \(name.isEmpty ? "another project" : "“\(name)”"), not ESPDeck."
 				case .appImageOnly:             "That's an update image, which doesn't include the bootloader. For USB, choose the full image (the one ending in -merged.bin)."

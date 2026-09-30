@@ -912,7 +912,7 @@ private struct StatusLightSection: View {
 		} header: {
 			SectionHeader( "Status Light" )
 		} footer: {
-			Text( "The light on the ESP32 board. While the deck is asleep, green is off and the others are very dim." )
+			Text( "The light on the ESP32-S3 board. While the deck is asleep, green is off and the others are very dim." )
 		}
 	}
 
