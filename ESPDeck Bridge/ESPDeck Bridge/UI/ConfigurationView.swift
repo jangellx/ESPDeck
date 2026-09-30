@@ -60,14 +60,19 @@ struct ConfigurationView: View {
 				if let stuck = controller.stuckConnection( for: id ), controller.device( id )?.isOnline != true, !showingStuckDevice.contains( id ) {
 					NeedsUnpairingView( controller: controller, deviceID: id, stuck: stuck ) { showingStuckDevice.insert( id ) }
 						.id( id )
-				} else if controller.stuckConnection( for: id ) != nil, controller.device( id )?.isOnline != true {
+				} else if let stuck = controller.stuckConnection( for: id ), controller.device( id )?.isOnline != true {
 					// Its keys and settings, asked for from the unpairing page: a way back to it.
 					VStack( spacing: 0 ) {
 						HStack {
-							Label( "Needs unpairing on the deck first", systemImage: "exclamationmark.circle.fill" )
+							Label( stuck.reason.detail, systemImage: "exclamationmark.circle.fill" )
 								.foregroundStyle( .red )
 							Spacer()
-							Button( "How to Unpair…" ) { showingStuckDevice.remove( id ) }
+							Button {
+								showingStuckDevice.remove( id )
+							} label: {
+								ForwardLabel( title: "How to Unpair" )
+							}
+							.prominentButtonStyle()
 						}
 						.padding( .horizontal, 16 )
 						.padding( .vertical, 8 )
@@ -505,7 +510,8 @@ extension NewDevice.Reason {
 		switch self {
 			case .unpaired:                     "waiting to be paired"
 			case .oldFirmware:                  "needs a firmware update"
-			case .pairedElsewhere, .keyMissing: "needs unpairing on the deck first"
+			case .pairedElsewhere:              "paired with another Mac; unpair it"
+			case .keyMissing:                   "pairing key lost here; unpair it"
 		}
 	}
 
@@ -514,7 +520,8 @@ extension NewDevice.Reason {
 		switch self {
 			case .unpaired:                     "Waiting to be paired"
 			case .oldFirmware:                  "Needs a firmware update before it can be paired"
-			case .pairedElsewhere, .keyMissing: "Needs unpairing on the deck first"
+			case .pairedElsewhere:              "Paired with another Mac; unpair it"
+			case .keyMissing:                   "Pairing key lost here; unpair it"
 		}
 	}
 
