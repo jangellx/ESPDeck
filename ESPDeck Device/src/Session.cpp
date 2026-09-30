@@ -1,3 +1,4 @@
+// See Session.h.
 #include "Session.h"
 
 #include <cstring>
@@ -19,7 +20,7 @@ bool Session::recordHello( const char *text, size_t length ) {
 	return haveHello_;
 }
 
-bool Session::authenticate( const uint8_t key[32], const uint8_t bridgeNonce[16], const uint8_t bridgeProof[32], uint8_t deviceProof[32] ) {
+bool Session::authenticate( const uint8_t key[32], const uint8_t bridgeNonce[Crypto::kNonceSize], const uint8_t bridgeProof[32], uint8_t deviceProof[32] ) {
 	if( authenticated_ || !haveHello_ )
 		return false;
 

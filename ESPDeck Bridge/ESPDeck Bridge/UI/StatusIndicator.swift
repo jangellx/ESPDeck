@@ -28,3 +28,11 @@ struct StatusIndicator: View {
 		}
 	}
 }
+
+extension DeckController.StatusItem {
+	/// The state without the device's name in front ("Garage: asleep" → "Asleep"), for
+	/// rows that show the name already.
+	var stateText: String {
+		( text.components( separatedBy: ": " ).last ?? text ).capitalizedFirst
+	}
+}

@@ -14,7 +14,9 @@ import CryptoKit
 import Foundation
 import Observation
 
+/// A signed firmware release on GitHub, and the files to download from it.
 struct UpdateRelease: Equatable {
+	/// A file of the release.
 	struct Asset: Equatable {
 		var name      : String
 		var url       : URL
@@ -26,15 +28,13 @@ struct UpdateRelease: Equatable {
 	}
 
 	var version   : Version
-	var title     : String
-	var notes     : String
-	var page      : URL?
-	var published : Date?
+	/// The OTA image, for updates over Wi-Fi.
 	var asset     : Asset
 	/// For firmware, the full flash image (`-merged.bin`) for installing over USB.
 	var fullImage : Asset?
 }
 
+/// Firmware updates: checking GitHub, downloading, and installing on the decks.
 @Observable
 final class UpdateManager {
 	@ObservationIgnored private weak var controller: DeckController?
@@ -51,6 +51,7 @@ final class UpdateManager {
 	/// again rather than the latest release.
 	@ObservationIgnored private var localImages   : [String: ( image: Data, info: FirmwareImage.AppInfo )] = [:]
 
+	private static let firstCheckDelay: Duration   = .seconds( 60 )
 	private static let checkInterval: Duration     = .seconds( 6 * 3600 )
 	private static let firmwareRetry: Duration     = .seconds( 10 * 60 )
 	/// Automatic firmware updates wait until a deck has been left alone this long.
@@ -60,34 +61,44 @@ final class UpdateManager {
 		self.controller = controller
 	}
 
+	/// "owner/name" from Info.plist; nil when the build doesn't set one.
 	var repository: String? {
 		let value = Bundle.main.object( forInfoDictionaryKey: "ESPDeckGitHubRepository" ) as? String ?? ""
 		return value.contains( "/" ) && !value.contains( "$" ) ? value : nil
 	}
 
+	/// The app's own version, for the User-Agent and exports.
 	var currentAppVersion: String {
 		Bundle.main.object( forInfoDictionaryKey: "CFBundleShortVersionString" ) as? String ?? "0"
 	}
 
+	/// Whether the latest release is newer than what the device runs.
 	func firmwareUpdateAvailable( for device: DeckDevice ) -> Bool {
 		guard let latest = latestFirmware?.version, let running = device.firmware.flatMap( Version.init ) else { return false }
 		return running < latest
 	}
 
+	/// Update preferences, kept in the bridge's settings.
 	private var settings: UpdateSettings {
 		get { controller?.config.settings.updates ?? UpdateSettings() }
 		set { controller?.config.settings.updates = newValue }
 	}
 
+	/// How firmware updates happen; changing it reschedules the checks.
 	var firmwarePolicy: UpdatePolicy {
 		get { settings.firmwarePolicy }
-		set { settings.firmwarePolicy = newValue; reschedule() }
+		set {
+			settings.firmwarePolicy = newValue
+			reschedule()
+		}
 	}
 
+	/// When updates were last checked for.
 	var lastCheck: Date? { settings.lastCheck }
 
 	// MARK: - Scheduling
 
+	/// Starts the periodic checks, at launch.
 	func start() {
 		reschedule()
 	}
@@ -99,7 +110,7 @@ final class UpdateManager {
 		guard repository != nil, firmwarePolicy != .manual else { return }
 
 		schedule = Task { [weak self] in
-			try? await Task.sleep( for: .seconds( 60 ) )
+			try? await Task.sleep( for: Self.firstCheckDelay )
 			var sinceCheck = Duration.zero
 			var first      = true
 			while !Task.isCancelled, let self {
@@ -117,6 +128,8 @@ final class UpdateManager {
 
 	// MARK: - Checking
 
+	/// Finds the latest signed release (and a newer unsigned one), then installs it where
+	/// automatic updates allow. `userInitiated` isn't used.
 	func check( userInitiated: Bool ) async {
 		guard let repository else {
 			checkError = "No GitHub repository is configured for updates."
@@ -143,6 +156,7 @@ final class UpdateManager {
 		installFirmwareWhereIdle()
 	}
 
+	/// A release as GitHub's API lists it; only the fields used here.
 	private struct GitHubRelease: Decodable {
 		struct Asset: Decodable {
 			var name                 : String
@@ -152,12 +166,8 @@ final class UpdateManager {
 		}
 
 		var tag_name     : String
-		var name         : String?
-		var body         : String?
-		var html_url     : URL?
 		var draft        : Bool
 		var prerelease   : Bool
-		var published_at : Date?
 		var assets       : [Asset]
 
 		var tag: String { tag_name }
@@ -167,8 +177,7 @@ final class UpdateManager {
 		var release: UpdateRelease? {
 			guard !draft, !prerelease, let version = Version( tag_name ), let match = otaImage, signature( of: match ) != nil else { return nil }
 
-			var release = UpdateRelease( version: version, title: name ?? tag_name, notes: body ?? "", page: html_url, published: published_at,
-										 asset: asset( match ) )
+			var release = UpdateRelease( version: version, asset: asset( match ) )
 			if let merged = assets.first( where: { $0.name.hasPrefix( "espdeck-firmware-" ) && $0.name.hasSuffix( "-merged.bin" ) } ) {
 				release.fullImage = asset( merged )
 			}
@@ -181,12 +190,14 @@ final class UpdateManager {
 			return Version( tag_name )
 		}
 
+		/// The OTA image: espdeck-firmware-….bin, but not the -merged.bin full image.
 		private var otaImage: Asset? {
 			assets.first { asset in
 				asset.name.hasPrefix( "espdeck-firmware-" ) && asset.name.hasSuffix( ".bin" ) && !asset.name.hasSuffix( "-merged.bin" )
 			}
 		}
 
+		/// Where the asset's "<name>.sig" is, if the release has one.
 		private func signature( of match: Asset ) -> URL? {
 			assets.first( where: { $0.name == match.name + FirmwareSignature.fileSuffix } )?.browser_download_url
 		}
@@ -204,6 +215,7 @@ final class UpdateManager {
 		}
 	}
 
+	/// The repository's latest releases, from GitHub's API.
 	private func fetchReleases( _ repository: String ) async throws -> [GitHubRelease] {
 		guard let url = URL( string: "https://api.github.com/repos/\(repository)/releases?per_page=30" ) else { throw URLError( .badURL ) }
 		var request = URLRequest( url: url )
@@ -222,9 +234,7 @@ final class UpdateManager {
 			default:
 				throw URLError( .badServerResponse )
 		}
-		let decoder = JSONDecoder()
-		decoder.dateDecodingStrategy = .iso8601
-		return try decoder.decode( [GitHubRelease].self, from: data )
+		return try JSONDecoder().decode( [GitHubRelease].self, from: data )
 	}
 
 	/// Larger than any firmware image, full or OTA, can be: the app partition is smaller.
@@ -256,6 +266,7 @@ final class UpdateManager {
 		return data
 	}
 
+	/// Why checking, downloading or verifying failed.
 	enum UpdateError: LocalizedError {
 		case noDigest
 		case digestUnavailable
@@ -288,6 +299,7 @@ final class UpdateManager {
 
 	// MARK: - Firmware
 
+	/// Downloads (once) and sends the latest release to the device, unless it's updating.
 	func installFirmware( on id: String ) async {
 		guard let controller, let release = latestFirmware, let device = controller.device( id ) else { return }
 		// Several things can start an update (the device connecting, an update check finishing,
@@ -344,7 +356,7 @@ final class UpdateManager {
 	/// been left alone for a while.
 	private func installFirmwareWhereIdle() {
 		guard firmwarePolicy == .automatic, let controller else { return }
-		for device in controller.devices where device.client != nil && firmwareUpdateAvailable( for: device ) {
+		for device in controller.devices where device.isOnline && firmwareUpdateAvailable( for: device ) {
 			guard device.firmwareProgress?.isActive != true, !device.status.setupMode else { continue }
 			let idle = device.status.asleep || Date().timeIntervalSince( device.lastKeyActivity ) > Self.idleBeforeFirmware
 			if idle {
@@ -353,12 +365,14 @@ final class UpdateManager {
 		}
 	}
 
-	func deviceConnected( _ id: String ) {
+	/// A deck connected: it may be due an automatic update.
+	func deviceConnected() {
 		installFirmwareWhereIdle()
 	}
 
 	// MARK: - Status
 
+	/// The menu bar's line about available firmware, if there is any.
 	var statusItems: [DeckController.StatusItem] {
 		var items: [DeckController.StatusItem] = []
 		if let controller, let latest = latestFirmware {

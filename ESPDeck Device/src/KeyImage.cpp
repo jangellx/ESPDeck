@@ -16,16 +16,18 @@ static const char *TAG = "KeyImage";
 namespace {
 	using Transform = StreamDeck::Transform;
 
-	constexpr int     kMaxQRVersion = 10;   // 57 modules; plenty for a Wi-Fi QR payload
-	constexpr int     kMaxModules   = 17 + 4 * kMaxQRVersion;
-	constexpr int     kQuietZone    = 2;    // modules of white on each side, at least
-	constexpr uint8_t kJPEGQuality  = 90;
+	constexpr int      kMaxQRVersion = 10;   // 57 modules; plenty for a Wi-Fi QR payload
+	constexpr int      kMaxModules   = 17 + 4 * kMaxQRVersion;
+	constexpr int      kQuietZone    = 2;    // modules of white on each side, at least
+	constexpr uint8_t  kJPEGQuality  = 90;
+	constexpr uint32_t kPSRAM        = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
 
 	// esp_qrcode_generate() hands the code to a callback without a context pointer, so the
 	// modules are copied out through these.
 	uint8_t qrModules[kMaxModules * kMaxModules];
 	int     qrSize = 0;
 
+	// The display callback: copies the modules into qrModules.
 	void copyModules( esp_qrcode_handle_t qrcode ) {
 		qrSize = std::min( esp_qrcode_get_size( qrcode ), kMaxModules );
 		for( int y = 0; y < qrSize; y++ ) {
@@ -34,11 +36,13 @@ namespace {
 		}
 	}
 
+	// A little-endian 16-bit integer, for the BMP header.
 	void writeLE16( uint8_t *out, uint16_t value ) {
 		out[0] = value & 0xFF;
 		out[1] = value >> 8;
 	}
 
+	// A little-endian 32-bit integer, for the BMP header.
 	void writeLE32( uint8_t *out, uint32_t value ) {
 		for( int i = 0; i < 4; i++ )
 			out[i] = ( value >> ( 8 * i ) ) & 0xFF;
@@ -66,9 +70,9 @@ bool KeyImage::begin( uint16_t width, uint16_t height ) {
 
 	release();
 	size_t bytes = (size_t)width * height * 3;
-	canvas_  = (uint8_t *)heap_caps_malloc( bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT );
-	scratch_ = (uint8_t *)heap_caps_aligned_alloc( 16, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT );
-	output_  = (uint8_t *)heap_caps_malloc( kMaxImageSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT );
+	canvas_  = (uint8_t *)heap_caps_malloc( bytes, kPSRAM );
+	scratch_ = (uint8_t *)heap_caps_aligned_alloc( 16, bytes, kPSRAM );
+	output_  = (uint8_t *)heap_caps_malloc( kMaxImageSize, kPSRAM );
 	if( !width || !height || !canvas_ || !scratch_ || !output_ ) {
 		release();
 		return false;
@@ -99,17 +103,16 @@ void KeyImage::drawDot( uint32_t color, float diameter ) {
 			float coverage = std::min( 1.0f, std::max( 0.0f, radius + 0.5f - sqrtf( dx * dx + dy * dy ) ) );
 			if( coverage <= 0 )
 				continue;
-			uint8_t *pixel = canvas_ + ( (size_t)y * width_ + x ) * 3;
+			uint8_t *out = pixel( x, y );
 			for( int c = 0; c < 3; c++ )
-				pixel[c] = (uint8_t)( rgb[c] * coverage + 0.5f );
+				out[c] = (uint8_t)( rgb[c] * coverage + 0.5f );
 		}
 	}
 }
 
 void KeyImage::setPixel( int x, int y, uint8_t value ) {
-	if( x < 0 || y < 0 || x >= width_ || y >= height_ )
-		return;
-	memset( canvas_ + ( (size_t)y * width_ + x ) * 3, value, 3 );
+	if( contains( x, y ) )
+		memset( pixel( x, y ), value, 3 );
 }
 
 bool KeyImage::drawQR( const char *text ) {
@@ -133,14 +136,14 @@ bool KeyImage::drawQR( const char *text ) {
 	}
 
 	int originX = ( width_ - qrSize * scale ) / 2;
-	int origin  = ( height_ - qrSize * scale ) / 2;
+	int originY = ( height_ - qrSize * scale ) / 2;
 	for( int y = 0; y < qrSize; y++ ) {
 		for( int x = 0; x < qrSize; x++ ) {
 			if( !qrModules[y * qrSize + x] )
 				continue;
 			for( int dy = 0; dy < scale; dy++ ) {
 				for( int dx = 0; dx < scale; dx++ )
-					setPixel( originX + x * scale + dx, origin + y * scale + dy, 0 );
+					setPixel( originX + x * scale + dx, originY + y * scale + dy, 0 );
 			}
 		}
 	}
@@ -148,10 +151,12 @@ bool KeyImage::drawQR( const char *text ) {
 }
 
 namespace {
+	// c's glyph, or nullptr if the font doesn't have it.
 	const FontGlyph *glyphFor( const Font &font, char c ) {
 		return c >= font.first && c <= font.last ? &font.glyphs[c - font.first] : nullptr;
 	}
 
+	// The advance of a line in px, counting characters the font lacks as nothing.
 	int lineWidth( const Font &font, const char *line ) {
 		int width = 0;
 		for( ; *line; line++ ) {
@@ -178,11 +183,11 @@ namespace {
 }
 
 void KeyImage::blendWhite( int x, int y, uint8_t level ) {
-	if( level == 0 || x < 0 || y < 0 || x >= width_ || y >= height_ )
+	if( level == 0 || !contains( x, y ) )
 		return;
-	uint8_t *pixel = canvas_ + ( (size_t)y * width_ + x ) * 3;
+	uint8_t *out = pixel( x, y );
 	for( int i = 0; i < 3; i++ )
-		pixel[i] = (uint8_t)( pixel[i] + ( 255 - pixel[i] ) * level / 15 );
+		out[i] = (uint8_t)( out[i] + ( 255 - out[i] ) * level / 15 );
 }
 
 void KeyImage::drawText( const char *const *lines, size_t count, uint32_t background, TextStyle style ) {
@@ -231,13 +236,12 @@ void KeyImage::drawIconAndText( const uint8_t *icon, int iconSize, const char *t
 			continue;
 		for( int col = 0; col < iconSize; col++ ) {
 			if( x + col >= 0 && x + col < width_ )
-				memcpy( canvas_ + ( (size_t)row * width_ + x + col ) * 3, icon + ( (size_t)y * iconSize + col ) * 3, 3 );
+				memcpy( pixel( x + col, row ), icon + ( (size_t)y * iconSize + col ) * 3, 3 );
 		}
 	}
 	drawLine( font, text, x + iconSize + gap, ( height_ + font.capHeight ) / 2 );
 }
 
-// One line of white text, starting at x, sitting on the baseline.
 void KeyImage::drawLine( const Font &font, const char *line, int x, int baseline ) {
 	for( const char *c = line; *c; c++ ) {
 		const FontGlyph *glyph = glyphFor( font, *c );
@@ -276,7 +280,7 @@ void KeyImage::applyTransform( Transform transform ) {
 				case Transform::Rotate270: sx = lastX - y; sy = x;         break;
 				case Transform::Rotate180: sx = lastX - x; sy = lastY - y; break;
 			}
-			memcpy( scratch_ + ( (size_t)y * width_ + x ) * 3, canvas_ + ( (size_t)sy * width_ + sx ) * 3, 3 );
+			memcpy( scratch_ + ( (size_t)y * width_ + x ) * 3, pixel( sx, sy ), 3 );
 		}
 	}
 }

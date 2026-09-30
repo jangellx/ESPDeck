@@ -48,6 +48,20 @@ namespace {
 			any |= out[i];
 		return ok && any;
 	}
+
+	// counter as 8 bytes, big-endian.
+	void putBigEndian64( uint64_t counter, uint8_t out[8] ) {
+		for( int i = 0; i < 8; i++ )
+			out[i] = (uint8_t)( counter >> ( 56 - 8 * i ) );
+	}
+
+	// One hex digit's value, or -1 if it isn't one.
+	int hexValue( char c ) {
+		if( c >= '0' && c <= '9' ) return c - '0';
+		if( c >= 'a' && c <= 'f' ) return c - 'a' + 10;
+		if( c >= 'A' && c <= 'F' ) return c - 'A' + 10;
+		return -1;
+	}
 }
 
 namespace Crypto {
@@ -137,8 +151,7 @@ bool sessionKey( const uint8_t key[32], const uint8_t deviceNonce[16], const uin
 
 bool frameMAC( const uint8_t session[32], uint8_t direction, uint64_t counter, const void *payload, size_t length, uint8_t mac[16] ) {
 	uint8_t header[9] = { direction };
-	for( int i = 0; i < 8; i++ )
-		header[1 + i] = (uint8_t)( counter >> ( 56 - 8 * i ) );
+	putBigEndian64( counter, header + 1 );
 
 	uint8_t full[32];
 	bool    ok = hmac( session, 32, { Part( header, sizeof( header ) ), Part( payload, length ) }, full );
@@ -154,8 +167,7 @@ namespace {
 	bool devOTAParameters( const uint8_t session[32], uint64_t counter, uint8_t key[32], uint8_t nonce[12] ) {
 		memset( nonce, 0, 12 );
 		nonce[0] = kFromBridge;
-		for( int i = 0; i < 8; i++ )
-			nonce[4 + i] = (uint8_t)( counter >> ( 56 - 8 * i ) );
+		putBigEndian64( counter, nonce + 4 );
 		return hmac( session, 32, { "espdeck-devota" }, key );
 	}
 }
@@ -204,13 +216,6 @@ void toHex( const uint8_t *data, size_t length, char *out ) {
 		out[i * 2 + 1] = digits[data[i] & 0x0F];
 	}
 	out[length * 2] = '\0';
-}
-
-static int hexValue( char c ) {
-	if( c >= '0' && c <= '9' ) return c - '0';
-	if( c >= 'a' && c <= 'f' ) return c - 'a' + 10;
-	if( c >= 'A' && c <= 'F' ) return c - 'A' + 10;
-	return -1;
 }
 
 bool fromHex( const char *hex, uint8_t *out, size_t length ) {

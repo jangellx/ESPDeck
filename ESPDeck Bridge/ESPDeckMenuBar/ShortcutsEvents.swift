@@ -16,9 +16,11 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
+/// Lists the user's shortcuts, reads their icons and runs them, through Shortcuts Events.
 nonisolated enum ShortcutsEvents {
 	static let bundleID = "com.apple.shortcuts.events"
 
+	/// A failure, as a message for the user.
 	struct Failure: Error, Sendable {
 		let message: String
 	}
@@ -99,6 +101,7 @@ nonisolated enum ShortcutsEvents {
 		text.utf8.reduce( 0 ) { $0 << 8 | FourCharCode( $1 ) }
 	}
 
+	/// An empty event of this class and ID, addressed to Shortcuts Events.
 	private static func appleEvent( _ eventClass: String, _ eventID: String ) -> NSAppleEventDescriptor {
 		NSAppleEventDescriptor( eventClass: code( eventClass ), eventID: code( eventID ),
 								targetDescriptor: NSAppleEventDescriptor( bundleIdentifier: bundleID ),
@@ -122,6 +125,7 @@ nonisolated enum ShortcutsEvents {
 		element( "srct", every: folder )
 	}
 
+	/// "every shortcut" or "every folder" of a container (nil for the application).
 	private static func element( _ kind: String, every container: NSAppleEventDescriptor? ) -> NSAppleEventDescriptor {
 		var all = OSType( kAEAll )
 		let ordinal = NSAppleEventDescriptor( descriptorType: typeAbsoluteOrdinal, bytes: &all, length: MemoryLayout<OSType>.size )
@@ -186,6 +190,8 @@ nonisolated enum ShortcutsEvents {
 		throw Failure( message: "Shortcuts Events didn't start." )
 	}
 
+	/// A message for the user from an Apple Event error code, using Shortcuts' own text where
+	/// it gave one and there's no better wording.
 	private static func failure( code: Int, message: String? ) -> Failure {
 		switch code {
 			case -1743:   // errAEEventNotPermitted
@@ -203,6 +209,7 @@ nonisolated enum ShortcutsEvents {
 
 	// MARK: - Results
 
+	/// A list descriptor's items (they're numbered from 1).
 	private static func items( _ list: NSAppleEventDescriptor ) -> [NSAppleEventDescriptor] {
 		guard list.descriptorType == typeAEList, list.numberOfItems > 0 else { return [] }
 		return ( 1...list.numberOfItems ).compactMap { list.atIndex( $0 ) }

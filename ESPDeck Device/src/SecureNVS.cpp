@@ -26,6 +26,8 @@ namespace {
 	constexpr const char *kMarkerNamespace = "securenvs";
 	constexpr const char *kMarkerKey       = "moving";
 
+	constexpr const char *kNoKeyBlock = "This chip has no free eFuse key block.";
+
 	bool             initialized = false;
 	bool             needRestart = false;   // see restartWanted()
 	SecureNVS::State current     = SecureNVS::State::Plain;
@@ -130,6 +132,7 @@ namespace {
 		return false;
 	}
 
+	// Reads an integer entry of type T into entry.number.
 	template <typename T>
 	bool getNumber( esp_err_t ( *get )( nvs_handle_t, const char *, T * ), nvs_handle_t handle, Entry &entry ) {
 		T value;
@@ -139,11 +142,13 @@ namespace {
 		return true;
 	}
 
+	// Writes entry.number as type T.
 	template <typename T>
 	bool setNumber( esp_err_t ( *set )( nvs_handle_t, const char *, T ), nvs_handle_t handle, const Entry &entry ) {
 		return set( handle, entry.key, (T)entry.number ) == ESP_OK;
 	}
 
+	// Reads the value of entry (its space, key and type already set) from an open handle.
 	bool readValue( nvs_handle_t handle, Entry &entry ) {
 		size_t length = 0;
 		switch( entry.type ) {
@@ -170,6 +175,7 @@ namespace {
 		}
 	}
 
+	// Writes entry's value through an open handle, uncommitted.
 	bool writeValue( nvs_handle_t handle, const Entry &entry ) {
 		switch( entry.type ) {
 			case NVS_TYPE_U8:   return setNumber( nvs_set_u8, handle, entry );
@@ -220,6 +226,7 @@ namespace {
 		return ok;
 	}
 
+	// Sets or removes the marker, committed.
 	bool setMarker( bool on ) {
 		nvs_handle_t handle;
 		if( nvs_open( kMarkerNamespace, NVS_READWRITE, &handle ) != ESP_OK )
@@ -230,6 +237,7 @@ namespace {
 		return ok;
 	}
 
+	// Whether the marker is there: a move into encrypted NVS was cut short.
 	bool hasMarker() {
 		nvs_handle_t handle;
 		uint8_t      value = 0;
@@ -400,14 +408,14 @@ namespace {
 		error = nullptr;
 		if( current != State::Plain || !initialized ) {
 			error = current == State::Encrypted ? "Storage is already encrypted."
-			        : current == State::Unsupported ? "This chip has no free eFuse key block."
+			        : current == State::Unsupported ? kNoKeyBlock
 			        : "Storage isn't available.";
 			return Outcome::Refused;
 		}
 		esp_efuse_block_t block = esp_efuse_find_unused_key_block();
 		if( block == EFUSE_BLK_KEY_MAX ) {
 			current = State::Unsupported;
-			error   = "This chip has no free eFuse key block.";
+			error   = kNoKeyBlock;
 			return Outcome::Refused;
 		}
 

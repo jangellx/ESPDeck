@@ -29,6 +29,7 @@
 
 class BridgeClient {
 public:
+	// A connection change or a received message, as nextMessage() hands them over.
 	struct Message {
 		enum class Kind : uint8_t {
 			Connected,
@@ -51,10 +52,13 @@ public:
 
 	// Next queued message, if any. The caller must release() Text and Binary messages.
 	bool nextMessage( Message &message );
+	// Frees a message's data.
 	static void release( Message &message );
 
+	// The WebSocket is open (the handshake may not have happened yet).
 	bool isConnected() const { return state_ == State::Connected; }
 
+	// Sends a text frame; false if not connected or it couldn't be sent.
 	bool sendText( const char *text, size_t length );
 
 	// The bridge we're paired with, or empty. Discovery then only accepts that TXT "id".
@@ -78,31 +82,40 @@ public:
 	void disconnect( bool retrySoon = false );
 
 private:
+	// The connection, as loop() drives it.
 	enum class State : uint8_t {
 		Idle,
 		Connecting,
 		Connected,
 	};
 
+	// On the WebSocket client's task.
 	static void eventHandler( void *arg, esp_event_base_t base, int32_t eventID, void *eventData );
 	void handleData( const esp_websocket_event_data_t *data );
 	void enqueue( Message::Kind kind, uint8_t *data = nullptr, size_t size = 0 );
 
 	// Discovery task. Only it calls mDNS.
 	static void discoveryTask( void *arg );
+
+	// A bridge's address and port.
 	struct Endpoint {
 		uint32_t address;   // IPv4, network byte order as lwIP keeps it
 		uint16_t port;
+
+		bool operator==( const Endpoint &other ) const { return address == other.address && port == other.port; }
 	};
 
+	// An address skipped until `until` (avoidCurrent()).
 	struct Avoided {
 		Endpoint endpoint;
 		int64_t  until;     // esp_timer_get_time(), which doesn't wrap
 	};
 
+	// Addresses remembered for skipping; the oldest goes when full.
 	static constexpr size_t kMaxAvoided = 4;
 	static constexpr size_t kMaxNoKey   = 4;
 
+	// What the discovery task is to look for: a copy of the loop's state when it was asked.
 	struct Request {
 		char     preferred[64];
 		Endpoint lastGood;
@@ -112,16 +125,20 @@ private:
 	};
 
 	void runDiscovery();
+	// One mDNS query; the best matching bridge, if any.
 	bool discover( const Request &request, Endpoint &found );
 
-	// Called by loop().
+	// Called by loop(): hand the discovery task a request, drop the one outstanding, and pick
+	// up the answer to the latest (false until there is one).
 	void requestDiscovery( bool lookingElsewhere = false );
 	void abandonDiscovery();
 	bool takeDiscoveryResult( bool &found, Endpoint &endpoint );
 
+	// Starts a WebSocket connection to endpoint.
 	void connect( const Endpoint &endpoint );
 	void teardown();
 	void scheduleRetry();
+	void retryNow();
 
 	QueueHandle_t                 queue_                = nullptr;
 	esp_websocket_client_handle_t client_               = nullptr;

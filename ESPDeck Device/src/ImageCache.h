@@ -29,6 +29,7 @@
 
 class ImageCache {
 public:
+	// Where a key's image is, as assign() finds it.
 	enum class Lookup : uint8_t {
 		Ready,     // in PSRAM now
 		Loading,   // on flash; takeReady() reports the key when it's in PSRAM
@@ -42,6 +43,7 @@ public:
 	// False if it didn't stop in time; the filesystem is still in use then.
 	bool stop();
 
+	// Whether the image is in either tier.
 	bool has( const Hash &hash ) const;
 
 	// Keeps a copy of an image the caller has verified. Returns false if PSRAM is out.
@@ -64,6 +66,7 @@ public:
 	// Every image the Mac needn't send again, in either tier.
 	std::vector<Hash> hashes() const;
 
+	// The deck's brightness, 0–100, saved with the key assignments.
 	uint8_t brightness() const;
 	void    setBrightness( uint8_t percent );
 
@@ -71,18 +74,21 @@ public:
 	void persistNow();
 
 private:
+	// An image file on flash. lastUse counts up from useCounter_ (higher is more recent).
 	struct FlashEntry {
 		uint32_t size;
 		uint32_t lastUse;
 	};
 
+	// An image in PSRAM.
 	struct RamEntry {
 		ImagePtr image;
 		uint32_t lastUse;
-		bool     onFlash;
+		bool     onFlash;                  // also saved to flash
 		bool     saveFailed = false;   // the filesystem was full; stays in PSRAM only
 	};
 
+	// What a key shows.
 	struct Key {
 		bool assigned = false;
 		Hash hash     = {};
@@ -97,7 +103,7 @@ private:
 	bool makeRoom( size_t size );
 	ImagePtr readImage( const Hash &hash, size_t size );
 
-	// Callers hold mutex_.
+	// Callers hold mutex_. isAssigned(): some key shows the image.
 	bool isAssigned( const Hash &hash ) const;
 	uint32_t keysShowing( const Hash &hash ) const;
 	void touch( const Hash &hash );
@@ -107,6 +113,7 @@ private:
 	// Boot only (before the writer starts).
 	void scanImages();
 	void loadIndex();
+	// The key assignments and brightness, and the assigned images read into PSRAM.
 	void loadState();
 
 	mutable std::mutex         mutex_;
@@ -117,7 +124,7 @@ private:
 	std::vector<Hash>          missing_;            // for takeMissing()
 	uint32_t                   ready_       = 0;    // for takeReady()
 	uint8_t                    brightness_  = 80;
-	uint32_t                   useCounter_  = 1;
+	uint32_t                   useCounter_  = 1;    // the next lastUse
 
 	bool                       indexDirty_  = false;
 	bool                       stateDirty_  = false;
@@ -127,5 +134,5 @@ private:
 	TaskHandle_t               writer_      = nullptr;
 	volatile bool              stopping_    = false;
 	volatile bool              stopped_     = false;
-	volatile bool              flushNow_    = false;
+	volatile bool              flushNow_    = false;    // persistNow() is waiting for the writer
 };

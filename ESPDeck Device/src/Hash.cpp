@@ -13,6 +13,7 @@ void hashToHex( const Hash &hash, char *out ) {
 	out[hash.size() * 2] = '\0';
 }
 
+// A hex digit's value, or -1 if c isn't one.
 static int hexValue( char c ) {
 	if( c >= '0' && c <= '9' ) return c - '0';
 	if( c >= 'a' && c <= 'f' ) return c - 'a' + 10;

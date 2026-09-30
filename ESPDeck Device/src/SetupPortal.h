@@ -27,6 +27,7 @@ public:
 	// Registers Wi-Fi event handlers. Call once, before start().
 	void begin();
 
+	// Starts or stops setup mode: the access point, DNS and the page.
 	void start();
 	void stop();
 	bool active() const { return active_; }
@@ -52,15 +53,19 @@ public:
 	bool canExit() const { return settings_.hasCredentials() && settings_.credentialsWork(); }
 
 private:
+	// One network from the last scan, as the page lists it.
 	struct Network {
 		char    ssid[33];
 		int32_t rssi;
 		bool    secure;
 	};
 
+	// A new apPassword_.
 	void makePassword();
+	// Whether to answer a request from the page; if not, it has been answered already.
 	bool allowRequest( bool post );
 
+	// HTTP routes.
 	void handleRoot();
 	void handleScan();
 	void handleStatus();
@@ -69,7 +74,6 @@ private:
 	void handleUnpair();
 	void handleReset();
 	void handleNotFound();
-	void sendJSON( int code, const char *json );
 
 	void startScan();
 	void collectScan();

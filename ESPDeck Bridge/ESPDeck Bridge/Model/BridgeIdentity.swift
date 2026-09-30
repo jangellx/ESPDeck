@@ -11,9 +11,9 @@
 import Foundation
 import Security
 
+/// Keeps the bridge ID in the Keychain and in a file beside the settings.
 enum BridgeIdentity {
-	private static let service = "ESPDeck Bridge identity"
-	private static let account = "bridgeID"
+	private static let item = KeychainItem( service: "ESPDeck Bridge identity", account: "bridgeID" )
 
 	/// The ID kept outside the settings, if any.
 	static func stored( fileIn directory: URL ) -> String? {
@@ -31,10 +31,12 @@ enum BridgeIdentity {
 		}
 	}
 
+	/// The file's place in the settings folder.
 	private static func fileURL( _ directory: URL ) -> URL {
 		directory.appending( path: "BridgeID" )
 	}
 
+	/// The ID in `text`, trimmed; nil if it's empty or too long to be one.
 	private static func valid( _ text: String ) -> String? {
 		let id = text.trimmingCharacters( in: .whitespacesAndNewlines )
 		return id.isEmpty || id.count > 64 ? nil : id
@@ -42,12 +44,13 @@ enum BridgeIdentity {
 
 	// MARK: - Keychain
 	//
-	// As PairingKeyStore: the data-protection keychain when the signing allows it, else the
-	// login keychain.
+	// As the pairing keys (KeychainItem): the data-protection keychain when the signing
+	// allows it, else the login keychain.
 
+	/// The first valid ID either keychain has.
 	private static func keychainValue() -> String? {
 		for dataProtection in [ true, false ] {
-			var query = base( dataProtection: dataProtection )
+			var query = item.query( dataProtection: dataProtection )
 			query[kSecReturnData as String] = true
 			query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -60,26 +63,16 @@ enum BridgeIdentity {
 		return nil
 	}
 
+	/// Replaces the ID in the Keychain: in the first keychain that takes it.
 	private static func storeInKeychain( _ id: String ) {
+		item.delete()
 		for dataProtection in [ true, false ] {
-			SecItemDelete( base( dataProtection: dataProtection ) as CFDictionary )
-		}
-		for dataProtection in [ true, false ] {
-			var query = base( dataProtection: dataProtection )
+			var query = item.query( dataProtection: dataProtection )
 			query[kSecValueData as String]      = Data( id.utf8 )
 			query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 			query[kSecAttrLabel as String]      = "ESPDeck Bridge ID"
 			if SecItemAdd( query as CFDictionary, nil ) == errSecSuccess { return }
 		}
 		print( "[BridgeIdentity] Couldn't keep the bridge ID in the Keychain; the file still has it." )
-	}
-
-	private static func base( dataProtection: Bool ) -> [String: Any] {
-		[
-			kSecClass as String:                     kSecClassGenericPassword,
-			kSecAttrService as String:               service,
-			kSecAttrAccount as String:               account,
-			kSecUseDataProtectionKeychain as String: dataProtection,
-		]
 	}
 }

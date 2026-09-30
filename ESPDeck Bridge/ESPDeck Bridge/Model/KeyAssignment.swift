@@ -55,6 +55,7 @@ struct KeyAssignment: Codable, Equatable {
 	var doubleTap       : PressAction?
 	var hold            : PressAction?
 
+	/// What a kind of press does: the tap is this assignment itself.
 	func press( _ kind: PressKind ) -> PressAction? {
 		switch kind {
 			case .tap:       PressAction( self )
@@ -63,6 +64,7 @@ struct KeyAssignment: Codable, Equatable {
 		}
 	}
 
+	/// An On/Off shortcut rather than a One-Shot one.
 	var isToggleShortcut: Bool { kind == .shortcut && shortcutToggles == true }
 
 	/// Nothing on it at all.
@@ -71,12 +73,12 @@ struct KeyAssignment: Codable, Equatable {
 	/// States that can have their own icon, besides `standard`.
 	var states: [KeyState] { isToggleShortcut ? [ .on, .off ] : kind?.states ?? [] }
 
+	/// The actions a press can perform, for the picker.
 	var actions: [KeyAction] { isToggleShortcut ? [ .toggle, .turnOn, .turnOff, .none ] : kind?.actions ?? [] }
 
 	/// The level a slider key adjusts.
 	var sliderRef: CharacteristicRef? {
-		guard let slider, let accessoryID else { return nil }
-		return CharacteristicRef( accessoryID: accessoryID, serviceID: serviceID, characteristicType: slider.level.characteristicType )
+		ref( slider?.level.characteristicType )
 	}
 
 	/// The key accessory, then the others.
@@ -85,19 +87,26 @@ struct KeyAssignment: Codable, Equatable {
 		return [ KeyMember( kind: kind, accessoryID: accessoryID, serviceID: serviceID ) ] + ( others ?? [] )
 	}
 
+	/// The characteristic the key shows, of the key accessory.
 	var characteristicRef: CharacteristicRef? {
-		guard let kind, let accessoryID, let type = kind.displayCharacteristicType else { return nil }
-		return CharacteristicRef( accessoryID: accessoryID, serviceID: serviceID, characteristicType: type )
+		ref( kind?.displayCharacteristicType )
 	}
 
 	/// Secondary characteristic that flags a problem, e.g. a garage door obstruction.
 	var alertRef: CharacteristicRef? {
-		guard let kind, let accessoryID, let type = kind.alertCharacteristicType else { return nil }
+		ref( kind?.alertCharacteristicType )
+	}
+
+	/// A characteristic of the key accessory's service; nil without an accessory or a type.
+	private func ref( _ type: String? ) -> CharacteristicRef? {
+		guard let accessoryID, let type else { return nil }
 		return CharacteristicRef( accessoryID: accessoryID, serviceID: serviceID, characteristicType: type )
 	}
 
+	/// Marks an icon that's an SF Symbol's name rather than an image file's.
 	static let symbolPrefix = "sf:"
 
+	/// A state's icon, or Default's.
 	func iconName( for state: KeyState ) -> String? {
 		icons[state.rawValue] ?? icons[KeyState.standard.rawValue]
 	}
@@ -154,6 +163,7 @@ enum SceneTiming: String, Codable, CaseIterable, Identifiable {
 		}
 	}
 
+	/// Whether the scenes run with a press that turns the accessories on (or off).
 	func runs( activating: Bool ) -> Bool {
 		switch self {
 			case .everyPress: true
@@ -192,7 +202,12 @@ extension KeyAssignment {
 			actionSetID = first
 			scenes      = chosen.count > 1 ? Array( chosen.dropFirst() ) : nil
 		} else {
-			kind = nil; accessoryID = nil; serviceID = nil; others = nil; actionSetID = nil; scenes = nil
+			kind        = nil
+			accessoryID = nil
+			serviceID   = nil
+			others      = nil
+			actionSetID = nil
+			scenes      = nil
 		}
 		if kind != .power && kind != .fan { slider = nil }
 		if kind != oldKind || !actions.contains( action ) {

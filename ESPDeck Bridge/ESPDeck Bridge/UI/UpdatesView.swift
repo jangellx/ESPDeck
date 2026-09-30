@@ -9,6 +9,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The Updates page: the latest firmware, the update policy, and each device's firmware.
 struct UpdatesView: View {
 	let controller: DeckController
 
@@ -29,10 +30,9 @@ struct UpdatesView: View {
 				}
 				if let unsigned = updates.unsignedFirmware {
 					Text( "Firmware \(unsigned.description) on GitHub isn't signed, so it isn't offered. Releases are signed from \(FirmwareSignature.firstSignedRelease) on; an unsigned one can only be installed from a file, on the Mac." )
-						.font( .caption )
-						.foregroundStyle( .secondary )
+						.secondaryCaption()
 				}
-				Picker( "Updates", selection: Binding( get: { updates.firmwarePolicy }, set: { updates.firmwarePolicy = $0 } ) ) {
+				Picker( "Updates", selection: Bindable( updates ).firmwarePolicy ) {
 					ForEach( UpdatePolicy.allCases ) { Text( $0.title ).tag( $0 ) }
 				}
 				ForEach( controller.devices.filter { controller.settings( $0.id )?.isDemo != true } ) { device in
@@ -57,8 +57,7 @@ struct UpdatesView: View {
 					}
 				}
 				if let error = updates.checkError {
-					Label( error, systemImage: "exclamationmark.triangle.fill" )
-						.foregroundStyle( .orange )
+					WarningLabel( error )
 				}
 			}
 		}
@@ -110,12 +109,8 @@ struct FirmwareRow: View {
 				}
 			}
 		} label: {
-			VStack( alignment: .leading, spacing: 2 ) {
-				Text( title ?? name )
-				Text( device.firmware.map { title == nil ? "Firmware \($0)" : $0 } ?? ( device.isOnline ? "Unknown" : "Offline" ) )
-					.font( .caption )
-					.foregroundStyle( .secondary )
-			}
+			CaptionedText( title ?? name, caption: device.firmware.map { title == nil ? "Firmware \($0)" : $0 } ?? ( device.isOnline ? "Unknown" : "Offline" ),
+						   spacing: 2 )
 		}
 		.fileImporter( isPresented: $pickingFile, allowedContentTypes: [ .data ] ) { result in
 			if case .success( let url ) = result {
@@ -131,7 +126,7 @@ struct FirmwareRow: View {
 			}
 		}
 		.confirmationDialog( pending.map { ( isDowngrade( $0 ) ? "Install older firmware \($0.info.version) on \(name)?" : "Install firmware \($0.info.version) on \(name)?" ) } ?? "",
-							 isPresented: Binding( get: { pending != nil }, set: { if !$0 { pending = nil } } ), titleVisibility: .visible ) {
+							 isPresented: Binding( presenting: $pending ), titleVisibility: .visible ) {
 			Button( pending.map( isDowngrade ) == true ? "Install Older Firmware" : "Install" ) {
 				if let pending {
 					controller.updates.installLocalFirmware( on: device.id, image: pending.image, info: pending.info )
@@ -146,42 +141,22 @@ struct FirmwareRow: View {
 				Text( "\(older)From \(pending.source), built \(pending.info.built). Firmware from a file isn't checked against the release signature, so only install builds you trust. The device restarts into it; if it can't reconnect, it goes back to the firmware it runs now." )
 			}
 		}
-		.alert( "Can't Install That Firmware", isPresented: Binding( get: { problem != nil }, set: { if !$0 { problem = nil } } ) ) {
+		.alert( "Can't Install That Firmware", isPresented: Binding( presenting: $problem ) ) {
 			Button( "OK" ) {}
 		} message: {
 			Text( problem ?? "" )
 		}
 	}
 
-	/// Like USB Setup's: the latest signed release, the chosen file, then Choose File… after a
-	/// divider (on the Mac, where files can be picked). A menu labelled with the current choice:
-	/// a Picker kept showing Choose File… after a file was picked.
+	/// As in USB Setup; Choose File… only on the Mac, where files can be picked.
 	private var firmwareMenu: some View {
-		let latest       = controller.updates.latestFirmware
-		let releaseTitle = latest.map { "Latest release (\($0.version.description))" } ?? "No signed release yet"
-		let fileTitle    = chosen.map { "\($0.source) (\($0.info.version))" }
-		return Menu {
-			Button {
-				choice = .release
-			} label: {
-				MenuChoice( title: releaseTitle, chosen: choice != .file )
-			}
-			if let fileTitle {
-				Button {
-					choice = .file
-				} label: {
-					MenuChoice( title: fileTitle, chosen: choice == .file )
-				}
-			}
-			if controller.macBridge != nil {
-				Divider()
-				Button( "Choose File…" ) { pickingFile = true }
-			}
-		} label: {
-			Text( choice == .file ? fileTitle ?? releaseTitle : releaseTitle )
-		}
-		.fixedSize()
-		.disabled( device.status.setupMode || device.firmwareProgress?.isActive == true )
+		FirmwareSourceMenu( releaseTitle: controller.updates.latestReleaseTitle,
+							fileTitle: chosen.map { "\($0.source) (\($0.info.version))" },
+							isFile: choice == .file,
+							chooseRelease: { choice = .release },
+							chooseFile: { choice = .file },
+							pickFile: controller.macBridge != nil ? { pickingFile = true } : nil )
+			.disabled( device.status.setupMode || device.firmwareProgress?.isActive == true )
 	}
 
 	/// Installs the menu's choice: a release only when it's newer than what the device runs.
@@ -211,6 +186,7 @@ struct FirmwareRow: View {
 		FirmwareStanding.isDowngrade( installing: pending.info.version, over: device.firmware ?? "" )
 	}
 
+	/// Reads and checks a firmware file, then asks to install it; says why if it can't be.
 	private func prepare( source: String, _ read: () throws -> Data ) {
 		do {
 			let image = try read()
@@ -229,6 +205,7 @@ struct FirmwareRow: View {
 		}
 	}
 
+	/// An install under way: downloading, sending, installing, restarting, or why it failed.
 	@ViewBuilder
 	private func progressView( _ progress: FirmwareProgress ) -> some View {
 		switch progress.phase {
@@ -245,8 +222,7 @@ struct FirmwareRow: View {
 				ProgressView( "Restarting…" ).controlSize( .small )
 			case .failed( let message ):
 				HStack {
-					Label( message, systemImage: "exclamationmark.triangle.fill" )
-						.foregroundStyle( .orange )
+					WarningLabel( message )
 						.font( .caption )
 						.lineLimit( 2 )
 					Button( "Retry" ) {
@@ -255,5 +231,51 @@ struct FirmwareRow: View {
 					.disabled( !device.isOnline )
 				}
 		}
+	}
+}
+
+/// Where firmware comes from: the latest signed release, the chosen file, then Choose File…
+/// after a divider. A menu labelled with the current choice rather than a Picker: a Picker
+/// kept showing Choose File… after a file was picked, until it was opened again.
+struct FirmwareSourceMenu: View {
+	let releaseTitle  : String
+	/// The chosen file, once there is one.
+	let fileTitle     : String?
+	/// The file is chosen rather than the release.
+	let isFile        : Bool
+	let chooseRelease : () -> Void
+	let chooseFile    : () -> Void
+	/// Opens the file picker; nil where files can't be picked.
+	let pickFile      : ( () -> Void )?
+
+	var body: some View {
+		Menu {
+			Button {
+				chooseRelease()
+			} label: {
+				MenuChoice( title: releaseTitle, chosen: !isFile )
+			}
+			if let fileTitle {
+				Button {
+					chooseFile()
+				} label: {
+					MenuChoice( title: fileTitle, chosen: isFile )
+				}
+			}
+			if let pickFile {
+				Divider()
+				Button( "Choose File…", action: pickFile )
+			}
+		} label: {
+			Text( isFile ? fileTitle ?? releaseTitle : releaseTitle )
+		}
+		.fixedSize()
+	}
+}
+
+extension UpdateManager {
+	/// The firmware menus' release choice: the latest signed release, if there is one.
+	var latestReleaseTitle: String {
+		latestFirmware.map { "Latest release (\($0.version.description))" } ?? "No signed release yet"
 	}
 }

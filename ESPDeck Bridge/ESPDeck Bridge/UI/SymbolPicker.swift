@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+/// The SF Symbol picker: suggestions, search, categories, and removing the state's icon.
 struct SymbolPicker: View {
 	let current     : String?
 	let removeTitle : String
@@ -50,8 +51,7 @@ struct SymbolPicker: View {
 				if !suggested.isEmpty && query.isEmpty {
 					VStack( alignment: .leading, spacing: 4 ) {
 						Text( "Suggested" )
-							.font( .caption )
-							.foregroundStyle( .secondary )
+							.secondaryCaption()
 						grid( suggested )
 						Divider()
 							.padding( .vertical, 4 )
@@ -62,8 +62,7 @@ struct SymbolPicker: View {
 
 			HStack {
 				Text( symbols.isEmpty ? "No matching symbols. Press Return to use a name exactly as typed." : "\(symbols.count) symbols" )
-					.font( .caption )
-					.foregroundStyle( .secondary )
+					.secondaryCaption()
 				Spacer()
 				Button( removeTitle, role: .destructive, action: onRemove )
 					.disabled( !canRemove )
@@ -74,6 +73,7 @@ struct SymbolPicker: View {
 		.onAppear { searchFocused = true }
 	}
 
+	/// A grid of symbol buttons, the current one highlighted.
 	private func grid( _ names: [String] ) -> some View {
 		LazyVGrid( columns: [ GridItem( .adaptive( minimum: 44 ), spacing: 6 ) ], spacing: 6 ) {
 			ForEach( names, id: \.self ) { name in

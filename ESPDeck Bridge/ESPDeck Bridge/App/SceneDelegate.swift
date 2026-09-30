@@ -5,14 +5,18 @@
 
 import SwiftUI
 
+/// Makes each window either the configuration window or the launch splash.
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 	static let splashTitle = "ESPDeck Bridge Starting"
 	static let windowTitle = "ESPDeck Bridge"
 
 	private static let splashDuration: Duration = .seconds( 2 )
+	private static let splashSize        = CGSize( width: 420, height: 280 )
+	private static let windowMinimumSize = CGSize( width: 1040, height: 640 )
 
 	var window: UIWindow?
 
+	/// On the Mac the app lives in the menu bar; on iPad it's an ordinary app.
 	private static var isMenuBarApp: Bool {
 		#if targetEnvironment( macCatalyst )
 		true
@@ -21,6 +25,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 		#endif
 	}
 
+	/// Sets up the new window as the configuration window or the splash.
 	func scene( _ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions ) {
 		guard let windowScene = scene as? UIWindowScene else { return }
 		let app = AppDelegate.shared
@@ -33,15 +38,14 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 		let noDecks = app.controller.config.settings.devices.allSatisfy( \.isDemo )
 		if app.consumeConfigurationRequest() || !Self.isMenuBarApp || noDecks {
 			windowScene.title = Self.windowTitle
-			windowScene.sizeRestrictions?.minimumSize = CGSize( width: 1040, height: 640 )
+			windowScene.sizeRestrictions?.minimumSize = Self.windowMinimumSize
 			window.rootViewController = ConfigurationHostingController( controller: app.controller )
 		} else {
 			// UIKit opens a window at launch whether we want one or not. Use it as a splash
 			// screen, then close it; the app lives in the menu bar.
-			let size = CGSize( width: 420, height: 280 )
 			windowScene.title = Self.splashTitle
-			windowScene.sizeRestrictions?.minimumSize = size
-			windowScene.sizeRestrictions?.maximumSize = size
+			windowScene.sizeRestrictions?.minimumSize = Self.splashSize
+			windowScene.sizeRestrictions?.maximumSize = Self.splashSize
 			#if targetEnvironment( macCatalyst )
 			windowScene.titlebar?.titleVisibility = .hidden
 			#endif
@@ -62,6 +66,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 		}
 	}
 
+	/// Forgets a closed splash window.
 	func sceneDidDisconnect( _ scene: UIScene ) {
 		AppDelegate.shared.splashSessions.remove( scene.session.persistentIdentifier )
 	}

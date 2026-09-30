@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+/// The launch window's contents: the app's name over a dark gradient.
 struct SplashView: View {
 	var body: some View {
 		VStack( spacing: 14 ) {

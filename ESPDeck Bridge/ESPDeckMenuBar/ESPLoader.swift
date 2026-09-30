@@ -13,6 +13,7 @@
 import CryptoKit
 import Foundation
 
+/// A connection to an ESP32-S3's ROM serial bootloader, for checking the chip and writing flash.
 nonisolated final class ESPLoader {
 	/// Bytes to write at a flash offset.
 	struct Region: Sendable {
@@ -30,6 +31,7 @@ nonisolated final class ESPLoader {
 		case usbOTG
 	}
 
+	/// Why an install failed, worded for the user.
 	enum Failure: LocalizedError {
 		case noBootloader
 		case wrongChip( String )
@@ -72,6 +74,7 @@ nonisolated final class ESPLoader {
 		}
 	}
 
+	/// The ROM loader's command codes used here.
 	enum Op: UInt8 {
 		case writeRegister   = 0x09
 		case readRegister    = 0x0A
@@ -85,6 +88,7 @@ nonisolated final class ESPLoader {
 		case securityInfo    = 0x14
 	}
 
+	/// A command's answer: the value field (READ_REG's result) and the data after it.
 	struct Response {
 		var value : UInt32
 		var data  : Data
@@ -92,7 +96,9 @@ nonisolated final class ESPLoader {
 
 	/// Compressed data goes out in blocks of this size (the ROM loader's FLASH_WRITE_SIZE).
 	static let blockSize     = 0x400
+	/// GET_SECURITY_INFO's chip ID for an ESP32-S3.
 	static let esp32S3ChipID : UInt32 = 9
+	/// The speed a UART link moves to once connected (speedUp()).
 	static let fastBaudRate  = 460_800
 
 	// Registers (esptool's targets/esp32s3.py)
@@ -100,7 +106,7 @@ nonisolated final class ESPLoader {
 	private static let efuseBlock1          : UInt32 = 0x6000_7044
 	private static let spiBase              : UInt32 = 0x6000_2000   // SPI1, the flash's controller
 	private static let uartDateRegister     : UInt32 = 0x6000_0080
-	private static let macRegister          : UInt32 = 0x6000_7044
+	private static let macRegister          = efuseBlock1             // the MAC is eFuse block 1's first 6 bytes
 	private static let rtcBase              : UInt32 = 0x6000_8000
 	private static let wdtConfig0           = rtcBase + 0x98
 	private static let wdtConfig1           = rtcBase + 0x9C
@@ -117,11 +123,13 @@ nonisolated final class ESPLoader {
 	private let link    : Link
 	private var decoder = SLIPDecoder()
 
+	/// Opens the port; nothing is sent until connect().
 	init( path: String, link: Link ) throws {
 		port      = try SerialPort( path: path )
 		self.link = link
 	}
 
+	/// Closes the port without resetting the chip.
 	func close() {
 		port.close()
 	}
@@ -175,13 +183,11 @@ nonisolated final class ESPLoader {
 		var payload = Data( [ 0x07, 0x07, 0x12, 0x20 ] )
 		payload.append( Data( repeating: 0x55, count: 32 ) )
 		for _ in 0..<5 {
-			port.discardInput()
-			decoder = SLIPDecoder()
+			discardInput()
 			do {
 				_ = try command( .sync, payload, timeout: 0.1 )
 				pause( 0.1 )   // the other seven answers
-				port.discardInput()
-				decoder = SLIPDecoder()
+				discardInput()
 				return true
 			} catch Failure.noAnswer {
 				pause( 0.05 )
@@ -192,7 +198,14 @@ nonisolated final class ESPLoader {
 		return false
 	}
 
-	/// The USB-Serial/JTAG port disappears for a moment when the chip resets.
+	/// Drops anything received so far, including a half-decoded frame.
+	private func discardInput() {
+		port.discardInput()
+		decoder = SLIPDecoder()
+	}
+
+	/// Reopens the port by path, for up to 5 seconds: the USB-Serial/JTAG port disappears
+	/// for a moment when the chip resets.
 	private func reopen() throws {
 		let path = port.path
 		port.close()
@@ -230,6 +243,7 @@ nonisolated final class ESPLoader {
 		return "ESP32-S3, MAC \(try macAddress())"
 	}
 
+	/// The factory MAC address from the eFuses, like "24:0a:c4:…".
 	func macAddress() throws -> String {
 		let low  = try readRegister( Self.macRegister )
 		let high = try readRegister( Self.macRegister + 4 )
@@ -238,6 +252,7 @@ nonisolated final class ESPLoader {
 		return bytes.map { String( format: "%02x", $0 ) }.joined( separator: ":" )
 	}
 
+	/// Names a chip too old for GET_SECURITY_INFO from the magic value in its ROM.
 	private func chipFromMagic() throws -> String {
 		switch try readRegister( Self.chipMagicRegister ) {
 			case 0x00F0_1D83: "ESP32"
@@ -247,6 +262,7 @@ nonisolated final class ESPLoader {
 		}
 	}
 
+	/// Names a chip from GET_SECURITY_INFO's chip ID.
 	private static func chipName( id: UInt32 ) -> String {
 		switch id {
 			case 0:  "ESP32"
@@ -289,21 +305,22 @@ nonisolated final class ESPLoader {
 		_ = try command( .changeBaudRate, Self.words( UInt32( Self.fastBaudRate ), 0 ) )
 		try port.setBaudRate( Self.fastBaudRate )
 		pause( 0.05 )
-		port.discardInput()
-		decoder = SLIPDecoder()
+		discardInput()
 		do {
 			_ = try readRegister( Self.uartDateRegister )
 			return true
 		} catch Failure.noAnswer {
-			try port.setBaudRate( 115_200 )
+			try port.setBaudRate( SerialPort.defaultBaudRate )
 			return false
 		}
 	}
 
+	/// READ_REG: a 32-bit word at `address`.
 	func readRegister( _ address: UInt32 ) throws -> UInt32 {
 		try check( .readRegister, Self.words( address ), "read a register" ).value
 	}
 
+	/// WRITE_REG: sets the bits of `mask` at `address` to those of `value`.
 	func writeRegister( _ address: UInt32, _ value: UInt32, mask: UInt32 = 0xFFFF_FFFF ) throws {
 		_ = try check( .writeRegister, Self.words( address, value, mask, 0 ), "write a register" )
 	}
@@ -402,10 +419,8 @@ nonisolated final class ESPLoader {
 			}
 
 			progress( "Checking…", Double( sent ) / total )
-			let digest = try check( .spiFlashMD5, Self.words( UInt32( region.offset ), UInt32( region.data.count ), 0, 0 ), responseLength: 32,
-									timeout: Self.timeout( secondsPerMB: 8, bytes: region.data.count ), "check the flash" )
 			let expected = Insecure.MD5.hash( data: region.data ).map { String( format: "%02x", $0 ) }.joined()
-			guard String( decoding: digest.data, as: UTF8.self ).lowercased() == expected else {
+			guard try flashMD5( offset: region.offset, size: region.data.count ) == expected else {
 				throw Failure.verifyFailed( region.offset )
 			}
 		}
@@ -418,11 +433,10 @@ nonisolated final class ESPLoader {
 		return String( decoding: digest.data, as: UTF8.self ).lowercased()
 	}
 
-	/// Leaves the bootloader and starts the firmware. A reset through the 1200 bps touch
-	/// sets a "force download" flag that would bring it straight back, so clear that first.
-	/// Over USB, the RTC watchdog resets the chip: tried on an S3 that entered the
-	/// bootloader through BOOT and RST, a reset through RTS on USB-Serial/JTAG came back
-	/// up in the bootloader again.
+	/// Leaves the bootloader and starts the firmware. First clears the "force download" flag
+	/// a 1200 bps touch sets, which would bring it straight back. Over USB, the RTC watchdog
+	/// does the reset: on an S3 put in the bootloader with BOOT and RST, a reset through RTS
+	/// on USB-Serial/JTAG came back up in the bootloader.
 	func restart() {
 		try? writeRegister( Self.option1Register, 0, mask: Self.forceDownloadBoot )
 		switch link {
@@ -477,6 +491,7 @@ nonisolated final class ESPLoader {
 		return Response( value: response.value, data: body.prefix( responseLength ) )
 	}
 
+	/// What a command was doing, for noAnswer and unsupported.
 	private static func describe( _ op: Op ) -> String {
 		switch op {
 			case .sync:                     "connect"
@@ -513,6 +528,7 @@ nonisolated final class ESPLoader {
 		UInt32( data.reduce( UInt8( 0xEF ) ) { $0 ^ $1 } )
 	}
 
+	/// 32-bit little-endian words, the form every command's parameters take.
 	static func words( _ values: UInt32... ) -> Data {
 		var data = Data( capacity: values.count * 4 )
 		for value in values {
@@ -546,6 +562,7 @@ nonisolated final class ESPLoader {
 		private var inFrame = false
 		private var escaped = false
 
+		/// The frames that `bytes` completes, unescaped and without their 0xC0s.
 		mutating func feed( _ bytes: Data ) -> [Data] {
 			var frames: [Data] = []
 			for byte in bytes {
@@ -577,16 +594,19 @@ nonisolated final class ESPLoader {
 		}
 	}
 
+	/// A timeout for an operation that scales with its size, at least 3 seconds.
 	private static func timeout( secondsPerMB: Double, bytes: Int ) -> TimeInterval {
 		max( 3, secondsPerMB * Double( bytes ) / 1_000_000 )
 	}
 
+	/// Blocks the calling thread.
 	private func pause( _ seconds: TimeInterval ) {
 		Thread.sleep( forTimeInterval: seconds )
 	}
 }
 
 nonisolated extension Data {
+	/// The little-endian 32-bit word at `offset` from the start, or 0 past the end.
 	func uint32( at offset: Int ) -> UInt32 {
 		guard count >= offset + 4 else { return 0 }
 		let start = startIndex + offset

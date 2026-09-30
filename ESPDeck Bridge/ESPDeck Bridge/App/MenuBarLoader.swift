@@ -7,7 +7,9 @@
 
 import Foundation
 
+/// Finds and loads the menu bar plugin.
 enum MenuBarLoader {
+	/// The plugin, loaded; nil on iPad, or when the bundle is missing or won't load.
 	static func load() -> DeckMenuBarPlugin? {
 		#if targetEnvironment( macCatalyst )
 		guard let url    = Bundle.main.builtInPlugInsURL?.appending( path: "ESPDeckMenuBar.bundle" ),

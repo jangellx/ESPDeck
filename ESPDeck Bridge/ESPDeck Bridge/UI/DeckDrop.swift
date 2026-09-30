@@ -23,6 +23,7 @@ struct KeyDrag: Codable, Transferable {
 	}
 }
 
+/// What was dropped on a key: another key, or an image.
 enum DeckDrop: Transferable {
 	case key( Int )
 	case image( DroppedImage )

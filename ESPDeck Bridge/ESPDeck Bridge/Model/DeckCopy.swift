@@ -9,6 +9,7 @@
 
 import Foundation
 
+/// A part of a deck's settings that can be copied on its own.
 enum DeckCopyPart: String, Codable, CaseIterable, Identifiable {
 	case keys
 	case name
@@ -30,6 +31,7 @@ enum DeckCopyPart: String, Codable, CaseIterable, Identifiable {
 		}
 	}
 
+	/// What the part covers, under its title.
 	var detail: String {
 		switch self {
 			case .keys:       "Every page, with icons, labels and actions."

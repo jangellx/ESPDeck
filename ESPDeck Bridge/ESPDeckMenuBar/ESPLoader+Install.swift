@@ -22,7 +22,7 @@ nonisolated extension ESPLoader {
 			guard var info = SerialPortInfo.named( path ) else {
 				throw Failure.message( "The board isn't connected anymore." )
 			}
-			if info.isEspressif && info.productID != SerialPortInfo.usbSerialJTAGProductID && info.productID != SerialPortInfo.romOTGProductID {
+			if info.isEspressif && !info.isBootloaderCapable {
 				// Firmware with its own USB serial port (TinyUSB, like Arduino's USB CDC):
 				// the 1200 bps touch restarts it into the ROM bootloader, as a new port.
 				progress( "Restarting the board into flashing mode…", 0 )
@@ -66,6 +66,9 @@ nonisolated extension ESPLoader {
 		}
 	}
 
+	/// The speed that, set on firmware's own USB serial port, asks it to restart into the bootloader.
+	private static let touchBaudRate = 1200
+
 	/// Asks firmware with its own USB serial port to restart into the ROM bootloader, then
 	/// waits for the bootloader's port in the same USB socket. Two conventions: switching
 	/// to 1200 baud (Arduino's "1200 bps touch"), and the DTR/RTS pattern of esptool's
@@ -76,7 +79,7 @@ nonisolated extension ESPLoader {
 		do {
 			let port = try SerialPort( path: info.path )
 			defer { port.close() }
-			try port.setBaudRate( 1200 )
+			try port.setBaudRate( Self.touchBaudRate )
 			Thread.sleep( forTimeInterval: 0.1 )
 			for ( dtr, rts ) in [ ( false, true ), ( true, true ), ( true, false ), ( false, false ) ] {
 				try port.setSignals( dtr: dtr, rts: rts )
@@ -91,7 +94,7 @@ nonisolated extension ESPLoader {
 			try Task.checkCancellation()
 			Thread.sleep( forTimeInterval: 0.25 )
 			let bootloader = SerialPortInfo.current().first { port in
-				guard port.isEspressif, port.productID == SerialPortInfo.usbSerialJTAGProductID || port.productID == SerialPortInfo.romOTGProductID else { return false }
+				guard port.isBootloaderCapable else { return false }
 				return info.location != nil ? port.location == info.location : !before.contains( port.path )
 			}
 			if let bootloader {
@@ -102,7 +105,7 @@ nonisolated extension ESPLoader {
 		throw Failure.noBootloader
 	}
 
-	/// "ESP32-S3, 16 MB flash, 8 MB PSRAM".
+	/// What the bootloader found, like "ESP32-S3, 16 MB flash, 8 MB PSRAM".
 	static func describe( flash: Int?, psram: Int? ) -> String {
 		var parts = [ "ESP32-S3" ]
 		if let flash { parts.append( "\(flash >> 20) MB flash" ) }
@@ -119,14 +122,17 @@ nonisolated extension ESPLoader {
 	/// startup without it; the eFuses list only built-in PSRAM, which S3 boards use.
 	static func compatibilityProblem( flash: Int?, psram: Int?, minimumFlashSize: Int ) -> String? {
 		if let flash, flash < minimumFlashSize {
-			return "This board has \(flash >> 20) MB of flash, and ESPDeck needs \(minimumFlashSize >> 20) MB. Use an ESP32-S3 board with 16 MB of flash and 8 MB of PSRAM (N16R8). Nothing was installed."
+			return "This board has \(flash >> 20) MB of flash, and ESPDeck needs \(minimumFlashSize >> 20) MB. \(Self.useSupportedBoard)"
 		}
 		if let psram, psram != 8 && psram != 16 {
 			let has = psram == 0 ? "no PSRAM" : "\(psram) MB of quad PSRAM"
-			return "This board has \(has), and ESPDeck needs 8 MB of octal PSRAM. Use an ESP32-S3 board with 16 MB of flash and 8 MB of PSRAM (N16R8). Nothing was installed."
+			return "This board has \(has), and ESPDeck needs 8 MB of octal PSRAM. \(Self.useSupportedBoard)"
 		}
 		return nil
 	}
+
+	/// How compatibilityProblem's messages end.
+	private static let useSupportedBoard = "Use an ESP32-S3 board with 16 MB of flash and 8 MB of PSRAM (N16R8). Nothing was installed."
 
 	/// From the image header of the bootloader at offset 0: the high nibble of its fourth
 	/// byte is the flash size, 0 for 1 MB up to 7 for 128 MB.

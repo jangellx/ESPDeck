@@ -28,6 +28,7 @@ import Foundation
 
 /// A bridge, as exported: everything another Mac needs to answer the decks as this one.
 nonisolated struct BridgeArchive: Codable, Equatable, Sendable {
+	/// A device as the import summary lists it.
 	struct Device: Codable, Equatable, Sendable {
 		var id     : String
 		var name   : String
@@ -64,13 +65,18 @@ nonisolated struct BridgeArchive: Codable, Equatable, Sendable {
 	}
 }
 
+/// Sealing a BridgeArchive into an export file, and opening one; see the file comment.
 nonisolated enum BridgeTransfer {
-	static let fileExtension    = "espdeckbridge"
 	static let magic            = Data( "ESPDeckBridge".utf8 )
 	static let containerVersion : UInt8 = 1
 	static let kdfName          = "pbkdf2-sha256"
 	static let cipherName       = "aes-256-gcm"
 	static let saltSize         = 16
+	static let nonceSize        = 12
+	/// AES-GCM's tag, after the ciphertext.
+	static let tagSize          = 16
+	/// The magic, the container version and the header's length: what comes before the header.
+	static let fixedSize        = magic.count + 3
 	/// About this long to derive the key on the exporting Mac.
 	static let calibrationMilliseconds: UInt32 = 750
 	/// Exports never use fewer, however fast the Mac; imports refuse fewer or more (a file
@@ -81,6 +87,7 @@ nonisolated enum BridgeTransfer {
 	static let maximumFileSize = 64 * 1024 * 1024
 	static let minimumPassphraseLength = 10
 
+	/// Why a file can't be imported.
 	enum Problem: LocalizedError, Equatable {
 		case notAnExport
 		case newerVersion
@@ -101,6 +108,7 @@ nonisolated enum BridgeTransfer {
 		}
 	}
 
+	/// How the archive was sealed: everything but the passphrase needed to open it.
 	struct Header: Codable, Equatable {
 		var kdf        : String
 		var iterations : UInt32
@@ -150,6 +158,7 @@ nonisolated enum BridgeTransfer {
 		return status == kCCSuccess ? Data( derived ) : nil
 	}
 
+	/// The AES key for a passphrase, as the header says to derive it.
 	private static func key( passphrase: String, header: Header ) -> SymmetricKey? {
 		pbkdf2( password: passphraseBytes( passphrase ), salt: header.salt, iterations: header.iterations ).map { SymmetricKey( data: $0 ) }
 	}
@@ -182,19 +191,19 @@ nonisolated enum BridgeTransfer {
 
 	/// The header, checked, and where the sealed archive starts. Reading it needs no passphrase.
 	static func header( of file: Data ) throws -> ( header: Header, prefixLength: Int ) {
-		let bytes = [UInt8]( file.prefix( magic.count + 3 ) )
-		guard bytes.count == magic.count + 3, Data( bytes.prefix( magic.count ) ) == magic else { throw Problem.notAnExport }
+		let bytes = [UInt8]( file.prefix( fixedSize ) )
+		guard bytes.count == fixedSize, Data( bytes.prefix( magic.count ) ) == magic else { throw Problem.notAnExport }
 		guard bytes[magic.count] == containerVersion else {
 			throw bytes[magic.count] > containerVersion ? Problem.newerVersion : Problem.damaged
 		}
 		let length = Int( bytes[magic.count + 1] ) << 8 | Int( bytes[magic.count + 2] )
-		let start  = file.startIndex + magic.count + 3
-		guard file.count >= magic.count + 3 + length + 16 else { throw Problem.damaged }
+		let start  = file.startIndex + fixedSize
+		guard file.count >= fixedSize + length + tagSize else { throw Problem.damaged }
 		guard let header = try? JSONDecoder().decode( Header.self, from: file.subdata( in: start..<start + length ) ) else { throw Problem.damaged }
 		guard header.kdf == kdfName, header.cipher == cipherName else { throw Problem.newerVersion }
-		guard header.salt.count == saltSize, header.nonce.count == 12,
+		guard header.salt.count == saltSize, header.nonce.count == nonceSize,
 			  ( minimumIterations...maximumIterations ).contains( header.iterations ) else { throw Problem.damaged }
-		return ( header, magic.count + 3 + length )
+		return ( header, fixedSize + length )
 	}
 
 	/// The archive in an export file. Slow (the key derivation): call it off the main thread.
@@ -207,7 +216,7 @@ nonisolated enum BridgeTransfer {
 		let sealed = file.subdata( in: start + prefixLength..<file.endIndex )
 		guard !passphrase.isEmpty, let key = key( passphrase: passphrase, header: header ),
 			  let nonce = try? AES.GCM.Nonce( data: header.nonce ),
-			  let box = try? AES.GCM.SealedBox( nonce: nonce, ciphertext: sealed.dropLast( 16 ), tag: sealed.suffix( 16 ) ),
+			  let box = try? AES.GCM.SealedBox( nonce: nonce, ciphertext: sealed.dropLast( tagSize ), tag: sealed.suffix( tagSize ) ),
 			  let plaintext = try? AES.GCM.open( box, using: key, authenticating: prefix ) else { throw Problem.wrongPassphrase }
 
 		// The format first, so a newer export says so rather than failing to decode.
@@ -239,6 +248,7 @@ nonisolated enum BridgeTransfer {
 		}
 	}
 
+	/// Bytes from the system's secure generator, for the salt.
 	private static func randomBytes( _ count: Int ) -> Data {
 		var generator = SystemRandomNumberGenerator()
 		return Data( ( 0..<count ).map { _ in UInt8.random( in: .min ... .max, using: &generator ) } )

@@ -18,7 +18,12 @@ namespace {
 	using Transform = StreamDeck::Transform;
 
 	constexpr uint16_t kElgatoVID = 0x0FD9;
+	// Models the code treats specially (their rows are in kModels).
+	constexpr uint16_t kMiniPID   = 0x0063;   // the first Mini: short serial number report
+	constexpr uint16_t kNeoPID    = 0x009A;   // info bar
+	constexpr uint16_t kPlusPID   = 0x0084;   // touch strip
 
+	// One row of the model table.
 	struct Model {
 		uint16_t    pid;
 		const char *name;
@@ -56,15 +61,17 @@ namespace {
 	//   Original: same header with a 1-based page number, 8191-byte reports
 	//   Main:     [0x02, 0x07, key, last, length LE16, page LE16] (8 bytes), 1024-byte reports
 	constexpr uint8_t  kImageReportID   = 0x02;
-	constexpr size_t   kMaxReportSize   = 8191;
+	constexpr size_t   kReportSize      = 1024;
+	constexpr size_t   kMaxReportSize   = 8191;  // the Original's
 	constexpr uint16_t kMaxPeriodicOut  = 128;   // the host's limit with CONFIG_USB_HOST_HW_BUFFER_BIAS_IN
 	constexpr uint16_t kFullSpeedPacket = 64;    // the most an interrupt packet can be at full speed
 	// ESP-IDF's host splits an interrupt transfer into at most this many packets (it asserts
 	// otherwise), so the Original's 8191-byte reports go out as several transfers.
 	constexpr size_t   kMaxInterruptPackets = 32;
 
+	// A protocol's image report size, and the size of the header before the image data.
 	size_t reportSize( Protocol protocol ) {
-		return protocol == Protocol::Original ? 8191 : 1024;
+		return protocol == Protocol::Original ? kMaxReportSize : kReportSize;
 	}
 
 	size_t headerSize( Protocol protocol ) {
@@ -82,6 +89,33 @@ namespace {
 	constexpr uint8_t  kUnitInfoReportID = 0x08;   // main protocol: rows, cols, key width
 
 	constexpr uint32_t kTransferTimeout  = 2000;   // ms; an 8191-byte interrupt report takes ~130
+
+	// Our client may only open a new device once it has heard of it (see shrinkOversizedOut()).
+	constexpr int      kOpenAttempts     = 50;
+	constexpr uint32_t kOpenRetryDelay   = 10;     // ms
+
+	// Tasks: the USB host library's, our client's and the HID driver's on core 0, and deviceTask().
+	constexpr uint32_t    kTaskStack          = 4096;   // bytes, every task
+	constexpr UBaseType_t kUsbPriority        = 5;
+	constexpr BaseType_t  kUsbCore            = 0;
+	constexpr UBaseType_t kDevicePriority     = 4;
+
+	constexpr UBaseType_t kEventQueueLength   = 64;
+	constexpr UBaseType_t kRequestQueueLength = 8;
+
+	// Calls fn( ep ) for each interrupt OUT endpoint of interface `number`.
+	template <typename Fn>
+	void forEachInterruptOut( const usb_config_desc_t *config, uint8_t number, Fn fn ) {
+		int intfOffset = 0;
+		const usb_intf_desc_t *intf = usb_parse_interface_descriptor( config, number, 0, &intfOffset );
+		for( int i = 0; intf && i < intf->bNumEndpoints; i++ ) {
+			int offset = intfOffset;
+			const usb_ep_desc_t *ep = usb_parse_endpoint_descriptor_by_index( intf, i, config->wTotalLength, &offset );
+			if( ep && !( ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK )
+			    && ( ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK ) == USB_BM_ATTRIBUTES_XFER_INT )
+				fn( ep );
+		}
+	}
 }
 
 // MARK: - Names
@@ -104,6 +138,7 @@ const char *StreamDeck::transformName( Transform transform ) {
 	}
 }
 
+// Parses a transformName() back.
 bool StreamDeck::transformFromName( const char *name, Transform &out ) {
 	static constexpr Transform kAll[] = { Transform::None, Transform::Transpose, Transform::Rotate90, Transform::Rotate270, Transform::Rotate180 };
 	for( Transform transform : kAll ) {
@@ -118,8 +153,8 @@ bool StreamDeck::transformFromName( const char *name, Transform &out ) {
 // MARK: - Setup
 
 bool StreamDeck::begin() {
-	events_      = xQueueCreate( 64, sizeof( Event ) );
-	requests_    = xQueueCreate( 8, sizeof( Request ) );
+	events_      = xQueueCreate( kEventQueueLength, sizeof( Event ) );
+	requests_    = xQueueCreate( kRequestQueueLength, sizeof( Request ) );
 	mutex_       = xSemaphoreCreateMutex();
 	transferSem_ = xSemaphoreCreateBinary();
 	report_      = (uint8_t *)heap_caps_malloc( kMaxReportSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT );
@@ -134,7 +169,7 @@ bool StreamDeck::begin() {
 		ESP_LOGE( TAG, "usb_host_install failed: %s", esp_err_to_name( err ) );
 		return false;
 	}
-	xTaskCreatePinnedToCore( usbLibraryTask, "usb_lib", 4096, this, 5, nullptr, 0 );
+	xTaskCreatePinnedToCore( usbLibraryTask, "usb_lib", kTaskStack, this, kUsbPriority, nullptr, kUsbCore );
 
 	usb_host_client_config_t clientConfig = {};
 	clientConfig.is_synchronous              = false;
@@ -146,13 +181,13 @@ bool StreamDeck::begin() {
 		ESP_LOGE( TAG, "usb_host_client_register failed: %s", esp_err_to_name( err ) );
 		return false;
 	}
-	xTaskCreatePinnedToCore( clientTask, "usb_deck", 4096, this, 5, nullptr, 0 );
+	xTaskCreatePinnedToCore( clientTask, "usb_deck", kTaskStack, this, kUsbPriority, nullptr, kUsbCore );
 
 	hid_host_driver_config_t driverConfig = {};
 	driverConfig.create_background_task = true;
-	driverConfig.task_priority          = 5;
-	driverConfig.stack_size             = 4096;
-	driverConfig.core_id                = 0;
+	driverConfig.task_priority          = kUsbPriority;
+	driverConfig.stack_size             = kTaskStack;
+	driverConfig.core_id                = kUsbCore;
 	driverConfig.callback               = driverCallback;
 	driverConfig.callback_arg           = this;
 	err = hid_host_install( &driverConfig );
@@ -161,7 +196,7 @@ bool StreamDeck::begin() {
 		return false;
 	}
 
-	xTaskCreate( deviceTask, "deck", 4096, this, 4, nullptr );
+	xTaskCreate( deviceTask, "deck", kTaskStack, this, kDevicePriority, nullptr );
 	ESP_LOGI( TAG, "USB host ready" );
 	return true;
 }
@@ -198,6 +233,7 @@ StreamDeck::Info StreamDeck::info() const {
 	return copy;
 }
 
+// Queues an event for nextEvent(); dropped if the queue is full.
 void StreamDeck::post( EventType type, uint8_t key ) {
 	Event event = { type, key };
 	if( xQueueSend( events_, &event, 0 ) != pdTRUE )
@@ -215,6 +251,7 @@ uint8_t StreamDeck::wireKey( uint8_t key ) const {
 
 // MARK: - Tasks and callbacks
 
+// The USB host library's event loop.
 void StreamDeck::usbLibraryTask( void * ) {
 	while( true ) {
 		uint32_t flags = 0;
@@ -277,6 +314,7 @@ void StreamDeck::clientEventCallback( const usb_host_client_event_msg_t *message
 	self->recordUsbDevice( seen );
 }
 
+// Keeps what was plugged in for lastUsbDevice() and tells the owner.
 void StreamDeck::recordUsbDevice( const UsbDevice &device ) {
 	xSemaphoreTake( mutex_, portMAX_DELAY );
 	usbDevice_ = device;
@@ -306,6 +344,7 @@ void StreamDeck::deviceTask( void *arg ) {
 	}
 }
 
+// The HID driver saw a new interface: handleConnected() takes it from deviceTask().
 void StreamDeck::driverCallback( hid_host_device_handle_t handle, const hid_host_driver_event_t event, void *arg ) {
 	StreamDeck *self = static_cast<StreamDeck *>( arg );
 	if( event == HID_HOST_DRIVER_EVENT_CONNECTED ) {
@@ -314,6 +353,7 @@ void StreamDeck::driverCallback( hid_host_device_handle_t handle, const hid_host
 	}
 }
 
+// Input reports, unplugging and errors on an open interface, on the HID driver's task.
 void StreamDeck::interfaceCallback( hid_host_device_handle_t handle, const hid_host_interface_event_t event, void *arg ) {
 	StreamDeck *self = static_cast<StreamDeck *>( arg );
 	switch( event ) {
@@ -339,6 +379,8 @@ void StreamDeck::interfaceCallback( hid_host_device_handle_t handle, const hid_h
 
 // MARK: - Connection
 
+// Opens a newly attached interface and, if it's a Stream Deck and none is connected yet,
+// makes it the deck.
 void StreamDeck::handleConnected( hid_host_device_handle_t handle ) {
 	hid_host_device_config_t deviceConfig = {};
 	deviceConfig.callback     = interfaceCallback;
@@ -371,17 +413,17 @@ void StreamDeck::handleConnected( hid_host_device_handle_t handle ) {
 		readFeatureString( handle, 0x06, kLongFeatureSize, 2, info.serial, sizeof( info.serial ) );
 		readFeatureString( handle, 0x05, kLongFeatureSize, 6, info.firmware, sizeof( info.firmware ) );
 	} else {
-		size_t serialLength = info.pid == 0x0063 || info.protocol == Protocol::Original ? kShortFeatureSize : kLongFeatureSize;
+		size_t serialLength = info.pid == kMiniPID || info.protocol == Protocol::Original ? kShortFeatureSize : kLongFeatureSize;
 		readFeatureString( handle, 0x03, serialLength, 5, info.serial, sizeof( info.serial ) );
 		readFeatureString( handle, 0x04, kShortFeatureSize, 5, info.firmware, sizeof( info.firmware ) );
 	}
 
 	// From python-elgato-streamdeck and Elgato's HID documentation.
-	if( info.pid == 0x009A ) {          // Neo: info bar, flipped both ways like its keys
+	if( info.pid == kNeoPID ) {         // Neo: info bar, flipped both ways like its keys
 		info.screenWidth     = 248;
 		info.screenHeight    = 58;
 		info.screenTransform = Transform::Rotate180;
-	} else if( info.pid == 0x0084 ) {   // +: touch strip, upright
+	} else if( info.pid == kPlusPID ) { // +: touch strip, upright
 		info.screenWidth     = 800;
 		info.screenHeight    = 100;
 		info.screenTransform = Transform::None;
@@ -448,6 +490,7 @@ void StreamDeck::prepareDeck( hid_host_device_handle_t handle ) {
 		ESP_LOGW( TAG, "Couldn't turn off the deck's own sleep timer: %s", esp_err_to_name( err ) );
 }
 
+// Closes an interface that went away, and drops the deck if it was ours.
 void StreamDeck::handleDisconnected( hid_host_device_handle_t handle ) {
 	xSemaphoreTake( mutex_, portMAX_DELAY );
 	bool ours = handle == handle_;
@@ -508,9 +551,10 @@ bool StreamDeck::identify( hid_host_device_handle_t handle, uint16_t vid, uint16
 	return true;
 }
 
+// Posts KeyDown and KeyUp for keys whose state changed. Input reports are longer than the
+// endpoint's 64-byte max packet size, so the tail arrives as separate transfers; only
+// transfers starting with the key report ID count.
 void StreamDeck::handleInputReport( const uint8_t *data, size_t length ) {
-	// Input reports are longer than the endpoint's 64-byte max packet size, so the tail
-	// arrives as separate transfers; only transfers starting with the key report ID count.
 	bool    main  = info_.protocol == Protocol::Main;
 	size_t  first = main ? 4 : 1;
 	uint8_t count = info_.keyCount();
@@ -553,15 +597,14 @@ void StreamDeck::readFeatureString( hid_host_device_handle_t handle, uint8_t rep
 
 // MARK: - Output transfers
 
-// Caller holds mutex_; info_ is already set.
 // Most current decks (the MK.2 Scissor, XL, Neo, Mini 2022, Original) are high-speed parts
-// that keep their high-speed endpoint sizes at full speed: a
-// 512-byte interrupt IN and a 1024-byte interrupt OUT, where full speed allows 64. The host's
-// FIFOs take IN packets up to 600 bytes (biased towards IN in sdkconfig.defaults) but periodic
-// OUT only up to 128, and claiming the interface allocates every endpoint, so the claim fails.
-// An oversized OUT endpoint is shrunk to 64 bytes in the host's copy of the descriptor: the
-// deck's endpoint really takes 64-byte packets (128-byte ones fail, and it ignores SET_REPORT),
-// and it reassembles them into full 1024-byte reports.
+// that keep their high-speed endpoint sizes at full speed: a 512-byte interrupt IN and a
+// 1024-byte interrupt OUT, where full speed allows 64. The host's FIFOs take IN packets up to
+// 600 bytes (biased towards IN in sdkconfig.defaults) but periodic OUT only up to 128, and
+// claiming the interface allocates every endpoint, so the claim fails. An oversized OUT
+// endpoint is shrunk to 64 bytes in the host's copy of the descriptor: the deck's endpoint
+// really takes 64-byte packets (128-byte ones fail, and it ignores SET_REPORT), and it
+// reassembles them into full 1024-byte reports.
 void StreamDeck::shrinkOversizedOut( hid_host_device_handle_t handle ) {
 	outShrunk_ = false;
 	hid_host_dev_params_t params = {};
@@ -571,10 +614,10 @@ void StreamDeck::shrinkOversizedOut( hid_host_device_handle_t handle ) {
 	// it fails with ESP_ERR_INVALID_STATE.
 	for( int attempt = 0; err == ESP_OK; attempt++ ) {
 		err = usb_host_device_open( client_, params.addr, &device );
-		if( err != ESP_ERR_INVALID_STATE || attempt == 50 )
+		if( err != ESP_ERR_INVALID_STATE || attempt == kOpenAttempts )
 			break;
 		err = ESP_OK;
-		vTaskDelay( pdMS_TO_TICKS( 10 ) );
+		vTaskDelay( pdMS_TO_TICKS( kOpenRetryDelay ) );
 	}
 	if( err != ESP_OK ) {
 		ESP_LOGW( TAG, "Couldn't check the endpoints: %s", esp_err_to_name( err ) );
@@ -583,22 +626,20 @@ void StreamDeck::shrinkOversizedOut( hid_host_device_handle_t handle ) {
 
 	const usb_config_desc_t *config = nullptr;
 	if( usb_host_get_active_config_descriptor( device, &config ) == ESP_OK ) {
-		int intfOffset = 0;
-		const usb_intf_desc_t *intf = usb_parse_interface_descriptor( config, params.iface_num, 0, &intfOffset );
-		for( int i = 0; intf && i < intf->bNumEndpoints; i++ ) {
-			int offset = intfOffset;
-			usb_ep_desc_t *ep = const_cast<usb_ep_desc_t *>( usb_parse_endpoint_descriptor_by_index( intf, i, config->wTotalLength, &offset ) );
-			if( ep && !( ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK )
-			    && ( ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK ) == USB_BM_ATTRIBUTES_XFER_INT && USB_EP_DESC_GET_MPS( ep ) > kMaxPeriodicOut ) {
-				ESP_LOGI( TAG, "Interrupt OUT 0x%02X is %u bytes, more than the host takes; sending %u-byte packets", ep->bEndpointAddress, USB_EP_DESC_GET_MPS( ep ), kFullSpeedPacket );
-				ep->wMaxPacketSize = kFullSpeedPacket;
-				outShrunk_         = true;
-			}
-		}
+		forEachInterruptOut( config, params.iface_num, [this]( const usb_ep_desc_t *found ) {
+			if( USB_EP_DESC_GET_MPS( found ) <= kMaxPeriodicOut )
+				return;
+			usb_ep_desc_t *ep = const_cast<usb_ep_desc_t *>( found );
+			ESP_LOGI( TAG, "Interrupt OUT 0x%02X is %u bytes, more than the host takes; sending %u-byte packets", ep->bEndpointAddress, USB_EP_DESC_GET_MPS( ep ), kFullSpeedPacket );
+			ep->wMaxPacketSize = kFullSpeedPacket;
+			outShrunk_         = true;
+		} );
 	}
 	usb_host_device_close( client_, device );
 }
 
+// Opens the deck on our own client and allocates the output transfer. Caller holds mutex_;
+// info_ is already set.
 bool StreamDeck::openOutput( hid_host_device_handle_t handle ) {
 	hid_host_dev_params_t params = {};
 	if( hid_host_device_get_params( handle, &params ) != ESP_OK )
@@ -619,18 +660,11 @@ bool StreamDeck::openOutput( hid_host_device_handle_t handle ) {
 
 	const usb_config_desc_t *config = nullptr;
 	if( usb_host_get_active_config_descriptor( device_, &config ) == ESP_OK ) {
-		int intfOffset = 0;
-		const usb_intf_desc_t *intf = usb_parse_interface_descriptor( config, interface_, 0, &intfOffset );
-		for( int i = 0; intf && i < intf->bNumEndpoints; i++ ) {
-			int offset = intfOffset;
-			const usb_ep_desc_t *ep = usb_parse_endpoint_descriptor_by_index( intf, i, config->wTotalLength, &offset );
-			if( ep && !( ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK )
-			    && ( ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK ) == USB_BM_ATTRIBUTES_XFER_INT ) {
-				outEndpoint_ = ep->bEndpointAddress;
-				outPacket_   = USB_EP_DESC_GET_MPS( ep );
-				ESP_LOGI( TAG, "Interrupt OUT 0x%02X: max packet %u bytes, interval %u", ep->bEndpointAddress, ep->wMaxPacketSize, ep->bInterval );
-			}
-		}
+		forEachInterruptOut( config, interface_, [this]( const usb_ep_desc_t *ep ) {
+			outEndpoint_ = ep->bEndpointAddress;
+			outPacket_   = USB_EP_DESC_GET_MPS( ep );
+			ESP_LOGI( TAG, "Interrupt OUT 0x%02X: max packet %u bytes, interval %u", ep->bEndpointAddress, ep->wMaxPacketSize, ep->bInterval );
+		} );
 	}
 
 	// Like the macOS and Linux HID stacks (and so python-elgato-streamdeck), send output
@@ -639,8 +673,6 @@ bool StreamDeck::openOutput( hid_host_device_handle_t handle ) {
 	// the deck never finishes blocks the control pipe for good.
 	useInterrupt_ = outEndpoint_ != 0;
 	ESP_LOGI( TAG, "Output reports go to %s (interface %u)", useInterrupt_ ? "the interrupt OUT endpoint" : "SET_REPORT on the control pipe", interface_ );
-	if( outEndpoint_ )
-		ESP_LOGI( TAG, "Interrupt OUT endpoint 0x%02X", outEndpoint_ );
 
 	err = usb_host_transfer_alloc( sizeof( usb_setup_packet_t ) + reportSize( info_.protocol ), 0, &transfer_ );
 	if( err != ESP_OK ) {
@@ -655,7 +687,7 @@ bool StreamDeck::openOutput( hid_host_device_handle_t handle ) {
 	return true;
 }
 
-// Caller holds mutex_.
+// Frees the output transfer and closes our handle on the deck. Caller holds mutex_.
 void StreamDeck::closeOutput() {
 	if( transfer_ ) {
 		// A stuck transfer completes (with an error) once the device is gone.
@@ -670,6 +702,7 @@ void StreamDeck::closeOutput() {
 	}
 }
 
+// Submits transfer_ (on the control pipe or its endpoint) and waits for it to complete.
 // Caller holds mutex_.
 esp_err_t StreamDeck::submitAndWait( bool control ) {
 	xSemaphoreTake( transferSem_, 0 );   // clear a completion left over from a timeout
@@ -723,6 +756,31 @@ esp_err_t StreamDeck::sendReport( size_t length ) {
 
 // MARK: - Output
 
+// Sends an image as consecutive image reports: the report ID, the header that
+// fillHeader( page, chunk, last ) writes into report_, then `chunk` bytes of the image from
+// report_ + header. sent counts the bytes that went out. Caller holds mutex_.
+template <typename FillHeader>
+esp_err_t StreamDeck::sendImage( const uint8_t *image, size_t length, size_t header, FillHeader fillHeader, size_t &sent ) {
+	size_t    size = reportSize( info_.protocol );
+	esp_err_t err  = ESP_OK;
+	sent = 0;
+	for( uint16_t page = 0; sent < length; page++ ) {
+		size_t chunk = std::min( size - header, length - sent );
+		bool   last  = sent + chunk == length;
+
+		memset( report_, 0, size );
+		report_[0] = kImageReportID;
+		fillHeader( page, chunk, last );
+		memcpy( report_ + header, image + sent, chunk );
+
+		err = sendReport( size );
+		if( err != ESP_OK )
+			break;
+		sent += chunk;
+	}
+	return err;
+}
+
 esp_err_t StreamDeck::setKeyImage( uint8_t key, const uint8_t *image, size_t length ) {
 	if( !image || length == 0 )
 		return ESP_ERR_INVALID_ARG;
@@ -737,17 +795,9 @@ esp_err_t StreamDeck::setKeyImage( uint8_t key, const uint8_t *image, size_t len
 	}
 
 	Protocol  protocol = info_.protocol;
-	size_t    size     = reportSize( protocol );
-	size_t    header   = headerSize( protocol );
 	uint8_t   wire     = wireKey( key );
-	esp_err_t err      = ESP_OK;
 	size_t    sent     = 0;
-	for( uint16_t page = 0; sent < length; page++ ) {
-		size_t chunk = std::min( size - header, length - sent );
-		bool   last  = sent + chunk == length;
-
-		memset( report_, 0, size );
-		report_[0] = kImageReportID;
+	esp_err_t err      = sendImage( image, length, headerSize( protocol ), [&]( uint16_t page, size_t chunk, bool last ) {
 		if( protocol == Protocol::Main ) {
 			report_[1] = 0x07;              // command: set key image
 			report_[2] = wire;
@@ -762,13 +812,7 @@ esp_err_t StreamDeck::setKeyImage( uint8_t key, const uint8_t *image, size_t len
 			report_[4] = last ? 0x01 : 0x00;   // show image once this page lands
 			report_[5] = wire + 1;          // key indices are 1-based on the wire
 		}
-		memcpy( report_ + header, image + sent, chunk );
-
-		err = sendReport( size );
-		if( err != ESP_OK )
-			break;
-		sent += chunk;
-	}
+	}, sent );
 	xSemaphoreGive( mutex_ );
 	ESP_LOGD( TAG, "Key %u: %u bytes in %lld ms", key, (unsigned)length, ( esp_timer_get_time() - started ) / 1000 );
 
@@ -791,17 +835,9 @@ esp_err_t StreamDeck::setScreenImage( const uint8_t *image, size_t length ) {
 		return ESP_ERR_INVALID_STATE;
 	}
 
-	bool      plus   = info_.pid == 0x0084;
-	size_t    size   = reportSize( info_.protocol );
-	size_t    header = plus ? 16 : 8;
-	esp_err_t err    = ESP_OK;
-	size_t    sent   = 0;
-	for( uint16_t page = 0; sent < length; page++ ) {
-		size_t chunk = std::min( size - header, length - sent );
-		bool   last  = sent + chunk == length;
-
-		memset( report_, 0, size );
-		report_[0] = kImageReportID;
+	bool      plus = info_.pid == kPlusPID;
+	size_t    sent = 0;
+	esp_err_t err  = sendImage( image, length, plus ? 16 : 8, [&]( uint16_t page, size_t chunk, bool last ) {
 		if( plus ) {
 			report_[1]  = 0x0C;
 			report_[6]  = info_.screenWidth & 0xFF;    // x and y (bytes 2–5) stay 0
@@ -821,13 +857,7 @@ esp_err_t StreamDeck::setScreenImage( const uint8_t *image, size_t length ) {
 			report_[6] = page & 0xFF;
 			report_[7] = page >> 8;
 		}
-		memcpy( report_ + header, image + sent, chunk );
-
-		err = sendReport( size );
-		if( err != ESP_OK )
-			break;
-		sent += chunk;
-	}
+	}, sent );
 	xSemaphoreGive( mutex_ );
 
 	if( err != ESP_OK )
@@ -835,6 +865,7 @@ esp_err_t StreamDeck::setScreenImage( const uint8_t *image, size_t length ) {
 	return err;
 }
 
+// The backlight, with a feature report.
 esp_err_t StreamDeck::setBrightness( uint8_t percent ) {
 	percent = std::min<uint8_t>( percent, 100 );
 	if( !mutex_ )

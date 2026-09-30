@@ -9,6 +9,7 @@
 
 import UIKit
 
+/// SF Symbol names for a state's opposite; see the file comment.
 enum SymbolCounterpart {
 	/// The symbol for `target` that pairs with `symbol`, or nil when there's no real SF Symbol
 	/// that fits. `target` is the state the returned symbol is for.
@@ -24,6 +25,7 @@ enum SymbolCounterpart {
 		return variant
 	}
 
+	/// Names that might suit `target`, best first; they may not exist.
 	private static func candidates( for symbol: String, target: KeyState ) -> [String] {
 		let parts   = symbol.split( separator: "." ).map( String.init )
 		let filled  = parts.last == "fill"

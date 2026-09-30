@@ -9,24 +9,27 @@
 import Observation
 import UIKit
 
+/// One configured device as it is right now; see the file comment.
 @Observable
 final class DeckDevice: Identifiable {
+	/// Its Wi-Fi MAC address, as DeviceSettings.id.
 	let id: String
 
 	/// The WebSocket client, or nil while the device is offline.
 	var client          : ClientID?
-	var endpoint        : String?
 	/// The protocol version its firmware speaks (hello's `protocol`).
 	var protocolVersion : Int?
 	var firmware        : String?
 	/// Identifies the running build; see DeviceHello.elfSHA256.
 	var firmwareBuild   : String?
+	/// Its address on the network, as it reports it (else where it connected from).
 	var ip              : String?
 	var deck            = DeckInfo.disconnected
 	var status          = DeviceStatus()
 
 	/// What each key currently shows; the configuration UI draws these.
 	var keys     : [RenderedKey?] = []
+	/// Keys held down on the deck (or shift-clicked in the preview).
 	var pressed  : Set<Int> = []
 
 	/// The last page change: when, and what each key showed before it, so the Keys page's
@@ -59,7 +62,9 @@ final class DeckDevice: Identifiable {
 	@ObservationIgnored var shown        : [Int: String] = [:]
 	/// Recently rendered images, so `need` can be answered without re-rendering.
 	@ObservationIgnored var recentImages : [String: Data] = [:]
+	/// recentImages' hashes, oldest first.
 	@ObservationIgnored var recentOrder  : [String] = []
+	/// Sends the keys once edits settle (DeckController's deferPush).
 	@ObservationIgnored var pushTask     : Task<Void, Never>?
 	/// Where it last authenticated from; kept while it's offline.
 	@ObservationIgnored var lastAddress  : String?
@@ -78,15 +83,18 @@ final class DeckDevice: Identifiable {
 	/// current batch of updates has had, for the progress bar under the simulated deck.
 	var pendingShows : [Int: String] = [:]
 	var batchTotal   = 0
+	/// When the last `show` went out or was confirmed; the bar gives up after a while without.
 	@ObservationIgnored var lastProgress = Date()
 	@ObservationIgnored var pendingTimeout: Task<Void, Never>?
 
 	/// A firmware update in progress, or the last one's failure.
 	var firmwareProgress : FirmwareProgress?
+	/// The image being sent, until the device has it (or the transfer fails).
 	@ObservationIgnored var firmwareImage: Data?
 	/// The end of the chunk sent last: the `received` the device must report next.
 	@ObservationIgnored var firmwareChunkEnd: Int?
 
+	/// Connected and authenticated.
 	var isOnline: Bool { client != nil }
 
 	init( id: String ) {
@@ -96,7 +104,6 @@ final class DeckDevice: Identifiable {
 	/// Forgets everything learned from a connection.
 	func disconnected() {
 		client      = nil
-		endpoint    = nil
 		deck        = .disconnected
 		status      = DeviceStatus()
 		pressed     = []
@@ -107,12 +114,20 @@ final class DeckDevice: Identifiable {
 		clearPending()
 	}
 
+	/// Hides the progress bar: nothing is waiting for `shown`.
 	func clearPending() {
 		pendingShows = [:]
 		batchTotal   = 0
 		pendingTimeout?.cancel()
 	}
 
+	/// Forgets a firmware transfer's image and position, once it's over.
+	func endFirmwareTransfer() {
+		firmwareImage    = nil
+		firmwareChunkEnd = nil
+	}
+
+	/// Adds a line to the Log tab, dropping the oldest past logLimit.
 	func record( _ entry: TrafficEntry ) {
 		log.append( entry )
 		if log.count > Self.logLimit {
@@ -121,6 +136,7 @@ final class DeckDevice: Identifiable {
 	}
 }
 
+/// A firmware update's progress, for the Device and Updates pages.
 struct FirmwareProgress: Equatable {
 	enum Phase: Equatable {
 		case downloading
@@ -136,6 +152,7 @@ struct FirmwareProgress: Equatable {
 	var build   : String?
 	var phase   : Phase
 
+	/// Still under way: anything but failed.
 	var isActive: Bool {
 		if case .failed = phase { return false }
 		return true

@@ -11,8 +11,10 @@ import CoreGraphics
 import Foundation
 import Observation
 
+/// The configuration window's state, shared with the menus.
 @Observable
 final class WindowState {
+	/// A device's pages.
 	enum Page: String, CaseIterable, Identifiable {
 		case keys   = "Keys"
 		case device = "Device"
@@ -32,10 +34,12 @@ final class WindowState {
 
 	/// The Keys page's deck preview: its key size, or 0 to size it to fit (kept between
 	/// launches), and the size that fits as last laid out, which zooming starts from.
-	var deckKeySize = UserDefaults.standard.double( forKey: "keysKeySize" ) {
-		didSet { UserDefaults.standard.set( deckKeySize, forKey: "keysKeySize" ) }
+	var deckKeySize = UserDefaults.standard.double( forKey: WindowState.deckKeySizeDefault ) {
+		didSet { UserDefaults.standard.set( deckKeySize, forKey: Self.deckKeySizeDefault ) }
 	}
-	var deckFitKeySize: CGFloat = 96
+	var deckFitKeySize = DeckGridView.fullKeySize
+
+	private static let deckKeySizeDefault = "keysKeySize"
 
 	/// The preview's key size now, fitted or chosen.
 	var deckEffectiveKeySize: CGFloat {

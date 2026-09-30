@@ -8,6 +8,7 @@
 
 import SwiftUI
 
+/// The Log page: a device's traffic, newest first, with a filter, Copy and Clear.
 struct TrafficLogView: View {
 	let device: DeckDevice
 
@@ -25,8 +26,7 @@ struct TrafficLogView: View {
 					.frame( maxWidth: 320 )
 				Spacer()
 				Text( "\(device.log.count) entries" )
-					.foregroundStyle( .secondary )
-					.font( .caption )
+					.secondaryCaption()
 				Button( "Copy" ) { UIPasteboard.general.string = text( entries ) }
 					.disabled( entries.isEmpty )
 				Button( "Clear" ) { device.log.removeAll() }
@@ -74,6 +74,7 @@ struct TrafficLogView: View {
 		}
 	}
 
+	/// The entries as plain text, oldest first, for Copy.
 	private func text( _ entries: [TrafficEntry] ) -> String {
 		entries.reversed().map { entry in
 			let arrow = entry.direction == .sent ? "→" : entry.direction == .received ? "←" : "•"
@@ -82,7 +83,8 @@ struct TrafficLogView: View {
 		}.joined( separator: "\n" )
 	}
 
-	static func symbol( _ direction: TrafficEntry.Direction ) -> String {
+	/// Each direction's symbol.
+	private static func symbol( _ direction: TrafficEntry.Direction ) -> String {
 		switch direction {
 			case .sent:     "arrow.up.circle.fill"
 			case .received: "arrow.down.circle.fill"
@@ -90,7 +92,8 @@ struct TrafficLogView: View {
 		}
 	}
 
-	static func color( _ direction: TrafficEntry.Direction ) -> Color {
+	/// Each direction's colour.
+	private static func color( _ direction: TrafficEntry.Direction ) -> Color {
 		switch direction {
 			case .sent:     .accentColor
 			case .received: .green
@@ -98,7 +101,8 @@ struct TrafficLogView: View {
 		}
 	}
 
-	static func name( _ direction: TrafficEntry.Direction ) -> String {
+	/// Each direction's name, for VoiceOver.
+	private static func name( _ direction: TrafficEntry.Direction ) -> String {
 		switch direction {
 			case .sent:     "Sent"
 			case .received: "Received"

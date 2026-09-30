@@ -12,6 +12,7 @@
 
 import Foundation
 
+/// Encrypting a device's storage, as its Device page shows it.
 enum StorageEncryption: Equatable {
 	/// encryptStorage was sent; the device restarts once it's done.
 	case encrypting
@@ -50,6 +51,7 @@ extension DeckController {
 		storageEncryptionRequests[id] = ( client, timeout )
 	}
 
+	/// The device's answer to encryptStorage: under way, or refused.
 	func storageStatus( _ status: DeviceMessage.StorageStatus, device: DeckDevice ) {
 		switch status.state {
 			case .encrypting:
@@ -73,6 +75,7 @@ extension DeckController {
 		}
 	}
 
+	/// Stops waiting, leaving the outcome for the Device page (nil: done).
 	private func endStorageEncryption( _ id: String, _ result: StorageEncryption? ) {
 		storageEncryptionRequests.removeValue( forKey: id )?.timeout.cancel()
 		storageEncryption[id] = result

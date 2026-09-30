@@ -9,6 +9,7 @@
 
 import SwiftUI
 
+/// A new device's page: what it is, and pairing it (or why it can't be paired yet).
 struct NewDeviceView: View {
 	let controller : DeckController
 	let client     : ClientID
@@ -20,17 +21,7 @@ struct NewDeviceView: View {
 		if let device = controller.newDevices.first( where: { $0.client == client } ) {
 			ScrollView {
 				VStack( spacing: 22 ) {
-					Image( systemName: "lock.shield" )
-						.font( .system( size: 52 ) )
-						.foregroundStyle( .tint )
-
-					VStack( spacing: 6 ) {
-						Text( device.hello.name )
-							.font( .title.bold() )
-						Text( device.reason.explanation )
-							.foregroundStyle( .secondary )
-							.multilineTextAlignment( .center )
-					}
+					UnpairedDeviceHeader( name: device.hello.name, explanation: device.reason.explanation )
 
 					details( device )
 
@@ -46,6 +37,7 @@ struct NewDeviceView: View {
 		}
 	}
 
+	/// Its Stream Deck, firmware, MAC address and IP address.
 	private func details( _ device: NewDevice ) -> some View {
 		Grid( alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6 ) {
 			GridRow {
@@ -70,6 +62,7 @@ struct NewDeviceView: View {
 		.font( .callout )
 	}
 
+	/// Where pairing has got to, and its buttons; or what to do first.
 	@ViewBuilder
 	private func pairing( _ device: NewDevice ) -> some View {
 		if device.reason == .oldFirmware {
@@ -89,14 +82,13 @@ struct NewDeviceView: View {
 						.prominentButtonStyle()
 						.controlSize( .large )
 						.confirmationDialog( "Replace the existing pairing for \(replacing ?? "")?",
-											 isPresented: Binding( get: { replacing != nil }, set: { if !$0 { replacing = nil } } ), titleVisibility: .visible ) {
+											 isPresented: Binding( presenting: $replacing ), titleVisibility: .visible ) {
 							Button( "Replace Pairing", role: .destructive ) { controller.pair( client, replacing: true ) }
 						} message: {
 							Text( replaceMessage( device ) )
 						}
 					Text( "The deck will show a code to compare with the one shown here. If they match, you confirm here and hold Confirm on the deck." )
-						.font( .caption )
-						.foregroundStyle( .secondary )
+						.secondaryCaption()
 						.multilineTextAlignment( .center )
 
 				case .waitingForDevice:
@@ -114,8 +106,7 @@ struct NewDeviceView: View {
 						}
 						Text( deckConfirmed ? "It was confirmed on the deck."
 											: "If it doesn't match, something else may be answering for the deck: don't pair." )
-							.font( .caption )
-							.foregroundStyle( .secondary )
+							.secondaryCaption()
 							.multilineTextAlignment( .center )
 					}
 					cancelButton
@@ -132,8 +123,7 @@ struct NewDeviceView: View {
 					ProgressView( "Finishing…" )
 
 				case .failed( let message ):
-					Label( message, systemImage: "exclamationmark.triangle.fill" )
-						.foregroundStyle( .orange )
+					WarningLabel( message )
 						.multilineTextAlignment( .center )
 					Button( "Try Again" ) { startPairing( device ) }
 			}
@@ -149,6 +139,7 @@ struct NewDeviceView: View {
 		}
 	}
 
+	/// Asking to replace this Mac's pairing with a deck of the same MAC address.
 	private func replaceMessage( _ device: NewDevice ) -> String {
 		var text = "This Mac is already paired with a deck with this MAC address (\(device.hello.id)). Pairing this one replaces that pairing, and keeps its key layout."
 		if controller.device( device.hello.id )?.isOnline == true {
@@ -157,6 +148,7 @@ struct NewDeviceView: View {
 		return text
 	}
 
+	/// The pairing code, as three digits and three, over `content`.
 	private func codeBox<Content: View>( _ code: String, @ViewBuilder content: () -> Content ) -> some View {
 		VStack( spacing: 12 ) {
 			Text( code.prefix( 3 ) + " " + code.suffix( 3 ) )
@@ -168,7 +160,28 @@ struct NewDeviceView: View {
 		.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( Color.secondary.opacity( 0.1 ) ) )
 	}
 
+	/// Stops pairing.
 	private var cancelButton: some View {
 		Button( "Cancel", role: .cancel ) { controller.cancelPairing( client ) }
+	}
+}
+
+/// The top of a new or stuck device's page: a lock, its name, and why it isn't paired.
+struct UnpairedDeviceHeader: View {
+	let name        : String
+	let explanation : String
+
+	var body: some View {
+		Image( systemName: "lock.shield" )
+			.font( .system( size: 52 ) )
+			.foregroundStyle( .tint )
+
+		VStack( spacing: 6 ) {
+			Text( name )
+				.font( .title.bold() )
+			Text( explanation )
+				.foregroundStyle( .secondary )
+				.multilineTextAlignment( .center )
+		}
 	}
 }

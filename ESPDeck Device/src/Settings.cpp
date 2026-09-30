@@ -18,6 +18,20 @@ static const char *TAG = "Settings";
 namespace {
 	constexpr const char *kNamespace = "espdeck";
 
+	// NVS keys.
+	constexpr const char *kSSIDKey          = "ssid";
+	constexpr const char *kPasswordKey      = "password";
+	constexpr const char *kVerifiedKey      = "verified";
+	constexpr const char *kNameKey          = "name";
+	constexpr const char *kHostnameKey      = "hostname";
+	constexpr const char *kOrientationKey   = "orientation";
+	constexpr const char *kSleepTimeoutKey  = "sleepTimeout";
+	constexpr const char *kBridgeIDKey      = "bridgeID";
+	constexpr const char *kPairingKeyKey    = "pairingKey";
+	constexpr const char *kOldAPPasswordKey = "apPassword";   // firmware before the setup password was made fresh each time
+
+	constexpr size_t kHashHexLength = 64;   // SHA-256 as hex digits
+
 	// The upload password hash. Firmware before 4.0.0 got it from the bridge in the clear and
 	// kept it under "otaHash"; that one is dropped, so updating turns uploads off once.
 	constexpr const char *kOTAHashKey    = "otaHash4";
@@ -28,10 +42,16 @@ namespace {
 
 	Preferences preferences;
 
+	// Reads a string setting into out, leaving out as it is if there's none.
 	void loadString( const char *key, char *out, size_t size ) {
 		if( preferences.isKey( key ) )
 			preferences.getString( key, out, size );
 	}
+}
+
+// "ESPDeck EEFF": the name until one is chosen.
+void Settings::setDefaultName() {
+	snprintf( name_, sizeof( name_ ), "ESPDeck %s", suffix_ );
 }
 
 void Settings::begin() {
@@ -43,37 +63,36 @@ void Settings::begin() {
 
 	if( !preferences.begin( kNamespace, false ) ) {
 		ESP_LOGE( TAG, "Opening NVS failed; using defaults" );
-		snprintf( name_, sizeof( name_ ), "ESPDeck %s", suffix_ );
+		setDefaultName();
 		return;
 	}
 
-	loadString( "ssid", ssid_, sizeof( ssid_ ) );
-	loadString( "password", password_, sizeof( password_ ) );
-	verified_ = preferences.getBool( "verified", false );
-	loadString( "name", name_, sizeof( name_ ) );
-	loadString( "hostname", hostname_, sizeof( hostname_ ) );
+	loadString( kSSIDKey, ssid_, sizeof( ssid_ ) );
+	loadString( kPasswordKey, password_, sizeof( password_ ) );
+	verified_ = preferences.getBool( kVerifiedKey, false );
+	loadString( kNameKey, name_, sizeof( name_ ) );
+	loadString( kHostnameKey, hostname_, sizeof( hostname_ ) );
 	if( hostname_[0] && !isValidHostname( hostname_ ) )
 		hostname_[0] = '\0';
-	loadString( "orientation", orientation_, sizeof( orientation_ ) );
-	sleepTimeout_ = preferences.getUInt( "sleepTimeout", 0 );
-	loadString( "bridgeID", bridgeID_, sizeof( bridgeID_ ) );
+	loadString( kOrientationKey, orientation_, sizeof( orientation_ ) );
+	sleepTimeout_ = preferences.getUInt( kSleepTimeoutKey, 0 );
+	loadString( kBridgeIDKey, bridgeID_, sizeof( bridgeID_ ) );
 	loadString( kOTAHashKey, otaPasswordHash_, sizeof( otaPasswordHash_ ) );
-	if( strlen( otaPasswordHash_ ) != 64 )
+	if( strlen( otaPasswordHash_ ) != kHashHexLength )
 		otaPasswordHash_[0] = '\0';
-	paired_ = bridgeID_[0] && preferences.isKey( "pairingKey" )
-	          && preferences.getBytes( "pairingKey", pairingKey_, sizeof( pairingKey_ ) ) == sizeof( pairingKey_ );
+	paired_ = bridgeID_[0] && preferences.isKey( kPairingKeyKey )
+	          && preferences.getBytes( kPairingKeyKey, pairingKey_, sizeof( pairingKey_ ) ) == sizeof( pairingKey_ );
 	standardStorage_ = preferences.getBool( kStandardStorageKey, false );
 
-	// Left behind by older firmware: the setup password (now made fresh each time) and the
-	// upload password hash that travelled in the clear.
-	for( const char *key : { "apPassword", kOldOTAHashKey } ) {
+	// Left behind by older firmware.
+	for( const char *key : { kOldAPPasswordKey, kOldOTAHashKey } ) {
 		if( preferences.isKey( key ) )
 			preferences.remove( key );
 	}
 
 	if( !Text::isValidName( name_, kMaxName ) ) {
-		snprintf( name_, sizeof( name_ ), "ESPDeck %s", suffix_ );
-		preferences.putString( "name", name_ );
+		setDefaultName();
+		preferences.putString( kNameKey, name_ );
 	}
 }
 
@@ -83,9 +102,9 @@ void Settings::setCredentials( const char *ssid, const char *password ) {
 	strlcpy( ssid_, ssid ? ssid : "", sizeof( ssid_ ) );
 	strlcpy( password_, password ? password : "", sizeof( password_ ) );
 	verified_ = false;
-	preferences.putString( "ssid", ssid_ );
-	preferences.putString( "password", password_ );
-	preferences.putBool( "verified", false );
+	preferences.putString( kSSIDKey, ssid_ );
+	preferences.putString( kPasswordKey, password_ );
+	preferences.putBool( kVerifiedKey, false );
 }
 
 // A new device's first network: NVS becomes encrypted before the credentials go in. What's
@@ -130,7 +149,7 @@ void Settings::markCredentialsWork() {
 	if( verified_ )
 		return;
 	verified_ = true;
-	preferences.putBool( "verified", true );
+	preferences.putBool( kVerifiedKey, true );
 }
 
 bool Settings::setName( const char *name ) {
@@ -138,11 +157,12 @@ bool Settings::setName( const char *name ) {
 		return false;
 	if( strcmp( name, name_ ) != 0 ) {
 		strlcpy( name_, name, sizeof( name_ ) );
-		preferences.putString( "name", name_ );
+		preferences.putString( kNameKey, name_ );
 	}
 	return true;
 }
 
+// 1–kMaxName lowercase letters, digits and hyphens, not starting or ending with a hyphen.
 bool Settings::isValidHostname( const char *hostname ) {
 	size_t length = hostname ? strlen( hostname ) : 0;
 	if( length == 0 || length > kMaxName || hostname[0] == '-' || hostname[length - 1] == '-' )
@@ -154,7 +174,7 @@ bool Settings::setHostname( const char *hostname ) {
 	if( !hostname || !hostname[0] || strcmp( hostname, defaultHostname_ ) == 0 ) {
 		if( hostname_[0] ) {
 			hostname_[0] = '\0';
-			preferences.remove( "hostname" );
+			preferences.remove( kHostnameKey );
 		}
 		return true;
 	}
@@ -162,7 +182,7 @@ bool Settings::setHostname( const char *hostname ) {
 		return false;
 	if( strcmp( hostname, hostname_ ) != 0 ) {
 		strlcpy( hostname_, hostname, sizeof( hostname_ ) );
-		preferences.putString( "hostname", hostname_ );
+		preferences.putString( kHostnameKey, hostname_ );
 	}
 	return true;
 }
@@ -175,7 +195,7 @@ bool Settings::setOTAPasswordHash( const char *hash ) {
 		}
 		return true;
 	}
-	if( strlen( hash ) != 64 || strspn( hash, "0123456789abcdefABCDEF" ) != 64 )
+	if( strlen( hash ) != kHashHexLength || strspn( hash, "0123456789abcdefABCDEF" ) != kHashHexLength )
 		return false;
 	strlcpy( otaPasswordHash_, hash, sizeof( otaPasswordHash_ ) );
 	for( char *c = otaPasswordHash_; *c; c++ )
@@ -188,14 +208,14 @@ void Settings::setOrientation( const char *orientation ) {
 	if( strcmp( orientation, orientation_ ) == 0 )
 		return;
 	strlcpy( orientation_, orientation, sizeof( orientation_ ) );
-	preferences.putString( "orientation", orientation_ );
+	preferences.putString( kOrientationKey, orientation_ );
 }
 
 void Settings::setSleepTimeout( uint32_t seconds ) {
 	if( seconds == sleepTimeout_ )
 		return;
 	sleepTimeout_ = seconds;
-	preferences.putUInt( "sleepTimeout", sleepTimeout_ );
+	preferences.putUInt( kSleepTimeoutKey, sleepTimeout_ );
 }
 
 bool Settings::setPairing( const uint8_t key[32], const char *bridgeID ) {
@@ -204,8 +224,8 @@ bool Settings::setPairing( const uint8_t key[32], const char *bridgeID ) {
 	memcpy( pairingKey_, key, sizeof( pairingKey_ ) );
 	strlcpy( bridgeID_, bridgeID, sizeof( bridgeID_ ) );
 	paired_ = true;
-	preferences.putBytes( "pairingKey", pairingKey_, sizeof( pairingKey_ ) );
-	preferences.putString( "bridgeID", bridgeID_ );
+	preferences.putBytes( kPairingKeyKey, pairingKey_, sizeof( pairingKey_ ) );
+	preferences.putString( kBridgeIDKey, bridgeID_ );
 	setOTAPasswordHash( nullptr );   // a new bridge decides about uploads afresh
 	return true;
 }
@@ -214,7 +234,7 @@ void Settings::clearPairing() {
 	memset( pairingKey_, 0, sizeof( pairingKey_ ) );
 	bridgeID_[0] = '\0';
 	paired_      = false;
-	preferences.remove( "pairingKey" );
-	preferences.remove( "bridgeID" );
+	preferences.remove( kPairingKeyKey );
+	preferences.remove( kBridgeIDKey );
 	setOTAPasswordHash( nullptr );
 }

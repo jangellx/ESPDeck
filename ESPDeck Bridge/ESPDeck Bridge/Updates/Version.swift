@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// A dotted version number, as the app and the firmware use them.
 struct Version: Comparable, CustomStringConvertible {
 	let parts: [Int]
 
@@ -20,6 +21,7 @@ struct Version: Comparable, CustomStringConvertible {
 		self.parts = parts
 	}
 
+	/// Part by part; a missing part counts as 0, so 4.1 equals 4.1.0.
 	static func < ( lhs: Version, rhs: Version ) -> Bool {
 		for index in 0..<max( lhs.parts.count, rhs.parts.count ) {
 			let left  = index < lhs.parts.count ? lhs.parts[index] : 0
@@ -42,6 +44,7 @@ enum FirmwareStanding: Equatable {
 	case newer
 	case unknown
 
+	/// `unknown` without a latest release or a readable running version.
 	init( running: String, latest: Version? ) {
 		guard let latest, let running = Version( running ) else {
 			self = .unknown
@@ -50,6 +53,7 @@ enum FirmwareStanding: Equatable {
 		self = running < latest ? .updateAvailable( latest ) : latest < running ? .newer : .upToDate
 	}
 
+	/// In words for the USB Setup page; nil when there's nothing to say.
 	var description: String? {
 		switch self {
 			case .upToDate:                       "Up to date"

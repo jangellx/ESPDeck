@@ -22,8 +22,14 @@ static const char *TAG = "Setup";
 namespace {
 	const IPAddress kAddress( 192, 168, 4, 1 );
 	const IPAddress kNetmask( 255, 255, 255, 0 );
+	constexpr const char *kPortalHost     = "192.168.4.1";      // the Host the page's requests name,
+	constexpr const char *kPortalHostPort = "192.168.4.1:80";   // with or without the port
 	constexpr const char *kPortalURL      = "http://192.168.4.1/";
 	constexpr const char *kPortalOrigin   = "http://192.168.4.1";
+	constexpr uint16_t    kDNSPort        = 53;
+	constexpr uint8_t     kAPChannel      = 1;
+	constexpr int         kAPMaxStations  = 4;
+	constexpr size_t      kSafeSSID       = 40;        // buffer for an SSID made printable
 	constexpr uint32_t    kConnectTimeout = 30000;     // ms before the page reports a failure
 	constexpr uint32_t    kIdleTimeout    = 900000;    // ms without a phone on the access point
 	constexpr uint32_t    kStationCheck   = 1000;      // ms between looks for phones
@@ -36,6 +42,7 @@ namespace {
 	WebServer webServer( 80 );
 	AsyncUDP  dnsSocket;
 
+	// Whether address is on the access point's subnet.
 	bool onAccessPoint( const IPAddress &address ) {
 		return ( (uint32_t)address & (uint32_t)kNetmask ) == ( (uint32_t)kAddress & (uint32_t)kNetmask );
 	}
@@ -43,10 +50,11 @@ namespace {
 	// The captive-portal DNS server: every name is 192.168.4.1, for queries that arrive on the
 	// access point only. Runs on AsyncUDP's task.
 	void answerDNS( AsyncUDPPacket &packet ) {
-		constexpr size_t kHeader = 12;
-		const uint8_t   *query   = packet.data();
-		size_t           length  = packet.length();
-		if( packet.interface() != TCPIP_ADAPTER_IF_AP || length < kHeader + 5 || length > 512 )
+		constexpr size_t kHeader    = 12;
+		constexpr size_t kMaxLength = 512;   // DNS over UDP
+		const uint8_t   *query      = packet.data();
+		size_t           length     = packet.length();
+		if( packet.interface() != TCPIP_ADAPTER_IF_AP || length < kHeader + 5 || length > kMaxLength )
 			return;
 		// A standard query (QR 0, opcode 0) with exactly one question.
 		if( ( query[2] & 0xF8 ) != 0 || query[4] != 0 || query[5] != 1 )
@@ -69,6 +77,7 @@ namespace {
 		header[2] = (uint8_t)( 0x84 | ( query[2] & 0x01 ) );   // response, authoritative, RD copied
 		header[5] = 1;                                         // one question
 		header[7] = answer ? 1 : 0;                            // and its answer, if any
+		// The answer: the question's name (a pointer to it), A, IN, TTL 60 s, 192.168.4.1.
 		static const uint8_t kRecord[] = { 0xC0, 0x0C, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4, 192, 168, 4, 1 };
 
 		AsyncUDPMessage reply( questionEnd + sizeof( kRecord ) );
@@ -228,8 +237,48 @@ poll();scan(false);
 </script></body></html>
 )HTML";
 
+	// Adds a string member, "" for null.
 	void addString( cJSON *object, const char *key, const char *value ) {
 		cJSON_AddStringToObject( object, key, value ? value : "" );
+	}
+
+	// Answers with JSON that mustn't be cached.
+	void sendJSON( int code, const char *json ) {
+		webServer.sendHeader( "Cache-Control", "no-store" );
+		webServer.send( code, "application/json", json );
+	}
+
+	// The same for a cJSON object, which it deletes.
+	void sendJSON( int code, cJSON *json ) {
+		char *text = cJSON_PrintUnformatted( json );
+		sendJSON( code, text ? text : "{}" );
+		cJSON_free( text );
+		cJSON_Delete( json );
+	}
+
+	// An empty 403.
+	void refuse() {
+		webServer.send( 403, "text/plain", "" );
+	}
+
+	// Sends the phone to the setup page.
+	void redirectToPortal() {
+		webServer.sendHeader( "Location", kPortalURL, true );
+		webServer.sendHeader( "Cache-Control", "no-store" );
+		webServer.send( 302, "text/plain", "" );
+	}
+
+	// Whether the request came in on the access point from a phone on it.
+	bool fromAccessPoint() {
+		NetworkClient &client = webServer.client();
+		return client.localIP() == kAddress && onAccessPoint( client.remoteIP() );
+	}
+
+	// Returns flag and clears it.
+	bool take( bool &flag ) {
+		bool value = flag;
+		flag       = false;
+		return value;
 	}
 }
 
@@ -256,7 +305,7 @@ void SetupPortal::start() {
 	WiFi.setSleep( false );
 	WiFi.softAPConfig( kAddress, kAddress, kNetmask );
 	makePassword();   // after WiFi.mode(): with the radio on, esp_random() is truly random
-	if( !WiFi.softAP( apSSID_, apPassword_, 1, 0, 4, false, WIFI_AUTH_WPA2_WPA3_PSK ) )
+	if( !WiFi.softAP( apSSID_, apPassword_, kAPChannel, 0, kAPMaxStations, false, WIFI_AUTH_WPA2_WPA3_PSK ) )
 		ESP_LOGE( TAG, "Starting the access point failed" );
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL( 5, 4, 2 )
 	// DHCP option 114 (RFC 8910) points newer phones straight at the page.
@@ -264,7 +313,7 @@ void SetupPortal::start() {
 #endif
 
 	dnsSocket.onPacket( answerDNS );
-	if( !dnsSocket.listen( 53 ) )
+	if( !dnsSocket.listen( kDNSPort ) )
 		ESP_LOGE( TAG, "Starting the DNS server failed" );
 
 	if( !routesAdded_ ) {
@@ -330,15 +379,11 @@ void SetupPortal::makePassword() {
 }
 
 bool SetupPortal::takeIdleTimeout() {
-	bool timedOut = idleTimedOut_;
-	idleTimedOut_ = false;
-	return timedOut;
+	return take( idleTimedOut_ );
 }
 
 bool SetupPortal::takeExitRequest() {
-	bool requested = exitRequested_;
-	exitRequested_ = false;
-	return requested;
+	return take( exitRequested_ );
 }
 
 // MARK: - Loop
@@ -363,6 +408,7 @@ void SetupPortal::loop() {
 	}
 }
 
+// Tries pendingSSID_; trackConnection() follows it.
 void SetupPortal::beginConnecting() {
 	WiFi.disconnect( false, false );
 	lastReason_   = 0;
@@ -373,7 +419,7 @@ void SetupPortal::beginConnecting() {
 	saveError_[0] = '\0';
 	connectStart_ = millis();
 	WiFi.begin( pendingSSID_, pendingPassword_ );
-	char ssid[40];
+	char ssid[kSafeSSID];
 	ESP_LOGI( TAG, "Joining %s", Text::printable( pendingSSID_, ssid, sizeof( ssid ) ) );
 }
 
@@ -385,10 +431,12 @@ void SetupPortal::restoreNetwork() {
 		WiFi.disconnect( false, false );
 }
 
+// Saves the pending network once it has an address, or goes back after kConnectTimeout; and
+// asks to leave setup mode kSetupExitDelay after joining.
 void SetupPortal::trackConnection() {
 	uint32_t now = millis();
 	if( connecting_ ) {
-		char ssid[40];
+		char ssid[kSafeSSID];
 		Text::printable( pendingSSID_, ssid, sizeof( ssid ) );
 		if( gotIP_ ) {
 			connecting_ = false;
@@ -413,6 +461,7 @@ void SetupPortal::trackConnection() {
 	}
 }
 
+// Why the station isn't connected, for the page ("" if it is, or there's nothing to say).
 const char *SetupPortal::errorText() const {
 	if( WiFi.status() == WL_CONNECTED && !connecting_ && !timedOut_ )
 		return "";
@@ -438,6 +487,7 @@ const char *SetupPortal::errorText() const {
 
 // MARK: - Scanning
 
+// Starts a scan in the background, unless one is running.
 void SetupPortal::startScan() {
 	if( scanning_ )
 		return;
@@ -445,6 +495,7 @@ void SetupPortal::startScan() {
 	scanning_ = WiFi.scanNetworks( true ) == WIFI_SCAN_RUNNING;
 }
 
+// Picks up a finished scan's results.
 void SetupPortal::collectScan() {
 	if( !scanning_ )
 		return;
@@ -487,41 +538,34 @@ void SetupPortal::collectScan() {
 // Requests from the home network, from pages that reached 192.168.4.1 by another name, and
 // POSTs from other origins get an error. Answers them itself when it returns false.
 bool SetupPortal::allowRequest( bool post ) {
-	NetworkClient &client = webServer.client();
-	if( client.localIP() != kAddress || !onAccessPoint( client.remoteIP() ) ) {
-		webServer.send( 403, "text/plain", "" );
+	if( !fromAccessPoint() ) {
+		refuse();
 		return false;
 	}
 	lastActivity_ = millis();
 
 	String host = webServer.hostHeader();
-	if( host != "192.168.4.1" && host != "192.168.4.1:80" ) {
-		if( post ) {
-			webServer.send( 403, "text/plain", "" );
-		} else {
-			webServer.sendHeader( "Location", kPortalURL, true );
-			webServer.sendHeader( "Cache-Control", "no-store" );
-			webServer.send( 302, "text/plain", "" );
-		}
+	if( host != kPortalHost && host != kPortalHostPort ) {
+		if( post )
+			refuse();
+		else
+			redirectToPortal();
 		return false;
 	}
 	if( post && webServer.hasHeader( "Origin" ) && webServer.header( "Origin" ) != kPortalOrigin ) {
-		webServer.send( 403, "text/plain", "" );
+		refuse();
 		return false;
 	}
 	return true;
 }
 
-void SetupPortal::sendJSON( int code, const char *json ) {
-	webServer.sendHeader( "Cache-Control", "no-store" );
-	webServer.send( code, "application/json", json );
-}
-
+// The page itself.
 void SetupPortal::handleRoot() {
 	webServer.sendHeader( "Cache-Control", "no-store" );
 	webServer.send( 200, "text/html; charset=utf-8", kPage );
 }
 
+// The networks found, strongest first; `refresh` starts a new scan.
 void SetupPortal::handleScan() {
 	if( webServer.hasArg( "refresh" ) )
 		startScan();
@@ -536,12 +580,10 @@ void SetupPortal::handleScan() {
 		cJSON_AddBoolToObject( item, "secure", network.secure );
 		cJSON_AddItemToArray( list, item );
 	}
-	char *text = cJSON_PrintUnformatted( json );
-	sendJSON( 200, text ? text : "{}" );
-	cJSON_free( text );
-	cJSON_Delete( json );
+	sendJSON( 200, json );
 }
 
+// Everything the page shows, polled.
 void SetupPortal::handleStatus() {
 	bool connected = WiFi.status() == WL_CONNECTED && !connecting_;
 
@@ -564,12 +606,10 @@ void SetupPortal::handleStatus() {
 	// page's checkbox (Settings::standardStorage()) says Standard.
 	cJSON_AddBoolToObject( json, "encryptOffered", settings_.isNew() && SecureNVS::state() == SecureNVS::State::Plain );
 	cJSON_AddBoolToObject( json, "standardStorage", settings_.standardStorage() );
-	char *text = cJSON_PrintUnformatted( json );
-	sendJSON( 200, text ? text : "{}" );
-	cJSON_free( text );
-	cJSON_Delete( json );
+	sendJSON( 200, json );
 }
 
+// Save & Connect: the name now, the network once it has been joined.
 void SetupPortal::handleSave() {
 	String name     = webServer.arg( "name" );
 	String ssid     = webServer.arg( "ssid" );
@@ -589,10 +629,7 @@ void SetupPortal::handleSave() {
 		cJSON *json = cJSON_CreateObject();
 		cJSON_AddBoolToObject( json, "ok", false );
 		addString( json, "error", error );
-		char *text = cJSON_PrintUnformatted( json );
-		sendJSON( 400, text ? text : "{}" );
-		cJSON_free( text );
-		cJSON_Delete( json );
+		sendJSON( 400, json );
 		return;
 	}
 
@@ -608,6 +645,7 @@ void SetupPortal::handleSave() {
 	sendJSON( 200, "{\"ok\":true}" );
 }
 
+// Exit Setup, allowed once there's a network that works.
 void SetupPortal::handleExit() {
 	if( !canExit() ) {
 		sendJSON( 409, "{\"ok\":false,\"error\":\"Set up Wi-Fi first.\"}" );
@@ -631,21 +669,16 @@ void SetupPortal::handleReset() {
 }
 
 bool SetupPortal::takeResetRequest() {
-	bool requested  = resetRequested_;
-	resetRequested_ = false;
-	return requested;
+	return take( resetRequested_ );
 }
 
 // Captive-network probes (/hotspot-detect.html, /generate_204, /ncsi.txt, …) get a redirect
 // instead of the answer they expect, which makes phones open the page.
 void SetupPortal::handleNotFound() {
-	NetworkClient &client = webServer.client();
-	if( client.localIP() != kAddress || !onAccessPoint( client.remoteIP() ) ) {
-		webServer.send( 403, "text/plain", "" );
+	if( !fromAccessPoint() ) {
+		refuse();
 		return;
 	}
 	lastActivity_ = millis();
-	webServer.sendHeader( "Location", kPortalURL, true );
-	webServer.sendHeader( "Cache-Control", "no-store" );
-	webServer.send( 302, "text/plain", "" );
+	redirectToPortal();
 }

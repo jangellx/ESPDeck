@@ -10,6 +10,7 @@
 import CoreTransferable
 import UniformTypeIdentifiers
 
+/// An image dropped on a key or an icon well, as bytes not yet decoded.
 struct DroppedImage: Transferable {
 	/// The image's bytes, or why they weren't read.
 	let data: Result<Data, ConfigStore.IconProblem>
@@ -30,6 +31,7 @@ struct DroppedImage: Transferable {
 		}
 	}
 
+	/// A local image file's bytes, unless it's larger than an icon file may be.
 	private nonisolated static func read( _ url: URL ) throws -> DroppedImage {
 		if let size = try url.resourceValues( forKeys: [ .fileSizeKey ] ).fileSize, size > ConfigStore.iconFileLimit {
 			return DroppedImage( data: .failure( .tooLarge ) )

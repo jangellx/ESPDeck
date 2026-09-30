@@ -20,9 +20,10 @@
 #include "esp_err.h"
 
 namespace SecureNVS {
+	// How NVS is kept.
 	enum class State : uint8_t {
 		Plain,         // not encrypted, and encrypt() can
-		Encrypted,
+		Encrypted,     // with the eFuse key (burned, whether or not NVS has moved over yet)
 		Unsupported,   // not encrypted, and there's no free eFuse key block to do it with
 	};
 
@@ -33,10 +34,12 @@ namespace SecureNVS {
 	// NVS was set up here (the wrap is in effect).
 	bool ready();
 
+	// How NVS is kept now.
 	State       state();
 	// The status object's `storage`: "plain", "encrypted" or "unsupported".
 	const char *stateName();
 
+	// What encrypt() and encryptForSetup() did.
 	enum class Outcome : uint8_t {
 		Refused,     // nothing changed; `error` says why
 		Encrypted,   // restart now

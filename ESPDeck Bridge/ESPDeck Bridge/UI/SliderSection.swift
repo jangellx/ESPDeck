@@ -9,6 +9,7 @@
 
 import SwiftUI
 
+/// The Level section of the inspector, for a key paired with another to step a level.
 struct SliderSection: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -47,15 +48,10 @@ struct SliderSection: View {
 					}
 				}
 			} label: {
-				VStack( alignment: .leading, spacing: 4 ) {
-					Text( "Other Key" )
-					Text( slider.map { "Key \($0.partner + 1)" } ?? "Choose the key beside this one that goes with it." )
-						.font( .caption )
-						.foregroundStyle( Color.secondary )
-				}
+				CaptionedText( "Other Key", caption: slider.map { "Key \($0.partner + 1)" } ?? "Choose the key beside this one that goes with it.", spacing: 4 )
 			}
 			.padding( .vertical, 6 )
-			.confirmationDialog( "Replace Key \( ( replacing ?? 0 ) + 1 )?", isPresented: Binding( get: { replacing != nil }, set: { if !$0 { replacing = nil } } ) ) {
+			.confirmationDialog( "Replace Key \( ( replacing ?? 0 ) + 1 )?", isPresented: Binding( presenting: $replacing ) ) {
 				Button( "Replace", role: .destructive ) {
 					if let partner = replacing { pair( with: partner, level: slider?.level ) }
 					replacing = nil
@@ -119,8 +115,7 @@ struct SliderSection: View {
 					} )
 					.toggleStyle( .switch )
 					Text( "To 100% with the key that increases, 0% with the other. When off, tapping quickly just steps." )
-						.font( .caption )
-						.foregroundStyle( Color.secondary )
+						.secondaryCaption()
 				}
 
 				LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
@@ -132,6 +127,7 @@ struct SliderSection: View {
 		}
 	}
 
+	/// Pairs this key with `partner`, keeping the level it adjusts (else the first one offered).
 	private func pair( with partner: Int, level: SliderLevel? ) {
 		controller.makeSlider( device: deviceID, key: key, partner: partner, level: level ?? levels.first ?? .brightness )
 	}
@@ -146,7 +142,9 @@ private struct SliderPartnerGrid: View {
 	let partner    : Int?
 	let onPick     : ( Int ) -> Void
 
-	private static let cell: CGFloat = 38
+	/// Each key's side, and its corners' radius.
+	private static let cell   : CGFloat = 38
+	private static let corner : CGFloat = 6
 
 	var body: some View {
 		let layout = controller.layout( deviceID )
@@ -162,7 +160,7 @@ private struct SliderPartnerGrid: View {
 						if dr != 0 && dc != 0 {
 							Color.clear.frame( width: Self.cell, height: Self.cell )
 						} else if r < 0 || c < 0 || r >= layout.rows || c >= cols {
-							RoundedRectangle( cornerRadius: 6, style: .continuous )
+							RoundedRectangle( cornerRadius: Self.corner, style: .continuous )
 								.strokeBorder( Color( white: 0.5 ).opacity( 0.35 ), style: StrokeStyle( lineWidth: 1, dash: [ 3, 3 ] ) )
 								.frame( width: Self.cell, height: Self.cell )
 								.help( "Off the edge of the deck" )
@@ -190,7 +188,7 @@ private struct SliderPartnerGrid: View {
 			keyCell( key, chosen: false )
 				.help( "This key" )
 		} else {
-			RoundedRectangle( cornerRadius: 6, style: .continuous )
+			RoundedRectangle( cornerRadius: Self.corner, style: .continuous )
 				.strokeBorder( Color.accentColor, style: StrokeStyle( lineWidth: 2, dash: [ 4, 3 ] ) )
 				.overlay {
 					Image( systemName: "smallcircle.filled.circle" )
@@ -201,22 +199,20 @@ private struct SliderPartnerGrid: View {
 		}
 	}
 
+	/// A key as it looks on the deck, outlined in the accent colour when `chosen`.
 	private func keyCell( _ index: Int, chosen: Bool ) -> some View {
 		let preview = controller.device( deviceID ).flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
 		return ZStack {
-			RoundedRectangle( cornerRadius: 6, style: .continuous )
+			RoundedRectangle( cornerRadius: Self.corner, style: .continuous )
 				.fill( Color( white: 0.13 ) )
 			if let preview {
 				Image( uiImage: preview )
 					.resizable()
-					.clipShape( RoundedRectangle( cornerRadius: 6, style: .continuous ) )
+					.clipShape( RoundedRectangle( cornerRadius: Self.corner, style: .continuous ) )
 			}
 		}
 		.frame( width: Self.cell, height: Self.cell )
-		.overlay {
-			RoundedRectangle( cornerRadius: 6, style: .continuous )
-				.strokeBorder( chosen ? Color.accentColor : Color( white: 0.35 ), lineWidth: chosen ? 3 : 1 )
-		}
+		.keyOutline( cornerRadius: Self.corner, chosen ? Color.accentColor : Color( white: 0.35 ), lineWidth: chosen ? 3 : 1 )
 		.accessibilityLabel( "Key \(index + 1)" )
 	}
 }
@@ -240,6 +236,7 @@ private struct StylePicker: View {
 		}
 	}
 
+	/// One icon set: its two symbols, highlighted when it's the one chosen.
 	private func button( _ style: SliderStyle ) -> some View {
 		Button {
 			onPick( style )

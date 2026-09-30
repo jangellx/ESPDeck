@@ -9,6 +9,7 @@
 
 import SwiftUI
 
+/// A search-styled text field, with an optional focus binding.
 struct SearchField: View {
 	let prompt       : String
 	@Binding var text: String
@@ -39,6 +40,7 @@ struct SearchField: View {
 		.background( Capsule().fill( Color( uiColor: .tertiarySystemFill ) ) )   // as Apple's search fields
 	}
 
+	/// The text field itself, focused through `focus` when there is one.
 	@ViewBuilder
 	private var field: some View {
 		let field = TextField( prompt, text: $text, prompt: Text( prompt ) )

@@ -11,7 +11,6 @@
 #include <WiFi.h>
 
 #include <algorithm>
-#include <cctype>
 #include <cstdlib>
 #include <cstring>
 
@@ -44,6 +43,7 @@
 #include "StatusLed.h"
 #include "StreamDeck.h"
 #include "Text.h"
+#include "Timing.h"
 
 static const char *TAG = "ESPDeck";
 
@@ -140,6 +140,7 @@ enum class PairingStage : uint8_t {
 	Confirmed,   // confirmed on the deck; waiting for the Mac's auth
 };
 
+// The pairing in progress, if any; cleared by endPairing().
 static struct {
 	PairingStage stage;
 	uint8_t      shared[Crypto::kKeySize];
@@ -156,6 +157,7 @@ static struct {
 	uint32_t     holdSince;
 } pairing = {};
 
+// The code is on the deck (the pairing screen is up).
 static bool pairingShown() {
 	return pairing.stage == PairingStage::Comparing || pairing.stage == PairingStage::Confirmed;
 }
@@ -163,7 +165,7 @@ static bool pairingShown() {
 static bool             pendingVerify  = false;   // this image is new and hasn't authenticated yet
 static bool             restartPending = false;   // a firmware update is installed
 static uint32_t         restartAt      = 0;
-static uint32_t         hostnameRestartAt = 0;      // a new hostname, taken at startup
+static uint32_t         hostnameRestartAt = 0;    // a new hostname, taken at startup
 
 static volatile bool    wifiJoined     = false;   // set on the Wi-Fi event task
 
@@ -178,20 +180,53 @@ static char             helloName[Settings::kMaxName + 1] = {};
 static void refreshScreen( bool redraw = false );
 static void dropBridge( bool retrySoon );
 
+// A key's bit in the key masks.
 static uint32_t keyBit( uint8_t key ) {
 	return 1u << key;
 }
 
+// The mask of keys 0 … count − 1.
 static uint32_t allKeys( uint8_t count ) {
 	return count >= 32 ? 0xFFFFFFFFu : ( 1u << count ) - 1;
 }
 
+using Timing::reached;
+
+// A message's string field, or nullptr if it's missing or not a string.
+static const char *stringField( cJSON *json, const char *name ) {
+	return cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, name ) );
+}
+
+// Ignores keys still held until every key is up, so a press that began elsewhere (asleep, on
+// another screen, before the session) doesn't reach the Mac half-way through.
+static void swallowHeldKeys() {
+	swallowKeys = keysDown != 0;
+}
+
+// A firmware update is being received or installed, or an upload from PlatformIO is running.
+static bool updating() {
+	return firmware.active() || restartPending || DevOTA::active();
+}
+
+// One of our own screens, which stays readable and keeps the deck awake: anything but the
+// key images and the connecting screen.
+static bool showingOwnScreen() {
+	return screen != Screen::Normal && screen != Screen::Connecting;
+}
+
+// A deck is connected that takes key images.
+static bool deckShowsImages() {
+	return deckConnected && deckInfo.format != StreamDeck::Format::None;
+}
+
+// The deck's transform, or the one chosen from the Mac.
 static StreamDeck::Transform effectiveTransform() {
 	StreamDeck::Transform transform = deckInfo.transform;
 	StreamDeck::transformFromName( settings.orientation(), transform );   // leaves it alone for "auto"
 	return transform;
 }
 
+// The random-number callback Crypto passes to mbedTLS.
 static int randomBytes( void *, unsigned char *out, size_t length ) {
 	esp_fill_random( out, length );
 	return 0;
@@ -241,6 +276,7 @@ static void sendJSON( cJSON *json ) {
 	free( frame );
 }
 
+// The deck part of hello and deck messages.
 static cJSON *deckJSON() {
 	cJSON *object = cJSON_CreateObject();
 	cJSON_AddBoolToObject( object, "connected", deckConnected );
@@ -258,6 +294,7 @@ static cJSON *deckJSON() {
 	return object;
 }
 
+// The settings part of hello.
 static cJSON *settingsJSON() {
 	cJSON *object = cJSON_CreateObject();
 	cJSON_AddStringToObject( object, "orientation", settings.orientation() );
@@ -267,6 +304,7 @@ static cJSON *settingsJSON() {
 	return object;
 }
 
+// The status part of hello and status messages.
 static cJSON *statusJSON() {
 	cJSON *object = cJSON_CreateObject();
 	cJSON_AddBoolToObject( object, "asleep", asleep );
@@ -304,7 +342,7 @@ static void sendHello() {
 	cJSON_AddStringToObject( json, "pairedBridge", settings.isPaired() ? settings.pairedBridge() : "" );
 
 	cJSON *cached = cJSON_AddArrayToObject( json, "cached" );
-	char   hex[kHashSize * 2 + 1];
+	char   hex[kHashHexSize];
 	for( const Hash &hash : cache.hashes() ) {
 		hashToHex( hash, hex );
 		cJSON_AddItemToArray( cached, cJSON_CreateString( hex ) );
@@ -320,6 +358,7 @@ static void sendHello() {
 		sendPlain( json, true );
 }
 
+// The deck as it is now (plugged in or out, or a new transform).
 static void sendDeck() {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", "deck" );
@@ -350,6 +389,7 @@ static void sendUsbDevice( const StreamDeck::UsbDevice &device ) {
 	sendJSON( json );
 }
 
+// A key event: keyDown, keyUp, keyTap, keyDoubleTap, keyHold or keyRepeat.
 static void sendKey( const char *type, uint8_t key ) {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", type );
@@ -359,7 +399,7 @@ static void sendKey( const char *type, uint8_t key ) {
 
 // A key now shows a cached image (uploaded, or already there): the Mac's progress display.
 static void sendShown( uint8_t key, const Hash &hash ) {
-	char hex[kHashSize * 2 + 1];
+	char hex[kHashHexSize];
 	hashToHex( hash, hex );
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", "shown" );
@@ -368,6 +408,7 @@ static void sendShown( uint8_t key, const Hash &hash ) {
 	sendJSON( json );
 }
 
+// Asks the Mac for an image the cache doesn't have.
 static void sendNeed( const char *hex ) {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", "need" );
@@ -375,12 +416,14 @@ static void sendNeed( const char *hex ) {
 	sendJSON( json );
 }
 
+// Adds data (at most Crypto::kKeySize bytes) to json as a hex string.
 static void addHex( cJSON *json, const char *field, const uint8_t *data, size_t length ) {
 	char hex[Crypto::kKeySize * 2 + 1];
 	Crypto::toHex( data, length, hex );
 	cJSON_AddStringToObject( json, field, hex );
 }
 
+// An unauthenticated message with one hex field (pairing and auth).
 static void sendHexField( const char *type, const char *field, const uint8_t *data, size_t length ) {
 	cJSON *json = cJSON_CreateObject();
 	cJSON_AddStringToObject( json, "type", type );
@@ -388,6 +431,7 @@ static void sendHexField( const char *type, const char *field, const uint8_t *da
 	sendPlain( json );
 }
 
+// A firmware update's progress or outcome; nothing for State::None.
 static void sendFirmwareStatus( const FirmwareUpdate::Status &status ) {
 	using State = FirmwareUpdate::Status::State;
 	if( status.state == State::None )
@@ -414,34 +458,42 @@ static void sendFirmwareStatus( const FirmwareUpdate::Status &status ) {
 	sendJSON( json );
 }
 
+// Forgets the presses in progress, cut short: none are forwarded, no taps or holds are
+// pending, and keys still held are ignored until they're all released.
+static void forgetPresses() {
+	keysForwarded = 0;
+	swallowHeldKeys();
+	holdSent = secondPress = tapPending = repeatHeldBack = 0;
+}
+
 // Ends every press the Mac has seen, before key events stop being forwarded (sleep, setup
-// mode, unplug). Keys still held are ignored until they're all released.
+// mode, unplug).
 static void releaseForwardedKeys() {
 	for( uint8_t key = 0; key < kMaxKeys; key++ ) {
 		if( keysForwarded & keyBit( key ) )
 			sendKey( "keyUp", key );
 	}
-	keysForwarded = 0;
-	swallowKeys   = keysDown != 0;
-	holdSent = secondPress = tapPending = repeatHeldBack = 0;   // cut short: no taps or holds
+	forgetPresses();
 }
 
 // MARK: - Brightness and sleep
 
+// Sets the deck's brightness for the screen shown and whether it's asleep.
 static void applyBrightness() {
 	if( !deckConnected )
 		return;
 
 	uint8_t level = cache.brightness();
-	if( screen != Screen::Normal && screen != Screen::Connecting )
+	if( showingOwnScreen() )
 		level = std::max( level, kSetupBrightness );   // our own screens must be readable
 	else if( asleep )
 		level = 0;
 	deck.setBrightness( level );
 }
 
+// Turns the deck dark; reason is for the Mac's log (see sendStatus()).
 static void goToSleep( const char *reason ) {
-	if( asleep || ( screen != Screen::Normal && screen != Screen::Connecting ) )
+	if( asleep || showingOwnScreen() )
 		return;
 
 	ESP_LOGI( TAG, "Sleeping (%s)", reason );
@@ -452,6 +504,7 @@ static void goToSleep( const char *reason ) {
 	sendStatus( reason );
 }
 
+// Lights the deck again; reason is for the Mac's log (see sendStatus()).
 static void wake( const char *reason ) {
 	if( !asleep )
 		return;
@@ -464,9 +517,10 @@ static void wake( const char *reason ) {
 	sendStatus( reason );
 }
 
+// Sleeps once no key has been touched for the sleep timeout.
 static void checkSleepTimer() {
 	uint32_t timeout = settings.sleepTimeout();
-	if( asleep || ( screen != Screen::Normal && screen != Screen::Connecting ) || timeout == 0 )
+	if( asleep || showingOwnScreen() || timeout == 0 )
 		return;
 	if( (uint64_t)( millis() - lastActivity ) >= (uint64_t)timeout * 1000 )
 		goToSleep( "timer" );
@@ -474,11 +528,18 @@ static void checkSleepTimer() {
 
 // MARK: - Screens
 
+// keyImage, encoded for the deck, or nullptr.
+static ImagePtr encodeKeyImage( StreamDeck::Transform transform ) {
+	size_t         length = 0;
+	const uint8_t *image  = keyImage.encode( deckInfo.format, transform, length );
+	return image ? makeImage( image, length ) : nullptr;
+}
+
 // Renders every key in `only` (all by default) with draw( key ), which paints keyImage,
 // and uploads it.
 template <typename Draw>
 static void drawKeys( Draw draw, uint32_t only = 0xFFFFFFFF ) {
-	if( !deckConnected || deckInfo.format == StreamDeck::Format::None )
+	if( !deckShowsImages() )
 		return;
 	if( !keyImage.begin( deckInfo.keySize ) ) {
 		ESP_LOGE( TAG, "Out of memory for key images" );
@@ -490,26 +551,52 @@ static void drawKeys( Draw draw, uint32_t only = 0xFFFFFFFF ) {
 		if( !( only & keyBit( key ) ) )
 			continue;
 		draw( key );
-		size_t         length = 0;
-		const uint8_t *image  = keyImage.encode( deckInfo.format, transform, length );
-		if( image )
-			uploader.show( key, makeImage( image, length ), nullptr );
+		uploader.show( key, encodeKeyImage( transform ), nullptr );
 	}
 }
 
+// One line of text on keyImage (see KeyImage::drawText()).
 static void drawLine( const char *line, uint32_t background = 0x000000, KeyImage::TextStyle style = KeyImage::TextStyle::Label ) {
 	keyImage.drawText( &line, 1, background, style );
 }
 
 // Our layouts need a top and a bottom row of at least three keys.
 static bool deckHasLayout() {
-	return deckConnected && deckInfo.format != StreamDeck::Format::None && deckInfo.rows >= 2 && deckInfo.cols >= 3;
+	return deckShowsImages() && deckInfo.rows >= 2 && deckInfo.cols >= 3;
 }
 
+// The middle key of the top row.
+static uint8_t topCentreKey() {
+	return deckInfo.cols / 2;
+}
+
+// The middle key of the bottom row.
+static int bottomCentreKey() {
+	return ( deckInfo.rows - 1 ) * deckInfo.cols + deckInfo.cols / 2;
+}
+
+// lines on the top-centre key, every other key black.
+static void showCentredText( const char *const *lines, size_t count ) {
+	uint8_t centre = topCentreKey();
+	drawKeys( [&]( uint8_t key ) {
+		if( key == centre )
+			keyImage.drawText( lines, count );
+		else
+			keyImage.fill( 0, 0, 0 );
+	} );
+}
+
+// Every key's cached image again (black if it has none), in place of our own screen's.
+static void reshowAllKeys() {
+	keysToUpload = allKeys( kMaxKeys );
+	keysToBlank  = allKeys( kMaxKeys );
+}
+
+// The setup display's Exit key, or -1 if it isn't shown.
 static int setupExitKey() {
 	if( !setupExitShown || !deckHasLayout() )
 		return -1;
-	return ( deckInfo.rows - 1 ) * deckInfo.cols + deckInfo.cols / 2;
+	return bottomCentreKey();
 }
 
 // Backslash-escapes the characters the WIFI: QR format reserves.
@@ -521,6 +608,8 @@ static void appendEscaped( String &out, const char *text ) {
 	}
 }
 
+// Two QR codes (join the access point, open the setup page), the network's name, and Exit
+// once it's allowed.
 static void showSetupKeys() {
 	setupExitShown = portal.canExit();
 	if( !deckHasLayout() ) {
@@ -569,21 +658,24 @@ static void showSetupKeys() {
 	} );
 }
 
-// Top row: "Pair?" and the code in two halves; bottom row: Cancel at the left, "Hold to
-// Confirm" at the right ("Waiting for Mac" once confirmed). Decks without the layout show
-// nothing; holding any key confirms, and the status LED blinks magenta.
+// The first of the three top-row keys the pairing and not-paired screens use, centred.
 static uint8_t pairingFirstKey() {
 	return ( deckInfo.cols - 3 ) / 2;
 }
 
+// Cancel, at the bottom left of the pairing screen.
 static uint8_t cancelKey() {
 	return ( deckInfo.rows - 1 ) * deckInfo.cols;
 }
 
+// Confirm, at the bottom right of the pairing screen.
 static uint8_t confirmKey() {
 	return cancelKey() + deckInfo.cols - 1;
 }
 
+// Top row: "Pair?" and the code in two halves; bottom row: Cancel at the left, "Hold to
+// Confirm" at the right ("Waiting for Mac" once confirmed). Decks without the layout show
+// nothing; holding any key confirms, and the status LED blinks magenta.
 static void showPairingKeys() {
 	if( !deckHasLayout() )
 		return;
@@ -631,46 +723,38 @@ static void showNotPairedKeys() {
 	} );
 }
 
+// "Updating firmware" while updating().
 static void showUpdatingKeys() {
 	static const char *const kLines[] = { "Updating", "firmware" };
-	uint8_t center = deckInfo.cols / 2;
-	drawKeys( [&]( uint8_t key ) {
-		if( key == center )
-			keyImage.drawText( kLines, 2 );
-		else
-			keyImage.fill( 0, 0, 0 );
-	} );
+	showCentredText( kLines, 2 );
 }
 
-// "Connecting / to Wi-Fi" (or "to Mac" once Wi-Fi is up) on the top-centre key, and blue
-// dots filling and emptying the row below; every other key black, so no key looks usable.
-static int connectingTextKey() {
-	return deckInfo.cols / 2;
-}
-
+// The connecting screen's text key; redrawn when Wi-Fi comes or goes.
 static void showConnectingText() {
 	static const char *const kWiFi[] = { "Connecting", "to Wi-Fi" };
 	static const char *const kMac[]  = { "Connecting", "to Mac" };
 	connectingWiFi = WiFi.status() == WL_CONNECTED;
 	drawKeys( [&]( uint8_t ) {
 		keyImage.drawText( connectingWiFi ? kMac : kWiFi, 2 );
-	}, keyBit( connectingTextKey() ) );
+	}, keyBit( topCentreKey() ) );
 }
 
+// A key with the connecting screen's dot, or a black one; nullptr if it can't be drawn.
 static ImagePtr renderDot( bool dot ) {
 	if( !keyImage.begin( deckInfo.keySize ) )
 		return nullptr;
 	if( dot )
-		keyImage.drawDot( kConnectingDotColor, 0.4f );
+		keyImage.drawDot( kConnectingDotColor, kConnectingDotSize );
 	else
 		keyImage.fill( 0, 0, 0 );
-	size_t         length = 0;
-	const uint8_t *image  = keyImage.encode( deckInfo.format, effectiveTransform(), length );
-	return image ? makeImage( image, length ) : nullptr;
+	return encodeKeyImage( effectiveTransform() );
 }
 
+// The connecting screen: "Connecting / to Wi-Fi" (or "to Mac" once Wi-Fi is up) on the
+// top-centre key, and blue dots filling and emptying the row below; every other key black,
+// so no key looks usable. Starts the chaser at its first step.
 static void showConnectingKeys() {
-	if( !deckConnected || deckInfo.format == StreamDeck::Format::None )
+	if( !deckShowsImages() )
 		return;
 
 	bool dotRow = deckInfo.rows >= 2;
@@ -679,7 +763,7 @@ static void showConnectingKeys() {
 	dotStep     = 0;
 	dotMovedAt  = millis();
 
-	uint32_t others = allKeys( deckInfo.keyCount() ) & ~keyBit( connectingTextKey() );
+	uint32_t others = allKeys( deckInfo.keyCount() ) & ~keyBit( topCentreKey() );
 	for( uint8_t key = 0; key < deckInfo.keyCount(); key++ ) {
 		if( !( others & keyBit( key ) ) )
 			continue;
@@ -709,17 +793,14 @@ static void stepConnectingScreen() {
 	uploader.show( cols + column, on ? dotImage : blackImage, nullptr );
 }
 
-// While the corner keys are held: the seconds left on the bottom key of the middle
-// column, "Entering / Setup In" on the key above it, every other key black.
-static int countdownKey() {
-	return ( deckInfo.rows - 1 ) * deckInfo.cols + deckInfo.cols / 2;
-}
-
+// The whole seconds left before the setup chord starts setup mode.
 static uint8_t countdownSeconds() {
 	uint32_t held = millis() - chordSince;
 	return held >= kSetupChordTime ? 0 : (uint8_t)( ( kSetupChordTime - held + 999 ) / 1000 );
 }
 
+// While the corner keys are held: the seconds left on the bottom-centre key, "Entering /
+// Setup In" on the key above it, every other key black. digitOnly redraws just the seconds.
 static void showCountdownKeys( bool digitOnly ) {
 	if( !deckHasLayout() )
 		return;
@@ -728,12 +809,11 @@ static void showCountdownKeys( bool digitOnly ) {
 	char digit[4];
 	countdownShown = countdownSeconds();
 	snprintf( digit, sizeof( digit ), "%u", countdownShown );
-	const char *line = digit;
 
-	int number = countdownKey();
+	int number = bottomCentreKey();
 	drawKeys( [&]( uint8_t key ) {
 		if( key == number )
-			keyImage.drawText( &line, 1, 0x000000, KeyImage::TextStyle::Big );
+			drawLine( digit, 0x000000, KeyImage::TextStyle::Big );
 		else if( key == number - deckInfo.cols )
 			keyImage.drawText( kLabel, 2 );
 		else
@@ -741,12 +821,13 @@ static void showCountdownKeys( bool digitOnly ) {
 	}, digitOnly ? keyBit( number ) : 0xFFFFFFFF );
 }
 
+// The screen the current state calls for, most urgent first.
 static Screen desiredScreen() {
 	if( portal.active() )
 		return Screen::Setup;
 	if( pairingShown() )
 		return Screen::Pairing;
-	if( firmware.active() || restartPending || DevOTA::active() )
+	if( updating() )
 		return Screen::Updating;
 	if( chordHeld && millis() - chordSince >= kSetupCountdown && deckHasLayout() )
 		return Screen::SetupCountdown;
@@ -780,10 +861,8 @@ static void refreshScreen( bool redraw ) {
 		case Screen::Updating:  showUpdatingKeys();  break;
 		case Screen::SetupCountdown: showCountdownKeys( false ); break;
 		case Screen::Normal:
-			if( previous != Screen::Normal ) {
-				keysToUpload = allKeys( kMaxKeys );
-				keysToBlank  = allKeys( kMaxKeys );
-			}
+			if( previous != Screen::Normal )
+				reshowAllKeys();
 			break;
 	}
 	applyBrightness();
@@ -805,11 +884,12 @@ static void showDeckScreen() {
 
 // MARK: - Pairing
 
+// Forgets the pairing (and its secrets) and leaves the pairing screen.
 static void endPairing() {
 	memset( &pairing, 0, sizeof( pairing ) );
 	pairing.stage   = PairingStage::None;
 	pairing.holdKey = -1;
-	swallowKeys     = keysDown != 0;
+	swallowHeldKeys();
 	refreshScreen();
 }
 
@@ -829,9 +909,9 @@ static void cancelPairing( bool notifyBridge, const char *reason ) {
 // Pairing step 2. Only an unpaired device pairs: moving a paired one to another Mac starts
 // on the device (Unpair on its setup page) or on its own Mac (Forget Device).
 static void startPairing( cJSON *json ) {
-	const char *bridgeID   = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "bridgeID" ) );
-	const char *bridgeName = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "bridgeName" ) );
-	const char *peerHex    = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "publicKey" ) );
+	const char *bridgeID   = stringField( json, "bridgeID" );
+	const char *bridgeName = stringField( json, "bridgeName" );
+	const char *peerHex    = stringField( json, "publicKey" );
 	uint8_t     peer[Crypto::kKeySize];
 	if( !bridgeID || !bridgeID[0] || strlen( bridgeID ) > Settings::kMaxBridgeID || !Crypto::fromHex( peerHex, peer, sizeof( peer ) ) ) {
 		ESP_LOGW( TAG, "Bad pairRequest" );
@@ -843,7 +923,7 @@ static void startPairing( cJSON *json ) {
 		refusal = "paired";
 	else if( portal.active() )
 		refusal = "setupMode";
-	else if( firmware.active() || restartPending || DevOTA::active() )
+	else if( updating() )
 		refusal = "busy";
 	if( refusal ) {
 		ESP_LOGI( TAG, "Refusing a pairRequest (%s)", refusal );
@@ -883,7 +963,7 @@ static void startPairing( cJSON *json ) {
 // Pairing step 4: the Mac's nonce. The device reveals its own, and both show the code.
 static void handlePairNonce( cJSON *json ) {
 	if( pairing.stage != PairingStage::Committed
-	    || !Crypto::fromHex( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "nonce" ) ), pairing.macNonce, sizeof( pairing.macNonce ) )
+	    || !Crypto::fromHex( stringField( json, "nonce" ), pairing.macNonce, sizeof( pairing.macNonce ) )
 	    || !Crypto::pairingCode( pairing.macPublic, pairing.devicePublic, pairing.macNonce, pairing.deviceNonce, pairing.code ) ) {
 		ESP_LOGW( TAG, "Unexpected pairNonce" );
 		cancelPairing( true, "failed" );
@@ -933,6 +1013,7 @@ static void handlePairingKey( uint8_t key ) {
 	}
 }
 
+// Confirms the pairing once Confirm has been held for kConfirmHold.
 static void checkPairingHold() {
 	if( pairing.stage != PairingStage::Comparing || pairing.holdKey < 0 )
 		return;
@@ -946,6 +1027,7 @@ static void checkPairingHold() {
 
 // MARK: - Connection and authentication
 
+// The connection to the bridge closed: the session, any pairing and any update end with it.
 static void onBridgeDown() {
 	if( session.authenticated() )
 		sessionLostAt = millis();   // the connecting screen follows after kConnectingGrace
@@ -953,15 +1035,24 @@ static void onBridgeDown() {
 	if( pairing.stage != PairingStage::None )
 		endPairing();
 	keysForwarded  = 0;
-	swallowKeys    = keysDown != 0;
+	swallowHeldKeys();
 	bridgeHasNoKey = false;
 	session.reset();
 	refreshScreen();
 }
 
+// Closes the connection; retrySoon reconnects at once rather than after the usual wait.
 static void dropBridge( bool retrySoon ) {
 	bridge.disconnect( retrySoon );
 	onBridgeDown();
+}
+
+// Closes the connection, gives the close a moment to go out, and restarts.
+static void closeAndRestart() {
+	if( bridge.isConnected() )
+		dropBridge( false );
+	delay( kCloseDelay );
+	esp_restart();
 }
 
 // Handshake step 3, with the stored K, or during pairing with the new K once it's been
@@ -970,8 +1061,8 @@ static void handleAuth( cJSON *json ) {
 	bool           pairingAuth = pairing.stage == PairingStage::Confirmed;
 	const uint8_t *key         = pairingAuth ? pairing.key : settings.pairingKey();
 	uint8_t        nonce[Crypto::kNonceSize], proof[Crypto::kKeySize], deviceProof[Crypto::kKeySize];
-	bool           wellFormed  = Crypto::fromHex( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "nonce" ) ), nonce, sizeof( nonce ) )
-	                             && Crypto::fromHex( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "proof" ) ), proof, sizeof( proof ) );
+	bool           wellFormed  = Crypto::fromHex( stringField( json, "nonce" ), nonce, sizeof( nonce ) )
+	                             && Crypto::fromHex( stringField( json, "proof" ), proof, sizeof( proof ) );
 	bool           expected    = pairingAuth || ( settings.isPaired() && pairing.stage == PairingStage::None );
 	if( !wellFormed || !expected || !session.authenticate( key, nonce, proof, deviceProof ) ) {
 		ESP_LOGW( TAG, "Bridge authentication failed; closing the connection" );
@@ -982,12 +1073,7 @@ static void handleAuth( cJSON *json ) {
 	}
 
 	// The device's own auth is the last unauthenticated frame.
-	char hex[Crypto::kKeySize * 2 + 1];
-	Crypto::toHex( deviceProof, sizeof( deviceProof ), hex );
-	cJSON *reply = cJSON_CreateObject();
-	cJSON_AddStringToObject( reply, "type", "auth" );
-	cJSON_AddStringToObject( reply, "proof", hex );
-	sendPlain( reply );
+	sendHexField( "auth", "proof", deviceProof, sizeof( deviceProof ) );
 
 	if( pairingAuth ) {
 		settings.setPairing( pairing.key, pairing.bridgeID );
@@ -1005,13 +1091,11 @@ static void handleAuth( cJSON *json ) {
 		FirmwareUpdate::markValid();
 		pendingVerify = false;
 	}
-	keysForwarded = 0;
-	swallowKeys   = keysDown != 0;
+	forgetPresses();
 	refreshScreen();
 
 	// The Mac says how keys are reported, if it knows how; until then, keyTap as they come up.
 	repeatingKeys = doubleTapKeys = holdKeys = 0;
-	holdSent = secondPress = tapPending = repeatHeldBack = 0;
 
 	// What the unauthenticated hello left out (the Wi-Fi network).
 	sendStatus( "session" );
@@ -1042,6 +1126,8 @@ static void checkRenamed() {
 
 // MARK: - Setup mode
 
+// Starts the access point and setup page and shows the setup display, ending any update or
+// pairing; reason is for the Mac's log (see sendStatus()).
 static void enterSetupMode( const char *reason ) {
 	if( portal.active() )
 		return;
@@ -1065,13 +1151,14 @@ static void enterSetupMode( const char *reason ) {
 	sendStatus( reason );
 }
 
+// Stops the access point and setup page and shows the keys again.
 static void leaveSetupMode( const char *reason ) {
 	if( !portal.active() )
 		return;
 
 	portal.stop();
 	ESP_LOGI( TAG, "Setup mode off (%s)", reason );
-	swallowKeys  = keysDown != 0;
+	swallowHeldKeys();
 	lastActivity = millis();
 	refreshScreen();
 	sendStatus( reason );
@@ -1093,14 +1180,9 @@ static void factoryReset( const char *reason ) {
 	ESP_LOGW( TAG, "Factory reset (%s)", reason );
 	disableLoopWDT();   // erasing the image cache takes longer than the watchdog allows
 
-	uint8_t center = deckInfo.cols / 2;
-	drawKeys( [&]( uint8_t key ) {
-		if( key == center )
-			drawLine( "Resetting" );
-		else
-			keyImage.fill( 0, 0, 0 );
-	} );
-	uploader.waitIdle( 3000 );   // "Resetting" is on the deck before anything is erased
+	static const char *const kLines[] = { "Resetting" };
+	showCentredText( kLines, 1 );
+	uploader.waitIdle( kUploadWait );   // "Resetting" is on the deck before anything is erased
 
 	portal.stop();
 	if( bridge.isConnected() )
@@ -1122,7 +1204,7 @@ static void factoryReset( const char *reason ) {
 		ESP_LOGE( TAG, "The image cache didn't stop; leaving it" );
 	}
 
-	delay( 200 );
+	delay( kCloseDelay );
 	esp_restart();
 }
 
@@ -1149,7 +1231,7 @@ static void encryptStorage() {
 		refusal = "This chip has no free eFuse key block.";
 	else if( portal.active() )
 		refusal = "Leave setup mode first.";
-	else if( firmware.active() || restartPending || DevOTA::active() )
+	else if( updating() )
 		refusal = "A firmware update is running.";
 	if( refusal ) {
 		ESP_LOGW( TAG, "Not encrypting storage: %s", refusal );
@@ -1161,15 +1243,9 @@ static void encryptStorage() {
 	sendStorageStatus( "encrypting", nullptr );
 	disableLoopWDT();   // the move and the waits add up to more than the watchdog allows
 
-	uint8_t center = deckInfo.cols / 2;
-	drawKeys( [&]( uint8_t key ) {
-		static const char *const kLines[] = { "Encrypting", "storage" };
-		if( key == center )
-			keyImage.drawText( kLines, 2 );
-		else
-			keyImage.fill( 0, 0, 0 );
-	} );
-	uploader.waitIdle( 3000 );
+	static const char *const kLines[] = { "Encrypting", "storage" };
+	showCentredText( kLines, 2 );
+	uploader.waitIdle( kUploadWait );
 	cache.persistNow();   // the image cache is on LittleFS, not NVS; nothing of it is lost
 
 	const char        *error   = nullptr;
@@ -1178,8 +1254,7 @@ static void encryptStorage() {
 		ESP_LOGE( TAG, "Not encrypting storage: %s", error );
 		sendStorageStatus( "error", error );
 		enableLoopWDT();
-		keysToUpload = allKeys( kMaxKeys );   // the key images again, instead of "Encrypting"
-		keysToBlank  = allKeys( kMaxKeys );
+		reshowAllKeys();   // instead of "Encrypting"
 		refreshScreen( true );
 		return;
 	}
@@ -1187,10 +1262,7 @@ static void encryptStorage() {
 		ESP_LOGE( TAG, "%s Restarting.", error );
 	else
 		ESP_LOGI( TAG, "Storage encrypted; restarting" );
-	if( bridge.isConnected() )
-		dropBridge( false );
-	delay( 200 );
-	esp_restart();
+	closeAndRestart();
 }
 
 // Top-left and bottom-right held together for kSetupChordTime.
@@ -1222,10 +1294,11 @@ static void checkSetupChord() {
 
 // MARK: - Messages from the Mac
 
+// A message inside the session.
 static void handleCommand( const char *type, cJSON *json ) {
 	if( strcmp( type, "show" ) == 0 ) {
 		cJSON      *key = cJSON_GetObjectItemCaseSensitive( json, "key" );
-		const char *hex = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "hash" ) );
+		const char *hex = stringField( json, "hash" );
 		Hash        hash;
 		if( cJSON_IsNumber( key ) && key->valueint >= 0 && key->valueint < kMaxKeys && hashFromHex( hex, hash ) ) {
 			ImageCache::Lookup lookup = cache.assign( (uint8_t)key->valueint, hash );
@@ -1251,8 +1324,8 @@ static void handleCommand( const char *type, cJSON *json ) {
 		// Uploads from PlatformIO: the password's SHA-256, sealed for this frame, or nothing
 		// (or an empty passwordHash, as older bridges send) to turn them off. A hash in the
 		// clear isn't accepted: it works as the password.
-		const char *sealedHex = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "sealedHash" ) );
-		const char *plain     = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "passwordHash" ) );
+		const char *sealedHex = stringField( json, "sealedHash" );
+		const char *plain     = stringField( json, "passwordHash" );
 		bool        ok;
 		if( sealedHex && sealedHex[0] ) {
 			uint8_t sealed[Crypto::kSealedHash], hash[32];
@@ -1277,25 +1350,25 @@ static void handleCommand( const char *type, cJSON *json ) {
 		sendStatus( "bridge" );
 
 	} else if( strcmp( type, "setName" ) == 0 ) {
-		if( settings.setName( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "name" ) ) ) )
+		if( settings.setName( stringField( json, "name" ) ) )
 			strlcpy( helloName, settings.name(), sizeof( helloName ) );   // the bridge knows it
 		else
 			ESP_LOGW( TAG, "Bad setName message" );
 
 	} else if( strcmp( type, "setHostname" ) == 0 ) {
 		// "" for the default. Taken at startup (DHCP, mDNS), so a change restarts the device.
-		const char *hostname = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "hostname" ) );
+		const char *hostname = stringField( json, "hostname" );
 		char        before[Settings::kMaxName + 1];
 		strlcpy( before, settings.hostname(), sizeof( before ) );
 		if( !settings.setHostname( hostname ) ) {
 			ESP_LOGW( TAG, "Bad setHostname message" );
 		} else if( strcmp( before, settings.hostname() ) != 0 ) {
 			ESP_LOGI( TAG, "Hostname now %s; restarting to use it", settings.hostname() );
-			hostnameRestartAt = millis() + 500;
+			hostnameRestartAt = millis() + kHostnameRestart;
 		}
 
 	} else if( strcmp( type, "orientation" ) == 0 ) {
-		const char           *value = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "value" ) );
+		const char           *value = stringField( json, "value" );
 		StreamDeck::Transform transform;
 		if( value && ( strcmp( value, "auto" ) == 0 || StreamDeck::transformFromName( value, transform ) ) ) {
 			settings.setOrientation( value );
@@ -1350,7 +1423,7 @@ static void handleCommand( const char *type, cJSON *json ) {
 	} else if( strcmp( type, "wake" ) == 0 ) {
 		if( asleep ) {
 			wake( "bridge" );
-			swallowKeys = keysDown != 0;   // keys held while asleep stay unforwarded
+			swallowHeldKeys();   // keys held while asleep stay unforwarded
 		}
 
 	} else if( strcmp( type, "setupMode" ) == 0 ) {
@@ -1383,8 +1456,8 @@ static void handleCommand( const char *type, cJSON *json ) {
 		else if( !cJSON_IsNumber( size ) || size->valuedouble <= 0 )
 			status.message = "Bad size.";
 		else
-			status = firmware.begin( cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "version" ) ), (size_t)size->valuedouble,
-			                         cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "sha256" ) ),
+			status = firmware.begin( stringField( json, "version" ), (size_t)size->valuedouble,
+			                         stringField( json, "sha256" ),
 			                         cJSON_IsTrue( cJSON_GetObjectItemCaseSensitive( json, "allowDowngrade" ) ) );
 		sendFirmwareStatus( status );
 		refreshScreen();
@@ -1416,11 +1489,11 @@ static void handleUnauthenticated( const char *type, cJSON *json ) {
 		if( pairing.stage != PairingStage::None )
 			cancelPairing( false, "bridge" );
 	} else if( strcmp( type, "noKey" ) == 0 ) {
-		// A bridge with our bridge's ID can't authenticate us (no key, or it's another bridge
-		// we're not paired with): stay connected, idle, so it can show us as here while we
-		// wait to be unpaired (or for it to find its key and authenticate after all).
-		// Unauthenticated, so a stand-in could say it too, but we keep looking for another
-		// bridge with our ID, skipping addresses that said noKey, and move to one that turns up.
+		// A bridge with our bridge's ID can't authenticate us (no key, or another bridge we're
+		// not paired with): stay connected and idle, so it can show us as here until we're
+		// unpaired or it authenticates after all. It's unauthenticated, so a stand-in could
+		// say it too; we keep looking for another bridge with our ID (skipping addresses that
+		// said noKey) and move to one that turns up.
 		if( settings.isPaired() && pairing.stage == PairingStage::None && !bridgeHasNoKey ) {
 			ESP_LOGW( TAG, "The bridge has no key for us; staying connected, and looking for another" );
 			bridgeHasNoKey = true;
@@ -1432,6 +1505,7 @@ static void handleUnauthenticated( const char *type, cJSON *json ) {
 	}
 }
 
+// A text frame from the bridge: JSON, behind a MAC once the session is up.
 static void handleText( const char *frame, size_t length ) {
 	const char *text = frame;
 	if( session.authenticated() ) {
@@ -1456,7 +1530,7 @@ static void handleText( const char *frame, size_t length ) {
 		ESP_LOGW( TAG, "Unparseable message" );
 		return;
 	}
-	const char *type = cJSON_GetStringValue( cJSON_GetObjectItemCaseSensitive( json, "type" ) );
+	const char *type = stringField( json, "type" );
 	if( !type )
 		type = "";
 
@@ -1496,6 +1570,7 @@ static void handleImage( const uint8_t *data, size_t size ) {
 	}
 }
 
+// A binary frame from the bridge (an image or a firmware chunk); only inside the session.
 static void handleBinary( const uint8_t *frame, size_t length ) {
 	if( !session.authenticated() ) {
 		ESP_LOGW( TAG, "Ignoring binary data before authentication" );
@@ -1524,6 +1599,7 @@ static void handleBinary( const uint8_t *frame, size_t length ) {
 
 // MARK: - Deck
 
+// A key went down: acted on here for our own screens, otherwise forwarded to the Mac.
 static void handleKeyDown( uint8_t key ) {
 	keysDown     |= keyBit( key );
 	lastActivity  = millis();
@@ -1577,16 +1653,16 @@ static void sendHeldKeys() {
 	uint32_t now = millis();
 	for( uint8_t key = 0; key < kMaxKeys; key++ ) {
 		uint32_t bit = keyBit( key );
-		if( ( keysForwarded & repeatingKeys & bit ) && !( repeatHeldBack & bit ) && (int32_t)( now - nextRepeatAt[key] ) >= 0 ) {
+		if( ( keysForwarded & repeatingKeys & bit ) && !( repeatHeldBack & bit ) && reached( nextRepeatAt[key], now ) ) {
 			sendKey( "keyRepeat", key );
 			nextRepeatAt[key] = now + repeatInterval;
 		}
-		if( ( keysForwarded & holdKeys & bit ) && !( holdSent & bit ) && (int32_t)( now - holdAt[key] ) >= 0 ) {
+		if( ( keysForwarded & holdKeys & bit ) && !( holdSent & bit ) && reached( holdAt[key], now ) ) {
 			sendKey( "keyHold", key );
 			holdSent    |= bit;
 			secondPress &= ~bit;
 		}
-		if( ( tapPending & bit ) && (int32_t)( now - tapDueAt[key] ) >= 0 ) {
+		if( ( tapPending & bit ) && reached( tapDueAt[key], now ) ) {
 			tapPending &= ~bit;
 			sendKey( "keyTap", key );
 		}
@@ -1609,6 +1685,7 @@ static void reportPress( uint8_t key ) {
 	}
 }
 
+// A key came up: forwarded (with what kind of press it was) if its down was.
 static void handleKeyUp( uint8_t key ) {
 	keysDown     &= ~keyBit( key );
 	lastActivity  = millis();
@@ -1622,6 +1699,7 @@ static void handleKeyUp( uint8_t key ) {
 		swallowKeys = false;
 }
 
+// A deck plugged in or out, a key down or up (bounce filtered out), or some other USB device.
 static void handleDeckEvent( const StreamDeck::Event &event ) {
 	switch( event.type ) {
 		case StreamDeck::EventType::Connected:
@@ -1690,7 +1768,7 @@ static bool matchesFormat( const uint8_t *image, size_t length ) {
 
 // Hands each key's image to the upload task, which skips any a key already shows.
 static void uploadPendingKeys() {
-	if( !deckConnected || screen != Screen::Normal || deckInfo.format == StreamDeck::Format::None )
+	if( !deckShowsImages() || screen != Screen::Normal )
 		return;
 
 	keysToUpload &= allKeys( deckInfo.keyCount() );   // keys this model doesn't have are never shown
@@ -1705,21 +1783,19 @@ static void uploadPendingKeys() {
 		if( image && matchesFormat( image->data(), image->size() ) ) {
 			uploader.show( key, image, &hash );
 		} else if( blank && keyImage.begin( deckInfo.keySize ) ) {
-			size_t length = 0;
 			keyImage.fill( 0, 0, 0 );
-			const uint8_t *black = keyImage.encode( deckInfo.format, effectiveTransform(), length );
-			if( black )
-				uploader.show( key, makeImage( black, length ), nullptr );
+			uploader.show( key, encodeKeyImage( effectiveTransform() ), nullptr );
 		}
 	}
 }
 
 // MARK: - Timers
 
+// Deadlines: pairing, the bridge's auth, rejoining Wi-Fi, restarts and rollback.
 static void checkTimers() {
 	uint32_t now = millis();
 
-	if( pairing.stage != PairingStage::None && (int32_t)( now - pairing.deadline ) >= 0 )
+	if( pairing.stage != PairingStage::None && reached( pairing.deadline, now ) )
 		cancelPairing( true, "timeout" );
 
 	// A paired device gives a bridge kAuthTimeout to authenticate. One that doesn't (a
@@ -1745,16 +1821,13 @@ static void checkTimers() {
 		wifiDownSince = now;
 	}
 
-	if( hostnameRestartAt && (int32_t)( now - hostnameRestartAt ) >= 0 ) {
+	if( hostnameRestartAt && reached( hostnameRestartAt, now ) ) {
 		disableLoopWDT();
 		cache.persistNow();
-		if( bridge.isConnected() )
-			dropBridge( false );
-		delay( 200 );
-		esp_restart();
+		closeAndRestart();
 	}
 
-	if( restartPending && (int32_t)( now - restartAt ) >= 0 ) {
+	if( restartPending && reached( restartAt, now ) ) {
 		ESP_LOGI( TAG, "Restarting into the new firmware" );
 		disableLoopWDT();            // the waits below can add up to more than its timeout
 		uploader.waitIdle( 2000 );   // "Updating" reaches the deck first
@@ -1797,6 +1870,7 @@ static bool detectComputer() {
 
 // MARK: - Arduino
 
+// Starts everything, and joins Wi-Fi or enters setup mode.
 void setup() {
 	ESP_LOGI( TAG, "ESPDeck %s", firmwareVersion() );
 	// The QR library logs each payload at INFO, which would print the access point's password.
@@ -1859,6 +1933,8 @@ void setup() {
 	enableLoopWDT();
 }
 
+// One pass: the status LED, Wi-Fi and setup mode, the bridge's messages, key events,
+// timers, and uploads.
 void loop() {
 	statusLed.update( pairing.stage == PairingStage::Confirmed ? StatusLed::Mode::PairingConfirmed
 					  : pairingShown()                         ? StatusLed::Mode::Pairing
@@ -1899,13 +1975,10 @@ void loop() {
 	// Encrypting storage for a new device's first network fell back to plain storage after
 	// burning the key (SecureNVS::encryptForSetup()); the next start encrypts it, so restart
 	// once setup is over.
-	if( SecureNVS::restartWanted() && !portal.active() && !firmware.active() && !restartPending && !DevOTA::active() ) {
+	if( SecureNVS::restartWanted() && !portal.active() && !updating() ) {
 		ESP_LOGW( TAG, "Restarting to finish encrypting storage" );
 		disableLoopWDT();
-		if( bridge.isConnected() )
-			dropBridge( false );
-		delay( 200 );
-		esp_restart();
+		closeAndRestart();
 	}
 	if( screen == Screen::Setup && portal.canExit() != setupExitShown )
 		refreshScreen( true );   // add or remove the Exit key
@@ -1963,7 +2036,7 @@ void loop() {
 	// uploads that finished.
 	keysToUpload |= cache.takeReady();
 	for( const Hash &hash : cache.takeMissing() ) {
-		char hex[kHashSize * 2 + 1];
+		char hex[kHashHexSize];
 		hashToHex( hash, hex );
 		sendNeed( hex );
 	}

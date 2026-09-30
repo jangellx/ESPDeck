@@ -19,10 +19,12 @@ private struct KeyClipboard: Codable {
 }
 
 extension UTType {
+	/// A copied key, on the clipboard (KeyClipboard's JSON).
 	nonisolated static let deckKeyAssignment = UTType( exportedAs: "com.tmproductions.espdeck.key-assignment" )
 }
 
 extension DeckController {
+	/// Puts a key on the clipboard: its assignment with its images, and a PNG of how it looks.
 	func copyKey( device id: String, key: Int ) {
 		let assignment = assignment( id, key: key )
 
@@ -50,7 +52,7 @@ extension DeckController {
 		}
 
 		// Under the key's own run of edits, so the update below doesn't add a second step.
-		recordUndo( device: id, "Paste Key", coalesce: "\(id)/\(key)" )
+		recordUndo( device: id, "Paste Key", coalesce: Self.keyTag( device: id, key: key ) )
 		var assignment = clipboard.assignment
 		assignment.slider = nil   // half of a pair pastes as an ordinary key
 		for ( state, name ) in assignment.icons where !name.hasPrefix( KeyAssignment.symbolPrefix ) {

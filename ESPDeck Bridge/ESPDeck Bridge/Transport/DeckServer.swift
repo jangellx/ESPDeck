@@ -17,8 +17,10 @@ import Foundation
 import Network
 import Observation
 
+/// One connection, for as long as it's open.
 typealias ClientID = UUID
 
+/// The WebSocket server; see the file comment.
 @Observable
 final class DeckServer {
 	/// Connections run here, not on the main thread, so the network stack answers the
@@ -42,6 +44,7 @@ final class DeckServer {
 	static let maxHandshakeFrames        = 12
 	static let rateWindow                : TimeInterval = 10
 
+	/// Whether devices can connect, for the status line.
 	enum ListenerState: Equatable {
 		case stopped
 		case listening
@@ -50,19 +53,21 @@ final class DeckServer {
 
 	private(set) var listenerState = ListenerState.stopped
 
-	@ObservationIgnored var onConnect    : ( ( ClientID ) -> Void )?
+	/// A connection that had opened closed, for whatever reason.
 	@ObservationIgnored var onDisconnect : ( ( ClientID ) -> Void )?
 	/// The message, and the exact frame payload it came from (for the hello proof).
 	@ObservationIgnored var onMessage    : ( ( ClientID, DeviceMessage, Data ) -> Void )?
 	/// Every frame sent or received, summarized, for the traffic log.
 	@ObservationIgnored var onTraffic    : ( ( ClientID, TrafficEntry ) -> Void )?
 
+	/// An authenticated connection's key, and each direction's frame counter.
 	private struct Session {
 		let key         : Data
 		var sendCounter : UInt64 = 0
 		var recvCounter : UInt64 = 0
 	}
 
+	/// A connection, and what the limits on unauthenticated ones need to know.
 	private struct Client {
 		let connection  : NWConnection
 		/// The remote address, for the per-host limit.
@@ -75,6 +80,7 @@ final class DeckServer {
 		/// Closed if it hasn't authenticated by then; nil while it waits for the user.
 		var deadline    : Date?
 		var pairing     = false
+		/// Frames since windowStart, for the rate limit.
 		var windowStart = Date()
 		var frames      = 0
 	}
@@ -87,6 +93,7 @@ final class DeckServer {
 	/// Advertised in the Bonjour TXT record so paired devices find their own bridge.
 	@ObservationIgnored private var bridgeID = ""
 
+	/// Listens and advertises as `bridgeID`; tried again every few seconds if it fails.
 	func start( bridgeID: String ) {
 		self.bridgeID = bridgeID
 		guard listener == nil else { return }
@@ -125,6 +132,7 @@ final class DeckServer {
 		}
 	}
 
+	/// Stops listening and closes every connection.
 	func stop() {
 		restartTask?.cancel()
 		sweepTask?.cancel()
@@ -141,10 +149,12 @@ final class DeckServer {
 		listenerState = .stopped
 	}
 
+	/// The client's address, once its connection is ready.
 	func endpoint( of client: ClientID ) -> String? {
 		clients[client]?.endpoint
 	}
 
+	/// Whether the client has a session: only then does anything but the handshake pass.
 	func isAuthenticated( _ client: ClientID ) -> Bool {
 		clients[client]?.session != nil
 	}
@@ -165,6 +175,7 @@ final class DeckServer {
 		clients[client]?.pairing  = pairing
 	}
 
+	/// Tracks the listener, starting it again after a failure.
 	private func listenerStateChanged( _ state: NWListener.State ) {
 		switch state {
 			case .ready:
@@ -182,6 +193,7 @@ final class DeckServer {
 		}
 	}
 
+	/// Starts listening again in 5 seconds.
 	private func scheduleRestart() {
 		restartTask?.cancel()
 		restartTask = Task { [weak self] in
@@ -193,6 +205,8 @@ final class DeckServer {
 
 	// MARK: - Clients
 
+	/// A new connection: refused, or let in with a deadline for its hello, within the limits
+	/// on unauthenticated ones.
 	private func accept( _ connection: NWConnection ) {
 		let host    = Self.describe( connection.endpoint )
 		let waiting = clients.filter { $0.value.session == nil }
@@ -222,6 +236,7 @@ final class DeckServer {
 		connection.start( queue: Self.networkQueue )
 	}
 
+	/// Starts reading once a connection is ready; drops it when it fails or closes.
 	private func connectionStateChanged( _ state: NWConnection.State, client id: ClientID ) {
 		guard let client = clients[id] else { return }
 		switch state {
@@ -230,7 +245,6 @@ final class DeckServer {
 				clients[id]?.endpoint = Self.describe( client.connection.endpoint )
 				print( "[DeckServer] Connected: \(clients[id]?.endpoint ?? "?")" )
 				receive( from: id )
-				onConnect?( id )
 			case .failed( let error ):
 				print( "[DeckServer] Connection failed: \(error)" )
 				drop( id )
@@ -267,6 +281,7 @@ final class DeckServer {
 		}
 	}
 
+	/// Waits for the client's next message.
 	private func receive( from id: ClientID ) {
 		guard let connection = clients[id]?.connection else { return }
 		connection.receiveMessage { [weak self] data, context, _, error in
@@ -276,6 +291,8 @@ final class DeckServer {
 		}
 	}
 
+	/// A message arrived: checked against the limits and the session's MAC, then passed on.
+	/// Reading continues unless the connection was dropped.
 	private func received( _ data: Data?, context: NWConnection.ContentContext?, error: NWError?, from id: ClientID ) {
 		guard clients[id] != nil else { return }
 
@@ -373,6 +390,7 @@ final class DeckServer {
 
 	// MARK: - Sending
 
+	/// Sends a control message; outside a session, only handshake messages go.
 	func send( _ message: HostMessage, to id: ClientID ) {
 		guard let data = try? JSONEncoder().encode( message ) else { return }
 		guard message.isHandshake || isAuthenticated( id ) else {

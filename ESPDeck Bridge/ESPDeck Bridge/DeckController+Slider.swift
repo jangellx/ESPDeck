@@ -11,6 +11,9 @@
 import Foundation
 
 extension DeckController {
+	/// A held slider key stops repeating after this long, in case its release never arrives.
+	static let sliderRepeatLimit: TimeInterval = 60
+
 	// MARK: - Pairs
 
 	/// The levels a key's target can have adjusted (empty for anything but lights and fans).
@@ -32,25 +35,25 @@ extension DeckController {
 			  max( key, partner ) < config.settings.devices[index].keys.count else { return }
 		recordUndo( device: id, "Make Slider" )
 
-		let cols         = max( layout( id ).cols, 1 )
-		let partnerRaises = partner / cols < key / cols || ( partner / cols == key / cols && partner % cols > key % cols )
-		let style        = config.settings.sliderStyle
+		let partnerRaises = Self.raisesByDefault( partner, partner: key, cols: max( layout( id ).cols, 1 ) )
 
 		var keys = config.settings.devices[index].keys
-		if let old = keys[key].slider, old.partner != partner, old.partner < keys.count, keys[old.partner].slider?.partner == key {
-			keys[old.partner] = KeyAssignment()
+		if let old = keys[key].slider?.partner, old != partner, Self.isPartner( old, of: key, in: keys ) {
+			keys[old] = KeyAssignment()
 		}
-		if let old = keys[partner].slider, old.partner != key, old.partner < keys.count, keys[old.partner].slider?.partner == partner {
-			keys[old.partner] = KeyAssignment()
+		if let old = keys[partner].slider?.partner, old != key, Self.isPartner( old, of: partner, in: keys ) {
+			keys[old] = KeyAssignment()
 		}
 
-		let step = keys[key].slider?.step ?? SliderLevel.defaultStep
+		// A key that was a slider already keeps its settings.
+		let step   = keys[key].slider?.step ?? SliderLevel.defaultStep
+		let style  = keys[key].slider?.style ?? config.settings.sliderStyle
 		let facing = keys[key].slider?.labelsFacing ?? true
 		let toEnd  = keys[key].slider?.doubleTapToEnd ?? false
-		keys[key].slider = SliderKey( level: level, raises: !partnerRaises, partner: partner, step: step, style: keys[key].slider?.style ?? style,
+		keys[key].slider = SliderKey( level: level, raises: !partnerRaises, partner: partner, step: step, style: style,
 									  labelsFacing: facing, doubleTapToEnd: toEnd )
 		var other        = KeyAssignment()
-		other.slider     = SliderKey( level: level, raises: partnerRaises, partner: key, step: step, style: keys[key].slider?.style ?? style,
+		other.slider     = SliderKey( level: level, raises: partnerRaises, partner: key, step: step, style: style,
 									  labelsFacing: facing, doubleTapToEnd: toEnd )
 		copyTarget( from: keys[key], to: &other )
 		keys[partner]    = other
@@ -66,7 +69,7 @@ extension DeckController {
 			  let slider = config.settings.devices[index].keys[key].slider else { return }
 		recordUndo( device: id, "Remove Slider" )
 		config.settings.devices[index].keys[key].slider = nil
-		if slider.partner < config.settings.devices[index].keys.count, config.settings.devices[index].keys[slider.partner].slider?.partner == key {
+		if Self.isPartner( slider.partner, of: key, in: config.settings.devices[index].keys ) {
 			config.settings.devices[index].keys[slider.partner] = KeyAssignment()
 		}
 		config.removeUnusedIcons()
@@ -91,7 +94,7 @@ extension DeckController {
 			  let slider = config.settings.devices[index].keys[key].slider else { return }
 		recordUndo( device: id, "Swap Slider Direction" )
 		config.settings.devices[index].keys[key].slider?.raises.toggle()
-		if slider.partner < config.settings.devices[index].keys.count, config.settings.devices[index].keys[slider.partner].slider?.partner == key {
+		if Self.isPartner( slider.partner, of: key, in: config.settings.devices[index].keys ) {
 			config.settings.devices[index].keys[slider.partner].slider?.raises.toggle()
 		}
 		assignmentsChanged( device: id )
@@ -113,8 +116,7 @@ extension DeckController {
 			}
 		}
 
-		if let old = before.slider, old.partner < keys.count, keys[old.partner].slider?.partner == key,
-		   keys[key].slider?.partner != old.partner {
+		if let old = before.slider, Self.isPartner( old.partner, of: key, in: keys ), keys[key].slider?.partner != old.partner {
 			keys[old.partner] = KeyAssignment()
 		}
 		if let slider = keys[key].slider, slider.partner < keys.count, slider.partner != key {
@@ -142,6 +144,12 @@ extension DeckController {
 		}
 	}
 
+	/// Whether `partner` is a key whose slider points back at `key`.
+	static func isPartner( _ partner: Int, of key: Int, in keys: [KeyAssignment] ) -> Bool {
+		partner < keys.count && keys[partner].slider?.partner == key
+	}
+
+	/// Gives a pair's other key the same target and action.
 	private func copyTarget( from source: KeyAssignment, to other: inout KeyAssignment ) {
 		other.kind        = source.kind
 		other.accessoryID = source.accessoryID
@@ -174,7 +182,7 @@ extension DeckController {
 	/// comes up (or a minute passes, in case the release never arrives). With `repeatHere`
 	/// false the device sends keyRepeat itself, and this only waits for the release.
 	func startSlider( device id: String, key: Int, repeatHere: Bool = true ) {
-		let name = "\(id)/\(key)"
+		let name = Self.keyTag( device: id, key: key )
 		sliderRepeats[name]?.cancel()
 		guard assignment( id, key: key ).slider != nil else { return }
 		stepSlider( device: id, key: key )
@@ -189,7 +197,7 @@ extension DeckController {
 		sliderRepeats[name] = Task { [weak self] in
 			try? await Task.sleep( for: .seconds( delay ) )
 			let started = Date()
-			while !Task.isCancelled && Date().timeIntervalSince( started ) < 60 {
+			while !Task.isCancelled && Date().timeIntervalSince( started ) < Self.sliderRepeatLimit {
 				self?.stepSlider( device: id, key: key )
 				try? await Task.sleep( for: .seconds( interval ) )
 			}
@@ -198,23 +206,23 @@ extension DeckController {
 
 	/// The key came up: stop repeating, and log where the level ended.
 	func stopSlider( device id: String, key: Int ) {
-		let name = "\(id)/\(key)"
-		guard let task = sliderRepeats.removeValue( forKey: name ) else { return }
+		guard let task = sliderRepeats.removeValue( forKey: Self.keyTag( device: id, key: key ) ) else { return }
 		task.cancel()
 		let assignment = assignment( id, key: key )
 		guard let slider = assignment.slider, let ref = assignment.sliderRef else { return }
-		let level = home.level( ref ).map { "\(Int( $0.rounded() ))%" } ?? "unknown"
+		let level = home.level( ref ).map( Self.levelText ) ?? "unknown"
 		logEvent( "Key \(key + 1): \(slider.level.title) \(level)", device: id )
 	}
 
 	/// Every repeat of a device's keys, when it disconnects or a chord starts.
 	func stopSliders( device id: String ) {
-		for ( name, task ) in sliderRepeats where name.hasPrefix( "\(id)/" ) {
+		for ( name, task ) in sliderRepeats where name.hasPrefix( "\(id)/" ) {   // this device's keyTags
 			task.cancel()
 			sliderRepeats[name] = nil
 		}
 	}
 
+	/// One step of a slider key; a failed write goes into the log.
 	func stepSlider( device id: String, key: Int ) {
 		home.adjust( assignment( id, key: key ) )
 		if let error = home.takeLevelError() {
@@ -225,7 +233,12 @@ extension DeckController {
 	/// The level a slider key's label shows, e.g. "60%".
 	func sliderLabel( for assignment: KeyAssignment ) -> String? {
 		guard let ref = assignment.sliderRef else { return nil }
-		return home.level( ref ).map { "\(Int( $0.rounded() ))%" }
+		return home.level( ref ).map( Self.levelText )
+	}
+
+	/// A level as keys and the log show it: "60%".
+	static func levelText( _ level: Double ) -> String {
+		"\(Int( level.rounded() ))%"
 	}
 }
 
@@ -288,14 +301,11 @@ extension DeckController {
 		recordUndo( device: id, "Move Keys" )
 		let swapped = isSwapped( keys, moving, partner, cols: cols )
 		var moved   = keys
-		config.settings.devices[index].ensureKey( partnerTarget )
-		moved       = config.settings.devices[index].keys
-		let old     = moved
 		var mapping: [Int: Int] = [ moving: destination, partner: partnerTarget ]
 		let displaced = [ destination, partnerTarget ].filter { $0 != moving && $0 != partner }
 		let vacated   = [ moving, partner ].filter { $0 != destination && $0 != partnerTarget }
 		for ( from, to ) in zip( displaced, vacated ) { mapping[from] = to }
-		for ( from, to ) in mapping { moved[to] = old[from] }
+		for ( from, to ) in mapping { moved[to] = keys[from] }
 		Self.remapSliders( &moved ) { mapping[$0] ?? $0 }
 		config.settings.devices[index].keys = moved
 		orient( index: index, destination, partnerTarget, swapped: swapped, cols: cols )
@@ -314,9 +324,10 @@ extension DeckController {
 		assignmentsChanged( device: move.device )
 	}
 
+	/// Whether a key is one of a Level pair that point at each other.
 	private func isPairedSlider( _ keys: [KeyAssignment], _ key: Int ) -> Bool {
-		guard key < keys.count, let partner = keys[key].slider?.partner, partner < keys.count else { return false }
-		return keys[partner].slider?.partner == key
+		guard key < keys.count, let partner = keys[key].slider?.partner else { return false }
+		return Self.isPartner( partner, of: key, in: keys )
 	}
 
 	/// The key above (or right) raises by default.
@@ -325,6 +336,7 @@ extension DeckController {
 		return row != other ? row < other : key % cols > partner % cols
 	}
 
+	/// The user swapped which key of the pair raises.
 	private func isSwapped( _ keys: [KeyAssignment], _ key: Int, _ partner: Int, cols: Int ) -> Bool {
 		( keys[key].slider?.raises ?? true ) != Self.raisesByDefault( key, partner: partner, cols: cols )
 	}
@@ -344,6 +356,7 @@ extension DeckController {
 	/// moment the key comes up, whatever the network does; older firmware leaves it to the Mac.
 	static let deviceRepeatFirmware = Version( "4.1.0" )!
 
+	/// Whether the device's firmware repeats held keys itself.
 	func repeatsOnDevice( _ device: DeckDevice ) -> Bool {
 		device.firmware.flatMap( Version.init ).map { $0 >= Self.deviceRepeatFirmware } ?? false
 	}
@@ -352,17 +365,19 @@ extension DeckController {
 	/// have a double tap or a hold) and the timings; only when that changed.
 	func sendRepeatKeys( device id: String ) {
 		guard let device = device( id ), device.isOnline, repeatsOnDevice( device ), let settings = settings( id ) else { return }
-		let keys    = settings.keys
+		let keys     = settings.keys
+		let repeats  = keys.indices.filter { keys[$0].slider != nil }
+		let delay    = Int( settings.repeatDelay * 1000 )
+		let interval = Int( 1000 / max( settings.repeatRate, 1 ) )
 		let message: HostMessage
 		if device.status.presses == true {
-			message = .keyModes( repeat: keys.indices.filter { keys[$0].slider != nil },
+			message = .keyModes( repeat: repeats,
 								 doubleTap: keys.indices.filter { keys[$0].slider.map( \.doubleTapToEnd ) ?? ( keys[$0].doubleTap != nil ) },
 								 hold: keys.indices.filter { keys[$0].slider == nil && keys[$0].hold != nil },
-								 delay: Int( settings.repeatDelay * 1000 ), interval: Int( 1000 / max( settings.repeatRate, 1 ) ),
+								 delay: delay, interval: interval,
 								 doubleTapWindow: Int( settings.doubleTapWindow * 1000 ), holdTime: Int( settings.holdTime * 1000 ) )
 		} else {
-			message = .repeatKeys( keys: keys.indices.filter { keys[$0].slider != nil }, delay: Int( settings.repeatDelay * 1000 ),
-								   interval: Int( 1000 / max( settings.repeatRate, 1 ) ) )
+			message = .repeatKeys( keys: repeats, delay: delay, interval: interval )
 		}
 		guard device.sentRepeatKeys != message else { return }
 		device.sentRepeatKeys = message

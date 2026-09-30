@@ -11,10 +11,12 @@
 import Foundation
 
 extension DeckController {
+	/// How many pages the device has; always at least one.
 	func pageCount( device id: String ) -> Int {
 		settings( id )?.pages.count ?? 1
 	}
 
+	/// The page the deck shows, from 0.
 	func currentPage( device id: String ) -> Int {
 		settings( id )?.currentPage ?? 0
 	}
@@ -45,14 +47,13 @@ extension DeckController {
 
 		recordUndo( device: id, "Add Page" )
 		var settings = config.settings.devices[index]
-		settings.ensureKey( lowerRight )
-		var newPage = Array( repeating: KeyAssignment(), count: count )
+		var newPage  = Array( repeating: KeyAssignment(), count: count )
 
 		let current = settings.keys[lowerRight]
 		if !( current.kind == .page && current.action == .nextPage ) {
 			if current.kind != nil || !current.icons.isEmpty || !current.label.isEmpty {
 				var moved = current
-				if let partner = moved.slider?.partner, partner < settings.keys.count, settings.keys[partner].slider?.partner == lowerRight {
+				if let partner = moved.slider?.partner, Self.isPartner( partner, of: lowerRight, in: settings.keys ) {
 					settings.keys[partner].slider = nil   // the pair is split across pages
 				}
 				moved.slider = nil
@@ -70,15 +71,8 @@ extension DeckController {
 
 		settings.pages.insert( DeviceSettings.grid( fromDisplay: newPage, layout: settings.layout ), at: settings.currentPage + 1 )
 		settings.currentPage += 1
-		// Go to Page keys keep pointing at the same pages.
 		let inserted = settings.currentPage + 1   // 1-based
-		for page in settings.pages.indices {
-			for key in settings.pages[page].indices where settings.pages[page][key].kind == .page {
-				if let number = settings.pages[page][key].pageNumber, number >= inserted {
-					settings.pages[page][key].pageNumber = number + 1
-				}
-			}
-		}
+		Self.renumberPageKeys( &settings ) { $0 >= inserted ? $0 + 1 : nil }
 		stopSliders( device: id )
 		config.settings.devices[index] = settings
 		config.removeUnusedIcons()
@@ -105,17 +99,23 @@ extension DeckController {
 		if settings.currentPage > removed || settings.currentPage >= settings.pages.count {
 			settings.currentPage = max( settings.currentPage - 1, 0 )
 		}
-		for page in settings.pages.indices {
-			for key in settings.pages[page].indices where settings.pages[page][key].kind == .page {
-				if let number = settings.pages[page][key].pageNumber, number > removed + 1 {
-					settings.pages[page][key].pageNumber = number - 1
-				}
-			}
-		}
+		Self.renumberPageKeys( &settings ) { $0 > removed + 1 ? $0 - 1 : nil }
 		stopSliders( device: id )
 		config.settings.devices[index] = settings
 		config.removeUnusedIcons()
 		assignmentsChanged( device: id )
+	}
+
+	/// Keeps Go to Page keys pointing at the same pages after one is inserted or removed:
+	/// `renumber` maps a page number (from 1) to its new one, or nil to leave it.
+	private static func renumberPageKeys( _ settings: inout DeviceSettings, _ renumber: ( Int ) -> Int? ) {
+		for page in settings.pages.indices {
+			for key in settings.pages[page].indices where settings.pages[page][key].kind == .page {
+				if let number = settings.pages[page][key].pageNumber, let new = renumber( number ) {
+					settings.pages[page][key].pageNumber = new
+				}
+			}
+		}
 	}
 
 	/// A key running a page command.
@@ -140,7 +140,7 @@ extension DeckController {
 	}
 
 	/// The symbol a page key shows: arrows, or the page's number.
-	func pageSymbol( for assignment: KeyAssignment, device id: String ) -> String {
+	func pageSymbol( for assignment: KeyAssignment ) -> String {
 		switch assignment.action {
 			case .nextPage:     return "chevron.right"
 			case .previousPage: return "chevron.left"

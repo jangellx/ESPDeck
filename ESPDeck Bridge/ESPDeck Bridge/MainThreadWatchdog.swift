@@ -9,6 +9,7 @@
 
 import Foundation
 
+/// Pings the main thread once a second from a thread of its own; see the file comment.
 enum MainThreadWatchdog {
 	/// Calls `report` (on the main thread) after any stall longer than `threshold` seconds.
 	nonisolated static func start( threshold: TimeInterval = 1.5, report: @escaping @Sendable ( TimeInterval ) -> Void ) {

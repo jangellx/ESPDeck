@@ -24,12 +24,14 @@ struct HomeTarget: Identifiable, Hashable {
 	/// The Home an accessory or scene is in.
 	var home        : String? = nil
 
+	/// Kind and IDs joined: unique across every Home and the shortcuts.
 	var id: String {
 		[ kind.rawValue, accessoryID?.uuidString, serviceID?.uuidString, actionSetID?.uuidString, shortcutID ]
 			.compactMap { $0 }
 			.joined( separator: "/" )
 	}
 
+	/// Whether the assignment is bound to this target.
 	func matches( _ assignment: KeyAssignment ) -> Bool {
 		assignment.kind        == kind        &&
 		assignment.accessoryID == accessoryID &&
@@ -39,6 +41,7 @@ struct HomeTarget: Identifiable, Hashable {
 	}
 }
 
+/// Why a key's HomeKit action couldn't run.
 enum HomeActionError: LocalizedError {
 	case noHome
 	case notFound
@@ -55,6 +58,7 @@ enum HomeActionError: LocalizedError {
 	}
 }
 
+/// HomeKit for the whole app; see the file comment.
 @Observable
 final class HomeObserver: NSObject {
 	@ObservationIgnored private let homeManager = HMHomeManager()
@@ -76,6 +80,7 @@ final class HomeObserver: NSObject {
 	@ObservationIgnored var onHomesChanged : ( () -> Void )?
 	/// Called once, when the home has loaded and every watched value has been read.
 	@ObservationIgnored var onReady        : ( () -> Void )?
+	/// The first rebuild has read every watched value.
 	private(set) var isReady = false
 
 	/// Several Homes: pickers and subtitles then name the Home too.
@@ -108,8 +113,9 @@ final class HomeObserver: NSObject {
 		requestRebuild()
 	}
 
+	/// Whether the accessory with this characteristic answers.
 	func isReachable( _ ref: CharacteristicRef ) -> Bool {
-		accessory( ref.accessoryID )?.isReachable ?? false
+		isReachable( accessoryID: ref.accessoryID )
 	}
 
 	/// An accessory in any Home.
@@ -143,6 +149,7 @@ final class HomeObserver: NSObject {
 		}
 	}
 
+	/// Watches `wanted` afresh in the current homes, reading every value once.
 	private func rebuild() async {
 		// Keep the values while re-reading them: clearing them would briefly render every key
 		// as "unknown", and that image would be sent to the deck too.
@@ -185,6 +192,7 @@ final class HomeObserver: NSObject {
 		}
 	}
 
+	/// Stops every notification and delegate; the values go too unless `keepingValues`.
 	func stopWatching( keepingValues: Bool = false ) async {
 		let characteristics = watched.map( \.characteristic )
 		watched.removeAll()
@@ -203,6 +211,7 @@ final class HomeObserver: NSObject {
 		observedHomes.removeAll()
 	}
 
+	/// A characteristic of the service (or, without a service ID, of the first service that has it).
 	private static func characteristic( _ type: String, serviceID: UUID?, in accessory: HMAccessory ) -> HMCharacteristic? {
 		accessory.services
 			.filter { serviceID == nil || $0.uniqueIdentifier == serviceID }
@@ -222,6 +231,7 @@ final class HomeObserver: NSObject {
 		return result
 	}
 
+	/// One Home's accessories (a target per usable service) and scenes, by room, then name.
 	private func targets( in home: HMHome ) -> [HomeTarget] {
 		var result: [HomeTarget] = []
 
@@ -438,6 +448,7 @@ final class HomeObserver: NSObject {
 		return ( target.kind.state( for: value ), value )
 	}
 
+	/// Whether the accessory answers; false when it's gone.
 	func isReachable( accessoryID: UUID? ) -> Bool {
 		accessory( accessoryID )?.isReachable ?? false
 	}
@@ -483,9 +494,9 @@ final class HomeObserver: NSObject {
 			}
 		}
 	}
-
 }
 
+/// New homes, and changes to HomeKit access.
 extension HomeObserver: @MainActor HMHomeManagerDelegate {
 	func homeManagerDidUpdateHomes( _ manager: HMHomeManager ) {
 		homes         = manager.homes
@@ -500,6 +511,7 @@ extension HomeObserver: @MainActor HMHomeManagerDelegate {
 	}
 }
 
+/// Accessories and scenes added, removed or renamed.
 extension HomeObserver: @MainActor HMHomeDelegate {
 	func home( _ home: HMHome, didAdd accessory: HMAccessory ) {
 		requestRebuild()
@@ -529,6 +541,7 @@ extension HomeObserver: @MainActor HMHomeDelegate {
 // documentation promise a queue, so anything else hops to the main queue (in order)
 // instead of asserting. Only Sendable values cross; HomeKit objects are looked up again.
 extension HomeObserver: HMAccessoryDelegate {
+	/// Runs `work` on the main actor: now if this is the main thread, else queued there.
 	nonisolated private func onMain( _ work: @escaping @MainActor @Sendable () -> Void ) {
 		if Thread.isMainThread {
 			MainActor.assumeIsolated { work() }

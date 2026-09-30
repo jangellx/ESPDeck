@@ -10,6 +10,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The Device page: a demo deck's few settings, or a real device's.
 struct DeviceSettingsView: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -20,6 +21,7 @@ struct DeviceSettingsView: View {
 	@State private var copyingDeck      = false
 	@FocusState private var nameFocused: Bool
 
+	/// Sleep After's choices.
 	private static let sleepChoices: [( title: String, seconds: Int )] = [
 		( "Never", 0 ), ( "1 minute", 60 ), ( "2 minutes", 120 ), ( "5 minutes", 300 ), ( "10 minutes", 600 ),
 		( "15 minutes", 900 ), ( "30 minutes", 1800 ), ( "1 hour", 3600 ), ( "2 hours", 7200 ),
@@ -34,24 +36,24 @@ struct DeviceSettingsView: View {
 					form( settings, device )
 				}
 			}
-				.onAppear { syncDrafts( settings ) }
-				.onChange( of: deviceID ) { syncDrafts( controller.settings( deviceID ) ) }
-				.onChange( of: settings.name ) { nameDraft = settings.name }
-				.onChange( of: settings.brightness ) { brightness = Double( settings.brightness ) }
+			.onAppear { syncDrafts( settings ) }
+			.onChange( of: deviceID ) { syncDrafts( controller.settings( deviceID ) ) }
+			.onChange( of: settings.name ) { nameDraft = settings.name }
+			.onChange( of: settings.brightness ) { brightness = Double( settings.brightness ) }
 		}
 	}
 
 	/// Shared with Device ▸ Forget Device.
-	private var confirmingForget: Binding<Bool> {
-		Binding { controller.window.confirmingForget } set: { controller.window.confirmingForget = $0 }
-	}
+	private var confirmingForget: Binding<Bool> { Bindable( controller.window ).confirmingForget }
 
+	/// The name field and brightness slider start from the device's settings.
 	private func syncDrafts( _ settings: DeviceSettings? ) {
 		guard let settings else { return }
 		nameDraft  = settings.name
 		brightness = Double( settings.brightness )
 	}
 
+	/// Renames the device to the field's name; an empty field goes back to the current name.
 	private func commitName( _ settings: DeviceSettings ) {
 		if nameDraft.trimmingCharacters( in: .whitespacesAndNewlines ).isEmpty {
 			nameDraft = settings.name
@@ -94,6 +96,7 @@ struct DeviceSettingsView: View {
 		.formStyle( .grouped )
 	}
 
+	/// The demo deck's model, by name.
 	private var demoModelBinding: Binding<String> {
 		Binding {
 			controller.settings( deviceID )?.layout.model ?? DeckLayout.mini.model
@@ -104,6 +107,7 @@ struct DeviceSettingsView: View {
 		}
 	}
 
+	/// A real device's settings, and what it's doing.
 	@ViewBuilder
 	private func form( _ settings: DeviceSettings, _ device: DeckDevice ) -> some View {
 		let online = device.isOnline
@@ -126,13 +130,13 @@ struct DeviceSettingsView: View {
 					.focused( $nameFocused )
 					.onSubmit { commitName( settings ) }
 					.onChange( of: nameFocused ) { if !nameFocused { commitName( settings ) } }
-				.disabled( !online )
+					.disabled( !online )
 
 				LabeledContent( "Status" ) {
 					let status = controller.status( device: device )
 					HStack( spacing: 6 ) {
 						StatusIndicator( level: status.level )
-						Text( ( status.text.components( separatedBy: ": " ).last ?? status.text ).capitalizedFirst )
+						Text( status.stateText )
 					}
 				}
 				.alignmentGuide( .listRowSeparatorLeading ) { _ in 0 }
@@ -196,57 +200,22 @@ struct DeviceSettingsView: View {
 			.disabled( !online )
 
 			Section {
-				LabeledContent( "Repeat Delay" ) {
-					HStack {
-						Slider( value: Binding {
-							settings.repeatDelay
-						} set: { delay in
-							controller.updateSettings( device: deviceID ) { $0.repeatDelay = ( delay * 10 ).rounded() / 10 }
-						}, in: DeviceSettings.repeatDelayRange, step: 0.1 )
-						.frame( maxWidth: 200 )
-						Text( settings.repeatDelay.formatted( .number.precision( .fractionLength( 1 ) ) ) + " s" )
-							.monospacedDigit()
-							.frame( width: 44, alignment: .trailing )
-					}
+				// Each rounded to its slider's step.
+				SettingSlider( title: "Repeat Delay", value: settings.repeatDelay, range: DeviceSettings.repeatDelayRange, step: 0.1,
+							   text: Self.seconds( settings.repeatDelay, digits: 1 ) ) { delay in
+					controller.updateSettings( device: deviceID ) { $0.repeatDelay = ( delay * 10 ).rounded() / 10 }
 				}
-				LabeledContent( "Repeat Speed" ) {
-					HStack {
-						Slider( value: Binding {
-							settings.repeatRate
-						} set: { rate in
-							controller.updateSettings( device: deviceID ) { $0.repeatRate = rate.rounded() }
-						}, in: DeviceSettings.repeatRateRange, step: 1 )
-						.frame( maxWidth: 200 )
-						Text( "\(Int( settings.repeatRate )) / s" )
-							.monospacedDigit()
-							.frame( width: 44, alignment: .trailing )
-					}
+				SettingSlider( title: "Repeat Speed", value: settings.repeatRate, range: DeviceSettings.repeatRateRange, step: 1,
+							   text: "\(Int( settings.repeatRate )) / s" ) { rate in
+					controller.updateSettings( device: deviceID ) { $0.repeatRate = rate.rounded() }
 				}
-				LabeledContent( "Double-Tap Speed" ) {
-					HStack {
-						Slider( value: Binding {
-							settings.doubleTapWindow
-						} set: { window in
-							controller.updateSettings( device: deviceID ) { $0.doubleTapWindow = ( window * 20 ).rounded() / 20 }
-						}, in: DeviceSettings.doubleTapWindowRange, step: 0.05 )
-						.frame( maxWidth: 200 )
-						Text( settings.doubleTapWindow.formatted( .number.precision( .fractionLength( 2 ) ) ) + " s" )
-							.monospacedDigit()
-							.frame( width: 44, alignment: .trailing )
-					}
+				SettingSlider( title: "Double-Tap Speed", value: settings.doubleTapWindow, range: DeviceSettings.doubleTapWindowRange, step: 0.05,
+							   text: Self.seconds( settings.doubleTapWindow, digits: 2 ) ) { window in
+					controller.updateSettings( device: deviceID ) { $0.doubleTapWindow = ( window * 20 ).rounded() / 20 }
 				}
-				LabeledContent( "Hold Time" ) {
-					HStack {
-						Slider( value: Binding {
-							settings.holdTime
-						} set: { time in
-							controller.updateSettings( device: deviceID ) { $0.holdTime = ( time * 10 ).rounded() / 10 }
-						}, in: DeviceSettings.holdTimeRange, step: 0.1 )
-						.frame( maxWidth: 200 )
-						Text( settings.holdTime.formatted( .number.precision( .fractionLength( 1 ) ) ) + " s" )
-							.monospacedDigit()
-							.frame( width: 44, alignment: .trailing )
-					}
+				SettingSlider( title: "Hold Time", value: settings.holdTime, range: DeviceSettings.holdTimeRange, step: 0.1,
+							   text: Self.seconds( settings.holdTime, digits: 1 ) ) { time in
+					controller.updateSettings( device: deviceID ) { $0.holdTime = ( time * 10 ).rounded() / 10 }
 				}
 			} header: {
 				SectionHeader( "Key Presses" )
@@ -327,6 +296,12 @@ struct DeviceSettingsView: View {
 		}
 	}
 
+	/// "0.4 s": a time in seconds, to `digits` decimal places.
+	private static func seconds( _ value: Double, digits: Int ) -> String {
+		value.formatted( .number.precision( .fractionLength( digits ) ) ) + " s"
+	}
+
+	/// The Stream Deck's model, serial number and firmware, as far as they're known.
 	private func deckDescription( _ settings: DeviceSettings, _ device: DeckDevice ) -> String {
 		guard device.isOnline else { return "\(settings.layout.model) (last seen)" }
 		guard device.deck.connected else { return "Not connected" }
@@ -349,6 +324,7 @@ struct DeviceSettingsView: View {
 		return transform.title
 	}
 
+	/// "auto" or a KeyTransform's raw value.
 	private var orientationBinding: Binding<String> {
 		Binding {
 			controller.settings( deviceID )?.orientation ?? "auto"
@@ -357,6 +333,7 @@ struct DeviceSettingsView: View {
 		}
 	}
 
+	/// Sleep After, in seconds; 0 for never.
 	private var sleepBinding: Binding<Int> {
 		Binding {
 			controller.settings( deviceID )?.sleepTimeout ?? 0
@@ -366,8 +343,32 @@ struct DeviceSettingsView: View {
 	}
 }
 
+/// A setting's slider with its value beside it, for the Key Presses section.
+private struct SettingSlider: View {
+	let title : String
+	let value : Double
+	let range : ClosedRange<Double>
+	let step  : Double
+	/// The value as shown, e.g. "0.4 s".
+	let text  : String
+	let set   : ( Double ) -> Void
+
+	var body: some View {
+		LabeledContent( title ) {
+			HStack {
+				Slider( value: Binding { value } set: { set( $0 ) }, in: range, step: step )
+					.frame( maxWidth: 200 )
+				Text( text )
+					.monospacedDigit()
+					.frame( width: 44, alignment: .trailing )
+			}
+		}
+	}
+}
+
 /// Wording for the Security section.
 private enum StorageText {
+	/// The confirmation's title, naming the device.
 	static func confirmTitle( _ name: String ) -> String { "Encrypt the secrets stored on \(name)?" }
 
 	static let confirmMessage = "This encrypts the Wi-Fi password, pairing key and developer password stored on the dev kit, so someone who takes it and reads its flash can't recover them. Its settings and pairing move across, so it keeps working as it does now.\n\nTurning encryption on is permanent: it burns a one-time key into the chip, so this dev kit always encrypts what it stores from now on. What it stores isn't locked in: you can still change its Wi-Fi network, rename it, pair it again or reset it, and it keeps working and updating as before.\n\nKeep the deck powered for the few seconds it takes. It restarts when it's done."
@@ -399,8 +400,7 @@ private struct SecuritySection: View {
 					if let note = unavailableNote( storage ) {
 						Spacer()
 						Text( note )
-							.font( .caption )
-							.foregroundStyle( .secondary )
+							.secondaryCaption()
 							.multilineTextAlignment( .trailing )
 					}
 				}
@@ -409,8 +409,7 @@ private struct SecuritySection: View {
 				case .encrypting:
 					ProgressView( "Encrypting; the deck restarts when it's done…" )
 				case .failed( let message ):
-					Label( message, systemImage: "exclamationmark.triangle.fill" )
-						.foregroundStyle( .orange )
+					WarningLabel( message )
 				case nil:
 					EmptyView()
 			}
@@ -472,6 +471,7 @@ private struct SecuritySection: View {
 		.padding( .bottom, 6 )
 	}
 
+	/// Stored Secrets' value: Encrypted or Standard, or unknown while offline.
 	private func stateText( _ storage: String? ) -> String {
 		guard device.isOnline else { return "Unknown while offline" }
 		switch storage {
@@ -481,6 +481,7 @@ private struct SecuritySection: View {
 		}
 	}
 
+	/// Why Encrypt Stored Secrets can't be used on this device now, if it can't.
 	private func unavailableNote( _ storage: String? ) -> String? {
 		guard device.isOnline else { return nil }
 		switch storage {
@@ -514,8 +515,7 @@ private struct DeveloperSection: View {
 			if device.isOnline && !supported {
 				Text( allowed ? "This firmware can't get the password safely. Turn uploads off, and update to firmware 4.0.0 or later to turn them on again."
 							  : "Needs firmware 4.0.0 or later." )
-					.font( .caption )
-					.foregroundStyle( .secondary )
+					.secondaryCaption()
 			}
 			if controller.developerPassword != nil {
 				DeveloperPasswordRows( controller: controller )
@@ -590,8 +590,7 @@ private struct DeveloperPasswordRows: View {
 
 		if let result {
 			Text( "\(result) Save the new password as ota_password.txt again." )
-				.font( .caption )
-				.foregroundStyle( .secondary )
+				.secondaryCaption()
 		}
 	}
 
@@ -623,7 +622,7 @@ private struct OwnPasswordSheet: View {
 				Section {
 					SecureField( "Password", text: $password, prompt: Text( "At least 8 characters" ) )
 				} footer: {
-					Text( problem != nil && !password.isEmpty ? problem! : "Replaces this Mac's developer password. Connected devices that allow uploads through PlatformIO get it right away." )
+					Text( ( password.isEmpty ? nil : problem ) ?? "Replaces this Mac's developer password. Connected devices that allow uploads through PlatformIO get it right away." )
 				}
 			}
 			.formStyle( .grouped )
@@ -704,7 +703,7 @@ struct CopyKeysMenu: View {
 		}
 		.disabled( others.isEmpty && ( this?.pages.count ?? 1 ) < 2 )
 		.confirmationDialog( pending?.page == nil ? "Replace this device's keys?" : "Replace this page's keys?",
-							 isPresented: Binding( get: { pending != nil }, set: { if !$0 { pending = nil } } ) ) {
+							 isPresented: Binding( presenting: $pending ) ) {
 			Button( "Replace Keys", role: .destructive ) {
 				if let pending {
 					controller.copyKeys( from: pending.source, to: deviceID, page: pending.page )
@@ -775,6 +774,7 @@ private struct TriggerSection: View {
 		}
 	}
 
+	/// Changes this trigger in the device's settings.
 	private func update( _ change: ( inout SleepTrigger ) -> Void ) {
 		controller.updateSettings( device: deviceID ) { settings in
 			guard let index = settings.sleepTriggers.firstIndex( where: { $0.id == trigger.id } ) else { return }
@@ -782,6 +782,7 @@ private struct TriggerSection: View {
 		}
 	}
 
+	/// One of the trigger's properties, changed through update(_:).
 	private func binding<Value>( _ path: WritableKeyPath<SleepTrigger, Value> ) -> Binding<Value> {
 		Binding {
 			trigger[keyPath: path]
@@ -799,6 +800,7 @@ private struct CommandSection: View {
 	let path       : WritableKeyPath<DeviceSettings, KeyAssignment>
 	let footer     : String
 
+	/// The command as it's set now; empty when there's none.
 	private var command: KeyAssignment {
 		controller.settings( deviceID )?[keyPath: path] ?? KeyAssignment()
 	}
@@ -826,6 +828,7 @@ private struct CommandSection: View {
 		}
 	}
 
+	/// The command's action, for the Action picker.
 	private var actionBinding: Binding<KeyAction> {
 		Binding {
 			command.action
@@ -850,12 +853,10 @@ private struct NetworkNameRow: View {
 		VStack( alignment: .leading, spacing: 6 ) {
 			LabeledContent( "Network Name", value: current )
 			Text( "How it shows up on your network: in your router's list of devices, and as \(current).local." )
-				.font( .caption )
-				.foregroundStyle( Color.secondary )
+				.secondaryCaption()
 			if device.isOnline && device.status.hostname == nil {
 				Text( "Changing it needs firmware 4.1.0 or later." )
-					.font( .caption )
-					.foregroundStyle( Color.secondary )
+					.secondaryCaption()
 			} else {
 				HStack {
 					Button( proposed.map { "Change to \u{201C}\($0)\u{201D}" } ?? "Change to Device Name" ) {
@@ -870,8 +871,7 @@ private struct NetworkNameRow: View {
 				}
 				.buttonStyle( .borderless )
 				Text( "The device restarts to use a new name. Depending on your router, the old name can stay in its list for a while, until the device's address is renewed. Uploads through PlatformIO use the new name too." )
-					.font( .caption )
-					.foregroundStyle( Color.secondary )
+					.secondaryCaption()
 			}
 		}
 		.padding( .vertical, 2 )
@@ -882,6 +882,7 @@ private struct NetworkNameRow: View {
 private struct StatusLightSection: View {
 	private enum Style { case solid, pulsing, blinking }
 
+	/// One colour and pattern of the light, and what it means.
 	private struct Entry: Identifiable {
 		let color   : Color
 		let style   : Style
@@ -904,12 +905,7 @@ private struct StatusLightSection: View {
 			ForEach( Self.entries ) { entry in
 				HStack( spacing: 12 ) {
 					light( entry )
-					VStack( alignment: .leading, spacing: 1 ) {
-						Text( entry.title )
-						Text( entry.meaning )
-							.font( .caption )
-							.foregroundStyle( Color.secondary )
-					}
+					CaptionedText( entry.title, caption: entry.meaning )
 				}
 				.accessibilityElement( children: .combine )
 			}
@@ -920,6 +916,7 @@ private struct StatusLightSection: View {
 		}
 	}
 
+	/// The light itself: a dot that's steady, pulses, or blinks, as the board's does.
 	private func light( _ entry: Entry ) -> some View {
 		Circle()
 			.fill( entry.color )

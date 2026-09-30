@@ -10,6 +10,7 @@
 
 import Foundation
 
+/// A kind of press, as the device judges it; the raw values are the picker's titles.
 enum PressKind: String, CaseIterable, Identifiable {
 	case tap       = "Tap"
 	case doubleTap = "Double Tap"
@@ -18,6 +19,7 @@ enum PressKind: String, CaseIterable, Identifiable {
 	var id: String { rawValue }
 }
 
+/// A double tap's or hold's target and action: KeyAssignment's fields without its look.
 struct PressAction: Codable, Equatable {
 	var kind            : KeyKind
 	var accessoryID     : UUID?

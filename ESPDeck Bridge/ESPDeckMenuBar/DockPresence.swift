@@ -11,6 +11,8 @@
 import AppKit
 import os
 
+/// Switches the app between accessory and regular as its windows open and close, and
+/// helps its windows come forward.
 @MainActor
 enum DockPresence {
 	/// SceneDelegate.splashTitle: the launch splash doesn't count as an open window.
@@ -39,6 +41,7 @@ enum DockPresence {
 		}
 	}()
 
+	/// Sets the Dock icon and starts following window changes. Safe to call again.
 	static func start() {
 		guard observers.isEmpty else { return }
 		let names: [Notification.Name] = [
@@ -74,6 +77,7 @@ enum DockPresence {
 		}
 	}
 
+	/// Whether a window that counts is open.
 	static var hasOpenWindow: Bool { !openWindows.isEmpty }
 
 	/// A window is about to open. Stay an accessory until it's on screen: WindowServer denies
@@ -94,6 +98,7 @@ enum DockPresence {
 	/// `log show --last 5m --info --predicate 'subsystem == "com.tmproductions.espdeck"'`
 	private static let log = Logger( subsystem: "com.tmproductions.espdeck", category: "activation" )
 
+	/// Logs `event` with the activation policy, the frontmost app and the open windows.
 	static func logState( _ event: String ) {
 		let policy = switch NSApp.activationPolicy() {
 			case .regular:   "regular"
@@ -114,12 +119,19 @@ enum DockPresence {
 		expectingWindowUntil = .distantPast
 		logState( "window appeared" )
 		update()   // regular now that a window is on screen
-		NSApp.activate()
-		NSApp.activate( ignoringOtherApps: true )
+		forceActivate()
 		window.makeKeyAndOrderFront( nil )
 		logState( "activated for window" )
 	}
 
+	/// Activates the app even while another is frontmost. Cooperative activation alone can be
+	/// declined; the deprecated call can't (see MenuBarController.forceActivate()).
+	static func forceActivate() {
+		NSApp.activate()
+		NSApp.activate( ignoringOtherApps: true )
+	}
+
+	/// Closes every window that counts, as if with its close button.
 	static func closeWindows() {
 		expectingWindowUntil = .distantPast
 		for window in openWindows {

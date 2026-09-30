@@ -10,6 +10,7 @@ import HomeKit
 import Observation
 import SwiftUI
 
+/// The app's hub: owns the settings, HomeKit and the server, and ties them to the devices.
 @Observable
 final class DeckController {
 	let config = ConfigStore()
@@ -76,13 +77,26 @@ final class DeckController {
 	@ObservationIgnored var clientDevices         : [ClientID: String] = [:]
 	/// This Mac's host name, for the deck while pairing; see bridgeName.
 	@ObservationIgnored var hostName              : String?
-	/// Nothing goes to the devices until HomeKit has names and values (or 10 s pass), so
-	/// launch doesn't send each key twice: once half-rendered, once for real.
+	/// Nothing goes to the devices until HomeKit has names and values (or pushHoldLimit
+	/// passes), so launch doesn't send each key twice: once half-rendered, once for real.
 	@ObservationIgnored private var holdingPushes = true
 	/// Last state seen by each sleep trigger, to act only on changes.
 	@ObservationIgnored private var triggerStates : [UUID: KeyState] = [:]
-	private static let recentLimit = 96
+	/// Rendered images kept per device for answering `need`, beyond those the keys show.
+	private static let recentLimit     = 96
+	/// The longest pushes wait for HomeKit at launch (holdingPushes).
+	private static let pushHoldLimit   : Duration = .seconds( 10 )
+	/// How long edits from the configuration UI settle before the images go out (deferPush).
+	private static let pushDelay       : Duration = .milliseconds( 400 )
+	/// The progress bar gives up after this long without a `shown`.
+	private static let progressTimeout : TimeInterval = 30
 
+	/// "device/key": how per-key state (repeats, commands in flight, runs of undo) is keyed.
+	static func keyTag( device id: String, key: Int ) -> String {
+		"\(id)/\(key)"
+	}
+
+	/// Wires up HomeKit, the server and the menu bar, and starts everything running.
 	func start() {
 		home.onChange = { [weak self] ref in
 			self?.valueChanged( ref )
@@ -127,7 +141,7 @@ final class DeckController {
 			MainActor.assumeIsolated { self?.reportStall( lag ) }
 		}
 		Task { [weak self] in
-			try? await Task.sleep( for: .seconds( 10 ) )
+			try? await Task.sleep( for: Self.pushHoldLimit )
 			self?.releasePushes()
 		}
 
@@ -144,6 +158,7 @@ final class DeckController {
 		}
 	}
 
+	/// Closes every connection and stops watching HomeKit, before the app quits.
 	func stop() async {
 		server.stop()
 		await home.stopWatching()
@@ -151,10 +166,12 @@ final class DeckController {
 
 	// MARK: - Lookup
 
+	/// A configured device's live state.
 	func device( _ id: String ) -> DeckDevice? {
 		devices.first { $0.id == id }
 	}
 
+	/// A configured device's settings.
 	func settings( _ id: String ) -> DeviceSettings? {
 		config.settings.devices.first { $0.id == id }
 	}
@@ -164,12 +181,15 @@ final class DeckController {
 		device( id )?.deck.layout ?? settings( id )?.layout ?? .mini
 	}
 
+	/// A key of the page the device shows; an empty one if there's no such key.
 	func assignment( _ id: String, key: Int ) -> KeyAssignment {
 		settings( id )?.key( key ) ?? KeyAssignment()
 	}
 
 	// MARK: - Key configuration
 
+	/// Edits a key of the page the device shows, as one undo step with the edits to the same
+	/// key around it. Its Level partner follows.
 	func update( device id: String, key: Int, _ change: ( inout KeyAssignment ) -> Void ) {
 		guard let index = config.settings.deviceIndex( id ) else { return }
 		guard key < config.settings.devices[index].keys.count else { return }   // not on this deck
@@ -177,14 +197,15 @@ final class DeckController {
 		var after  = before
 		change( &after )
 		guard after != before else { return }
-		recordUndo( device: id, "Edit Key", coalesce: "\(id)/\(key)" )
+		recordUndo( device: id, "Edit Key", coalesce: Self.keyTag( device: id, key: key ) )
 		config.settings.devices[index].keys[key] = after
-		if before.slider != nil || config.settings.devices[index].keys[key].slider != nil {
+		if before.slider != nil || after.slider != nil {
 			syncSliderPartner( device: index, key: key, before: before )
 		}
 		assignmentsChanged( device: id, deferPush: true )
 	}
 
+	/// Imports a dropped image as a state's icon.
 	func setIcon( data: Data, device id: String, key: Int, state: KeyState ) {
 		guard let name = config.importIcon( data ) else {
 			lastError = "That image couldn't be read."
@@ -195,8 +216,9 @@ final class DeckController {
 		render( device: id, key: key )
 	}
 
-	/// Also gives the opposite state (On/Off, Open/Closed, Locked/Unlocked) the matching symbol,
-	/// unless it has an icon of its own that wasn't matched this way.
+	/// Sets an SF Symbol as a state's icon. Also gives the opposite state (On/Off, Open/Closed,
+	/// Locked/Unlocked) the matching symbol, unless it has an icon of its own that wasn't
+	/// matched this way.
 	func setSymbol( _ name: String, device id: String, key: Int, state: KeyState ) {
 		recordUndo( device: id, "Change Icon" )
 		let before = assignment( id, key: key )
@@ -213,6 +235,7 @@ final class DeckController {
 		render( device: id, key: key )
 	}
 
+	/// Takes a state's own icon away, so it falls back to Default's (or the built-in one).
 	func removeIcon( device id: String, key: Int, state: KeyState ) {
 		recordUndo( device: id, "Remove Icon" )
 		config.setIcon( nil, device: id, key: key, state: state )
@@ -229,13 +252,13 @@ final class DeckController {
 		assignmentsChanged( device: id )
 	}
 
-	/// A Level pair's other key is cleared too, unless `keepingPartner`: then it stays as an
-	/// ordinary key for the same accessory.
+	/// Empties a key. A Level pair's other key is cleared too, unless `keepingPartner`: then it
+	/// stays as an ordinary key for the same accessory.
 	func clear( device id: String, key: Int, keepingPartner: Bool = false ) {
 		guard let index = config.settings.deviceIndex( id ), key < config.settings.devices[index].keys.count else { return }
 		recordUndo( device: id, "Clear Key" )
-		if let partner = config.settings.devices[index].keys[key].slider?.partner, partner < config.settings.devices[index].keys.count,
-		   config.settings.devices[index].keys[partner].slider?.partner == key {
+		let keys = config.settings.devices[index].keys
+		if let partner = keys[key].slider?.partner, Self.isPartner( partner, of: key, in: keys ) {
 			if keepingPartner {
 				config.settings.devices[index].keys[partner].slider = nil
 			} else {
@@ -255,7 +278,10 @@ final class DeckController {
 	}
 
 	// MARK: - Device settings (owned by the ESP32)
+	//
+	// Settings mirrored in DeviceSettings change there at once; then the command goes out.
 
+	/// Renames the device; blank names are ignored.
 	func rename( device id: String, to name: String ) {
 		let trimmed = name.trimmingCharacters( in: .whitespacesAndNewlines )
 		guard !trimmed.isEmpty else { return }
@@ -263,6 +289,7 @@ final class DeckController {
 		send( .setName( trimmed ), to: id )
 	}
 
+	/// The display's brightness, in percent.
 	func setBrightness( device id: String, _ value: Int ) {
 		updateMirror( id ) { $0.brightness = value }
 		send( .brightness( value ), to: id )
@@ -275,6 +302,7 @@ final class DeckController {
 		send( .orientation( value ), to: id )
 	}
 
+	/// Seconds without a key press before the deck sleeps; 0 for never.
 	func setSleepTimeout( device id: String, seconds: Int ) {
 		updateMirror( id ) { $0.sleepTimeout = seconds }
 		send( .sleepTimeout( seconds ), to: id )
@@ -285,14 +313,17 @@ final class DeckController {
 		send( .setHostname( hostname ?? "" ), to: id )
 	}
 
+	/// Puts the deck to sleep now.
 	func sleep( device id: String ) {
 		send( .sleep, to: id )
 	}
 
+	/// Wakes the deck now.
 	func wake( device id: String ) {
 		send( .wake, to: id )
 	}
 
+	/// Enters or leaves setup mode, where the keys show the setup page's QR codes.
 	func setSetupMode( device id: String, _ enabled: Bool ) {
 		send( .setupMode( enabled ), to: id )
 	}
@@ -312,10 +343,12 @@ final class DeckController {
 		server.sendDevOTA( passwordHash: enabled ? Self.devOTAHash( developerPasswordCreatingIfNeeded() ) : nil, to: client )
 	}
 
+	/// The password's SHA-256, as devOTA carries it.
 	private static func devOTAHash( _ password: String ) -> Data? {
 		Data( hex: DevOTAPassword.hash( password ) )
 	}
 
+	/// This Mac's developer password, made and stored in the Keychain the first time.
 	@discardableResult
 	func developerPasswordCreatingIfNeeded() -> String {
 		if let developerPassword { return developerPassword }
@@ -338,6 +371,7 @@ final class DeckController {
 		var offline   : [String]
 		var turnedOff : [String] = []
 
+		/// The outcome in a sentence or two, for an alert.
 		var summary: String {
 			let count = updated.count == 1 ? "1 device updated" : "\(updated.count) devices updated"
 			var text  = updated.isEmpty && offline.isEmpty && turnedOff.isEmpty ? "No device allows uploads right now." : "\(count)."
@@ -395,18 +429,20 @@ final class DeckController {
 		return id
 	}
 
-	/// Changes a demo deck's model. Keys past the new size are kept, just not shown.
+	/// Where every key's label goes; drawn here, so it works for demo and offline decks too.
 	func setLabelPosition( device id: String, _ position: LabelPosition ) {
 		updateMirror( id ) { $0.labelPosition = position }
 		renderAll( device: id )
 	}
 
+	/// Changes a demo deck's model. Keys past the new size are kept, just not shown.
 	func setDemoLayout( device id: String, _ layout: DeckLayout ) {
 		guard settings( id )?.isDemo == true else { return }
 		updateMirror( id ) { $0.layout = layout }
 		renderAll( device: id )
 	}
 
+	/// Renames a demo deck, which has no device to tell; blank names are ignored.
 	func renameDemo( device id: String, to name: String ) {
 		let trimmed = name.trimmingCharacters( in: .whitespacesAndNewlines )
 		guard !trimmed.isEmpty, settings( id )?.isDemo == true else { return }
@@ -419,23 +455,17 @@ final class DeckController {
 	/// source can be the same device); without, every page is copied.
 	func copyKeys( from source: String, to destination: String, page: Int? = nil ) {
 		guard let from = settings( source ), let index = config.settings.deviceIndex( destination ) else { return }
+		// Keys are kept by row and column (DeviceSettings.gridColumns), so pages copy as they
+		// are: each deck shows the part that fits, and nothing is lost for a bigger one.
 		if let page {
 			guard page < from.pages.count else { return }
 			recordUndo( device: destination, "Copy Page" )
 			let current = config.settings.devices[index].currentPage
-			config.settings.devices[index].pages[current] = from.pages[page]   // by row and column, like everything else
-			stopSliders( device: destination )
-			config.removeUnusedIcons()
-			assignmentsChanged( device: destination )
-			return
+			config.settings.devices[index].pages[current] = from.pages[page]
+		} else {
+			recordUndo( device: destination, "Copy Keys" )
+			config.settings.devices[index].copyPages( from: from )
 		}
-
-		recordUndo( device: destination, "Copy Keys" )
-		// Keys are kept by row and column (DeviceSettings.gridColumns), so every page copies as
-		// it is: each deck shows the part that fits, and nothing is lost for a bigger one.
-		let pages = from.pages
-		config.settings.devices[index].pages       = pages.isEmpty ? [ [] ] : pages
-		config.settings.devices[index].currentPage = min( from.currentPage, max( pages.count - 1, 0 ) )
 		stopSliders( device: destination )
 		config.removeUnusedIcons()
 		assignmentsChanged( device: destination )
@@ -498,11 +528,14 @@ final class DeckController {
 		server.start( bridgeID: config.settings.bridgeID )
 	}
 
+	/// Changes a device's settings without re-rendering or undo: what the device reported, or
+	/// a setting it keeps itself.
 	private func updateMirror( _ id: String, _ change: ( inout DeviceSettings ) -> Void ) {
 		guard let index = config.settings.deviceIndex( id ) else { return }
 		change( &config.settings.devices[index] )
 	}
 
+	/// Sends a message to a device, if it's connected.
 	func send( _ message: HostMessage, to id: String ) {
 		guard let client = device( id )?.client else { return }
 		server.send( message, to: client )
@@ -510,8 +543,9 @@ final class DeckController {
 
 	// MARK: - Watching HomeKit
 
-	/// `deferPush` batches edits from the configuration UI (e.g. dragging the color
-	/// picker) so the ESP32 only receives the final image.
+	/// After keys or triggers changed: watches what they now name, and re-renders the device
+	/// (or every device). `deferPush` batches edits from the configuration UI (e.g. dragging
+	/// the color picker) so the ESP32 only receives the final image.
 	func assignmentsChanged( device id: String? = nil, deferPush: Bool = false ) {
 		var refs = Set<CharacteristicRef>()
 		for settings in config.settings.devices {
@@ -535,6 +569,8 @@ final class DeckController {
 		}
 	}
 
+	/// A watched value (or its reachability) changed: re-renders the keys showing it, and runs
+	/// sleep triggers.
 	private func valueChanged( _ ref: CharacteristicRef ) {
 		for settings in config.settings.devices {
 			for ( index, key ) in settings.keys.enumerated() where key.characteristicRef == ref || key.alertRef == ref || key.sliderRef == ref {
@@ -544,6 +580,7 @@ final class DeckController {
 		evaluateTriggers( for: ref )
 	}
 
+	/// Sleeps or wakes decks whose triggers watch `ref`, when its state changed to theirs.
 	private func evaluateTriggers( for ref: CharacteristicRef ) {
 		for settings in config.settings.devices {
 			for trigger in settings.sleepTriggers where trigger.source.characteristicRef == ref {
@@ -563,7 +600,6 @@ final class DeckController {
 				}
 
 				let name = home.name( for: trigger.source ) ?? "An accessory"
-				print( "[DeckController] Trigger: \(settings.name) → \(effect.rawValue)" )
 				logEvent( "Trigger: \(name) became \(current.title) → \(effect.title.lowercased()) the deck", device: settings.id )
 				send( effect == .sleep ? .sleep : .wake, to: settings.id )
 			}
@@ -572,6 +608,7 @@ final class DeckController {
 
 	// MARK: - Rendering
 
+	/// The state a key shows now, from HomeKit (or, for an On/Off shortcut, what it last did).
 	func state( device id: String, key: Int ) -> KeyState {
 		let assignment = assignment( id, key: key )
 		guard let kind = assignment.kind else { return .standard }
@@ -585,29 +622,25 @@ final class DeckController {
 
 	/// How a key looks now, or as it would look in `state` (for the Icons previews).
 	func face( device id: String, key: Int, state override: KeyState? = nil ) -> KeyFace {
-		let assignment = assignment( id, key: key )
-		let labelOnTop = settings( id )?.labelPosition == .top
+		let assignment  = assignment( id, key: key )
+		var face        = KeyFace()
+		face.labelOnTop = settings( id )?.labelPosition == .top
+		face.background = assignment.backgroundColor.flatMap( Color.init( hex: ) )
 		guard let kind = assignment.kind else {
 			// Not bound to anything, but it can still carry an icon and a label.
-			var face = KeyFace()
-			face.labelOnTop = labelOnTop
-			face.background = assignment.backgroundColor.flatMap( Color.init( hex: ) )
-			face.label      = assignment.showLabel && !assignment.label.isEmpty ? assignment.label : nil
+			face.label = assignment.showLabel && !assignment.label.isEmpty ? assignment.label : nil
 			applyCustomIcon( assignment.iconName( for: .standard ), to: &face )
 			return face
 		}
 
 		let state = override ?? state( device: id, key: key )
-		var face  = KeyFace()
-		face.labelOnTop = labelOnTop
 		// The key accessory's (the first one chosen) look, as near as HomeKit lets us to Home's.
 		face.symbol     = home.symbol( for: kind, accessoryID: assignment.accessoryID, serviceID: assignment.serviceID, state: state )
 		face.tint       = kind.tint( for: state )
 		face.doorArrow  = kind.doorArrow( for: state )
 		face.shortcutID = assignment.shortcutID
-		face.background = assignment.backgroundColor.flatMap( Color.init( hex: ) )
 		if kind == .page {
-			face.symbol = pageSymbol( for: assignment, device: id )
+			face.symbol = pageSymbol( for: assignment )
 			if assignment.action == .pageNumber {
 				face.pageNumber = currentPage( device: id ) + 1
 			}
@@ -644,12 +677,14 @@ final class DeckController {
 		return face
 	}
 
+	/// Re-renders every key of every device.
 	func renderEverything() {
 		for device in devices {
 			renderAll( device: device.id )
 		}
 	}
 
+	/// Re-renders every key of a device, sizing its key list to its layout first.
 	private func renderAll( device id: String, deferPush: Bool = false ) {
 		guard let device = device( id ) else { return }
 		let count = layout( id ).keyCount
@@ -661,6 +696,7 @@ final class DeckController {
 		}
 	}
 
+	/// Renders one key's image and sends it to the deck, now or after `pushDelay`.
 	private func render( device id: String, key: Int, deferPush: Bool = false ) {
 		guard let device = device( id ), key < device.keys.count else { return }
 		let face = face( device: id, key: key )
@@ -680,10 +716,11 @@ final class DeckController {
 		}
 	}
 
+	/// Sends every key once edits have paused for `pushDelay`.
 	private func schedulePush( _ device: DeckDevice ) {
 		device.pushTask?.cancel()
 		device.pushTask = Task { [weak self, weak device] in
-			try? await Task.sleep( for: .milliseconds( 400 ) )
+			try? await Task.sleep( for: Self.pushDelay )
 			guard !Task.isCancelled, let self, let device else { return }
 			for key in device.keys.indices {
 				push( device, key: key )
@@ -691,6 +728,7 @@ final class DeckController {
 		}
 	}
 
+	/// Keeps a rendered image for answering `need`, up to `recentLimit` besides those shown.
 	private func remember( _ rendered: RenderedKey, in device: DeckDevice ) {
 		if device.recentImages[rendered.hash] == nil {
 			device.recentOrder.append( rendered.hash )
@@ -706,7 +744,7 @@ final class DeckController {
 
 	// MARK: - ESP32
 
-	/// Makes the ESP32 show `keys[key]`, sending the image first if it lacks it.
+	/// HomeKit is ready (or the wait is over): renders everything and sends it to the decks.
 	private func releasePushes() {
 		guard holdingPushes else { return }
 		holdingPushes = false
@@ -718,6 +756,8 @@ final class DeckController {
 		}
 	}
 
+	/// Makes the ESP32 show `keys[key]`, sending the image first if it lacks it. Only when it
+	/// shows something else, unless `force`.
 	private func push( _ device: DeckDevice, key: Int, force: Bool = false ) {
 		guard !holdingPushes else { return }
 		guard let client = device.client, key < device.keys.count, let rendered = device.keys[key] else { return }
@@ -746,8 +786,9 @@ final class DeckController {
 		// up forever; give up after a while without progress.
 		device.pendingTimeout?.cancel()
 		device.pendingTimeout = Task { [weak device] in
-			try? await Task.sleep( for: .seconds( 30 ) )
-			guard !Task.isCancelled, let device, Date().timeIntervalSince( device.lastProgress ) >= 29 else { return }
+			try? await Task.sleep( for: .seconds( Self.progressTimeout ) )
+			// A second's slack for the timer.
+			guard !Task.isCancelled, let device, Date().timeIntervalSince( device.lastProgress ) >= Self.progressTimeout - 1 else { return }
 			device.clearPending()
 		}
 	}
@@ -762,6 +803,7 @@ final class DeckController {
 		}
 	}
 
+	/// A message from a device: the handshake's until the connection authenticates.
 	private func handle( _ message: DeviceMessage, from client: ClientID, payload: Data ) {
 		guard server.isAuthenticated( client ) else {
 			handleHandshake( message, from: client, payload: payload )
@@ -918,13 +960,13 @@ final class DeckController {
 		for entry in handshakeTraffic {
 			device.record( entry )
 		}
+		let endpoint           = server.endpoint( of: client )
 		device.client          = client
-		device.endpoint        = server.endpoint( of: client )
-		device.lastAddress     = device.endpoint
+		device.lastAddress     = endpoint
 		device.protocolVersion = hello.protocolVersion
 		device.firmware        = hello.firmware
 		device.firmwareBuild   = hello.elfSHA256
-		device.ip              = hello.settings.ip ?? device.endpoint
+		device.ip              = hello.settings.ip ?? endpoint
 		device.deck            = hello.deck
 		device.status          = hello.status
 		device.pressed         = []
@@ -940,9 +982,10 @@ final class DeckController {
 		firmwareReconnected( device )
 		applyPendingRestore( device: hello.id )
 		storageReconnected( device )
-		updates.deviceConnected( hello.id )
+		updates.deviceConnected()
 	}
 
+	/// A connection closed: ends its handshake, or takes its device offline.
 	private func clientDisconnected( _ client: ClientID ) {
 		handshakeEnded( client )
 		guard let id = clientDevices.removeValue( forKey: client ), let device = device( id ), device.client == client else { return }
@@ -959,7 +1002,7 @@ final class DeckController {
 		let assignment = assignment( id, key: key )
 		if let slider = assignment.slider {
 			if kind == .doubleTap && slider.doubleTapToEnd, let level = home.adjust( assignment, toEnd: true ) {
-				logEvent( "Key \(key + 1) double-tapped: \(slider.level.title) \(Int( level.rounded() ))%", device: id )
+				logEvent( "Key \(key + 1) double-tapped: \(slider.level.title) \(Self.levelText( level ))", device: id )
 			}
 			return
 		}
@@ -986,7 +1029,7 @@ final class DeckController {
 		if let id, let key, assignment.slider != nil {
 			stepSlider( device: id, key: key )
 			if let ref = assignment.sliderRef, let level = home.level( ref ) {
-				logEvent( "\(context): \(assignment.slider?.level.title ?? "Level") \(Int( level.rounded() ))%", device: id )
+				logEvent( "\(context): \(assignment.slider?.level.title ?? "Level") \(Self.levelText( level ))", device: id )
 			}
 			return
 		}
@@ -1005,7 +1048,7 @@ final class DeckController {
 		// shortcut that's still running: the second press would otherwise decide Toggle from
 		// the state before the first one landed. This lasts until HomeKit accepts the command
 		// (a fraction of a second), not while a garage door moves.
-		let inFlight = id.flatMap { id in key.map { "\(id)/\($0)" } }
+		let inFlight = id.flatMap { id in key.map { Self.keyTag( device: id, key: $0 ) } }
 		if let inFlight {
 			guard !keysInFlight.contains( inFlight ) else {
 				logEvent( "\(context): ignored; its last command hasn't finished", device: id )
@@ -1090,8 +1133,6 @@ final class DeckController {
 		}
 	}
 
-
-	/// The shortcut's own icon, from memory, then disk, then Shortcuts Events.
 	/// The shortcut's own icon from memory or disk. If neither has it, it's fetched once in
 	/// the background and the keys re-render when it arrives; a failed fetch isn't retried
 	/// until the next launch (retrying on every render used to stall the app).
@@ -1111,7 +1152,6 @@ final class DeckController {
 		}
 		return nil
 	}
-
 
 	/// A One-Shot shortcut just runs. An On/Off one gets "on" or "off" as its input, the state
 	/// the key is switching to, and the key then shows the state the shortcut output
@@ -1159,6 +1199,7 @@ final class DeckController {
 		}
 	}
 
+	/// The state an On/Off shortcut's output names, if it names one.
 	private static func shortcutState( from output: String ) -> KeyState? {
 		switch output.trimmingCharacters( in: .whitespacesAndNewlines ).lowercased() {
 			case "on", "true", "yes", "1":  .on
@@ -1166,7 +1207,6 @@ final class DeckController {
 			default:                        nil
 		}
 	}
-
 
 	// MARK: - Faces
 
@@ -1209,7 +1249,9 @@ final class DeckController {
 
 	// MARK: - Status
 
+	/// A line of status for the menu bar and the sidebar, with its indicator.
 	struct StatusItem: Hashable {
+		/// The indicator; the raw values go to the menu bar plugin.
 		enum Level: Int {
 			case waiting = 0
 			case ok      = 1
@@ -1235,8 +1277,9 @@ final class DeckController {
 
 	/// One device's state in a few words, with its indicator.
 	func status( device: DeckDevice ) -> StatusItem {
-		let name = settings( device.id )?.name ?? device.id
-		if settings( device.id )?.isDemo == true { return StatusItem( text: "\(name): demo deck", level: .demo ) }
+		let settings = settings( device.id )
+		let name     = settings?.name ?? device.id
+		if settings?.isDemo == true { return StatusItem( text: "\(name): demo deck", level: .demo ) }
 		if !device.isOnline, let stuck = stuckConnection( for: device.id ) {
 			return StatusItem( text: "\(name): \(stuck.reason.status)", level: .problem )
 		}
@@ -1265,6 +1308,7 @@ final class DeckController {
 		return nil
 	}
 
+	/// The server's problem, or while there are only demo decks, that it's waiting for one.
 	var serverStatus: StatusItem? {
 		switch server.listenerState {
 			case .listening:          config.settings.devices.allSatisfy( \.isDemo ) ? StatusItem( text: "Waiting for an ESP32…", level: .waiting ) : nil
@@ -1273,6 +1317,7 @@ final class DeckController {
 		}
 	}
 
+	/// Whether HomeKit is available: connected, denied, without a home, or not answered yet.
 	var homeStatus: StatusItem {
 		let authorization = home.authorization
 		if !home.homes.isEmpty {
@@ -1290,6 +1335,7 @@ final class DeckController {
 		[ serverStatus ].compactMap { $0 } + [ homeStatus ] + updates.statusItems
 	}
 
+	/// One deck in the menu bar's deck list.
 	struct DeckMenuEntry: Equatable {
 		var id    : String
 		var title : String
@@ -1318,6 +1364,7 @@ final class DeckController {
 
 	// MARK: - Launch at Login
 
+	/// The login item's state; the raw values are the AppKit bundle's.
 	enum LaunchAtLogin: Int {
 		case off           = 0
 		case on            = 1
@@ -1329,6 +1376,7 @@ final class DeckController {
 		launchAtLogin = macBridge.flatMap { LaunchAtLogin( rawValue: $0.launchAtLoginStatus() ) } ?? .off
 	}
 
+	/// Turns Launch at Login on or off, through the AppKit bundle.
 	func setLaunchAtLogin( _ enabled: Bool ) {
 		macBridge?.setLaunchAtLogin( enabled )
 		refreshLaunchAtLogin()

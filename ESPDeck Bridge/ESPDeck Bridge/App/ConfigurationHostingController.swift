@@ -9,6 +9,7 @@
 
 import SwiftUI
 
+/// The configuration window's root: ConfigurationView, plus key copying, pasting and shift-clicks.
 final class ConfigurationHostingController: UIHostingController<ConfigurationView> {
 	private let controller: DeckController
 
@@ -44,6 +45,7 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		}
 	}
 
+	/// Adds the shift-click recognizer.
 	override func viewDidLoad() {
 		super.viewDidLoad()
 		// Shift-click in the deck preview runs the key. SwiftUI's modifier gestures aren't
@@ -63,6 +65,7 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		controller.previewKeyFrames.first { $0.value.contains( point ) }?.key
 	}
 
+	/// Presses the key under a shift-click while it's held, as on the deck.
 	@objc private func shiftPressed( _ recognizer: UILongPressGestureRecognizer ) {
 		switch recognizer.state {
 			case .began:
@@ -80,6 +83,7 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		}
 	}
 
+	/// Takes focus for key copying, and gives the controller the window's undo manager.
 	override func viewDidAppear( _ animated: Bool ) {
 		super.viewDidAppear( animated )
 		becomeFirstResponder()
@@ -87,6 +91,7 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		controller.undoManager = undoManager   // the window's, which Edit ▸ Undo uses
 	}
 
+	/// Copy and Paste only with a key to act on (and Paste with a key copied).
 	override func canPerformAction( _ action: Selector, withSender sender: Any? ) -> Bool {
 		switch action {
 			case #selector( copy( _: ) ):  controller.focusedKey != nil
@@ -106,11 +111,13 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		}
 	}
 
+	/// Copies the focused key.
 	override func copy( _ sender: Any? ) {
 		guard let focused = controller.focusedKey else { return }
 		controller.copyKey( device: focused.device, key: focused.key )
 	}
 
+	/// Pastes onto the focused key.
 	override func paste( _ sender: Any? ) {
 		guard let focused = controller.focusedKey else { return }
 		controller.pasteKey( device: focused.device, key: focused.key )
@@ -118,6 +125,7 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 }
 
 extension ConfigurationHostingController: UIGestureRecognizerDelegate {
+	/// Only with Shift held, over a key of the deck preview.
 	func gestureRecognizerShouldBegin( _ recognizer: UIGestureRecognizer ) -> Bool {
 		recognizer.modifierFlags.contains( .shift ) && previewKey( at: recognizer.location( in: nil ) ) != nil
 	}

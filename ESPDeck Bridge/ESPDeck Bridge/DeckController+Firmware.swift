@@ -13,10 +13,12 @@ import CryptoKit
 import Foundation
 
 extension DeckController {
+	/// Bytes of the image per Firmware frame.
 	static let firmwareChunkSize = 16 * 1024
 
-	/// allowDowngrade: the user chose this image, so the device may install it even if it's
-	/// older than what it runs.
+	/// Starts sending an image to the device, unless it's in setup mode or the image couldn't
+	/// read its encrypted storage. allowDowngrade: the user chose this image, so the device may
+	/// install it even if it's older than what it runs.
 	func sendFirmware( device id: String, image: Data, version: String, allowDowngrade: Bool = false ) {
 		guard let device = device( id ), let client = device.client, server.isAuthenticated( client ) else { return }
 		guard !device.status.setupMode else {
@@ -67,16 +69,15 @@ extension DeckController {
 				}
 			case .installed:
 				progress.phase = .restarting
-				device.firmwareImage    = nil
-				device.firmwareChunkEnd = nil
+				device.endFirmwareTransfer()
 			case .error:
 				progress.phase = .failed( status.message ?? "The device reported an error." )
-				device.firmwareImage    = nil
-				device.firmwareChunkEnd = nil
+				device.endFirmwareTransfer()
 		}
 		device.firmwareProgress = progress
 	}
 
+	/// Sends the chunk starting at `offset`, and notes where it ends.
 	private func sendChunk( _ image: Data, from offset: Int, device: DeckDevice, client: ClientID ) {
 		guard ( 0..<image.count ).contains( offset ) else { return }
 		let end = min( offset + Self.firmwareChunkSize, image.count )
@@ -84,10 +85,10 @@ extension DeckController {
 		server.sendFirmwareChunk( offset: offset, chunk: image.subdata( in: offset..<end ), total: image.count, to: client )
 	}
 
+	/// Ends the transfer with an error for the progress to show.
 	private func failFirmware( _ device: DeckDevice, _ message: String ) {
 		device.firmwareProgress?.phase = .failed( message )
-		device.firmwareImage    = nil
-		device.firmwareChunkEnd = nil
+		device.endFirmwareTransfer()
 	}
 
 	/// Sends a development image (from a file) that FirmwareImage has checked is ESPDeck's.
@@ -112,14 +113,13 @@ extension DeckController {
 					device.firmwareProgress?.phase = .failed( "The device restarted on firmware \(device.firmware ?? "?"); the update was rolled back." )
 				}
 			case .sending, .downloading:
-				device.firmwareProgress?.phase = .failed( "The connection dropped during the update." )
-				device.firmwareImage    = nil
-				device.firmwareChunkEnd = nil
+				failFirmware( device, "The connection dropped during the update." )
 			case .failed:
 				break
 		}
 	}
 
+	/// A device installing firmware drops its connection to restart; that's expected.
 	func firmwareDisconnected( _ device: DeckDevice ) {
 		if case .installing = device.firmwareProgress?.phase {
 			device.firmwareProgress?.phase = .restarting

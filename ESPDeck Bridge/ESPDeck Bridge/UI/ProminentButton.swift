@@ -9,6 +9,7 @@
 
 import SwiftUI
 
+/// Chooses the button style from the environment's isEnabled.
 private struct ProminentWhenEnabled: ViewModifier {
 	@Environment( \.isEnabled ) private var isEnabled
 

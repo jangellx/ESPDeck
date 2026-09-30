@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -15,6 +16,7 @@
 
 #include "Config.h"
 #include "Text.h"
+#include "Timing.h"
 
 static const char *TAG = "Bridge";
 
@@ -33,12 +35,20 @@ namespace {
 
 	constexpr uint8_t  kOpcodeText      = 0x01;
 	constexpr uint8_t  kOpcodeBinary    = 0x02;
+
+	constexpr size_t   kQueueLength     = 16;      // messages
+	constexpr uint32_t kDiscoveryStack  = 4096;    // bytes
+	constexpr int      kReceiveBuffer   = 4096;    // bytes; larger messages arrive in pieces
+	constexpr int      kClientStack     = 6144;    // bytes, the WebSocket client's task
+	constexpr int      kNetworkTimeout  = 10000;   // ms
+	constexpr uint32_t kSendTimeout     = 5000;    // ms
+	constexpr uint32_t kEnqueueTimeout  = 1000;    // ms
 }
 
 void BridgeClient::begin( const char *hostname ) {
-	queue_ = xQueueCreate( 16, sizeof( Message ) );
+	queue_ = xQueueCreate( kQueueLength, sizeof( Message ) );
 	strlcpy( hostname_, hostname, sizeof( hostname_ ) );
-	xTaskCreate( discoveryTask, "discovery", 4096, this, 1, &discoveryTask_ );
+	xTaskCreate( discoveryTask, "discovery", kDiscoveryStack, this, 1, &discoveryTask_ );
 }
 
 void BridgeClient::release( Message &message ) {
@@ -62,8 +72,7 @@ void BridgeClient::loop() {
 			teardown();
 			if( wasConnected )
 				enqueue( Message::Kind::Disconnected );
-			backoff_     = kMinBackoff;
-			nextAttempt_ = now;
+			retryNow();
 		}
 		return;
 	}
@@ -79,13 +88,13 @@ void BridgeClient::loop() {
 					else
 						scheduleRetry();
 				}
-			} else if( (int32_t)( now - nextAttempt_ ) >= 0 ) {
+			} else if( Timing::reached( nextAttempt_, now ) ) {
 				requestDiscovery();
 			}
 			break;
 
 		case State::Connecting:
-			if( (int32_t)( now - deadline_ ) >= 0 ) {
+			if( Timing::reached( deadline_, now ) ) {
 				ESP_LOGW( TAG, "Connection timed out" );
 				teardown();
 				scheduleRetry();
@@ -107,7 +116,7 @@ void BridgeClient::loop() {
 					switchPending_ = true;
 					enqueue( Message::Kind::Disconnected );
 				}
-			} else if( !switchPending_ && (int32_t)( now - nextLook_ ) >= 0 ) {
+			} else if( !switchPending_ && Timing::reached( nextLook_, now ) ) {
 				nextLook_ = now + kLookInterval;
 				requestDiscovery( true );
 			}
@@ -119,10 +128,7 @@ void BridgeClient::setLookingElsewhere( bool on ) {
 	if( on == lookingElsewhere_ )
 		return;
 	if( on && current_.address ) {
-		bool known = false;
-		for( const Endpoint &entry : noKey_ )
-			known = known || ( entry.address == current_.address && entry.port == current_.port );
-		if( !known ) {
+		if( std::find( std::begin( noKey_ ), std::end( noKey_ ), current_ ) == std::end( noKey_ ) ) {
 			noKey_[noKeyNext_] = current_;
 			noKeyNext_         = ( noKeyNext_ + 1 ) % kMaxNoKey;
 		}
@@ -171,6 +177,7 @@ void BridgeClient::discoveryTask( void *arg ) {
 	static_cast<BridgeClient *>( arg )->runDiscovery();
 }
 
+// The discovery task's loop: one mDNS query per request, the result handed back under the mutex.
 void BridgeClient::runDiscovery() {
 	bool started = false;
 	while( true ) {
@@ -201,10 +208,12 @@ void BridgeClient::runDiscovery() {
 }
 
 namespace {
+	// Whether address is on the subnet of local/mask.
 	bool sameSubnet( const esp_ip4_addr_t &address, uint32_t local, uint32_t mask ) {
 		return mask && ( address.addr & mask ) == ( local & mask );
 	}
 
+	// A TXT record's value, or "" if there's none.
 	const char *txtValue( const mdns_result_t *result, const char *key ) {
 		for( size_t i = 0; i < result->txt_count; i++ ) {
 			if( result->txt[i].key && strcmp( result->txt[i].key, key ) == 0 )
@@ -220,7 +229,7 @@ namespace {
 // avoided are skipped.
 bool BridgeClient::discover( const Request &request, Endpoint &found ) {
 	mdns_result_t *results = nullptr;
-	esp_err_t      err     = mdns_query_ptr( "_deckbridge", "_tcp", kQueryTimeout, kMaxResults, &results );
+	esp_err_t      err     = mdns_query_ptr( kBridgeService, kBridgeProto, kQueryTimeout, kMaxResults, &results );
 	if( err != ESP_OK ) {
 		ESP_LOGW( TAG, "mDNS query failed: %s", esp_err_to_name( err ) );
 		return false;
@@ -240,22 +249,22 @@ bool BridgeClient::discover( const Request &request, Endpoint &found ) {
 		for( const mdns_ip_addr_t *address = result->addr; address; address = address->next ) {
 			if( address->addr.type != ESP_IPADDR_TYPE_V4 || address->addr.u_addr.ip4.addr == 0 )
 				continue;
-			uint32_t ip      = address->addr.u_addr.ip4.addr;
-			bool     avoided = false;
+			Endpoint candidate = { address->addr.u_addr.ip4.addr, result->port };
+			bool     avoided   = false;
 			for( const Avoided &entry : request.avoided ) {
-				if( entry.endpoint.address == ip && entry.endpoint.port == result->port && entry.until > now )
+				if( entry.endpoint == candidate && entry.until > now )
 					avoided = true;
 			}
 			// Looking elsewhere: not an address that has already said it has no key for us.
 			if( request.lookingElsewhere ) {
 				for( const Endpoint &entry : request.skip ) {
-					if( entry.address == ip && entry.port == result->port )
+					if( entry == candidate )
 						avoided = true;
 				}
 			}
 			if( avoided )
 				continue;
-			bool lastGood = request.lastGood.address == ip && request.lastGood.port == result->port;
+			bool lastGood = request.lastGood == candidate;
 			int  score    = ( lastGood ? 2 : 0 ) + ( sameSubnet( address->addr.u_addr.ip4, local, mask ) ? 1 : 0 );
 			if( score > bestScore ) {
 				bestScore   = score;
@@ -287,9 +296,9 @@ void BridgeClient::connect( const Endpoint &endpoint ) {
 
 	esp_websocket_client_config_t config = {};
 	config.uri                    = uri;
-	config.buffer_size            = 4096;
-	config.task_stack             = 6144;
-	config.network_timeout_ms     = 10000;
+	config.buffer_size            = kReceiveBuffer;
+	config.task_stack             = kClientStack;
+	config.network_timeout_ms     = kNetworkTimeout;
 	// A Mac that stops answering pings (its app hung, or it's gone) is dropped within about
 	// 15 s: a ping every 5 s, and no pong within 10 s of the first unanswered one aborts.
 	config.ping_interval_sec      = kPingInterval;
@@ -316,6 +325,7 @@ void BridgeClient::connect( const Endpoint &endpoint ) {
 	deadline_ = millis() + kConnectTimeout;
 }
 
+// Stops the client and drops anything half-received; messages already queued go stale.
 void BridgeClient::teardown() {
 	if( lookingElsewhere_ ) {
 		lookingElsewhere_ = false;
@@ -334,10 +344,17 @@ void BridgeClient::teardown() {
 	state_ = State::Idle;
 }
 
+// The next discovery after the current backoff, which then doubles (up to kMaxBackoff).
 void BridgeClient::scheduleRetry() {
 	nextAttempt_ = millis() + backoff_;
 	ESP_LOGI( TAG, "Retrying in %u s", (unsigned)( backoff_ / 1000 ) );
 	backoff_ = std::min( backoff_ * 2, kMaxBackoff );
+}
+
+// The next discovery straight away, with the backoff reset.
+void BridgeClient::retryNow() {
+	backoff_     = kMinBackoff;
+	nextAttempt_ = millis();
 }
 
 void BridgeClient::setPreferredBridge( const char *bridgeID ) {
@@ -350,7 +367,7 @@ void BridgeClient::markAuthenticated() {
 }
 
 void BridgeClient::avoidCurrent() {
-	if( current_.address == 0 || ( current_.address == lastGood_.address && current_.port == lastGood_.port ) )
+	if( current_.address == 0 || current_ == lastGood_ )
 		return;
 
 	// Replace the entry that expires first.
@@ -371,12 +388,10 @@ void BridgeClient::disconnect( bool retrySoon ) {
 		return;
 	ESP_LOGI( TAG, "Closing the connection" );
 	teardown();
-	if( retrySoon ) {
-		backoff_     = kMinBackoff;
-		nextAttempt_ = millis();
-	} else {
+	if( retrySoon )
+		retryNow();
+	else
 		scheduleRetry();
-	}
 }
 
 bool BridgeClient::nextMessage( Message &message ) {
@@ -415,19 +430,21 @@ bool BridgeClient::nextMessage( Message &message ) {
 bool BridgeClient::sendText( const char *text, size_t length ) {
 	if( state_ != State::Connected || !client_ )
 		return false;
-	return esp_websocket_client_send_text( client_, text, (int)length, pdMS_TO_TICKS( 5000 ) ) >= 0;
+	return esp_websocket_client_send_text( client_, text, (int)length, pdMS_TO_TICKS( kSendTimeout ) ) >= 0;
 }
 
 // MARK: - WebSocket task
 
+// Queues a message for the owner, tagged with the current connection; frees data if the queue stays full.
 void BridgeClient::enqueue( Message::Kind kind, uint8_t *data, size_t size ) {
 	Message message = { kind, data, size, generation_ };
-	if( xQueueSend( queue_, &message, pdMS_TO_TICKS( 1000 ) ) != pdTRUE ) {
+	if( xQueueSend( queue_, &message, pdMS_TO_TICKS( kEnqueueTimeout ) ) != pdTRUE ) {
 		ESP_LOGW( TAG, "Message queue full; dropping a message" );
 		heap_caps_free( data );
 	}
 }
 
+// The WebSocket client's events, on its task.
 void BridgeClient::eventHandler( void *arg, esp_event_base_t, int32_t eventID, void *eventData ) {
 	BridgeClient *self = static_cast<BridgeClient *>( arg );
 	auto         *data = static_cast<esp_websocket_event_data_t *>( eventData );

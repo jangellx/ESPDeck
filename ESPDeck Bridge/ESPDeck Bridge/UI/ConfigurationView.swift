@@ -21,9 +21,11 @@ enum SidebarItem {
 	static let about     = "app:about"
 	static let newPrefix = "new:"
 
+	/// The selection for a new device, by its connection.
 	static func newDevice( _ client: ClientID ) -> String { newPrefix + client.uuidString }
 }
 
+/// The configuration window: the sidebar, and the page for what's selected in it.
 struct ConfigurationView: View {
 	let controller: DeckController
 
@@ -32,8 +34,9 @@ struct ConfigurationView: View {
 
 	private var window: WindowState { controller.window }
 
+	/// The window's sidebar selection, which the menus change too.
 	private var selection: Binding<String?> {
-		Binding { controller.window.selection } set: { controller.window.selection = $0 }
+		Bindable( controller.window ).selection
 	}
 
 	var body: some View {
@@ -80,14 +83,13 @@ struct ConfigurationView: View {
 				}
 			}
 		}
-		.confirmationDialog( "Reset Bridge?", isPresented: Binding { window.confirmingResetBridge } set: { window.confirmingResetBridge = $0 },
-							 titleVisibility: .visible ) {
+		.confirmationDialog( "Reset Bridge?", isPresented: Bindable( window ).confirmingResetBridge, titleVisibility: .visible ) {
 			Button( "Reset Bridge", role: .destructive ) { controller.removeBridge() }
 			Button( "Export First…" ) { window.bridgeTransfer = .export }
 		} message: {
 			Text( "This Mac forgets every device's pairing, the devices and their key layouts, icons, triggers and commands, and the developer password, and starts over as a new bridge. Your decks then need unpairing on their setup pages before they can pair again. To keep them working on another Mac instead, export the bridge first." )
 		}
-		.sheet( item: Binding { window.bridgeTransfer } set: { window.bridgeTransfer = $0 } ) { sheet in
+		.sheet( item: Bindable( window ).bridgeTransfer ) { sheet in
 			switch sheet {
 				case .export: ExportBridgeSheet( controller: controller )
 				case .import: ImportBridgeSheet( controller: controller )
@@ -121,6 +123,7 @@ struct ConfigurationView: View {
 	}
 }
 
+/// Devices, new devices, the app's own pages, and the bridge's status.
 private struct Sidebar: View {
 	let controller          : DeckController
 	@Binding var selection  : String?
@@ -135,10 +138,12 @@ private struct Sidebar: View {
 		controller.devices.filter { $0.isOnline || controller.settings( $0.id )?.isDemo == true }
 	}
 
+	/// Real decks that aren't connected, listed under Not Connected.
 	private var notConnectedDevices: [DeckDevice] {
 		controller.devices.filter { !$0.isOnline && controller.settings( $0.id )?.isDemo != true }
 	}
 
+	/// The selection, ignoring the list's own changes while held (holdSelectionUntil).
 	private var listSelection: Binding<String?> {
 		Binding { selection } set: { item in
 			guard Date() >= holdSelectionUntil else { return }
@@ -152,6 +157,7 @@ private struct Sidebar: View {
 				Section {
 					ForEach( controller.listedNewDevices ) { device in
 						Label {
+							// `.secondary`, not CaptionedText's Color.secondary: it lightens on the selected row.
 							VStack( alignment: .leading, spacing: 1 ) {
 								Text( device.hello.name )
 								Text( device.reason.status )
@@ -215,7 +221,7 @@ private struct Sidebar: View {
 							Text( "USB Setup" )
 							// White count on blue with boards found; a blue magnifying glass while
 							// looking. No animation, so it doesn't pull the eye.
-							let count = controller.usbSetup.boardCount
+							let count = controller.usbSetup.boards.count
 							if count > 0 {
 								Spacer()
 								Text( "\(count)" )
@@ -271,14 +277,11 @@ private struct Sidebar: View {
 					LaunchAtLoginRow( controller: controller )
 				}
 				if let error = controller.lastError {
-					Label( error, systemImage: "exclamationmark.triangle.fill" )
-						.foregroundStyle( .orange )
+					WarningLabel( error )
 						.font( .caption )
 				}
 				if let file = controller.config.unreadableSettings {
-					Label( "The settings couldn't be read, so ESPDeck Bridge started over. The old file is kept as \(file) in its Application Support folder.",
-						   systemImage: "exclamationmark.triangle.fill" )
-						.foregroundStyle( .orange )
+					WarningLabel( "The settings couldn't be read, so ESPDeck Bridge started over. The old file is kept as \(file) in its Application Support folder." )
 						.font( .caption )
 				}
 			} header: {
@@ -288,6 +291,7 @@ private struct Sidebar: View {
 		.listStyle( .sidebar )
 	}
 
+	/// A device's name (and an update arrow), its firmware and state, and its status indicator.
 	@ViewBuilder
 	private func deviceRow( _ device: DeckDevice ) -> some View {
 		let status = controller.status( device: device )
@@ -312,7 +316,7 @@ private struct Sidebar: View {
 				}
 				// Firmware, then the state; an ⓘ explains a state that needs fixing.
 				HStack( spacing: 4 ) {
-					let state = ( status.text.components( separatedBy: ": " ).last ?? "" ).capitalizedFirst
+					let state = status.stateText
 					Text( device.firmware.map { "\($0) · \(state)" } ?? state )
 						.foregroundStyle( .secondary )
 					if let explanation = controller.statusExplanation( device: device ) {
@@ -333,7 +337,6 @@ private struct Sidebar: View {
 /// an explanation in a popover.
 private struct LaunchAtLoginRow: View {
 	let controller : DeckController
-
 
 	var body: some View {
 		let state = controller.launchAtLogin
@@ -378,6 +381,7 @@ struct AddDemoDeckMenu: View {
 	}
 }
 
+/// A device's Keys, Device and Log pages, under a segmented control.
 private struct DeviceDetailView: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -386,13 +390,8 @@ private struct DeviceDetailView: View {
 	private var page: WindowState.Page { controller.window.page }
 	private var selectedKey: Int { controller.window.selectedKey }
 
-	private var pageBinding: Binding<WindowState.Page> {
-		Binding { controller.window.page } set: { controller.window.page = $0 }
-	}
-
-	private var keyBinding: Binding<Int> {
-		Binding { controller.window.selectedKey } set: { controller.window.selectedKey = $0 }
-	}
+	private var pageBinding: Binding<WindowState.Page> { Bindable( controller.window ).page }
+	private var keyBinding: Binding<Int> { Bindable( controller.window ).selectedKey }
 
 	var body: some View {
 		VStack( spacing: 0 ) {
@@ -437,7 +436,8 @@ private struct DeviceDetailView: View {
 	}
 }
 
-/// Under the deck preview, since it applies to every key on the deck.
+/// Where the deck's labels go, and Copy Keys From: under the deck preview, since they apply
+/// to every key on the deck.
 struct LabelPositionControl: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -458,11 +458,13 @@ struct LabelPositionControl: View {
 		}
 	}
 
+	/// Copy Keys From, at its own width.
 	private var copyKeys: some View {
 		CopyKeysMenu( controller: controller, deviceID: deviceID )
 			.fixedSize()
 	}
 
+	/// Top or bottom labels, for every key.
 	private var labels: some View {
 		HStack( spacing: 10 ) {
 			Text( "Labels" )

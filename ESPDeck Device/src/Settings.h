@@ -18,6 +18,7 @@ public:
 	const char *id() const        { return id_; }
 	const char *idSuffix() const  { return suffix_; }
 
+	// The saved Wi-Fi network, if any.
 	bool        hasCredentials() const { return ssid_[0] != '\0'; }
 	const char *ssid() const           { return ssid_; }
 	const char *password() const       { return password_; }
@@ -26,6 +27,7 @@ public:
 	// On a new device, encrypts storage first (encryptsAtSetup()), so the credentials are
 	// never stored in plain flash.
 	void        setCredentials( const char *ssid, const char *password );
+	// The saved network has just been joined.
 	void        markCredentialsWork();
 
 	// Nothing secret stored yet: no network saved and not paired (a new or reset device).
@@ -34,12 +36,14 @@ public:
 	// the setup page, so its first network doesn't encrypt storage. Kept, in plain NVS, until
 	// a factory reset.
 	bool        standardStorage() const { return standardStorage_; }
+	// Stored only while true.
 	void        setStandardStorage( bool standard );
 	// Whether storing credentials now encrypts storage first: a new device with plain
 	// storage and a free eFuse key block, and Standard wasn't chosen.
 	bool        encryptsAtSetup() const;
 
-	// Names are checked with Text::isValidName(); false (and unchanged) if it isn't one.
+	// The device's display name. Names are checked with Text::isValidName(); false (and
+	// unchanged) if it isn't one.
 	const char *name() const { return name_; }
 	bool        setName( const char *name );
 
@@ -55,6 +59,7 @@ public:
 	const char *orientation() const { return orientation_; }
 	void        setOrientation( const char *orientation );
 
+	// How long the deck stays lit without activity before it sleeps.
 	uint32_t    sleepTimeout() const { return sleepTimeout_; }   // seconds, 0 = never
 	void        setSleepTimeout( uint32_t seconds );
 
@@ -72,11 +77,12 @@ public:
 	// Empty or null turns uploads off; otherwise 64 hex digits. False for anything else.
 	bool        setOTAPasswordHash( const char *hash );
 
-	static constexpr size_t kMaxName     = 32;
+	static constexpr size_t kMaxName     = 32;   // bytes, for names and hostnames
 	static constexpr size_t kMaxBridgeID = 63;
 
 private:
 	static bool isValidHostname( const char *hostname );
+	void        setDefaultName();
 
 	char     id_[18]                     = {};
 	char     suffix_[5]                  = {};
@@ -94,5 +100,6 @@ private:
 	char     otaPasswordHash_[65]        = {};
 	bool     standardStorage_            = false;
 
+	// Encrypts NVS before a new device's first network is saved (see Settings.cpp).
 	void     encryptForSetup();
 };

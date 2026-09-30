@@ -30,6 +30,7 @@ enum KeyTransform: String, Codable, CaseIterable, Identifiable {
 	}
 }
 
+/// How the deck takes key images; `none` for a deck without displays (the Pedal).
 enum KeyImageFormat: String, Codable {
 	case bmp
 	case jpeg
@@ -62,6 +63,7 @@ struct DeckLayout: Codable, Equatable {
 }
 
 extension DeckLayout {
+	/// Field by field; anything missing or implausible is the Mini's.
 	init( from decoder: Decoder ) throws {
 		let container = try decoder.container( keyedBy: CodingKeys.self )
 		let mini      = DeckLayout.mini
@@ -74,6 +76,7 @@ extension DeckLayout {
 	}
 }
 
+/// What a sleep trigger does to the deck.
 enum SleepEffect: String, Codable, CaseIterable, Identifiable {
 	case wake
 	case sleep
@@ -106,6 +109,7 @@ struct SleepTrigger: Codable, Equatable, Identifiable {
 	}
 }
 
+/// Where a deck's key labels go.
 enum LabelPosition: String, Codable, CaseIterable, Identifiable {
 	case top, bottom
 
@@ -113,6 +117,7 @@ enum LabelPosition: String, Codable, CaseIterable, Identifiable {
 	var title: String { self == .top ? "Top" : "Bottom" }
 }
 
+/// Everything the Mac keeps about one device (see the file comment).
 struct DeviceSettings: Codable, Equatable, Identifiable {
 	/// Wi-Fi MAC address, e.g. "f4:12:fa:00:00:00".
 	var id            : String
@@ -171,15 +176,14 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		self.name = name
 	}
 
+	/// Field by field. Only the ID is required: without it the device is left out.
 	init( from decoder: Decoder ) throws {
-		// Only the ID is required: without it the device is left out.
 		let container = try decoder.container( keyedBy: CodingKeys.self )
 		id            = try container.decode( String.self, forKey: .id )
 		name          = container.lenient( String.self, forKey: .name ) ?? ""
 		isDemo        = container.lenient( Bool.self, forKey: .isDemo ) ?? false
-		// A key that can't be read becomes an empty one, so the others keep their places.
-		// A key that can't be read becomes an empty one, so the others keep their places.
 		layout        = container.lenient( DeckLayout.self, forKey: .layout ) ?? .mini
+		// A key that can't be read becomes an empty one, so the others keep their places.
 		// Before pages, the keys were one list; before the grid, pages were numbered as the
 		// deck they were set up on numbers its keys (its last layout).
 		if let decoded = try? container.decode( [LenientPage].self, forKey: .pages ), !decoded.isEmpty {
@@ -212,8 +216,13 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	/// The device's original name on the network: "espdeck-67e8", from the last two bytes of
 	/// its MAC address.
 	var defaultHostname: String {
-		let bytes = id.split( separator: ":" ).suffix( 2 ).joined().lowercased()
+		let bytes = idSuffix.lowercased()
 		return bytes.isEmpty ? "espdeck" : "espdeck-\(bytes)"
+	}
+
+	/// The last two bytes of the MAC address, as hex digits: "67e8".
+	private var idSuffix: String {
+		id.split( separator: ":" ).suffix( 2 ).joined()
 	}
 
 	/// A network name made from a device name: "Test Deck" becomes "test-deck". Lowercase
@@ -237,7 +246,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	/// The name the device calls itself until it's renamed: "ESPDeck 67E8", from the last two
 	/// bytes of its MAC address.
 	var defaultName: String {
-		let bytes = id.split( separator: ":" ).suffix( 2 ).joined().uppercased()
+		let bytes = idSuffix.uppercased()
 		return bytes.isEmpty ? "ESPDeck" : "ESPDeck \(bytes)"
 	}
 
@@ -278,20 +287,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		var keys: [KeyAssignment]
 		init( from decoder: Decoder ) throws {
 			var container = try decoder.unkeyedContainer()
-			keys = []
-			while !container.isAtEnd {
-				if let key = try? container.decode( KeyAssignment.self ) {
-					keys.append( key )
-					continue
-				}
-				if ( try? container.decodeNil() ) != true {
-					guard ( try? container.decode( Skipped.self ) ) != nil else { break }
-				}
-				keys.append( KeyAssignment() )
-			}
-		}
-		private struct Skipped: Decodable {
-			init( from decoder: Decoder ) throws {}
+			keys = container.lenientElements( of: KeyAssignment.self, placeholder: KeyAssignment() )
 		}
 	}
 
@@ -353,8 +349,9 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 			while page.count <= grid { page.append( KeyAssignment() ) }
 			var stored = assignment
 			if let partner = assignment.slider?.partner {
+				// A partner the layout doesn't show keeps the grid place it had.
 				stored.slider?.partner = partner == offscreenPartner || partner >= layout.keyCount
-					? ( grid < page.count ? page[grid].slider?.partner ?? offscreenPartner : offscreenPartner )
+					? page[grid].slider?.partner ?? offscreenPartner
 					: gridIndex( partner, layout: layout )
 			}
 			page[grid] = stored
@@ -392,11 +389,14 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		index < keys.count ? keys[index] : KeyAssignment()
 	}
 
-	/// `keys` always has every key of `layout`; there's nothing to grow. (A key past the end
-	/// isn't on the deck, and writing to it is ignored.)
-	mutating func ensureKey( _ index: Int ) {}
+	/// Takes every page from `source`, and the page it shows.
+	mutating func copyPages( from source: DeviceSettings ) {
+		pages       = source.pages.isEmpty ? [ [] ] : source.pages
+		currentPage = min( source.currentPage, max( source.pages.count - 1, 0 ) )
+	}
 }
 
+/// Everything in Settings.json.
 struct BridgeSettings: Codable, Equatable {
 	/// The Home picked before the app covered every Home. Unused; kept so it round-trips.
 	var homeID     : UUID?
@@ -421,6 +421,7 @@ struct BridgeSettings: Codable, Equatable {
 		case keys   // single-deck version
 	}
 
+	/// Field by field; the single-deck version's keys become legacyKeys.
 	init( from decoder: Decoder ) throws {
 		let container = try decoder.container( keyedBy: CodingKeys.self )
 		homeID      = container.lenient( UUID.self, forKey: .homeID )
@@ -447,11 +448,13 @@ struct BridgeSettings: Codable, Equatable {
 		if !pendingRestores.isEmpty { try container.encode( pendingRestores, forKey: .pendingRestores ) }
 	}
 
+	/// Where a device is in `devices`.
 	func deviceIndex( _ id: String ) -> Int? {
 		devices.firstIndex { $0.id == id }
 	}
 }
 
+/// How firmware updates are found and installed.
 enum UpdatePolicy: String, Codable, CaseIterable, Identifiable {
 	case automatic
 	case notify
@@ -468,6 +471,7 @@ enum UpdatePolicy: String, Codable, CaseIterable, Identifiable {
 	}
 }
 
+/// Update preferences, and when updates were last checked for.
 struct UpdateSettings: Codable, Equatable {
 	var firmwarePolicy = UpdatePolicy.notify
 	var lastCheck      : Date?

@@ -20,15 +20,23 @@ extension KeyedDecodingContainer {
 	/// or isn't an array.
 	func lenientArray<T: Decodable>( of type: T.Type, forKey key: Key, placeholder: T? = nil ) -> [T]? {
 		guard var list = try? nestedUnkeyedContainer( forKey: key ) else { return nil }
+		return list.lenientElements( of: type, placeholder: placeholder )
+	}
+}
+
+extension UnkeyedDecodingContainer {
+	/// The rest of the elements that can be read, as lenientArray(of:forKey:placeholder:)
+	/// reads them.
+	mutating func lenientElements<T: Decodable>( of type: T.Type, placeholder: T? = nil ) -> [T] {
 		var elements: [T] = []
-		while !list.isAtEnd {
-			if let element = try? list.decode( T.self ) {
+		while !isAtEnd {
+			if let element = try? decode( T.self ) {
 				elements.append( element )
 				continue
 			}
 			// A failed decode doesn't move past the element, so step over it.
-			if ( try? list.decodeNil() ) != true {
-				guard ( try? list.decode( Skipped.self ) ) != nil else { break }
+			if ( try? decodeNil() ) != true {
+				guard ( try? decode( Skipped.self ) ) != nil else { break }
 			}
 			if let placeholder { elements.append( placeholder ) }
 		}

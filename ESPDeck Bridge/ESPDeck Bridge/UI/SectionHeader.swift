@@ -10,6 +10,7 @@
 
 import SwiftUI
 
+/// A section's title in the label colour, not the form's grey caption.
 struct SectionHeader: View {
 	let title : String
 	/// Sidebar sections keep the sidebar's own smaller font, just not its grey.

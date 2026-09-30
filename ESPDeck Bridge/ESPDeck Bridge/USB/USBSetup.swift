@@ -16,6 +16,7 @@
 import Foundation
 import Observation
 
+/// Finds boards plugged in over USB, and installs, joins, renames and unpairs them.
 @Observable
 final class USBSetup {
 	/// A serial port, described in words where the USB IDs allow.
@@ -33,6 +34,8 @@ final class USBSetup {
 
 		static let espressif = 0x303A
 
+		/// From the AppKit bundle's port list: path, product, vendor, vendor ID, product ID,
+		/// location, and the serial number where there is one.
 		init?( fields: [String] ) {
 			guard fields.count >= 6 else { return nil }
 			path      = fields[0]
@@ -61,6 +64,7 @@ final class USBSetup {
 
 		var isEspressif: Bool { vendorID == Self.espressif }
 
+		/// What's on the port, in words: an ESP32 and its state, or the serial chip's maker.
 		var title: String {
 			switch ( vendorID, productID ) {
 				case ( Self.espressif, 0x1001 ): "ESP32-S3 on its USB port"
@@ -73,6 +77,7 @@ final class USBSetup {
 			}
 		}
 
+		/// The port's device file name, e.g. "cu.usbmodem1101".
 		var fileName: String { ( path as NSString ).lastPathComponent }
 	}
 
@@ -116,6 +121,7 @@ final class USBSetup {
 		var offersChoice: Bool { state == "plain" && setup != "none" }
 	}
 
+	/// Whether and how a board answered being asked what it runs.
 	enum Answer: Equatable {
 		case asking
 		case answered( DeviceInfo )
@@ -125,6 +131,7 @@ final class USBSetup {
 		case notAsked
 	}
 
+	/// A board plugged in, and what's known about it.
 	struct Board: Identifiable, Equatable {
 		var port     : Port
 		var answer   : Answer
@@ -133,14 +140,17 @@ final class USBSetup {
 
 		var id: String { port.path }
 
+		/// What it said about itself, if it answered.
 		var info: DeviceInfo? {
 			if case .answered( let info ) = answer { return info }
 			return nil
 		}
 
+		/// What it said, if it runs ESPDeck.
 		var espDeck: DeviceInfo? { info.flatMap { $0.isESPDeck ? $0 : nil } }
 	}
 
+	/// Where the firmware to install comes from.
 	enum Source: Hashable {
 		case release
 		case file( URL )
@@ -153,6 +163,7 @@ final class USBSetup {
 		var version : String
 	}
 
+	/// How installing firmware is going.
 	enum Install: Equatable {
 		case idle
 		case preparing( String )
@@ -160,6 +171,7 @@ final class USBSetup {
 		case finished( String )
 		case failed( String )
 
+		/// Preparing or running: the board and the rest of the page wait.
 		var isBusy: Bool {
 			switch self {
 				case .preparing, .running: true
@@ -168,14 +180,17 @@ final class USBSetup {
 		}
 	}
 
+	/// A Wi-Fi network the board can see.
 	struct Network: Identifiable, Equatable {
 		var ssid   : String
+		/// Signal strength in dBm; not shown, but a rescan with new strengths counts as a change.
 		var rssi   : Int
 		var secure : Bool
 
 		var id: String { ssid }
 	}
 
+	/// How joining a network is going.
 	enum WiFi: Equatable {
 		case idle
 		case joining( String )
@@ -183,9 +198,18 @@ final class USBSetup {
 		case failed( String )
 	}
 
+	/// How renaming the board is going.
 	enum Rename: Equatable {
 		case idle
 		case saving
+		case failed( String )
+	}
+
+	/// How unpairing a board is going.
+	enum Unpairing: Equatable {
+		case idle
+		case working
+		case done
 		case failed( String )
 	}
 
@@ -215,13 +239,6 @@ final class USBSetup {
 	private(set) var unpairing       = Unpairing.idle
 	/// The board `unpairing` is about.
 	private(set) var unpairingPath   : String?
-
-	enum Unpairing: Equatable {
-		case idle
-		case working
-		case done
-		case failed( String )
-	}
 	private(set) var joinedBoard     : JoinedBoard?
 
 	@ObservationIgnored private var watching           = false
@@ -247,7 +264,7 @@ final class USBSetup {
 		var closed  : String?
 	}
 
-	// Improv (https://www.improv-wifi.com/serial/)
+	/// Improv's packet types, commands and limits (https://www.improv-wifi.com/serial/).
 	private enum Improv {
 		static let typeError  = 0x02
 		static let typeResult = 0x04
@@ -277,8 +294,10 @@ final class USBSetup {
 		self.controller = controller
 	}
 
+	/// The AppKit bundle, which does the serial work; nil on iPad.
 	private var bridge: DeckMenuBarPlugin? { controller?.macBridge }
 
+	/// USB Setup exists only on the Mac.
 	var isAvailable: Bool { bridge != nil }
 
 	/// "Look for boards plugged in over USB". Off, nothing is watched or opened.
@@ -289,9 +308,6 @@ final class USBSetup {
 			newValue ? start() : stop()
 		}
 	}
-
-	/// Boards plugged in, for the sidebar's badge.
-	var boardCount: Int { boards.count }
 
 	/// The board to act on: the only one, or the one picked in the list.
 	var selectedBoard: Board? {
@@ -309,6 +325,7 @@ final class USBSetup {
 		}
 	}
 
+	/// Stops watching, and forgets the boards.
 	private func stop() {
 		guard watching else { return }
 		watching = false
@@ -374,9 +391,19 @@ final class USBSetup {
 		}
 	}
 
+	/// Changes the board on `path`, if it's still plugged in.
 	private func update( _ path: String, _ change: ( inout Board ) -> Void ) {
 		guard let index = boards.firstIndex( where: { $0.port.path == path } ) else { return }
 		change( &boards[index] )
+	}
+
+	/// Changes what the board on `path` said about itself, if it answered.
+	private func updateInfo( _ path: String, _ change: ( inout DeviceInfo ) -> Void ) {
+		update( path ) { board in
+			guard case .answered( var info ) = board.answer else { return }
+			change( &info )
+			board.answer = .answered( info )
+		}
 	}
 
 	// MARK: - The port
@@ -407,12 +434,14 @@ final class USBSetup {
 		return !inbox.contains { $0.closed != nil }
 	}
 
+	/// Closes the port; anything it still sends is ignored.
 	private func closePort() {
 		session += 1
 		inbox = []
 		bridge?.stopImprov()
 	}
 
+	/// Sends an Improv RPC on the open port. False if it couldn't be sent.
 	private func send( _ command: Int, data: Data = Data() ) -> Bool {
 		bridge?.sendImprov( command: command, data: data ) == nil
 	}
@@ -522,20 +551,15 @@ final class USBSetup {
 				unpairing = .failed( "The board didn't answer. Its firmware may be older than 4.1.0, which can't be unpaired over USB: use its setup page, or a factory reset." )
 				return
 			}
-			update( path ) { board in
-				guard case .answered( var info ) = board.answer else { return }
-				info.pairedBridge = paired
-				board.answer      = .answered( info )
-			}
+			updateInfo( path ) { $0.pairedBridge = paired }
 			unpairing = paired.isEmpty ? .done : .failed( "The board is still paired." )
 		}
 	}
 
+	/// Notes how the board on `path` stores its settings, when it said.
 	private func updateStorage( _ path: String, _ storage: Storage? ) {
-		update( path ) { board in
-			guard case .answered( var info ) = board.answer, let storage else { return }
-			info.storage = storage
-			board.answer = .answered( info )
+		updateInfo( path ) { info in
+			if let storage { info.storage = storage }
 		}
 	}
 
@@ -564,6 +588,7 @@ final class USBSetup {
 		source     = .file( url )
 	}
 
+	/// Installs the chosen firmware on the selected board, through its ROM bootloader.
 	func installFirmware() {
 		guard let bridge, let board = selectedBoard, !install.isBusy else { return }
 		let source         = self.source
@@ -637,6 +662,7 @@ final class USBSetup {
 		}
 	}
 
+	/// Stops an install under way.
 	func cancelInstall() {
 		bridge?.cancelFirmwareInstall()
 	}
@@ -655,6 +681,7 @@ final class USBSetup {
 		}
 	}
 
+	/// Why a firmware file can't be used.
 	enum FileProblem: LocalizedError {
 		case tooLarge
 		case notChosen
@@ -700,6 +727,7 @@ final class USBSetup {
 		findNetworks()
 	}
 
+	/// Asks the selected board for the networks it can see.
 	func findNetworks() {
 		guard selectedBoard?.espDeck != nil, !findingNetworks else { return }
 		findingNetworks = true
@@ -762,10 +790,8 @@ final class USBSetup {
 				let name    = boards.first( where: { $0.port.path == path } )?.espDeck?.name ?? info.name
 				joinedBoard = JoinedBoard( path: path, deviceID: board.port.deviceID, name: name )
 				// It saved the network; firmware that can't say which keeps saying nothing.
-				update( path ) { board in
-					guard case .answered( var info ) = board.answer, info.network != nil else { return }
-					info.network = SavedNetwork( ssid: ssid, connected: true )
-					board.answer = .answered( info )
+				updateInfo( path ) { info in
+					if info.network != nil { info.network = SavedNetwork( ssid: ssid, connected: true ) }
 				}
 				// A new board encrypted its storage before saving the network (or kept it Standard).
 				if board.espDeck?.storage != nil {
@@ -780,6 +806,7 @@ final class USBSetup {
 		}
 	}
 
+	/// Why the network name or password can't be sent.
 	struct FieldProblem: Error, Equatable {
 		var message: String
 	}
@@ -824,11 +851,7 @@ final class USBSetup {
 				return nil
 			}
 			if let name = answer?.name {
-				update( path ) { board in
-					guard case .answered( var info ) = board.answer else { return }
-					info.name    = name
-					board.answer = .answered( info )
-				}
+				updateInfo( path ) { $0.name = name }
 				if joinedBoard?.path == path { joinedBoard?.name = name }
 				rename = .idle
 			} else if answer?.error == Improv.unknownCommand {
@@ -842,9 +865,9 @@ final class USBSetup {
 	// MARK: - After Wi-Fi
 
 	/// Where the board that joined a network shows up once it has found this bridge: the
-	/// sidebar item to select, a line saying how it is, and whether it still needs pairing. Found by its device ID
-	/// where its USB port gave it, since a board renamed after it first connected can still
-	/// be listed under its old name; by name otherwise.
+	/// sidebar item to select, a line saying how it is, and whether it still needs pairing.
+	/// Found by its device ID where its USB port gave it, since a board renamed after it first
+	/// connected can still be listed under its old name; by name otherwise.
 	func arrival( of board: JoinedBoard ) -> ( selection: String, status: String, needsPairing: Bool )? {
 		guard let controller else { return nil }
 		// A known device the bridge can't authenticate shows on its own row (stuckConnection).
@@ -873,5 +896,4 @@ final class USBSetup {
 		}
 		return nil
 	}
-
 }

@@ -17,6 +17,7 @@ extension UTType {
 	nonisolated static let espDeckBridge = UTType( exportedAs: "com.tmproductions.espdeck.bridge-export" )
 }
 
+/// Which of the two sheets is showing.
 enum BridgeTransferSheet: String, Identifiable {
 	case export
 	case `import`
@@ -50,6 +51,7 @@ private func devicesText( _ count: Int ) -> String {
 
 // MARK: - Export
 
+/// Export Bridge: a passphrase, whether to remove the bridge afterward, then the save dialog.
 struct ExportBridgeSheet: View {
 	let controller : DeckController
 
@@ -101,8 +103,7 @@ struct ExportBridgeSheet: View {
 
 				if let problem {
 					Section {
-						Label( problem, systemImage: "exclamationmark.triangle.fill" )
-							.foregroundStyle( .orange )
+						WarningLabel( problem )
 					}
 				}
 			}
@@ -175,6 +176,7 @@ struct ExportBridgeSheet: View {
 
 // MARK: - Import
 
+/// Import Bridge: the file, its passphrase, what it holds, then replacing this Mac's bridge.
 struct ImportBridgeSheet: View {
 	let controller : DeckController
 
@@ -195,8 +197,10 @@ struct ImportBridgeSheet: View {
 	/// What importing replaces here, read from the Keychain once.
 	@State private var existing          = ( devices: 0, pairings: 0 )
 
+	/// This Mac has a bridge of its own that importing replaces.
 	private var replacing: Bool { existing.devices > 0 || existing.pairings > 0 }
 
+	/// What importing replaces, in a sentence.
 	private var replacement: String {
 		existing.devices > 0 ? "This replaces this Mac's bridge: its \(devicesText( existing.devices )) and their pairings."
 							 : "This replaces this Mac's bridge and its \(existing.pairings == 1 ? "pairing" : "\(existing.pairings) pairings")."
@@ -238,9 +242,7 @@ struct ImportBridgeSheet: View {
 					}
 
 					Section {
-						Label( "Only one Mac can be this bridge at a time. Quit ESPDeck Bridge on the other Mac or remove the bridge there, or the decks will switch between them.",
-							   systemImage: "exclamationmark.triangle.fill" )
-							.foregroundStyle( .orange )
+						WarningLabel( "Only one Mac can be this bridge at a time. Quit ESPDeck Bridge on the other Mac or remove the bridge there, or the decks will switch between them." )
 						if replacing {
 							Label( replacement, systemImage: "arrow.triangle.2.circlepath" )
 						}
@@ -249,8 +251,7 @@ struct ImportBridgeSheet: View {
 
 				if let problem {
 					Section {
-						Label( problem, systemImage: "exclamationmark.triangle.fill" )
-							.foregroundStyle( .orange )
+						WarningLabel( problem )
 					}
 				}
 			}
@@ -300,6 +301,7 @@ struct ImportBridgeSheet: View {
 		}
 	}
 
+	/// Reads a picked file and checks it's an export this version can open.
 	private func choose( _ url: URL ) {
 		archive    = nil
 		passphrase = ""
@@ -340,6 +342,7 @@ struct ImportBridgeSheet: View {
 		}
 	}
 
+	/// Replaces this Mac's bridge with the decrypted one, and closes the sheet.
 	private func importArchive() {
 		guard let archive else { return }
 		do {

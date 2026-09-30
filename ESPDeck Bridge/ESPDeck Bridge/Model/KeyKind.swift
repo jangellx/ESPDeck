@@ -33,6 +33,7 @@ enum KeyState: String, Codable, CaseIterable, Identifiable {
 		}
 	}
 
+	/// The state's name, as the Icons section shows it.
 	var title: String {
 		switch self {
 			case .standard: "Default"
@@ -41,6 +42,7 @@ enum KeyState: String, Codable, CaseIterable, Identifiable {
 	}
 }
 
+/// What pressing a key does to its target.
 enum KeyAction: String, Codable, CaseIterable, Identifiable {
 	case none
 	case toggle
@@ -75,6 +77,7 @@ enum KeyAction: String, Codable, CaseIterable, Identifiable {
 	}
 }
 
+/// What sort of thing a key is bound to.
 enum KeyKind: String, Codable, CaseIterable, Identifiable {
 	case garageDoor
 	case power
@@ -144,6 +147,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 		}
 	}
 
+	/// The actions a key of this kind can perform, the default first.
 	var actions: [KeyAction] {
 		switch self {
 			case .garageDoor:            [ .toggle, .open, .close, .none ]
@@ -156,6 +160,8 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 		}
 	}
 
+	/// The state a characteristic's value means; `unknown` without one (`standard` for kinds
+	/// that have no state).
 	func state( for value: Any? ) -> KeyState {
 		guard let number = value as? NSNumber else {
 			return self == .scene || self == .shortcut || self == .temperature || self == .page ? .standard : .unknown
@@ -220,25 +226,6 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case .turnOn, .open, .unlock:  true
 			case .turnOff, .close, .lock: false
 			default:                       nil
-		}
-	}
-
-	/// Value to write to `targetCharacteristicType` for an action, given the current display state.
-	func targetValue( for action: KeyAction, current: KeyState ) -> Any? {
-		switch ( self, action ) {
-			case ( .garageDoor, .open ):   return 0
-			case ( .garageDoor, .close ):  return 1
-			case ( .garageDoor, .toggle ): return current == .open || current == .opening ? 1 : 0
-			case ( .power, .turnOn ):      return true
-			case ( .power, .turnOff ):     return false
-			case ( .power, .toggle ):      return current != .on
-			case ( .fan, .turnOn ):        return 1
-			case ( .fan, .turnOff ):       return 0
-			case ( .fan, .toggle ):        return current == .on ? 0 : 1
-			case ( .lock, .unlock ):       return 0
-			case ( .lock, .lock ):         return 1
-			case ( .lock, .toggle ):       return current == .locked ? 0 : 1
-			default:                       return nil
 		}
 	}
 

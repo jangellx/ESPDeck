@@ -16,6 +16,7 @@ import Foundation
 
 /// A connected device that hasn't authenticated.
 struct NewDevice: Identifiable {
+	/// Why it hasn't authenticated.
 	enum Reason {
 		case unpaired
 		case pairedElsewhere
@@ -23,6 +24,7 @@ struct NewDevice: Identifiable {
 		case keyMissing
 		case oldFirmware
 
+		/// What's wrong and what to do about it, for the device's page.
 		var explanation: String {
 			switch self {
 				case .unpaired:        "Not paired yet."
@@ -36,6 +38,7 @@ struct NewDevice: Identifiable {
 		var canPair: Bool { self == .unpaired }
 	}
 
+	/// Where pairing with it has got to, for the New Device page.
 	enum Pairing: Equatable {
 		case idle
 		case waitingForDevice
@@ -95,9 +98,16 @@ extension DeckController {
 	static let authenticationTimeout: TimeInterval = 15
 	/// A little longer than the deck's own 2 minutes, whose pairCancel explains itself.
 	static let pairingTimeout: TimeInterval        = 125
+	/// The connection may stay this much longer than pairingTimeout, so the timeout, which
+	/// explains itself, comes first.
+	static let pairingDeadlineMargin: TimeInterval = 5
+	/// How often a key the Keychain couldn't read is tried again.
+	static let keyRecheckInterval: Duration        = .seconds( 60 )
 	static let maxNewDevices                       = 8
 	private static let maxHandshakeTraffic         = 40
 
+	/// A message on a connection that hasn't authenticated: its hello, authentication, or
+	/// pairing.
 	func handleHandshake( _ message: DeviceMessage, from client: ClientID, payload: Data ) {
 		switch message {
 			case .hello( let hello ):
@@ -110,8 +120,7 @@ extension DeckController {
 			case .pairResponse( let publicKey, let commitment ):
 				guard var state = handshakes[client]?.pairing, state.deviceKey == nil else { return }
 				guard ( try? Curve25519.KeyAgreement.PublicKey( rawRepresentation: publicKey ) ) != nil else {
-					server.send( .pairCancel, to: client )
-					failPairing( client, "The deck sent an invalid key." )
+					abortPairing( client, "The deck sent an invalid key." )
 					return
 				}
 				let nonce        = DeckCrypto.randomBytes( DeckCrypto.nonceSize )
@@ -127,8 +136,7 @@ extension DeckController {
 			case .pairConfirm( let proof ):
 				guard var state = handshakes[client]?.pairing, let key = state.key, let code = state.code else { return }
 				guard DeckCrypto.equal( proof, DeckCrypto.pairConfirmProof( key: key ) ) else {
-					server.send( .pairCancel, to: client )
-					failPairing( client, "Pairing failed: the deck's confirmation didn't match." )
+					abortPairing( client, "Pairing failed: the deck's confirmation didn't match." )
 					return
 				}
 				state.deckConfirmed = true
@@ -149,6 +157,7 @@ extension DeckController {
 		}
 	}
 
+	/// What the deck's pairCancel reason means for the user.
 	private static func pairCancelExplanation( _ reason: String? ) -> String {
 		switch reason {
 			case "deck":      "Pairing was cancelled on the deck."
@@ -162,6 +171,8 @@ extension DeckController {
 
 	// MARK: - Authentication
 
+	/// After the hello: authenticates a device paired with this Mac, or lists it under New
+	/// Devices with why it can't be used yet.
 	private func beginAuthentication( _ client: ClientID ) {
 		guard var handshake = handshakes[client] else { return }
 		let hello = handshake.hello
@@ -193,14 +204,12 @@ extension DeckController {
 	private func recheckKey( _ client: ClientID, deviceID: String ) {
 		Task { [weak self] in
 			while true {
-				try? await Task.sleep( for: .seconds( 60 ) )
+				try? await Task.sleep( for: Self.keyRecheckInterval )
 				// Stops once it's gone, or forgotten here (it'll never have a key again).
-				guard let self, self.newDevices.contains( where: { $0.client == client && $0.reason == .keyMissing } ),
-					  self.settings( deviceID ) != nil else { return }
+				guard let self, self.isWaitingForKey( client ), self.settings( deviceID ) != nil else { return }
 				// Off the main thread: this only runs because the Keychain misbehaved.
 				guard let key = await Task.detached( operation: { PairingKeyStore.read( deviceID ) } ).value else { continue }
-				guard self.newDevices.contains( where: { $0.client == client && $0.reason == .keyMissing } ),
-					  var handshake = self.handshakes[client] else { return }
+				guard self.isWaitingForKey( client ), var handshake = self.handshakes[client] else { return }
 				PairingKeyStore.remember( key, for: deviceID )
 				print( "[Pairing] Found the key for \(deviceID) again; authenticating" )
 				self.newDevices.removeAll { $0.client == client }
@@ -211,6 +220,12 @@ extension DeckController {
 		}
 	}
 
+	/// Still listed as paired with this Mac, but without its key.
+	private func isWaitingForKey( _ client: ClientID ) -> Bool {
+		newDevices.contains { $0.client == client && $0.reason == .keyMissing }
+	}
+
+	/// Sends the Mac's proof of `key` and a fresh nonce; the device has to answer in time.
 	private func sendAuth( _ client: ClientID, key: Data, handshake: inout Handshake ) {
 		guard let deviceNonce = handshake.hello.nonce else { return }
 		let bridgeNonce = DeckCrypto.randomBytes( DeckCrypto.nonceSize )
@@ -220,6 +235,8 @@ extension DeckController {
 		server.send( .auth( nonce: bridgeNonce, proof: DeckCrypto.bridgeProof( key: key, deviceNonce: deviceNonce, bridgeNonce: bridgeNonce ) ), to: client )
 	}
 
+	/// Checks the device's proof. If it holds the key, the session starts and the device is
+	/// adopted; otherwise the connection is dropped.
 	private func finishAuthentication( _ client: ClientID, proof: Data ) {
 		guard let handshake = handshakes[client], let key = handshake.key, let bridgeNonce = handshake.bridgeNonce,
 			  let deviceNonce = handshake.hello.nonce else { return }
@@ -291,13 +308,12 @@ extension DeckController {
 		state.timeout = Task { [weak self] in
 			try? await Task.sleep( for: .seconds( Self.pairingTimeout ) )
 			guard !Task.isCancelled, let self else { return }
-			server.send( .pairCancel, to: client )
-			failPairing( client, "Pairing timed out. Try again, and hold Confirm on the deck within 2 minutes." )
+			abortPairing( client, "Pairing timed out. Try again, and hold Confirm on the deck within 2 minutes." )
 		}
 		let publicKey      = state.privateKey.publicKey.rawRepresentation
 		handshake.pairing  = state
 		handshakes[client] = handshake
-		server.setDeadline( client, in: Self.pairingTimeout + 5, pairing: true )
+		server.setDeadline( client, in: Self.pairingTimeout + Self.pairingDeadlineMargin, pairing: true )
 		setPairing( client, .waitingForDevice )
 		server.send( .pairRequest( bridgeID: config.settings.bridgeID, bridgeName: bridgeName, publicKey: publicKey ), to: client )
 	}
@@ -311,8 +327,7 @@ extension DeckController {
 		guard DeckCrypto.equal( commitment, DeckCrypto.pairCommitment( deviceNonce: deviceNonce, devicePublicKey: deviceKey, macPublicKey: macKey ) ),
 			  let theirs = try? Curve25519.KeyAgreement.PublicKey( rawRepresentation: deviceKey ),
 			  let secret = try? state.privateKey.sharedSecretFromKeyAgreement( with: theirs ) else {
-			server.send( .pairCancel, to: client )
-			failPairing( client, "The deck's answer didn't match what it sent before, so something else may be answering for it. Pairing stopped." )
+			abortPairing( client, "The deck's answer didn't match what it sent before, so something else may be answering for it. Pairing stopped." )
 			return
 		}
 
@@ -341,10 +356,10 @@ extension DeckController {
 	/// The user says the codes differ: someone may be in the middle.
 	func rejectCode( _ client: ClientID ) {
 		guard handshakes[client]?.pairing != nil else { return }
-		server.send( .pairCancel, to: client )
-		failPairing( client, "Pairing stopped because the codes didn't match. Something else on your network may have answered for this deck." )
+		abortPairing( client, "Pairing stopped because the codes didn't match. Something else on your network may have answered for this deck." )
 	}
 
+	/// The user cancelled: the deck is told, and the connection waits again.
 	func cancelPairing( _ client: ClientID ) {
 		server.send( .pairCancel, to: client )
 		endPairingState( client )
@@ -361,9 +376,16 @@ extension DeckController {
 		setPairing( client, .finishing )
 	}
 
+	/// Ends the attempt, showing why.
 	private func failPairing( _ client: ClientID, _ message: String ) {
 		endPairingState( client )
 		setPairing( client, .failed( message ) )
+	}
+
+	/// Tells the deck pairing is off, and ends the attempt showing why.
+	private func abortPairing( _ client: ClientID, _ message: String ) {
+		server.send( .pairCancel, to: client )
+		failPairing( client, message )
 	}
 
 	/// Forgets the attempt's keys and nonces; the connection waits for the user again.
@@ -400,6 +422,7 @@ extension DeckController {
 		server.setDeadline( client, in: nil )   // it waits for the user
 	}
 
+	/// Updates the New Device page's view of the attempt.
 	private func setPairing( _ client: ClientID, _ pairing: NewDevice.Pairing ) {
 		guard let index = newDevices.firstIndex( where: { $0.client == client } ) else { return }
 		newDevices[index].pairing = pairing

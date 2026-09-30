@@ -8,6 +8,8 @@
 
 import SwiftUI
 
+/// One state's icon well: its title under a preview that takes drops and opens the symbol
+/// picker.
 struct IconWell: View {
 	let title         : String
 	let face          : KeyFace
@@ -35,11 +37,8 @@ struct IconWell: View {
 				.scaleEffect( Self.size / CGFloat( deckKeyPixels ) )
 				.frame( width: Self.size, height: Self.size )
 				.clipShape( RoundedRectangle( cornerRadius: 10, style: .continuous ) )
-				.overlay {
-					RoundedRectangle( cornerRadius: 10, style: .continuous )
-						.strokeBorder( isTargeted ? Color.accentColor : Color( white: 0.35 ),
-									   style: StrokeStyle( lineWidth: isTargeted ? 3 : 1, dash: hasCustomIcon ? [] : [ 4 ] ) )
-				}
+				.keyOutline( cornerRadius: 10, isTargeted ? Color.accentColor : Color( white: 0.35 ),
+							 lineWidth: isTargeted ? 3 : 1, dash: hasCustomIcon ? [] : [ 4 ] )
 				.contentShape( Rectangle() )
 				.onTapGesture { showingSymbols = true }
 				.popover( isPresented: $showingSymbols ) {
@@ -65,8 +64,7 @@ struct IconWell: View {
 				}
 
 			Text( title )
-				.font( .caption )
-				.foregroundStyle( .secondary )
+				.secondaryCaption()
 		}
 		.help( "Click to choose an SF Symbol, or drag an image here" )
 	}

@@ -58,6 +58,7 @@ namespace {
 		return length;
 	}
 
+	// A code point that mustn't appear in a name: see isValidName() in Text.h.
 	bool isControl( uint32_t c ) {
 		return c < 0x20 || ( c >= 0x7F && c <= 0x9F )
 		       || c == 0x2028 || c == 0x2029                  // line and paragraph separators

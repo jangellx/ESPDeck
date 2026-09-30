@@ -9,6 +9,7 @@
 
 import SwiftUI
 
+/// A known deck's page while it needs unpairing: the ways to unpair it, in place of its keys.
 struct NeedsUnpairingView: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -23,17 +24,7 @@ struct NeedsUnpairingView: View {
 
 		ScrollView {
 			VStack( spacing: 22 ) {
-				Image( systemName: "lock.shield" )
-					.font( .system( size: 52 ) )
-					.foregroundStyle( .tint )
-
-				VStack( spacing: 6 ) {
-					Text( name )
-						.font( .title.bold() )
-					Text( stuck.reason.explanation )
-						.foregroundStyle( .secondary )
-						.multilineTextAlignment( .center )
-				}
+				UnpairedDeviceHeader( name: name, explanation: stuck.reason.explanation )
 
 				VStack( alignment: .leading, spacing: 14 ) {
 					if let board, board.espDeck != nil {
@@ -69,6 +60,7 @@ struct NeedsUnpairingView: View {
 		}
 	}
 
+	/// Unpairing the board plugged in over USB, and how that went.
 	@ViewBuilder
 	private func usbUnpair( _ board: USBSetup.Board, setup: USBSetup ) -> some View {
 		VStack( alignment: .leading, spacing: 8 ) {

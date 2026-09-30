@@ -8,6 +8,7 @@
 
 import SwiftUI
 
+/// An ⓘ that shows `text` in a popover; `help` is its tooltip and spoken name.
 struct InfoButton: View {
 	let help : String
 	let text : String

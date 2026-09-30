@@ -7,11 +7,15 @@
 //  every device. Devices only ever get its hash; the developer puts the password itself in
 //  ota_password.txt for PlatformIO.
 //
+//  Its Keychain access is its own rather than KeychainItem's: tools/crypto_test compiles this
+//  file with DeckCrypto.swift alone.
+//
 
 import CryptoKit
 import Foundation
 import Security
 
+/// This Mac's password for uploads from PlatformIO: making, checking and keeping it.
 nonisolated enum DevOTAPassword {
 	/// Letters, digits, - and _: nothing a shell, espota's --auth or ota_password.txt treats
 	/// specially.
@@ -99,6 +103,7 @@ nonisolated enum DevOTAPassword {
 		}
 	}
 
+	/// The password's query in one keychain.
 	private static func base( dataProtection: Bool ) -> [String: Any] {
 		[
 			kSecClass as String:                     kSecClassGenericPassword,

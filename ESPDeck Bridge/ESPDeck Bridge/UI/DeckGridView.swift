@@ -8,6 +8,7 @@
 
 import SwiftUI
 
+/// The deck's keys in its model's rows and columns, on a dark rounded body.
 struct DeckGridView: View {
 	let controller         : DeckController
 	let deviceID           : String
@@ -20,6 +21,7 @@ struct DeckGridView: View {
 	static let minKeySize  : CGFloat = 24
 	private static let padding: CGFloat = 22
 
+	/// Between keys: closer on the wide models.
 	private static func spacing( _ layout: DeckLayout ) -> CGFloat {
 		layout.cols > 5 ? 10 : 14
 	}
@@ -54,18 +56,18 @@ struct DeckGridView: View {
 	}
 }
 
+/// One key of the simulated deck: its image, selection and press highlights, and dragging
+/// and dropping. A new page pops in a key at a time, as the deck's keys fill in over USB: each
+/// key keeps the old page's image until its turn, then the new one fades up over it.
 private struct DeckKeyView: View {
 	let controller         : DeckController
 	let deviceID           : String
 	let index              : Int
 	let size               : CGFloat
-	/// A new page pops in a key at a time, as the deck's keys fill in over USB: each key keeps
-	/// the old page's image until its turn, then the new one fades up over it.
 	@Binding var selection : Int
 	@State private var isTargeted = false
 	/// The page change this key has already swapped for.
 	@State private var swappedFor: Date?
-
 
 	var body: some View {
 		let device   = controller.device( deviceID )
@@ -76,7 +78,6 @@ private struct DeckKeyView: View {
 		// Only just after the change: a key that appears later (another page, back again) doesn't.
 		let recent   = change.flatMap { index < $0.previews.count && -$0.at.timeIntervalSinceNow < Double( index ) * DeckDevice.pagePopStep + 0.5 ? $0 : nil }
 		let waiting  = recent.map { $0.at != swappedFor } ?? false
-		let preview  = current
 		let radius   = size * 0.125
 
 		// On its turn the new image fades up quickly over the old one.
@@ -106,11 +107,8 @@ private struct DeckKeyView: View {
 			RoundedRectangle( cornerRadius: radius, style: .continuous )
 				.fill( Color.white.opacity( pressed ? 0.45 : 0 ) )
 		}
-		.overlay {
-			RoundedRectangle( cornerRadius: radius, style: .continuous )
-				.strokeBorder( pressed ? Color.white : isTargeted ? Color.accentColor : selected ? Color.accentColor.opacity( 0.9 ) : Color( white: 0.3 ),
-							   lineWidth: pressed || isTargeted || selected ? 3 : 1 )
-		}
+		.keyOutline( cornerRadius: radius, pressed ? Color.white : isTargeted ? Color.accentColor : selected ? Color.accentColor.opacity( 0.9 ) : Color( white: 0.3 ),
+					 lineWidth: pressed || isTargeted || selected ? 3 : 1 )
 		.scaleEffect( pressed ? 0.94 : 1 )
 		.animation( .easeOut( duration: 0.08 ), value: pressed )
 		.contentShape( Rectangle() )
@@ -130,8 +128,8 @@ private struct DeckKeyView: View {
 			Button( "Clear Key", systemImage: "trash", role: .destructive ) { controller.clear( device: deviceID, key: index ) }
 		}
 		.draggable( KeyDrag( index: index ) ) {
-			if let preview {
-				Image( uiImage: preview )
+			if let current {
+				Image( uiImage: current )
 					.resizable()
 					.frame( width: size, height: size )
 					.clipShape( RoundedRectangle( cornerRadius: radius, style: .continuous ) )
@@ -170,5 +168,15 @@ private struct DeckKeyView: View {
 		}
 		.accessibilityLabel( "Key \(index + 1)" )
 		.accessibilityAddTraits( selected ? [ .isButton, .isSelected ] : .isButton )
+	}
+}
+
+extension View {
+	/// A key's outline, drawn inside the edge of its rounded square; dashed with `dash`.
+	func keyOutline( cornerRadius: CGFloat, _ color: Color, lineWidth: CGFloat, dash: [CGFloat] = [] ) -> some View {
+		overlay {
+			RoundedRectangle( cornerRadius: cornerRadius, style: .continuous )
+				.strokeBorder( color, style: StrokeStyle( lineWidth: lineWidth, dash: dash ) )
+		}
 	}
 }

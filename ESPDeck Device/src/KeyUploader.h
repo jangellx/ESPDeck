@@ -19,13 +19,16 @@
 #include "ImageData.h"
 #include "StreamDeck.h"
 
+// The upload task and the per-key state it shares with the main loop.
 class KeyUploader {
 public:
+	// A key and the cached image it now shows.
 	struct Shown {
 		uint8_t key;
 		Hash    hash;
 	};
 
+	// Starts the upload task for deck.
 	void begin( StreamDeck &deck );
 
 	// What a key should show: a cached image with its hash, or (hash nullptr) one of our own.
@@ -41,6 +44,7 @@ public:
 	void waitIdle( uint32_t timeoutMs );
 
 private:
+	// One key: the image waiting for it, and what it's known to show.
 	struct Slot {
 		ImagePtr pending;          // newest image not yet uploaded
 		bool     pendingHasHash = false;
@@ -50,8 +54,12 @@ private:
 		Hash     onDeck         = {};
 	};
 
+	// The FreeRTOS entry point; arg is the KeyUploader.
 	static void task( void *arg );
+	// The task's loop: uploads pending images round-robin, sleeping while there are none.
 	void run();
+	// Queues a Shown for nextShown().
+	void reportShown( uint8_t key, const Hash &hash );
 
 	StreamDeck   *deck_       = nullptr;
 	TaskHandle_t  task_       = nullptr;

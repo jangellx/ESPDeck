@@ -9,6 +9,7 @@
 
 import Foundation
 
+/// The Improv serial packet format: encoding commands, and parsing packets out of the log.
 nonisolated enum ImprovPacket {
 	static let header      = Array( "IMPROV".utf8 )
 	static let version     : UInt8 = 1
@@ -67,6 +68,7 @@ nonisolated enum ImprovPacket {
 		return strings
 	}
 
+	/// What the parser found: a packet with a valid checksum, or a log line.
 	enum Event: Equatable {
 		case packet( type: UInt8, data: Data )
 		/// A line of the device's log output (without the line ending).
@@ -78,6 +80,10 @@ nonisolated enum ImprovPacket {
 		private var pending = [UInt8]()   // a packet in progress, starting with the header
 		private var line    = [UInt8]()
 
+		/// Longest log line kept; the rest of a longer one is dropped.
+		private static let maximumLine = 1024
+
+		/// The packets and complete lines that `bytes` finishes; the rest waits for more.
 		mutating func feed( _ bytes: Data ) -> [Event] {
 			var events: [Event] = []
 			for byte in bytes {
@@ -91,6 +97,8 @@ nonisolated enum ImprovPacket {
 			return events
 		}
 
+		/// Checks the packet in progress after a byte was added: gives up on it as text, or
+		/// emits it once it's complete and its checksum matches.
 		private mutating func consumePending( _ events: inout [Event] ) {
 			let headerCount = header.count
 			let index       = pending.count - 1
@@ -124,12 +132,13 @@ nonisolated enum ImprovPacket {
 			pending = []
 		}
 
+		/// Adds a byte to the current log line, emitting the line at a newline.
 		private mutating func appendText( _ byte: UInt8, _ events: inout [Event] ) {
 			if byte == 0x0A {
 				let text = String( decoding: line, as: UTF8.self ).trimmingCharacters( in: .whitespacesAndNewlines )
 				if !text.isEmpty { events.append( .text( text ) ) }
 				line = []
-			} else if line.count < 1024 {
+			} else if line.count < Self.maximumLine {
 				line.append( byte )
 			}
 		}
@@ -150,6 +159,7 @@ nonisolated final class ImprovSession: @unchecked Sendable {
 		port = try SerialPort( path: path )
 	}
 
+	/// Sends an RPC command; fails once the session is closed.
 	func send( command: UInt8, data: Data ) throws {
 		lock.lock()
 		defer { lock.unlock() }
@@ -172,6 +182,7 @@ nonisolated final class ImprovSession: @unchecked Sendable {
 		return nil
 	}
 
+	/// Closes the port; send() fails from then on.
 	func close() {
 		lock.lock()
 		closed = true

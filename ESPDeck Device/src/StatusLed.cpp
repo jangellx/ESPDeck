@@ -1,4 +1,5 @@
 #include "StatusLed.h"
+#include "Timing.h"
 
 #include <Arduino.h>
 
@@ -28,8 +29,9 @@ namespace {
 		return (uint8_t)( scaled < 1 ? 1 : scaled > 255 ? 255 : scaled );
 	}
 
+	// Whether millis() hasn't reached deadline yet (wrap-safe).
 	bool before( uint32_t deadline ) {
-		return (int32_t)( deadline - millis() ) > 0;
+		return !Timing::reached( deadline, millis() );
 	}
 
 	// 0…1…0 over the period, eased so it breathes rather than blinks.
@@ -38,6 +40,7 @@ namespace {
 		return 0.5f - 0.5f * cosf( phase * 2.0f * (float)M_PI );
 	}
 
+	// The slow pulse (setup, Wi-Fi) as a channel level, from kPulseFloor to kPulsePeak.
 	uint8_t pulseLevel() {
 		return (uint8_t)( kPulseFloor + ( kPulsePeak - kPulseFloor ) * pulse() );
 	}

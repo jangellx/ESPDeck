@@ -7,7 +7,9 @@
 
 import Foundation
 
+/// One line of a device's Log tab.
 struct TrafficEntry: Identifiable {
+	/// Which way the frame went, or neither for an event.
 	enum Direction {
 		case sent
 		case received
@@ -83,14 +85,10 @@ struct TrafficEntry: Identifiable {
 				guard let seconds = object["seconds"] as? Int else { return "Sleep timer set" }
 				return seconds == 0 ? "Sleep timer turned off" : "Sleep timer set to \(duration( seconds ))"
 			case "keyModes":
-				func list( _ name: String ) -> String {
-					let keys = ( object[name] as? [Int] ) ?? []
-					return keys.isEmpty ? "none" : keys.map { String( $0 + 1 ) }.joined( separator: ", " )
-				}
+				func list( _ name: String ) -> String { keyList( object[name] ) ?? "none" }
 				return "Key presses: repeat \(list( "repeat" )); double tap \(list( "doubleTap" )); hold \(list( "hold" ))"
 			case "repeatKeys":
-				let keys = ( object["keys"] as? [Int] ) ?? []
-				return keys.isEmpty ? "No keys repeat when held" : "Keys that repeat when held: \(keys.map { String( $0 + 1 ) }.joined( separator: ", " ))"
+				return keyList( object["keys"] ).map { "Keys that repeat when held: \($0)" } ?? "No keys repeat when held"
 			case "setHostname":
 				let hostname = plain( object["hostname"] )
 				return hostname.isEmpty ? "Asked the deck to use its original network name" : "Asked the deck to use the network name \u{201C}\(hostname)\u{201D}"
@@ -187,6 +185,13 @@ struct TrafficEntry: Identifiable {
 		( object["key"] as? Int ).map { "key \($0 + 1)" } ?? "a key"
 	}
 
+	/// "1, 4, 5": a message's key list, numbered from 1; nil when it's empty.
+	private static func keyList( _ value: Any? ) -> String? {
+		let keys = ( value as? [Int] ) ?? []
+		return keys.isEmpty ? nil : keys.map { String( $0 + 1 ) }.joined( separator: ", " )
+	}
+
+	/// An orientation value in words.
 	private static func orientation( _ value: String? ) -> String {
 		switch value {
 			case "auto":      "automatic"
@@ -199,10 +204,12 @@ struct TrafficEntry: Identifiable {
 		}
 	}
 
+	/// "1 hour, 30 minutes".
 	private static func duration( _ seconds: Int ) -> String {
 		Duration.seconds( seconds ).formatted( .units( allowed: [.days, .hours, .minutes, .seconds], width: .wide ) )
 	}
 
+	/// A byte count as Finder shows it: "12 KB".
 	private static func size( _ bytes: Int ) -> String {
 		ByteCountFormatter.string( fromByteCount: Int64( bytes ), countStyle: .file )
 	}
@@ -237,6 +244,7 @@ struct TrafficEntry: Identifiable {
 		return parts.joined( separator: "  " )
 	}
 
+	/// One field's value, briefly: long strings cut, arrays as their count.
 	private static func describe( value: Any ) -> String {
 		switch value {
 			case let string as String:

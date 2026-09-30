@@ -24,8 +24,7 @@ extension DeckController {
 
 		if parts.contains( .keys ) {
 			recordUndo( device: id, "Copy Deck" )
-			config.settings.devices[index].pages       = source.pages.isEmpty ? [ [] ] : source.pages
-			config.settings.devices[index].currentPage = min( source.currentPage, max( source.pages.count - 1, 0 ) )
+			config.settings.devices[index].copyPages( from: source )
 			stopSliders( device: id )
 		}
 		if parts.contains( .display ) {
@@ -66,6 +65,7 @@ extension DeckController {
 		copyDeck( from: pending.source, to: id, parts: pending.parts )
 	}
 
+	/// Sends the parts the device keeps itself, where they differ from what it has.
 	private func sendToDevice( _ source: DeviceSettings, parts: Set<DeckCopyPart>, device id: String ) {
 		if parts.contains( .name ), source.name != settings( id )?.name {
 			rename( device: id, to: source.name )

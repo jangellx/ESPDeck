@@ -14,7 +14,8 @@
 static const char *TAG = "Firmware";
 
 namespace {
-	constexpr size_t kHeader = 8;   // "FWU1" + offset (LE32)
+	constexpr size_t kHeader      = 8;    // "FWU1" + offset (LE32)
+	constexpr size_t kSafeVersion = 24;   // buffer for a version string made printable
 
 	// The app description follows the image header and the first segment's header.
 	constexpr size_t kAppDescOffset = sizeof( esp_image_header_t ) + sizeof( esp_image_segment_header_t );
@@ -24,6 +25,7 @@ namespace {
 		return sscanf( text, "%u.%u.%u", &parts[0], &parts[1], &parts[2] ) == 3;
 	}
 
+	// Whether version a comes before version b.
 	bool olderThan( const unsigned a[3], const unsigned b[3] ) {
 		for( int i = 0; i < 3; i++ ) {
 			if( a[i] != b[i] )
@@ -31,15 +33,20 @@ namespace {
 		}
 		return false;
 	}
+
+	// An Error status with message; nothing else is done.
+	FirmwareUpdate::Status errorStatus( const char *message ) {
+		FirmwareUpdate::Status status;
+		status.state   = FirmwareUpdate::Status::State::Error;
+		status.message = message;
+		return status;
+	}
 }
 
 FirmwareUpdate::Status FirmwareUpdate::fail( const char *message ) {
 	ESP_LOGW( TAG, "Update failed: %s", message );
 	abort();
-	Status status;
-	status.state   = Status::State::Error;
-	status.message = message;
-	return status;
+	return errorStatus( message );
 }
 
 void FirmwareUpdate::abort() {
@@ -51,63 +58,50 @@ void FirmwareUpdate::abort() {
 }
 
 FirmwareUpdate::Status FirmwareUpdate::begin( const char *version, size_t size, const char *sha256Hex, bool allowDowngrade ) {
-	Status status;
-	status.state = Status::State::Error;
 	// Only the authenticated bridge sends updates, so a new begin means it started over (say,
 	// after losing track of the last one): drop the old transfer rather than refuse.
 	if( active_ ) {
 		ESP_LOGW( TAG, "A new update replaces the one in progress" );
 		abort();
 	}
-	if( !Crypto::fromHex( sha256Hex, expected_, sizeof( expected_ ) ) ) {
-		status.message = "Bad SHA-256.";
-		return status;
-	}
+	if( !Crypto::fromHex( sha256Hex, expected_, sizeof( expected_ ) ) )
+		return errorStatus( "Bad SHA-256." );
 
 	target_ = esp_ota_get_next_update_partition( nullptr );
-	if( !target_ ) {
-		status.message = "No OTA partition; reflash over USB once.";
-		return status;
-	}
-	if( size == 0 || size > target_->size ) {
-		status.message = "The image doesn't fit.";
-		return status;
-	}
+	if( !target_ )
+		return errorStatus( "No OTA partition; reflash over USB once." );
+	if( size == 0 || size > target_->size )
+		return errorStatus( "The image doesn't fit." );
 
 	// Sequential writes erase as they go, so beginning doesn't block while a whole slot is erased.
 	esp_err_t err = esp_ota_begin( target_, OTA_WITH_SEQUENTIAL_WRITES, &handle_ );
 	if( err != ESP_OK ) {
 		ESP_LOGW( TAG, "esp_ota_begin failed: %s", esp_err_to_name( err ) );
-		status.message = "Couldn't start the update.";
-		return status;
+		return errorStatus( "Couldn't start the update." );
 	}
 
 	mbedtls_sha256_init( &sha_ );
 	if( mbedtls_sha256_starts( &sha_, 0 ) != 0 ) {
 		mbedtls_sha256_free( &sha_ );
 		esp_ota_abort( handle_ );
-		status.message = "Couldn't start the update.";
-		return status;
+		return errorStatus( "Couldn't start the update." );
 	}
 	size_      = size;
 	received_  = 0;
 	downgrade_ = allowDowngrade;
 	active_    = true;
-	char safe[24];
+	char safe[kSafeVersion];
 	ESP_LOGI( TAG, "Updating to %s (%u bytes) in %s%s", Text::printable( version, safe, sizeof( safe ) ), (unsigned)size, target_->label,
 			  allowDowngrade ? ", older versions allowed" : "" );
 
+	Status status;
 	status.state = Status::State::Ready;
 	return status;
 }
 
 FirmwareUpdate::Status FirmwareUpdate::write( const uint8_t *frame, size_t length ) {
-	if( !active_ ) {
-		Status status;
-		status.state   = Status::State::Error;
-		status.message = "No update is running.";
-		return status;
-	}
+	if( !active_ )
+		return errorStatus( "No update is running." );
 	if( length <= kHeader || length - kHeader > kMaxFirmwareChunk )
 		return fail( "Bad firmware frame." );
 
@@ -139,12 +133,8 @@ FirmwareUpdate::Status FirmwareUpdate::write( const uint8_t *frame, size_t lengt
 }
 
 FirmwareUpdate::Status FirmwareUpdate::finish() {
-	if( !active_ ) {
-		Status status;
-		status.state   = Status::State::Error;
-		status.message = "No update is running.";
-		return status;
-	}
+	if( !active_ )
+		return errorStatus( "No update is running." );
 	if( received_ != size_ )
 		return fail( "The image is incomplete." );
 
@@ -162,10 +152,7 @@ FirmwareUpdate::Status FirmwareUpdate::finish() {
 		err = esp_ota_set_boot_partition( target_ );
 	if( err != ESP_OK ) {
 		ESP_LOGW( TAG, "Installing failed: %s", esp_err_to_name( err ) );
-		Status status;
-		status.state   = Status::State::Error;
-		status.message = err == ESP_ERR_OTA_VALIDATE_FAILED ? "The image isn't valid firmware." : "Installing failed.";
-		return status;
+		return errorStatus( err == ESP_ERR_OTA_VALIDATE_FAILED ? "The image isn't valid firmware." : "Installing failed." );
 	}
 
 	ESP_LOGI( TAG, "Installed in %s", target_->label );
@@ -192,15 +179,12 @@ FirmwareUpdate::Status FirmwareUpdate::checkImage( const uint8_t *chunk, size_t 
 	unsigned incoming[3], current[3];
 	bool     older = !parseVersion( description.version, incoming ) || ( parseVersion( running->version, current ) && olderThan( incoming, current ) );
 	if( older && !downgrade_ ) {
-		char safe[24];
+		char safe[kSafeVersion];
 		snprintf( message_, sizeof( message_ ), "Firmware %s is older than the running %s.", Text::printable( description.version, safe, sizeof( safe ) ),
 		          running->version );
 		ESP_LOGW( TAG, "%s", message_ );
 		abort();
-		Status status;
-		status.state   = Status::State::Error;
-		status.message = message_;
-		return status;
+		return errorStatus( message_ );
 	}
 	return Status();
 }

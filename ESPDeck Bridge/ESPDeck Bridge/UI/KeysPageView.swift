@@ -9,6 +9,7 @@
 
 import SwiftUI
 
+/// The Keys page: the deck preview pane, a draggable divider, and the key inspector.
 struct KeysPageView: View {
 	let controller         : DeckController
 	let deviceID           : String
@@ -19,7 +20,8 @@ struct KeysPageView: View {
 
 	@State private var dragStartWidth : Double?
 	@State private var pinchStartSize : CGFloat?
-	@State private var deletingPage: Int?
+	/// A page with keys on it, waiting for Delete Page.
+	@State private var deletingPage   : Int?
 
 	private static let minPreviewWidth   : CGFloat = 300
 	private static let minInspectorWidth : CGFloat = 380
@@ -62,6 +64,7 @@ struct KeysPageView: View {
 
 	// MARK: - Deck pane
 
+	/// The page and zoom bars, the scrolling deck, and the controls fixed under it.
 	private var previewPane: some View {
 		VStack( spacing: 0 ) {
 			pageBar
@@ -93,8 +96,7 @@ struct KeysPageView: View {
 			VStack( spacing: 8 ) {
 				LabelPositionControl( controller: controller, deviceID: deviceID )
 				Text( "Shift-click a key to run it, as if pressed on the deck; hold a Level key to keep stepping." )
-					.font( .caption )
-					.foregroundStyle( Color.secondary )
+					.secondaryCaption()
 					.multilineTextAlignment( .center )
 					.fixedSize( horizontal: false, vertical: true )
 					.frame( maxWidth: .infinity )
@@ -144,7 +146,7 @@ struct KeysPageView: View {
 		.padding( .horizontal, 14 )
 		.padding( .vertical, 8 )
 		.confirmationDialog( "Move Key \( ( controller.pendingLevelMove?.source ?? 0 ) + 1 ) Alone?",
-							 isPresented: Binding( get: { controller.pendingLevelMove != nil }, set: { if !$0 { controller.pendingLevelMove = nil } } ),
+							 isPresented: Binding( presenting: Bindable( controller ).pendingLevelMove ),
 							 titleVisibility: .visible ) {
 			Button( "Move It and Clear Key \( ( controller.pendingLevelMove?.partner ?? 0 ) + 1 )", role: .destructive ) {
 				if let move = controller.pendingLevelMove { controller.moveKeyClearingPartner( move ) }
@@ -153,8 +155,7 @@ struct KeysPageView: View {
 		} message: {
 			Text( "It's a Level key paired with Key \( ( controller.pendingLevelMove?.partner ?? 0 ) + 1 ), which would land off the edge of the deck if they moved together." )
 		}
-		.confirmationDialog( "Confirm Delete Page", isPresented: Binding( get: { deletingPage != nil }, set: { if !$0 { deletingPage = nil } } ),
-							 titleVisibility: .visible ) {
+		.confirmationDialog( "Confirm Delete Page", isPresented: Binding( presenting: $deletingPage ), titleVisibility: .visible ) {
 			Button( "Delete Page", role: .destructive ) {
 				if let page = deletingPage { controller.deletePage( device: deviceID, page ) }
 				deletingPage = nil
@@ -248,14 +249,20 @@ struct KeysPageView: View {
 		return DeckGridView.fittingKeySize( for: controller.layout( deviceID ), in: inner )
 	}
 
+	/// The chosen key size, within range, or the one that fits while sizing to fit.
 	private func keySize( in space: CGSize ) -> CGFloat {
-		window.deckKeySize > 0 ? min( max( CGFloat( window.deckKeySize ), Self.keySizes.lowerBound ), Self.keySizes.upperBound ) : fittingKeySize( in: space )
+		window.deckKeySize > 0 ? Self.clamped( CGFloat( window.deckKeySize ) ) : fittingKeySize( in: space )
+	}
+
+	/// A key size within the range the preview offers.
+	private static func clamped( _ size: CGFloat ) -> CGFloat {
+		min( max( size, keySizes.lowerBound ), keySizes.upperBound )
 	}
 
 	/// The slider shows the current size, fitted or chosen; moving it chooses one.
 	private var sliderBinding: Binding<CGFloat> {
 		Binding {
-			min( max( window.deckEffectiveKeySize, Self.keySizes.lowerBound ), Self.keySizes.upperBound )
+			Self.clamped( window.deckEffectiveKeySize )
 		} set: { size in
 			window.zoomDeck( to: size, range: Self.keySizes )
 		}
@@ -274,19 +281,25 @@ struct KeysPageView: View {
 
 	// MARK: - Divider
 
+	/// The dragged width, leaving the inspector its minimum.
 	private func previewPaneWidth( total: CGFloat ) -> CGFloat {
-		let maxWidth = max( Self.minPreviewWidth, total - Self.minInspectorWidth )
-		return min( max( CGFloat( previewWidth ), Self.minPreviewWidth ), maxWidth )
+		clampedPreviewWidth( CGFloat( previewWidth ), total: total )
 	}
 
+	/// `width` within the deck pane's minimum and what leaves the inspector its own.
+	private func clampedPreviewWidth( _ width: CGFloat, total: CGFloat ) -> CGFloat {
+		let maxWidth = max( Self.minPreviewWidth, total - Self.minInspectorWidth )
+		return min( max( width, Self.minPreviewWidth ), maxWidth )
+	}
+
+	/// Dragging the divider, from the width at the start of the drag, with the resize cursor.
 	private func resizeGesture( current: CGFloat, total: CGFloat ) -> some Gesture {
 		DragGesture( minimumDistance: 1, coordinateSpace: .global )
 			.onChanged { value in
 				let start = dragStartWidth ?? Double( current )
 				dragStartWidth = start
 				controller.macBridge?.setResizeCursor( true )
-				let maxWidth   = max( Self.minPreviewWidth, total - Self.minInspectorWidth )
-				previewWidth   = Double( min( max( CGFloat( start ) + value.translation.width, Self.minPreviewWidth ), maxWidth ) )
+				previewWidth = Double( clampedPreviewWidth( CGFloat( start ) + value.translation.width, total: total ) )
 			}
 			.onEnded { _ in
 				dragStartWidth = nil

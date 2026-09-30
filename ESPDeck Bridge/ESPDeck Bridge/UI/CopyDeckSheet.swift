@@ -9,6 +9,7 @@
 
 import SwiftUI
 
+/// Copy From Deck: the deck to copy from, and which parts.
 struct CopyDeckSheet: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -39,12 +40,7 @@ struct CopyDeckSheet: View {
 						Toggle( isOn: Binding( get: { parts.contains( part ) }, set: { on in
 							if on { parts.insert( part ) } else { parts.remove( part ) }
 						} ) ) {
-							VStack( alignment: .leading, spacing: 2 ) {
-								Text( part.title )
-								Text( part.detail )
-									.font( .caption )
-									.foregroundStyle( Color.secondary )
-							}
+							CaptionedText( part.title, caption: part.detail, spacing: 2 )
 						}
 					}
 				} header: {
@@ -86,8 +82,8 @@ struct FactoryResetSheet: View {
 	let controller : DeckController
 	let deviceID   : String
 
-	/// "" for its own settings, nil for nothing, else another deck's ID.
 	@Environment( \.dismiss ) private var dismiss
+	/// "" for its own settings, nil for nothing, else another deck's ID.
 	@State private var restore: String? = ""
 
 	var body: some View {
@@ -140,6 +136,7 @@ struct FactoryResetSheet: View {
 		.frame( minWidth: 440, idealWidth: 480, minHeight: 340, idealHeight: 380 )
 	}
 
+	/// Resets the device, then sets up what it gets back once it's paired again.
 	private func reset( _ settings: DeviceSettings? ) {
 		guard let settings else { return }
 		controller.factoryReset( device: deviceID )

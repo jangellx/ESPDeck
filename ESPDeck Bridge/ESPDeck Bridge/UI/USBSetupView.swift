@@ -10,6 +10,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The USB Setup page: scanning, the boards found, and setting one up in numbered steps.
 struct USBSetupView: View {
 	let controller          : DeckController
 	@Binding var selection  : String?
@@ -65,7 +66,7 @@ struct USBSetupView: View {
 		.fileImporter( isPresented: $pickingFile, allowedContentTypes: [ .data ] ) { result in
 			if case .success( let url ) = result { choose( url ) }
 		}
-		.alert( "Can't Use That File", isPresented: Binding( get: { fileProblem != nil }, set: { if !$0 { fileProblem = nil } } ) ) {
+		.alert( "Can't Use That File", isPresented: Binding( presenting: $fileProblem ) ) {
 			Button( "OK" ) {}
 		} message: {
 			Text( fileProblem ?? "" )
@@ -76,6 +77,7 @@ struct USBSetupView: View {
 	/// when it has been a few minutes.
 	private static let recheckAfter: TimeInterval = 5 * 60
 
+	/// Fills in the name and network, looks for networks, and checks for releases if it's due.
 	private func appeared() {
 		nameDraft   = setup.selectedBoard?.espDeck?.name ?? ""
 		if ssid.isEmpty, let savedSSID { ssid = savedSSID }
@@ -89,10 +91,11 @@ struct USBSetupView: View {
 
 	// MARK: - Scanning
 
+	/// The switch that turns scanning for boards on and off.
 	private var scanningSection: some View {
 		Section {
 			// A switch, so the symbol in front of the text can't be taken for a checkbox.
-			Toggle( isOn: Binding( get: { setup.scanning }, set: { setup.scanning = $0 } ) ) {
+			Toggle( isOn: Bindable( setup ).scanning ) {
 				Label {
 					Text( "Look for boards plugged in over USB" )
 				} icon: {
@@ -112,6 +115,7 @@ struct USBSetupView: View {
 
 	// MARK: - Boards
 
+	/// The boards plugged in, or a picture of plugging one in while there are none.
 	private var boardsSection: some View {
 		Section {
 			if setup.boards.isEmpty {
@@ -138,6 +142,7 @@ struct USBSetupView: View {
 		.disabled( setup.install.isBusy )
 	}
 
+	/// A board and what it's said about itself, chosen by clicking when there are several.
 	private func boardRow( _ board: USBSetup.Board ) -> some View {
 		let choosable = setup.boards.count > 1
 		let chosen    = setup.selectedBoard?.id == board.id
@@ -223,6 +228,7 @@ struct USBSetupView: View {
 
 	// MARK: - Firmware
 
+	/// Step 1: the firmware to install, and installing it.
 	private var firmwareSection: some View {
 		Section {
 			LabeledContent( "Firmware" ) {
@@ -268,36 +274,16 @@ struct USBSetupView: View {
 		}
 	}
 
-	/// The latest release, a chosen file, and Choose File… at the end, which opens the file
-	/// picker. A menu labelled with the current choice rather than a Picker: a Picker kept
-	/// showing Choose File… after a file was picked, until it was opened again.
+	/// As in Updates.
 	private var sourcePicker: some View {
-		let latest       = controller.updates.latestFirmware
-		// As in Updates.
-		let releaseTitle = latest.map { "Latest release (\($0.version.description))" } ?? "No signed release yet"
-		let fileTitle    = setup.chosenFile.map { "\($0.url.lastPathComponent) (\($0.version))" }
 		let isFile: Bool = { if case .file = setup.source { true } else { false } }()
-
-		return Menu {
-			Button {
-				setup.source = .release
-			} label: {
-				MenuChoice( title: releaseTitle, chosen: !isFile )
-			}
-			if let chosenFile = setup.chosenFile, let fileTitle {
-				Button {
-					setup.source = .file( chosenFile.url )
-				} label: {
-					MenuChoice( title: fileTitle, chosen: isFile )
-				}
-			}
-			Divider()
-			Button( "Choose File…" ) { pickingFile = true }
-		} label: {
-			Text( isFile ? fileTitle ?? releaseTitle : releaseTitle )
-		}
-		.fixedSize()
-		.disabled( setup.install.isBusy )
+		return FirmwareSourceMenu( releaseTitle: controller.updates.latestReleaseTitle,
+								   fileTitle: setup.chosenFile.map { "\($0.url.lastPathComponent) (\($0.version))" },
+								   isFile: isFile,
+								   chooseRelease: { setup.source = .release },
+								   chooseFile: { if let chosenFile = setup.chosenFile { setup.source = .file( chosenFile.url ) } },
+								   pickFile: { pickingFile = true } )
+			.disabled( setup.install.isBusy )
 	}
 
 	/// Looks for new releases; a spinner while it does.
@@ -316,16 +302,15 @@ struct USBSetupView: View {
 			if updates.checking {
 				Text( "Checking for new releases…" )
 			} else if let error = updates.checkError {
-				Label( error, systemImage: "exclamationmark.triangle.fill" )
-					.foregroundStyle( .orange )
+				WarningLabel( error )
 			} else if let date = updates.lastCheck {
 				Text( "Last checked \( date.formatted( .relative( presentation: .named ) ) )" )
 			}
 		}
-		.font( .caption )
-		.foregroundStyle( .secondary )
+		.secondaryCaption()
 	}
 
+	/// Asking before installing older firmware than the board runs.
 	private var olderTitle: String {
 		"Install \(setup.sourceVersion ?? "this firmware") over \(setup.selectedBoard?.espDeck?.version ?? "the newer one")?"
 	}
@@ -340,6 +325,7 @@ struct USBSetupView: View {
 		}
 	}
 
+	/// How the install is going, or how it ended.
 	@ViewBuilder private var installStatus: some View {
 		switch setup.install {
 			case .idle:
@@ -359,11 +345,11 @@ struct USBSetupView: View {
 				Label( text, systemImage: "checkmark.circle.fill" )
 					.foregroundStyle( .green )
 			case .failed( let message ):
-				Label( message, systemImage: "exclamationmark.triangle.fill" )
-					.foregroundStyle( .orange )
+				WarningLabel( message )
 		}
 	}
 
+	/// Makes a picked file the source, or says why it can't be.
 	private func choose( _ url: URL ) {
 		do {
 			try setup.choose( url )
@@ -374,6 +360,7 @@ struct USBSetupView: View {
 
 	// MARK: - Wi-Fi
 
+	/// Step 2: the network and password, and joining it.
 	private var wifiSection: some View {
 		Section {
 			LabeledContent( "Network" ) {
@@ -392,8 +379,7 @@ struct USBSetupView: View {
 					Toggle( "Encrypt stored secrets (recommended)", isOn: $encrypt )
 						.toggleStyle( .switch )
 					Text( "Permanent for this chip, which gets a one-time key; the Wi-Fi network, name and pairing stay changeable." )
-						.font( .caption )
-						.foregroundStyle( .secondary )
+						.secondaryCaption()
 				}
 			}
 
@@ -413,12 +399,10 @@ struct USBSetupView: View {
 			.alignmentGuide( .listRowSeparatorLeading ) { _ in 0 }   // full-width divider
 			if let problem = wifiProblem, !joinSSID.isEmpty {
 				Text( problem )
-					.font( .caption )
-					.foregroundStyle( .secondary )
+					.secondaryCaption()
 			}
 			if case .failed( let message ) = setup.wifi {
-				Label( message, systemImage: "exclamationmark.triangle.fill" )
-					.foregroundStyle( .orange )
+				WarningLabel( message )
 			}
 			// Where the button was pressed, not only in step 4 further down.
 			if case .joined( let network ) = setup.wifi {
@@ -433,6 +417,7 @@ struct USBSetupView: View {
 		.disabled( setup.install.isBusy )
 	}
 
+	/// The networks the board can see, its current one, and Other Network….
 	private var networkPicker: some View {
 		Picker( "Network", selection: $ssid ) {
 			if setup.networks.isEmpty {
@@ -465,10 +450,12 @@ struct USBSetupView: View {
 		setup.selectedBoard?.espDeck?.network.flatMap { $0.ssid.isEmpty ? nil : $0.ssid }
 	}
 
+	/// The network to join: the one chosen, or the one typed in.
 	private var joinSSID: String {
 		ssid == Self.otherNetwork ? otherSSID : ssid
 	}
 
+	/// The board is joining a network now.
 	private var isJoining: Bool {
 		if case .joining = setup.wifi { return true }
 		return false
@@ -489,6 +476,7 @@ struct USBSetupView: View {
 		setup.selectedBoard?.espDeck?.storage?.offersChoice ?? false
 	}
 
+	/// Joins the network, if the name and password can be.
 	private func join() {
 		guard wifiProblem == nil else { return }
 		setup.join( ssid: joinSSID, password: password, encrypt: storageChoice ? encrypt : nil )
@@ -496,6 +484,7 @@ struct USBSetupView: View {
 
 	// MARK: - Name
 
+	/// Step 3: renaming the board.
 	private func nameSection( _ info: USBSetup.DeviceInfo ) -> some View {
 		Section {
 			HStack {
@@ -506,12 +495,10 @@ struct USBSetupView: View {
 			}
 			if let problem = nameProblem, !nameDraft.isEmpty {
 				Text( problem )
-					.font( .caption )
-					.foregroundStyle( .secondary )
+					.secondaryCaption()
 			}
 			if case .failed( let message ) = setup.rename {
-				Label( message, systemImage: "exclamationmark.triangle.fill" )
-					.foregroundStyle( .orange )
+				WarningLabel( message )
 			}
 		} header: {
 			SectionHeader( "3. Name Your Device" )
@@ -521,16 +508,19 @@ struct USBSetupView: View {
 		.disabled( setup.install.isBusy )
 	}
 
+	/// The name as it'll be saved.
 	private var trimmedName: String {
 		nameDraft.trimmingCharacters( in: .whitespacesAndNewlines )
 	}
 
+	/// What's wrong with the name, if anything.
 	private var nameProblem: String? {
 		if trimmedName.isEmpty { return "Enter a name." }
 		if trimmedName.utf8.count > 32 { return "That name is too long; names have at most 32 characters." }
 		return nil
 	}
 
+	/// Renames the board, if the name can be.
 	private func saveName() {
 		guard nameProblem == nil else { return }
 		nameDraft = trimmedName
@@ -539,6 +529,7 @@ struct USBSetupView: View {
 
 	// MARK: - Next
 
+	/// Step 4: the board that joined a network, until it has found this bridge and after.
 	private func nextSection( _ network: String, _ joined: USBSetup.JoinedBoard ) -> some View {
 		Section {
 			let arrival = setup.arrival( of: joined )
@@ -601,10 +592,7 @@ struct USBSetupView: View {
 				Button {
 					showAssembly()
 				} label: {
-					HStack( spacing: 6 ) {
-						Text( GuideSheet.assembly.rawValue )
-						Image( systemName: "chevron.right" )
-					}
+					ForwardLabel( title: GuideSheet.assembly.rawValue )
 				}
 				.prominentButtonStyle()   // only the button, not the whole row, is clickable
 				.frame( maxWidth: .infinity )

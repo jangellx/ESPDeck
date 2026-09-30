@@ -17,35 +17,43 @@ class FirmwareUpdate {
 public:
 	// What to answer with, as a firmwareStatus.
 	struct Status {
+		// The firmwareStatus `state`.
 		enum class State : uint8_t {
 			None,        // nothing to send
-			Ready,
+			Ready,       // begun; send the chunks
 			Progress,
-			Installed,
+			Installed,   // verified and set to boot; restart to run it
 			Error,
 		};
 
 		State       state    = State::None;
-		size_t      received = 0;
-		const char *message  = "";
+		size_t      received = 0;    // bytes so far (Progress, Installed)
+		const char *message  = "";   // why (Error)
 	};
 
+	// A transfer is under way.
 	bool active() const { return active_; }
 
+	// Starts a transfer into the inactive slot, dropping any in progress.
 	Status begin( const char *version, size_t size, const char *sha256Hex, bool allowDowngrade );
 	// An FWU1 frame, MAC already removed.
 	Status write( const uint8_t *frame, size_t length );
+	// Checks the SHA-256 and makes the slot the boot partition.
 	Status finish();
+	// Drops the transfer in progress, if any.
 	void   abort();
 
 	// MARK: Rollback
 
 	// Whether the running image is a new one that hasn't proven itself yet.
 	static bool pendingVerify();
+	// Cancels the rollback: the running image stays.
 	static void markValid();
 
 private:
+	// Aborts the transfer and answers message as an Error.
 	Status fail( const char *message );
+	// Checks the first chunk's app description; an Error (transfer aborted) if it won't do.
 	Status checkImage( const uint8_t *chunk, size_t length );
 
 	bool                   active_       = false;
@@ -55,6 +63,6 @@ private:
 	size_t                 received_     = 0;
 	bool                   downgrade_    = false;   // allowDowngrade
 	char                   message_[96]  = {};      // for a Status that needs formatting
-	uint8_t                expected_[32] = {};
-	mbedtls_sha256_context sha_;
+	uint8_t                expected_[32] = {};      // the announced SHA-256
+	mbedtls_sha256_context sha_;                    // of what's been written so far
 };

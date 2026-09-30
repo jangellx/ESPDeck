@@ -16,6 +16,7 @@
 import CryptoKit
 import Foundation
 
+/// Checks release files against the firmware signing key.
 nonisolated enum FirmwareSignature {
 	/// The raw Ed25519 public key: the last 32 bytes of the SPKI DER in
 	/// firmware_signing_public_key.pem.

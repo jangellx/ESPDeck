@@ -10,6 +10,7 @@ import Foundation
 import IOKit
 import IOKit.serial
 
+/// A serial port and what the I/O Registry knows of the USB device behind it.
 nonisolated struct SerialPortInfo: Equatable, Sendable {
 	var path      : String
 	/// The USB device's product and vendor names, when it's a USB device and has them.
@@ -31,6 +32,12 @@ nonisolated struct SerialPortInfo: Equatable, Sendable {
 	static let romOTGProductID = 0x0009
 
 	var isEspressif: Bool { vendorID == Self.espressifVendorID }
+
+	/// A port the ROM bootloader can answer on: the S3's USB-Serial/JTAG or the ROM's USB-OTG.
+	/// Any other Espressif port is firmware's own (TinyUSB).
+	var isBootloaderCapable: Bool {
+		isEspressif && ( productID == Self.usbSerialJTAGProductID || productID == Self.romOTGProductID )
+	}
 
 	/// [path, product, vendor, vendor ID, product ID, location, serial], with "" for
 	/// anything missing; the form DeckMenuBarPlugin reports ports in.
@@ -64,6 +71,7 @@ nonisolated struct SerialPortInfo: Equatable, Sendable {
 		return ports.sorted { $0.path < $1.path }
 	}
 
+	/// The port at `path`, if it's still there.
 	static func named( _ path: String ) -> SerialPortInfo? {
 		current().first { $0.path == path }
 	}
@@ -89,6 +97,7 @@ final class SerialPortWatcher {
 		var iterators : [io_iterator_t] = []
 		var relay     : Unmanaged<Relay>?
 
+		/// Releases the iterators, the notification port and the relay.
 		func tearDown() {
 			iterators.forEach { IOObjectRelease( $0 ) }
 			iterators = []
@@ -105,6 +114,7 @@ final class SerialPortWatcher {
 		}
 	}
 
+	/// The callbacks' refcon: a weak way back to the watcher.
 	private nonisolated final class Relay: @unchecked Sendable {
 		weak var watcher: SerialPortWatcher?
 
@@ -113,18 +123,21 @@ final class SerialPortWatcher {
 		}
 	}
 
+	/// Starts watching and reports the current list at once.
 	init( changed: @escaping ( [SerialPortInfo] ) -> Void ) {
 		self.changed = changed
 		start()
 		changed( SerialPortInfo.current() )
 	}
 
+	/// Stops watching; `changed` isn't called again.
 	func stop() {
 		pendingList?.cancel()
 		pendingList = nil
 		notifications.tearDown()
 	}
 
+	/// Asks IOKit to report serial ports appearing and disappearing, on the main run loop.
 	private func start() {
 		guard let port = IONotificationPortCreate( kIOMainPortDefault ) else { return }
 		let relay = Unmanaged.passRetained( Relay( self ) )
@@ -134,10 +147,7 @@ final class SerialPortWatcher {
 
 		// Delivered on the main run loop, which the port's source was added to.
 		let callback: IOServiceMatchingCallback = { refcon, iterator in
-			// Drain the iterator to re-arm the notification.
-			while case let service = IOIteratorNext( iterator ), service != 0 {
-				IOObjectRelease( service )
-			}
+			SerialPortWatcher.drain( iterator )
 			guard let refcon else { return }
 			let relay = Unmanaged<Relay>.fromOpaque( refcon ).takeUnretainedValue()
 			MainActor.assumeIsolated { relay.watcher?.scheduleList() }
@@ -146,10 +156,15 @@ final class SerialPortWatcher {
 			var iterator: io_iterator_t = 0
 			guard let matching = IOServiceMatching( kIOSerialBSDServiceValue ),
 				  IOServiceAddMatchingNotification( port, type, matching, callback, relay.toOpaque(), &iterator ) == KERN_SUCCESS else { continue }
-			while case let service = IOIteratorNext( iterator ), service != 0 {
-				IOObjectRelease( service )
-			}
+			Self.drain( iterator )
 			notifications.iterators.append( iterator )
+		}
+	}
+
+	/// Releases every service a notification iterator holds, which arms it for the next change.
+	private nonisolated static func drain( _ iterator: io_iterator_t ) {
+		while case let service = IOIteratorNext( iterator ), service != 0 {
+			IOObjectRelease( service )
 		}
 	}
 

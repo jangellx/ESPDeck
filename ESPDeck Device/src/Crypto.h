@@ -13,7 +13,7 @@
 
 namespace Crypto {
 	constexpr size_t kKeySize    = 32;   // X25519 keys, shared secrets, K, S, proofs
-	constexpr size_t kNonceSize  = 16;
+	constexpr size_t kNonceSize  = 16;   // pairing and handshake nonces
 	constexpr size_t kMACSize    = 16;   // frame MACs are HMAC-SHA256 truncated to 16 bytes
 	constexpr size_t kTagSize    = 16;   // AES-GCM tag
 	constexpr size_t kSealedHash = 32 + kTagSize;   // devOTA: the sealed password hash
@@ -33,6 +33,7 @@ namespace Crypto {
 		size_t      length;
 	};
 
+	// SHA-256 of data, and HMAC-SHA256 over the concatenation of parts (out zeroed on failure).
 	bool sha256( const void *data, size_t length, uint8_t out[32] );
 	bool hmac( const uint8_t *key, size_t keyLength, std::initializer_list<Part> parts, uint8_t out[32] );
 

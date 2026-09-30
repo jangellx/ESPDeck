@@ -8,6 +8,7 @@
 
 import UIKit
 
+/// Owns the controller and the menu bar plugin, and opens the configuration window.
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 	static var shared: AppDelegate { UIApplication.shared.delegate as! AppDelegate }
@@ -22,6 +23,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 	/// The names the Device menu was built with.
 	private var deviceMenuNames          : [String] = []
 
+	/// Keeps AppKit's dictation and emoji items out of the Edit menu.
 	func application( _ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? ) -> Bool {
 		// AppKit adds Start Dictation and Emoji & Symbols to the Edit menu unless these are set.
 		UserDefaults.standard.set( true, forKey: "NSDisabledDictationMenuItem" )
@@ -29,6 +31,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		return true
 	}
 
+	/// Loads the menu bar plugin, connects it to the controller, and starts the bridge.
 	func application( _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? ) -> Bool {
 		// App Nap would throttle HomeKit notifications and the server while no window is open.
 		activity = ProcessInfo.processInfo.beginActivity( options: [ .userInitiatedAllowingIdleSystemSleep ], reason: "Bridging HomeKit to the Stream Deck" )
@@ -55,6 +58,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		return true
 	}
 
+	/// Stops the server and ends the App Nap exemption.
 	func applicationWillTerminate( _ application: UIApplication ) {
 		controller.server.stop()
 		if let activity {
@@ -64,6 +68,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 
 	// MARK: - Scenes
 
+	/// Every window is set up by SceneDelegate.
 	func application( _ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession, options: UIScene.ConnectionOptions ) -> UISceneConfiguration {
 		let configuration = UISceneConfiguration( name: "Configuration", sessionRole: connectingSceneSession.role )
 		configuration.delegateClass = SceneDelegate.self
@@ -77,6 +82,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		return configurationRequested
 	}
 
+	/// Closes the launch window once the splash has shown.
 	func closeSplash( _ session: UISceneSession ) {
 		guard splashSessions.contains( session.persistentIdentifier ) else { return }
 		UIApplication.shared.requestSceneSessionDestruction( session, options: nil )
@@ -95,6 +101,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		}
 	}
 
+	/// Selects a device from the menu bar menu, on its Keys page, and opens the window.
 	func menuBarShowDevice( id: String ) {
 		controller.window.selection = id
 		if !id.hasPrefix( SidebarItem.newPrefix ) {
@@ -107,11 +114,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		controller.refreshLaunchAtLogin()
 	}
 
+	/// Opens the window on USB Setup.
 	func menuBarOpenUSBSetup() {
 		controller.window.selection = SidebarItem.usbSetup
 		menuBarOpenConfiguration()
 	}
 
+	/// Brings the configuration window forward, or opens one.
 	func menuBarOpenConfiguration() {
 		menuBar?.activateApp()
 

@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+/// The selected key's settings, beside the deck preview.
 struct KeyInspectorView: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -214,12 +215,13 @@ struct KeyInspectorView: View {
 		.onChange( of: assignment.slider != nil ) { if assignment.slider != nil { choosingPartner = false } }
 	}
 
+	/// Tap, Double Tap or Hold, for keys other than Level keys.
 	@ViewBuilder
 	private var pressTabs: some View {
 		// Like a Home app button: each kind of press can do its own thing. Level keys
 		// repeat when held; their double tap is a switch in the Level section.
 		if !isSlider {
-			Picker( "Press", selection: Binding { controller.window.pressKind } set: { controller.window.pressKind = $0 } ) {
+			Picker( "Press", selection: Bindable( controller.window ).pressKind ) {
 				ForEach( PressKind.allCases ) { kind in
 					// A dot marks each press that does something.
 					Text( assignment.press( kind ) != nil ? "• \(kind.rawValue)" : kind.rawValue ).tag( kind )
@@ -229,17 +231,17 @@ struct KeyInspectorView: View {
 			.labelsHidden()
 			if pressKind != .tap && controller.device( deviceID )?.status.presses != true {
 				Text( "Double taps and holds need the latest firmware (4.1.0 from today or later) on the device." )
-					.font( .caption )
-					.foregroundStyle( Color.secondary )
+					.secondaryCaption()
 			}
 		}
-
 	}
 
+	/// The key's current state, as the deck shows it.
 	private var stateRow: some View {
 		LabeledContent( "State", value: controller.state( device: deviceID, key: key ).title )
 	}
 
+	/// The levels the key's accessory can step: none for accessories without one.
 	private var levels: [SliderLevel] { controller.sliderLevels( for: assignment ) }
 
 	/// The key picker's tab (TargetPicker keeps it in the window state).
@@ -256,11 +258,7 @@ struct KeyInspectorView: View {
 					Button {
 						edit { $0.action = action }
 					} label: {
-						if action == current.action {
-							Label( action.title, systemImage: "checkmark" )
-						} else {
-							Text( action.title )
-						}
+						MenuChoice( title: action.title, chosen: action == current.action )
 					}
 				}
 			} label: {
@@ -270,6 +268,7 @@ struct KeyInspectorView: View {
 		}
 	}
 
+	/// A Level key, or one waiting for its other key.
 	private var isSlider: Bool { assignment.slider != nil || choosingPartner }
 
 	/// Slider waits for the other key to be chosen; Toggle ends the pair (clearing its other key).
@@ -287,14 +286,10 @@ struct KeyInspectorView: View {
 	}
 
 	/// Shared with Edit ▸ Clear Key.
-	private var confirmingClear: Binding<Bool> {
-		Binding { controller.window.confirmingClearKey } set: { controller.window.confirmingClearKey = $0 }
-	}
+	private var confirmingClear: Binding<Bool> { Bindable( controller.window ).confirmingClearKey }
 
 	/// Key ▸ Assign Accessory/Scene/Shortcut.
-	private var modeRequest: Binding<TargetMode?> {
-		Binding { controller.window.requestedTargetMode } set: { controller.window.requestedTargetMode = $0 }
-	}
+	private var modeRequest: Binding<TargetMode?> { Bindable( controller.window ).requestedTargetMode }
 
 	/// One-Shot or On/Off, for shortcut keys. Switching picks that type's first action.
 	private var shortcutTogglesBinding: Binding<Bool> {
@@ -309,6 +304,7 @@ struct KeyInspectorView: View {
 		}
 	}
 
+	/// One of the key's own properties (not the selected press's), for the Appearance rows.
 	private func binding<Value>( _ path: WritableKeyPath<KeyAssignment, Value> ) -> Binding<Value> {
 		Binding {
 			controller.assignment( deviceID, key: key )[keyPath: path]
@@ -317,6 +313,7 @@ struct KeyInspectorView: View {
 		}
 	}
 
+	/// The key's background colour; black when it has none.
 	private var backgroundBinding: Binding<Color> {
 		Binding {
 			assignment.backgroundColor.flatMap( Color.init( hex: ) ) ?? .black
@@ -328,10 +325,9 @@ struct KeyInspectorView: View {
 
 extension KeyInspectorView {
 	/// Each of the key's accessories' symbols in `state`, the key accessory's first.
-	func suggestedSymbols( _ assignment: KeyAssignment, state: KeyState ) -> [String] {
-		var seen: Set<String> = []
-		return assignment.members
+	private func suggestedSymbols( _ assignment: KeyAssignment, state: KeyState ) -> [String] {
+		assignment.members
 			.map { controller.home.symbol( for: $0.kind, accessoryID: $0.accessoryID, serviceID: $0.serviceID, state: state ) }
-			.filter { seen.insert( $0 ).inserted }
+			.uniqued()
 	}
 }

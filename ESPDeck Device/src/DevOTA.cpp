@@ -10,14 +10,14 @@
 
 #include "esp_log.h"
 #include "esp_task_wdt.h"
+#include "Timing.h"
 
 static const char *TAG = "DevOTA";
 
 namespace {
-	// Each wrong password costs the device a PBKDF2 derivation (10,000 rounds) on the main
-	// loop, so after one, invitations are ignored for a while, twice as long each time.
+	// How long invitations are ignored after a wrong password (see DevOTA.h), doubling each time.
 	constexpr uint32_t kMinPenalty = 2000;    // ms
-	constexpr uint32_t kMaxPenalty = 60000;
+	constexpr uint32_t kMaxPenalty = 60000;   // ms
 
 	char   hostname[32]       = {};
 	char   passwordHash[65]   = {};
@@ -93,7 +93,7 @@ void DevOTA::loop( bool busy ) {
 		ESP_LOGI( TAG, "Uploads from PlatformIO on, at %s", WiFi.localIP().toString().c_str() );
 	}
 	// Unanswered invitations time out in espota, which reports the upload as failed.
-	if( !busy && (int32_t)( millis() - ignoreUntil ) >= 0 )
+	if( !busy && Timing::reached( ignoreUntil, millis() ) )
 		ArduinoOTA.handle();
 }
 

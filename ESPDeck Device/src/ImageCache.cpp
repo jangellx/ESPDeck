@@ -10,6 +10,7 @@
 #include "esp_littlefs.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "Timing.h"
 
 static const char *TAG = "ImageCache";
 
@@ -23,6 +24,11 @@ namespace {
 	constexpr uint8_t     kLegacyMagic[4] = { 'E', 'D', 'K', '1' };   // firmware 1.x: Mini only, 6 keys
 	constexpr uint8_t     kLegacyKeys     = 6;
 
+	// File layouts (see saveMetadata()).
+	constexpr size_t      kIndexRecord    = kHashSize + 4;       // hash, lastUse
+	constexpr size_t      kStateHeader    = 4 + 2;               // magic, brightness, key count
+	constexpr size_t      kKeyRecord      = 1 + kHashSize;       // assigned, hash
+
 	// Free space kept for LittleFS metadata, the index, and the state file.
 	constexpr size_t      kReserve        = 64 * 1024;
 	constexpr size_t      kMaxEntries     = 450;
@@ -35,23 +41,34 @@ namespace {
 	constexpr uint32_t    kFlushDelay     = 3000;   // ms of debouncing for the index and state
 	constexpr uint32_t    kWriterPoll     = 500;    // ms
 	constexpr uint32_t    kWaitLimit      = 5000;   // ms persistNow() and stop() wait at most
-
-	uint32_t nowMillis() {
-		return (uint32_t)( esp_timer_get_time() / 1000 );
-	}
+	constexpr uint32_t    kWaitStep       = 10;     // ms between checks while waiting
+	constexpr uint32_t    kWriterStack    = 6144;   // bytes
 
 	// Images are stored as "<32 hex>.img"; firmware 1.x called them ".bmp".
 	constexpr const char *kImageExtension  = ".img";
 	constexpr const char *kLegacyExtension = ".bmp";
+	constexpr size_t      kHexLength       = kHashSize * 2;
+	constexpr size_t      kPathSize        = 64;   // any image path, with ".tmp" added
 
-	void imagePath( const Hash &hash, char *out, size_t size ) {
-		char hex[kHashSize * 2 + 1];
-		hashToHex( hash, hex );
-		snprintf( out, size, "%s/%s%s", kImageDir, hex, kImageExtension );
+	using Timing::nowMillis;
+
+	// Waits until done() or kWaitLimit, whichever comes first.
+	template <typename Done>
+	void waitUntil( Done done ) {
+		for( uint32_t waited = 0; !done() && waited < kWaitLimit; waited += kWaitStep )
+			vTaskDelay( pdMS_TO_TICKS( kWaitStep ) );
 	}
 
+	// The file an image is stored in.
+	void imagePath( const Hash &hash, char *out, size_t size, const char *extension = kImageExtension ) {
+		char hex[kHexLength + 1];
+		hashToHex( hash, hex );
+		snprintf( out, size, "%s/%s%s", kImageDir, hex, extension );
+	}
+
+	// Writes a whole file through a temporary one, so an interrupted write leaves the old file.
 	bool writeFile( const char *path, const uint8_t *data, size_t size ) {
-		char temp[64];
+		char temp[kPathSize];
 		snprintf( temp, sizeof( temp ), "%s.tmp", path );
 
 		FILE *file = fopen( temp, "wb" );
@@ -89,7 +106,7 @@ bool ImageCache::begin() {
 	esp_littlefs_info( kPartition, &total, &used );
 	ESP_LOGI( TAG, "%u images cached, %u/%u KB used", (unsigned)flash_.size(), (unsigned)( used / 1024 ), (unsigned)( total / 1024 ) );
 
-	xTaskCreate( writerTask, "cache", 6144, this, 1, &writer_ );
+	xTaskCreate( writerTask, "cache", kWriterStack, this, 1, &writer_ );
 	return true;
 }
 
@@ -98,8 +115,7 @@ bool ImageCache::stop() {
 		return true;
 	stopping_ = true;
 	xTaskNotifyGive( writer_ );
-	for( uint32_t waited = 0; !stopped_ && waited < kWaitLimit; waited += 10 )
-		vTaskDelay( pdMS_TO_TICKS( 10 ) );
+	waitUntil( [this] { return stopped_; } );
 	return stopped_;
 }
 
@@ -108,8 +124,7 @@ void ImageCache::persistNow() {
 		return;
 	flushNow_ = true;
 	xTaskNotifyGive( writer_ );
-	for( uint32_t waited = 0; flushNow_ && waited < kWaitLimit; waited += 10 )
-		vTaskDelay( pdMS_TO_TICKS( 10 ) );
+	waitUntil( [this] { return !flushNow_; } );
 }
 
 // MARK: - Images
@@ -155,6 +170,7 @@ std::vector<Hash> ImageCache::hashes() const {
 	return result;
 }
 
+// Marks an image as the most recently used, in both tiers.
 void ImageCache::touch( const Hash &hash ) {
 	auto inRam = ram_.find( hash );
 	if( inRam != ram_.end() )
@@ -171,6 +187,7 @@ bool ImageCache::isAssigned( const Hash &hash ) const {
 	return keysShowing( hash ) != 0;
 }
 
+// The keys assigned this image, one bit per key.
 uint32_t ImageCache::keysShowing( const Hash &hash ) const {
 	uint32_t keys = 0;
 	for( uint8_t key = 0; key < kMaxKeys; key++ ) {
@@ -273,6 +290,7 @@ void ImageCache::setBrightness( uint8_t percent ) {
 	markDirty( stateDirty_ );
 }
 
+// Sets indexDirty_ or stateDirty_, starting the debounce if neither was set.
 void ImageCache::markDirty( bool &flag ) {
 	if( !indexDirty_ && !stateDirty_ )
 		dirtySince_ = nowMillis();
@@ -285,6 +303,7 @@ void ImageCache::writerTask( void *arg ) {
 	static_cast<ImageCache *>( arg )->runWriter();
 }
 
+// Loads, saves and flushes on each wake-up (a notification or kWriterPoll) until stop().
 void ImageCache::runWriter() {
 	while( !stopping_ ) {
 		ulTaskNotifyTake( pdTRUE, pdMS_TO_TICKS( kWriterPoll ) );
@@ -301,6 +320,7 @@ void ImageCache::runWriter() {
 	vTaskDelete( nullptr );
 }
 
+// Reads the flash images keys are waiting for into PSRAM.
 void ImageCache::loadPending() {
 	while( !stopping_ ) {
 		Hash   hash;
@@ -334,8 +354,9 @@ void ImageCache::loadPending() {
 	}
 }
 
+// An image file, read into PSRAM; null if it can't be read in full.
 ImagePtr ImageCache::readImage( const Hash &hash, size_t size ) {
-	char path[64];
+	char path[kPathSize];
 	imagePath( hash, path, sizeof( path ) );
 	FILE *file = fopen( path, "rb" );
 	if( !file )
@@ -367,7 +388,7 @@ void ImageCache::saveAssigned( bool force ) {
 		}
 
 		int64_t started = esp_timer_get_time();
-		char    path[64];
+		char    path[kPathSize];
 		imagePath( hash, path, sizeof( path ) );
 		bool ok = makeRoom( image->size() ) && writeFile( path, image->data(), image->size() );
 
@@ -417,7 +438,7 @@ bool ImageCache::makeRoom( size_t size ) {
 			markDirty( indexDirty_ );
 		}
 
-		char path[64];
+		char path[kPathSize];
 		imagePath( victim, path, sizeof( path ) );
 		unlink( path );
 	}
@@ -435,7 +456,7 @@ void ImageCache::saveMetadata( bool force ) {
 
 		// Index: repeated { hash[16], lastUse u32 }.
 		if( indexDirty_ ) {
-			index.reserve( flash_.size() * ( kHashSize + 4 ) );
+			index.reserve( flash_.size() * kIndexRecord );
 			for( const auto &entry : flash_ ) {
 				index.insert( index.end(), entry.first.begin(), entry.first.end() );
 				const uint8_t *lastUse = (const uint8_t *)&entry.second.lastUse;
@@ -445,12 +466,12 @@ void ImageCache::saveMetadata( bool force ) {
 
 		// State: magic[4], brightness, key count, then per key { assigned, hash[16] }.
 		if( stateDirty_ ) {
-			state.resize( 4 + 2 + kMaxKeys * ( 1 + kHashSize ) );
+			state.resize( kStateHeader + kMaxKeys * kKeyRecord );
 			memcpy( state.data(), kStateMagic, 4 );
 			state[4] = brightness_;
 			state[5] = kMaxKeys;
-			uint8_t *cursor = state.data() + 6;
-			for( uint8_t key = 0; key < kMaxKeys; key++, cursor += 1 + kHashSize ) {
+			uint8_t *cursor = state.data() + kStateHeader;
+			for( uint8_t key = 0; key < kMaxKeys; key++, cursor += kKeyRecord ) {
 				cursor[0] = keys_[key].assigned ? 1 : 0;
 				memcpy( cursor + 1, keys_[key].hash.data(), kHashSize );
 			}
@@ -467,6 +488,7 @@ void ImageCache::saveMetadata( bool force ) {
 
 // MARK: - Boot
 
+// Lists the image files into flash_, removing anything else and renaming 1.x files.
 void ImageCache::scanImages() {
 	DIR *dir = opendir( kImageDir );
 	if( !dir )
@@ -480,13 +502,13 @@ void ImageCache::scanImages() {
 
 		// "<32 hex>.img" (or a 1.x ".bmp"); anything else, including interrupted .tmp writes,
 		// is removed.
-		char hex[kHashSize * 2 + 1] = {};
+		char hex[kHexLength + 1] = {};
 		Hash hash;
-		bool valid    = strlen( item->d_name ) == kHashSize * 2 + 4;
-		bool isLegacy = valid && strcmp( item->d_name + kHashSize * 2, kLegacyExtension ) == 0;
-		valid         = valid && ( isLegacy || strcmp( item->d_name + kHashSize * 2, kImageExtension ) == 0 );
+		bool valid    = strlen( item->d_name ) == kHexLength + 4;
+		bool isLegacy = valid && strcmp( item->d_name + kHexLength, kLegacyExtension ) == 0;
+		valid         = valid && ( isLegacy || strcmp( item->d_name + kHexLength, kImageExtension ) == 0 );
 		if( valid ) {
-			memcpy( hex, item->d_name, kHashSize * 2 );
+			memcpy( hex, item->d_name, kHexLength );
 			valid = hashFromHex( hex, hash );
 		}
 
@@ -502,10 +524,8 @@ void ImageCache::scanImages() {
 	closedir( dir );
 
 	for( const Hash &hash : legacy ) {
-		char hex[kHashSize * 2 + 1];
-		char from[64], to[64];
-		hashToHex( hash, hex );
-		snprintf( from, sizeof( from ), "%s/%s%s", kImageDir, hex, kLegacyExtension );
+		char from[kPathSize], to[kPathSize];
+		imagePath( hash, from, sizeof( from ), kLegacyExtension );
 		imagePath( hash, to, sizeof( to ) );
 		if( rename( from, to ) != 0 ) {
 			unlink( from );
@@ -514,12 +534,13 @@ void ImageCache::scanImages() {
 	}
 }
 
+// Each flash image's last use, from the index.
 void ImageCache::loadIndex() {
 	FILE *file = fopen( kIndexPath, "rb" );
 	if( !file )
 		return;
 
-	uint8_t record[kHashSize + 4];
+	uint8_t record[kIndexRecord];
 	while( fread( record, 1, sizeof( record ), file ) == sizeof( record ) ) {
 		Hash hash;
 		memcpy( hash.data(), record, kHashSize );
@@ -542,26 +563,26 @@ void ImageCache::loadState() {
 	if( !file )
 		return;
 
-	uint8_t data[4 + 2 + kMaxKeys * ( 1 + kHashSize )];
+	uint8_t data[kStateHeader + kMaxKeys * kKeyRecord];
 	size_t  size = fread( data, 1, sizeof( data ), file );
 	fclose( file );
 
 	size_t         count  = 0;
 	const uint8_t *cursor = nullptr;
-	if( size >= 6 && memcmp( data, kStateMagic, 4 ) == 0 ) {
+	if( size >= kStateHeader && memcmp( data, kStateMagic, 4 ) == 0 ) {
 		count  = std::min<size_t>( data[5], kMaxKeys );
-		cursor = data + 6;
+		cursor = data + kStateHeader;
 	} else if( size >= 5 && memcmp( data, kLegacyMagic, 4 ) == 0 ) {
 		count  = kLegacyKeys;
 		cursor = data + 5;
 	}
-	if( !cursor || size < (size_t)( cursor - data ) + count * ( 1 + kHashSize ) ) {
+	if( !cursor || size < (size_t)( cursor - data ) + count * kKeyRecord ) {
 		ESP_LOGW( TAG, "Ignoring unreadable state file" );
 		return;
 	}
 
 	brightness_ = std::min<uint8_t>( data[4], 100 );
-	for( uint8_t key = 0; key < count; key++, cursor += 1 + kHashSize ) {
+	for( uint8_t key = 0; key < count; key++, cursor += kKeyRecord ) {
 		keys_[key].assigned = cursor[0] != 0;
 		memcpy( keys_[key].hash.data(), cursor + 1, kHashSize );
 		const Hash &hash  = keys_[key].hash;

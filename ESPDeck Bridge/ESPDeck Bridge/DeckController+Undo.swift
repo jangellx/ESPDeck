@@ -11,6 +11,9 @@
 import Foundation
 
 extension DeckController {
+	/// Edits of the same key this close together undo as one.
+	static let undoCoalesceInterval: TimeInterval = 1.5
+
 	/// A device's keys, as undo restores them.
 	struct KeysSnapshot {
 		var pages       : [[KeyAssignment]]
@@ -18,7 +21,7 @@ extension DeckController {
 	}
 
 	/// Call before changing a device's keys. `coalesce` names a run of edits that undo as one
-	/// while they keep coming (under 1.5 s apart).
+	/// while they keep coming (under undoCoalesceInterval apart).
 	func recordUndo( device id: String, _ name: String, coalesce: String? = nil ) {
 		guard let undoManager, !undoManager.isUndoing, !undoManager.isRedoing, let settings = settings( id ) else { return }
 		let now = Date()
@@ -26,12 +29,13 @@ extension DeckController {
 			undoCoalescing = coalesce
 			undoCoalescedAt = now
 		}
-		if let coalesce, coalesce == undoCoalescing, now.timeIntervalSince( undoCoalescedAt ) < 1.5 {
+		if let coalesce, coalesce == undoCoalescing, now.timeIntervalSince( undoCoalescedAt ) < Self.undoCoalesceInterval {
 			return
 		}
 		register( KeysSnapshot( pages: settings.pages, currentPage: settings.currentPage ), device: id, name: name )
 	}
 
+	/// Registers putting a snapshot back, under the action's name.
 	private func register( _ snapshot: KeysSnapshot, device id: String, name: String ) {
 		guard let undoManager else { return }
 		// Its icon files stay until the app quits, in case the undo brings them back.
@@ -44,6 +48,7 @@ extension DeckController {
 		undoManager.setActionName( name )
 	}
 
+	/// Puts a snapshot back (undo or redo), registering the inverse, and shows the device.
 	private func restore( _ snapshot: KeysSnapshot, device id: String, name: String ) {
 		guard let index = config.settings.deviceIndex( id ) else { return }
 		let current = config.settings.devices[index]

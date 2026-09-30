@@ -2,20 +2,22 @@
 
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "Timing.h"
 
 static const char *TAG = "Upload";
 
 namespace {
-	uint32_t nowMillis() {
-		return (uint32_t)( esp_timer_get_time() / 1000 );
-	}
+	constexpr uint32_t    kTaskStack    = 4096;   // bytes
+	constexpr UBaseType_t kTaskPriority = 2;      // above the Arduino loop's 1, so uploads go on while it's busy
+	constexpr uint32_t    kIdlePoll     = 10;     // ms between checks in waitIdle()
+
+	using Timing::nowMillis;
 }
 
 void KeyUploader::begin( StreamDeck &deck ) {
 	deck_  = &deck;
 	shown_ = xQueueCreate( kMaxKeys * 2, sizeof( Shown ) );
-	// Above the Arduino loop (priority 1), so uploads keep going while the loop is busy.
-	xTaskCreate( task, "upload", 4096, this, 2, &task_ );
+	xTaskCreate( task, "upload", kTaskStack, this, kTaskPriority, &task_ );
 }
 
 void KeyUploader::show( uint8_t key, ImagePtr image, const Hash *hash ) {
@@ -48,13 +50,13 @@ bool KeyUploader::nextShown( Shown &shown ) {
 }
 
 void KeyUploader::waitIdle( uint32_t timeoutMs ) {
-	for( uint32_t waited = 0; waited < timeoutMs; waited += 10 ) {
+	for( uint32_t waited = 0; waited < timeoutMs; waited += kIdlePoll ) {
 		{
 			std::lock_guard<std::mutex> lock( mutex_ );
 			if( !pending_ && !busy_ )
 				return;
 		}
-		vTaskDelay( pdMS_TO_TICKS( 10 ) );
+		vTaskDelay( pdMS_TO_TICKS( kIdlePoll ) );
 	}
 	ESP_LOGW( TAG, "Still uploading after %u ms", (unsigned)timeoutMs );
 }
@@ -92,8 +94,7 @@ void KeyUploader::run() {
 
 				// Already showing this cached image: nothing to upload.
 				if( hasHash && slot.onDeckKnown && slot.onDeck == hash ) {
-					Shown shown = { key, hash };
-					xQueueSend( shown_, &shown, 0 );
+					reportShown( key, hash );
 					continue;
 				}
 				slot.onDeckKnown = false;   // unknown while the upload runs
@@ -119,8 +120,12 @@ void KeyUploader::run() {
 		if( err == ESP_OK && hasHash && generation == generation_ ) {
 			slot.onDeckKnown = true;
 			slot.onDeck      = hash;
-			Shown shown      = { key, hash };
-			xQueueSend( shown_, &shown, 0 );
+			reportShown( key, hash );
 		}
 	}
+}
+
+void KeyUploader::reportShown( uint8_t key, const Hash &hash ) {
+	Shown shown = { key, hash };
+	xQueueSend( shown_, &shown, 0 );
 }

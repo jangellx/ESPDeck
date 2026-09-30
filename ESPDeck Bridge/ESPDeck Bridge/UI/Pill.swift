@@ -8,6 +8,7 @@
 
 import SwiftUI
 
+/// Buttons side by side in one capsule.
 struct Pill<Content: View>: View {
 	@ViewBuilder let content: Content
 

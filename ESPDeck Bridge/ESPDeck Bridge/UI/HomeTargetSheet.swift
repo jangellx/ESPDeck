@@ -9,6 +9,7 @@
 
 import SwiftUI
 
+/// The Home sheet: scenes and each room's accessories, ticked to choose them.
 struct HomeTargetSheet: View {
 	let controller : DeckController
 	let onDone     : ( _ accessories: [KeyMember], _ scenes: [UUID] ) -> Void
@@ -103,8 +104,7 @@ struct HomeTargetSheet: View {
 						.lineLimit( 1 )
 					if let detail = detail( target ) {
 						Text( detail )
-							.font( .caption )
-							.foregroundStyle( Color.secondary )
+							.secondaryCaption()
 							.lineLimit( 1 )
 					}
 				}
@@ -119,6 +119,7 @@ struct HomeTargetSheet: View {
 		.accessibilityAddTraits( chosen ? .isSelected : [] )
 	}
 
+	/// A scene's sparkles, or the accessory's symbol in its state (grey when unreachable).
 	@ViewBuilder
 	private func icon( _ target: HomeTarget ) -> some View {
 		if target.kind == .scene {
@@ -155,15 +156,18 @@ struct HomeTargetSheet: View {
 
 	// MARK: - Choosing
 
+	/// The accessory as a key member; nil for scenes.
 	private func member( _ target: HomeTarget ) -> KeyMember? {
 		target.accessoryID.map { KeyMember( kind: target.kind, accessoryID: $0, serviceID: target.serviceID ) }
 	}
 
+	/// Whether the target is ticked.
 	private func isChosen( _ target: HomeTarget ) -> Bool {
 		if target.kind == .scene { return target.actionSetID.map( scenes.contains ) ?? false }
 		return member( target ).map( accessories.contains ) ?? false
 	}
 
+	/// Ticks or unticks the target, keeping the order they were ticked in.
 	private func toggle( _ target: HomeTarget ) {
 		if target.kind == .scene, let id = target.actionSetID {
 			if let index = scenes.firstIndex( of: id ) { scenes.remove( at: index ) } else { scenes.append( id ) }
@@ -172,6 +176,7 @@ struct HomeTargetSheet: View {
 		}
 	}
 
+	/// The search text is in the target's name, room, Home, or kind.
 	private func matches( _ target: HomeTarget ) -> Bool {
 		guard !search.isEmpty else { return true }
 		return [ target.name, target.room, target.home, target.kind.title ].compactMap { $0 }
@@ -180,8 +185,7 @@ struct HomeTargetSheet: View {
 
 	/// In order of first appearance (targets() sorts them), without repeats; "" (no room) last.
 	private static func ordered( _ values: [String] ) -> [String] {
-		var seen: Set<String> = []
-		let unique = values.filter { seen.insert( $0 ).inserted }
+		let unique = values.uniqued()
 		return unique.filter { !$0.isEmpty } + unique.filter { $0.isEmpty }
 	}
 }

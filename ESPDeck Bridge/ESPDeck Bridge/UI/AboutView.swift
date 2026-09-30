@@ -8,16 +8,19 @@
 
 import SwiftUI
 
+/// A third-party project ESPDeck uses, its license, and the license's text where it's shown.
 struct Credit: Identifiable {
 	let name    : String
 	let use     : String
 	let license : String
 	let url     : URL?
+	/// The full license, for the License button.
 	var text    : String?
 
 	var id: String { name }
 }
 
+/// The acknowledgments, with the licenses that ask for their text to be shown.
 enum Credits {
 	/// Used by ESPDeck Bridge, or by the firmware it installs.
 	static let all: [Credit] = [
@@ -150,6 +153,7 @@ enum Credits {
 		"""
 }
 
+/// The About page.
 struct AboutView: View {
 	let controller: DeckController
 
@@ -220,8 +224,7 @@ struct AboutView: View {
 								}
 							}
 							Text( credit.use )
-								.font( .caption )
-								.foregroundStyle( .secondary )
+								.secondaryCaption()
 						}
 					}
 				}
@@ -255,10 +258,12 @@ struct AboutView: View {
 		}
 	}
 
+	/// The build number, from Info.plist.
 	private var build: String {
 		Bundle.main.object( forInfoDictionaryKey: "CFBundleVersion" ) as? String ?? "?"
 	}
 
+	/// A titled section of the page.
 	private func section<Content: View>( _ title: String, @ViewBuilder content: () -> Content ) -> some View {
 		VStack( alignment: .leading, spacing: 10 ) {
 			Text( title ).font( .title3.bold() )
@@ -266,6 +271,7 @@ struct AboutView: View {
 		}
 	}
 
+	/// A bulleted line of Markdown.
 	private func bullet( _ text: String ) -> some View {
 		HStack( alignment: .firstTextBaseline, spacing: 8 ) {
 			Text( "•" )

@@ -11,8 +11,10 @@ import Observation
 import UIKit
 import UniformTypeIdentifiers
 
+/// The settings and icon files on disk; every change to `settings` is saved shortly after.
 @Observable
 final class ConfigStore {
+	/// Everything in Settings.json; saved shortly after each change.
 	var settings: BridgeSettings {
 		didSet {
 			if settings != oldValue { scheduleSave() }
@@ -22,12 +24,12 @@ final class ConfigStore {
 	/// Set when Settings.json couldn't be read at launch and was set aside under this name.
 	private(set) var unreadableSettings: String?
 
-	@ObservationIgnored private let directory     : URL
-	@ObservationIgnored private let iconDirectory : URL
-	@ObservationIgnored private var iconCache     : [String: UIImage] = [:]
+	@ObservationIgnored private let directory             : URL
+	@ObservationIgnored private let iconDirectory         : URL
+	@ObservationIgnored private var iconCache             : [String: UIImage] = [:]
 	@ObservationIgnored private let shortcutIconDirectory : URL
-	@ObservationIgnored private var pendingSave   : Task<Void, Never>?
-	@ObservationIgnored private var observers     : [NSObjectProtocol] = []
+	@ObservationIgnored private var pendingSave           : Task<Void, Never>?
+	@ObservationIgnored private var observers             : [NSObjectProtocol] = []
 
 	private var settingsURL: URL { directory.appending( path: "Settings.json" ) }
 
@@ -41,6 +43,7 @@ final class ConfigStore {
 	/// Writes happen here, in order, off the main thread.
 	private static let writer = DispatchQueue( label: "com.tmproductions.espdeck.settings", qos: .utility )
 
+	/// Reads Settings.json (setting an unreadable one aside) and the bridge ID kept beside it.
 	init() {
 		let support   = URL.applicationSupportDirectory.appending( path: "ESPDeck Bridge", directoryHint: .isDirectory )
 		directory     = support
@@ -99,6 +102,7 @@ final class ConfigStore {
 		}
 	}
 
+	/// Saves after `saveDelay`, together with any change that follows within it.
 	private func scheduleSave() {
 		pendingSave?.cancel()
 		pendingSave = Task { [weak self] in
@@ -148,6 +152,7 @@ final class ConfigStore {
 		Self.files( in: iconDirectory )
 	}
 
+	/// The Shortcut Icons folder's files by name, for an export to another Mac.
 	func shortcutIconFiles() -> [String: Data] {
 		Self.files( in: shortcutIconDirectory )
 	}
@@ -167,17 +172,16 @@ final class ConfigStore {
 
 	/// Only names an export may carry, which leaves out things like .DS_Store.
 	private static func files( in directory: URL ) -> [String: Data] {
-		let names = ( try? FileManager.default.contentsOfDirectory( atPath: directory.path( percentEncoded: false ) ) ) ?? []
 		var files: [String: Data] = [:]
-		for name in names where BridgeArchive.isSafeFileName( name ) {
+		for name in fileNames( in: directory ) where BridgeArchive.isSafeFileName( name ) {
 			files[name] = try? Data( contentsOf: directory.appending( path: name ) )
 		}
 		return files
 	}
 
+	/// Makes a folder hold exactly `files` (those with safe names).
 	private static func replaceFiles( in directory: URL, with files: [String: Data] ) {
-		let names = ( try? FileManager.default.contentsOfDirectory( atPath: directory.path( percentEncoded: false ) ) ) ?? []
-		for name in names where files[name] == nil {
+		for name in fileNames( in: directory ) where files[name] == nil {
 			try? FileManager.default.removeItem( at: directory.appending( path: name ) )
 		}
 		for ( name, data ) in files where BridgeArchive.isSafeFileName( name ) {
@@ -189,6 +193,11 @@ final class ConfigStore {
 		}
 	}
 
+	/// What's in a folder; nothing if it can't be read.
+	private static func fileNames( in directory: URL ) -> [String] {
+		( try? FileManager.default.contentsOfDirectory( atPath: directory.path( percentEncoded: false ) ) ) ?? []
+	}
+
 	// MARK: - Shortcut icons
 
 	/// Cached copy of a shortcut's own icon, so keys render before Shortcuts is asked.
@@ -196,10 +205,12 @@ final class ConfigStore {
 		UIImage( contentsOfFile: shortcutIconURL( id ).path( percentEncoded: false ) )
 	}
 
+	/// Keeps a shortcut's icon from Shortcuts for the next launch.
 	func storeShortcutIcon( _ png: Data, id: String ) {
 		try? png.write( to: shortcutIconURL( id ), options: .atomic )
 	}
 
+	/// The icon's file, named for the shortcut's ID with anything unsafe left out.
 	private func shortcutIconURL( _ id: String ) -> URL {
 		let safe = id.filter { $0.isLetter || $0.isNumber || $0 == "-" }
 		return shortcutIconDirectory.appending( path: safe + ".png" )
@@ -207,6 +218,7 @@ final class ConfigStore {
 
 	// MARK: - Icons
 
+	/// A dropped icon by file name, cached after the first read.
 	func icon( named name: String ) -> UIImage? {
 		if let cached = iconCache[name] { return cached }
 		guard let image = UIImage( contentsOfFile: iconDirectory.appending( path: name ).path( percentEncoded: false ) ) else { return nil }
@@ -230,6 +242,7 @@ final class ConfigStore {
 		return name
 	}
 
+	/// Why a dropped image can't be an icon.
 	nonisolated enum IconProblem: LocalizedError {
 		case tooLarge
 		case unreadable
@@ -263,6 +276,7 @@ final class ConfigStore {
 		return png as Data
 	}
 
+	/// Sets (or with nil removes) a state's icon on a key of the page the device shows.
 	func setIcon( _ name: String?, device: String, key: Int, state: KeyState ) {
 		guard let index = settings.deviceIndex( device ), key < settings.devices[index].keys.count else { return }
 		settings.devices[index].keys[key].icons[state.rawValue] = name
@@ -276,8 +290,7 @@ final class ConfigStore {
 	func removeUnusedIcons() {
 		let keys  = settings.devices.flatMap( \.allKeys ) + ( settings.legacyKeys ?? [] )
 		let used  = Set( keys.flatMap { $0.icons.values } ).union( iconsKeptForUndo )
-		let files = ( try? FileManager.default.contentsOfDirectory( atPath: iconDirectory.path( percentEncoded: false ) ) ) ?? []
-		for file in files where !used.contains( file ) {
+		for file in Self.fileNames( in: iconDirectory ) where !used.contains( file ) {
 			try? FileManager.default.removeItem( at: iconDirectory.appending( path: file ) )
 			iconCache[file] = nil
 		}

@@ -30,6 +30,7 @@
 
 class StreamDeck {
 public:
+	// What nextEvent() reports.
 	enum class EventType : uint8_t {
 		Connected,
 		Disconnected,
@@ -48,15 +49,17 @@ public:
 
 	struct Event {
 		EventType type;
-		uint8_t   key;
+		uint8_t   key;   // KeyDown and KeyUp
 	};
 
+	// The report family (see above).
 	enum class Protocol : uint8_t {
 		Mini,
 		Original,
 		Main,
 	};
 
+	// The key images' format.
 	enum class Format : uint8_t {
 		None,       // no displays (Pedal)
 		BMP,
@@ -72,6 +75,7 @@ public:
 		Rotate180,
 	};
 
+	// The connected deck.
 	struct Info {
 		uint16_t  pid;
 		char      model[40];
@@ -92,6 +96,7 @@ public:
 		uint8_t keyCount() const { return rows * cols; }
 	};
 
+	// Names as the protocol uses them ("jpeg", "rotate180", …).
 	static const char *formatName( Format format );
 	static const char *transformName( Transform transform );
 	static bool        transformFromName( const char *name, Transform &out );
@@ -102,6 +107,7 @@ public:
 	// Connection changes and key presses, in order.
 	bool nextEvent( Event &event, TickType_t wait = 0 );
 
+	// Whether a deck is connected, and the details of the last one to connect.
 	bool isConnected() const;
 	Info info() const;
 	UsbDevice lastUsbDevice() const;
@@ -117,6 +123,7 @@ public:
 	esp_err_t setBrightness( uint8_t percent );
 
 private:
+	// Work for deviceTask(), from the HID driver's callbacks.
 	enum class RequestType : uint8_t {
 		Connected,
 		Disconnected,
@@ -127,6 +134,7 @@ private:
 		hid_host_device_handle_t handle;
 	};
 
+	// Tasks and callbacks (see StreamDeck.cpp).
 	static void usbLibraryTask( void *arg );
 	static void clientTask( void *arg );
 	static void deviceTask( void *arg );
@@ -138,14 +146,20 @@ private:
 	void handleConnected( hid_host_device_handle_t handle );
 	void handleDisconnected( hid_host_device_handle_t handle );
 	void handleInputReport( const uint8_t *data, size_t length );
+	// Fills in info for an Elgato device with keys; false for anything else.
 	bool identify( hid_host_device_handle_t handle, uint16_t vid, uint16_t pid, Info &info );
 	void readFeatureString( hid_host_device_handle_t handle, uint8_t reportID, size_t length, size_t offset, char *out, size_t outSize );
 	bool openOutput( hid_host_device_handle_t handle );
+	// Shrinks an interrupt OUT endpoint the host can't take, before the interface is claimed.
 	void shrinkOversizedOut( hid_host_device_handle_t handle );
 	void closeOutput();
 	esp_err_t sendReport( size_t length );
+	template <typename FillHeader>
+	esp_err_t sendImage( const uint8_t *image, size_t length, size_t header, FillHeader fillHeader, size_t &sent );
+	// Clears a half-sent image and turns the deck's own sleep timer off.
 	void prepareDeck( hid_host_device_handle_t handle );
 	esp_err_t submitAndWait( bool control );
+	// Maps a key index to the deck's wire order and back.
 	uint8_t wireKey( uint8_t key ) const;
 	void post( EventType type, uint8_t key = 0 );
 	void recordUsbDevice( const UsbDevice &device );

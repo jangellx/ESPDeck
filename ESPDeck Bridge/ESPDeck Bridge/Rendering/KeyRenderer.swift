@@ -39,6 +39,7 @@ struct RenderedKey {
 	let preview : UIImage
 }
 
+/// A key face as SwiftUI draws it, at deckKeyPixels points square.
 struct KeyFaceView: View {
 	let face : KeyFace
 	let icon : UIImage?
@@ -73,6 +74,7 @@ struct KeyFaceView: View {
 		.environment( \.colorScheme, .dark )
 	}
 
+	/// The label, when there is one, shrinking to fit one line.
 	@ViewBuilder private var labelText: some View {
 		if let label = face.label, !label.isEmpty {
 			Text( label )
@@ -83,6 +85,7 @@ struct KeyFaceView: View {
 		}
 	}
 
+	/// The icon image, else the page number, else the symbol in the tint.
 	@ViewBuilder private var artwork: some View {
 		if let icon {
 			Image( uiImage: icon )
@@ -190,7 +193,9 @@ private struct DoorArrow: View {
 	}
 }
 
+/// Turns key faces into the images the deck is sent.
 enum KeyRenderer {
+	/// A face drawn at the deck's key size and encoded in its format; nil if drawing fails.
 	static func render( _ face: KeyFace, icon: UIImage?, layout: DeckLayout ) -> RenderedKey? {
 		let renderer = ImageRenderer( content: KeyFaceView( face: face, icon: icon ) )
 		renderer.scale        = CGFloat( layout.keySize ) / CGFloat( deckKeyPixels )
@@ -215,6 +220,7 @@ enum KeyRenderer {
 	}
 }
 
+/// Encodes key images as the deck's BMP or JPEG, with its transform applied.
 enum KeyImageEncoder {
 	/// 24-bit bottom-up BMP.
 	static func bmp( from image: CGImage, size: Int, transform: KeyTransform ) -> Data? {
@@ -257,25 +263,21 @@ enum KeyImageEncoder {
 		return bmp
 	}
 
+	/// JPEG at 92% quality.
 	static func jpeg( from image: CGImage, size: Int, transform: KeyTransform ) -> Data? {
 		guard var rgba = pixels( of: image, size: size, transform: transform ) else { return nil }
 		let transformed = rgba.withUnsafeMutableBytes { buffer -> CGImage? in
-			CGContext( data: buffer.baseAddress, width: size, height: size, bitsPerComponent: 8, bytesPerRow: size * 4,
-					   space: CGColorSpace( name: CGColorSpace.sRGB )!,
-					   bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue )?.makeImage()
+			bitmapContext( buffer.baseAddress, size: size )?.makeImage()
 		}
 		return transformed.flatMap { UIImage( cgImage: $0 ).jpegData( compressionQuality: 0.92 ) }
 	}
 
 	/// RGBX pixels, top row first, scaled to `size` and transformed for the panel.
 	private static func pixels( of image: CGImage, size: Int, transform: KeyTransform ) -> [UInt8]? {
-		let bytesPerRow = size * 4
-		var source      = [UInt8]( repeating: 0, count: bytesPerRow * size )
+		var source = [UInt8]( repeating: 0, count: size * size * 4 )
 
 		let drawn = source.withUnsafeMutableBytes { buffer -> Bool in
-			guard let context = CGContext( data: buffer.baseAddress, width: size, height: size, bitsPerComponent: 8, bytesPerRow: bytesPerRow,
-										   space: CGColorSpace( name: CGColorSpace.sRGB )!,
-										   bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue ) else { return false }
+			guard let context = bitmapContext( buffer.baseAddress, size: size ) else { return false }
 			context.setFillColor( CGColor( gray: 0, alpha: 1 ) )
 			context.fill( CGRect( x: 0, y: 0, width: size, height: size ) )
 			context.interpolationQuality = .high
@@ -306,5 +308,12 @@ enum KeyImageEncoder {
 			}
 		}
 		return output
+	}
+
+	/// An sRGB RGBX bitmap context, `size` pixels square, over `data`.
+	private static func bitmapContext( _ data: UnsafeMutableRawPointer?, size: Int ) -> CGContext? {
+		CGContext( data: data, width: size, height: size, bitsPerComponent: 8, bytesPerRow: size * 4,
+				   space: CGColorSpace( name: CGColorSpace.sRGB )!,
+				   bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue )
 	}
 }

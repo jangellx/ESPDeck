@@ -8,11 +8,13 @@
 
 import Foundation
 
+/// Reading ESP-IDF firmware files; see the file comment.
 enum FirmwareImage {
 	/// The name ESP-IDF builds into the app description: `project()` in CMakeLists.txt.
 	static let projectName  = "ESPDeck"
 	static let esp32S3ChipID = 9
 
+	/// Why a file can't be installed.
 	enum Problem: LocalizedError {
 		case notFirmware
 		case wrongChip
@@ -42,6 +44,7 @@ enum FirmwareImage {
 		/// Hex SHA-256 of the ELF file: tells builds with the same version apart.
 		var elfSHA256   : String
 
+		/// "Jan  5 2026 at 14:03:12".
 		var built: String { "\(date) at \(time)" }
 	}
 
@@ -86,10 +89,12 @@ enum FirmwareImage {
 	}
 
 	static let partitionTableOffset = 0x8000
+	/// The table's largest size: 0xC00 bytes, room for 96 entries.
+	static let partitionTableSize   = 0xC00
 
 	/// 32-byte entries starting 0xAA 0x50, until the MD5 entry (0xEB 0xEB) or erased flash.
 	static func partitions( _ table: Data ) -> [Partition] {
-		let bytes = [UInt8]( table.prefix( 0xC00 ) )
+		let bytes = [UInt8]( table.prefix( partitionTableSize ) )
 		var partitions: [Partition] = []
 		for start in stride( from: 0, to: bytes.count - 31, by: 32 ) where bytes[start] == 0xAA && bytes[start + 1] == 0x50 {
 			partitions.append( Partition( type: bytes[start + 2], subtype: bytes[start + 3],
@@ -103,7 +108,7 @@ enum FirmwareImage {
 	static func requiredFlashSize( _ regions: [Region] ) -> Int? {
 		guard let region = regions.first( where: { $0.offset <= partitionTableOffset && partitionTableOffset < $0.offset + $0.data.count } ) else { return nil }
 		let start = region.data.startIndex + partitionTableOffset - region.offset
-		let table = partitions( region.data.subdata( in: start..<min( start + 0xC00, region.data.endIndex ) ) )
+		let table = partitions( region.data.subdata( in: start..<min( start + partitionTableSize, region.data.endIndex ) ) )
 		return table.map { $0.offset + $0.size }.max()
 	}
 
@@ -114,9 +119,9 @@ enum FirmwareImage {
 	static func regions( fullImage image: Data ) throws -> ( regions: [Region], app: AppInfo ) {
 		guard image.first == 0xE9 else { throw Problem.notFirmware }
 		if ( try? appInfo( image ) ) != nil { throw Problem.appImageOnly }
-		guard image.count > partitionTableOffset + 0xC00 else { throw Problem.damaged( "it's too short" ) }
+		guard image.count > partitionTableOffset + partitionTableSize else { throw Problem.damaged( "it's too short" ) }
 
-		let table = partitions( image.subdata( in: partitionTableOffset..<partitionTableOffset + 0xC00 ) )
+		let table = partitions( image.subdata( in: partitionTableOffset..<partitionTableOffset + partitionTableSize ) )
 		guard let app = table.filter( \.isApp ).min( by: { $0.offset < $1.offset } ), app.offset < image.count else {
 			throw Problem.damaged( "it has no app" )
 		}
@@ -138,6 +143,7 @@ enum FirmwareImage {
 
 	// MARK: - Helpers
 
+	/// A little-endian 32-bit word.
 	private static func word( _ bytes: [UInt8], _ offset: Int ) -> UInt32 {
 		UInt32( bytes[offset] ) | UInt32( bytes[offset + 1] ) << 8 | UInt32( bytes[offset + 2] ) << 16 | UInt32( bytes[offset + 3] ) << 24
 	}

@@ -31,6 +31,7 @@ enum GuidePath {
 	case wifi
 	case usb
 
+	/// The sheets on this path, in order.
 	var sheets: [GuideSheet] {
 		switch self {
 			case .wifi: [ .parts, .assembly, .wifi, .find ]
@@ -39,6 +40,7 @@ enum GuidePath {
 	}
 }
 
+/// The Getting Started page: a switcher over the chosen path's sheets, and the sheet.
 struct PartsView: View {
 	let controller          : DeckController
 	@Binding var selection  : String?
@@ -55,6 +57,7 @@ struct PartsView: View {
 		path.sheets.contains( window.guideSheet ) ? window.guideSheet : .parts
 	}
 
+	/// The switcher's sheet; choosing one sets the window's.
 	private var sheetBinding: Binding<GuideSheet> {
 		Binding { sheet } set: { controller.window.guideSheet = $0 }
 	}
@@ -86,8 +89,9 @@ struct PartsView: View {
 		}
 	}
 
+	/// One sheet's content.
 	@ViewBuilder
-	fileprivate func page( _ sheet: GuideSheet ) -> some View {
+	private func page( _ sheet: GuideSheet ) -> some View {
 		switch sheet {
 			case .parts:    parts
 			case .connect:  connect
@@ -116,10 +120,7 @@ struct PartsView: View {
 				Button {
 					window.guideSheet = next
 				} label: {
-					HStack( spacing: 6 ) {
-						Text( next.rawValue )
-						Image( systemName: "chevron.right" )
-					}
+					ForwardLabel( title: next.rawValue )
 				}
 				.prominentButtonStyle()
 			}
@@ -129,14 +130,11 @@ struct PartsView: View {
 
 	// MARK: - What You Need
 
+	/// What You Need: the parts, what else is needed, and the choice of path.
 	private var parts: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
-			VStack( alignment: .leading, spacing: 6 ) {
-				Text( "What You Need" )
-					.font( .largeTitle.weight( .bold ) )
-				Text( "Everything for one ESPDeck. The Stream Deck plugs into the ESP32-S3 dev kit, which talks to this Mac over Wi-Fi." )
-					.foregroundStyle( .secondary )
-			}
+			SheetHeading( title: "What You Need",
+						  detail: "Everything for one ESPDeck. The Stream Deck plugs into the ESP32-S3 dev kit, which talks to this Mac over Wi-Fi." )
 
 			LazyVGrid( columns: [ GridItem( .adaptive( minimum: 230 ), spacing: 22, alignment: .top ) ], alignment: .leading, spacing: 30 ) {
 				ForEach( Part.all ) { part in
@@ -192,19 +190,14 @@ struct PartsView: View {
 	static let unplugStep = GuideStep( title: "Unplug it and put it together.",
 									   detail: "When USB Setup says the dev kit has joined your network, unplug it from this Mac and connect it to the Stream Deck and power." )
 
+	/// Connect to This Mac: plugging the dev kit in, and the way to USB Setup.
 	private var connect: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
-			VStack( alignment: .leading, spacing: 6 ) {
-				Text( "Connect to This Mac" )
-					.font( .largeTitle.weight( .bold ) )
-				Text( "Before putting it together, plug the dev kit into this Mac to install ESPDeck and set up its Wi-Fi." )
-					.foregroundStyle( .secondary )
-			}
+			SheetHeading( title: "Connect to This Mac",
+						  detail: "Before putting it together, plug the dev kit into this Mac to install ESPDeck and set up its Wi-Fi." )
 
 			USBConnectionIllustration()
-				.aspectRatio( USBConnectionIllustration.space.width / USBConnectionIllustration.space.height, contentMode: .fit )
-				.padding( 18 )
-				.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+				.illustrationCard( USBConnectionIllustration.space )
 
 			steps( Self.connectSteps )
 
@@ -212,10 +205,7 @@ struct PartsView: View {
 			Button {
 				selection = SidebarItem.usbSetup
 			} label: {
-				HStack( spacing: 6 ) {
-					Text( "Open USB Setup" )
-					Image( systemName: "chevron.right" )
-				}
+				ForwardLabel( title: "Open USB Setup" )
 			}
 			.frame( maxWidth: .infinity )
 
@@ -234,6 +224,7 @@ struct PartsView: View {
 				   detail: "Use the USB-C cable, into the OTG adapter's USB-C socket. The Stream Deck lights up." ),
 	]
 
+	/// Assembly's last step, which leads on to the chosen path's next sheet.
 	private var lastAssemblyStep: GuideStep {
 		switch path {
 			case .usb:
@@ -245,19 +236,14 @@ struct PartsView: View {
 		}
 	}
 
+	/// Putting It Together: the parts assembled, and the steps.
 	private var assembly: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
-			VStack( alignment: .leading, spacing: 6 ) {
-				Text( "Putting It Together" )
-					.font( .largeTitle.weight( .bold ) )
-				Text( "The dev kit sits between the Stream Deck and the power supply, and reaches this Mac over Wi-Fi." )
-					.foregroundStyle( .secondary )
-			}
+			SheetHeading( title: "Putting It Together",
+						  detail: "The dev kit sits between the Stream Deck and the power supply, and reaches this Mac over Wi-Fi." )
 
-			PartIllustration( space: CGSize( width: 640, height: 350 ), draw: Sketch.assembly )
-				.aspectRatio( 640 / 350, contentMode: .fit )
-				.padding( 18 )
-				.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+			PartIllustration( space: Sketch.assemblySpace, draw: Sketch.assembly )
+				.illustrationCard( Sketch.assemblySpace )
 
 			steps( Self.assemblySteps + [ lastAssemblyStep ] )
 		}
@@ -276,19 +262,14 @@ struct PartsView: View {
 				   detail: "The deck joins your network, leaves setup mode, and finds ESPDeck Bridge on this Mac. It then appears under Find Your Device and New Devices, to be paired." ),
 	]
 
+	/// Set Up over Wi-Fi: the setup codes, the steps, and what to do when they go wrong.
 	private var wifi: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
-			VStack( alignment: .leading, spacing: 6 ) {
-				Text( "Set Up over Wi-Fi" )
-					.font( .largeTitle.weight( .bold ) )
-				Text( "Put together and powered, the dev kit shows setup codes on the deck's keys. Scan them with an iPhone or iPad to join the dev kit's own network and give it your Wi-Fi." )
-					.foregroundStyle( .secondary )
-			}
+			SheetHeading( title: "Set Up over Wi-Fi",
+						  detail: "Put together and powered, the dev kit shows setup codes on the deck's keys. Scan them with an iPhone or iPad to join the dev kit's own network and give it your Wi-Fi." )
 
 			PartIllustration( space: Sketch.wifiSetupSpace, draw: Sketch.wifiSetup )
-				.aspectRatio( Sketch.wifiSetupSpace.width / Sketch.wifiSetupSpace.height, contentMode: .fit )
-				.padding( 18 )
-				.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+				.illustrationCard( Sketch.wifiSetupSpace )
 
 			steps( Self.wifiSteps )
 
@@ -362,6 +343,47 @@ struct GuideStepText: View {
 	}
 }
 
+/// A sheet's title, large, with what it's about under it.
+private struct SheetHeading: View {
+	let title  : String
+	let detail : String
+
+	var body: some View {
+		VStack( alignment: .leading, spacing: 6 ) {
+			Text( title )
+				.font( .largeTitle.weight( .bold ) )
+			Text( detail )
+				.foregroundStyle( .secondary )
+		}
+	}
+}
+
+/// A button's title with a chevron after it, for going on to another page or sheet.
+struct ForwardLabel: View {
+	let title: String
+
+	var body: some View {
+		HStack( spacing: 6 ) {
+			Text( title )
+			Image( systemName: "chevron.right" )
+		}
+	}
+}
+
+extension View {
+	/// The faint rounded card the Getting Started sheets set things on.
+	fileprivate func cardBackground() -> some View {
+		background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+	}
+
+	/// An illustration at the proportions of its drawing `space`, on a card.
+	fileprivate func illustrationCard( _ space: CGSize ) -> some View {
+		aspectRatio( space.width / space.height, contentMode: .fit )
+			.padding( 18 )
+			.cardBackground()
+	}
+}
+
 /// One way of setting up the dev kit, chosen by clicking it.
 private struct PathCard: View {
 	let icon    : String
@@ -392,7 +414,7 @@ private struct PathCard: View {
 			}
 			.padding( 14 )
 			.frame( maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading )
-			.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+			.cardBackground()
 			.overlay( RoundedRectangle( cornerRadius: 14, style: .continuous ).strokeBorder( chosen ? Color.accentColor : .clear, lineWidth: 2 ) )
 			.contentShape( Rectangle() )
 		}
@@ -425,12 +447,8 @@ private struct FindDevicesSheet: View {
 
 	var body: some View {
 		VStack( alignment: .leading, spacing: 24 ) {
-			VStack( alignment: .leading, spacing: 6 ) {
-				Text( "Find Your Device" )
-					.font( .largeTitle.weight( .bold ) )
-				Text( "Once the dev kit is on your Wi-Fi, it finds ESPDeck Bridge and shows up here to be paired. A new dev kit needs Wi-Fi first: plug it into this Mac and set it up over USB, or scan the setup codes on the deck." )
-					.foregroundStyle( .secondary )
-			}
+			SheetHeading( title: "Find Your Device",
+						  detail: "Once the dev kit is on your Wi-Fi, it finds ESPDeck Bridge and shows up here to be paired. A new dev kit needs Wi-Fi first: plug it into this Mac and set it up over USB, or scan the setup codes on the deck." )
 
 			HStack( spacing: 10 ) {
 				ProgressView()
@@ -478,6 +496,7 @@ private struct FindDevicesSheet: View {
 		}
 	}
 
+	/// A device or board, what it is, and the button that goes on with it.
 	private func row( icon: String, title: String, detail: String, action: String, perform: @escaping () -> Void ) -> some View {
 		HStack( spacing: 12 ) {
 			Image( systemName: icon )
@@ -496,10 +515,11 @@ private struct FindDevicesSheet: View {
 				.prominentButtonStyle()
 		}
 		.padding( 14 )
-		.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+		.cardBackground()
 	}
 }
 
+/// A part's picture, number and name, what to look for, and when it's needed.
 private struct PartCard: View {
 	let part: Part
 
@@ -508,7 +528,7 @@ private struct PartCard: View {
 			PartIllustration( draw: part.draw )
 				.frame( height: 150 )
 				.frame( maxWidth: .infinity )
-				.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+				.cardBackground()
 
 			HStack( alignment: .firstTextBaseline, spacing: 8 ) {
 				Text( "\( part.number )" )
@@ -532,6 +552,7 @@ private struct PartCard: View {
 
 // MARK: - Parts
 
+/// One of the parts for an ESPDeck, and how to draw it.
 private struct Part: Identifiable {
 	let number : Int
 	let title  : String
@@ -605,6 +626,7 @@ fileprivate nonisolated struct Sketch {
 	private let accent = GraphicsContext.Shading.color( Sketch.accentColor )
 	private let line   = StrokeStyle( lineWidth: 2.2, lineCap: .round, lineJoin: .round )
 
+	/// Outlined in ink, thin in ink, filled amber, filled ink, and an ink dot.
 	func stroke( _ path: Path ) { context.stroke( path, with: ink, style: line ) }
 	func thin( _ path: Path )   { context.stroke( path, with: ink, style: StrokeStyle( lineWidth: 1.3, lineCap: .round, lineJoin: .round ) ) }
 	func fill( _ path: Path )   { context.fill( path, with: accent ) }
@@ -632,6 +654,7 @@ fileprivate nonisolated struct Sketch {
 		}
 	}
 
+	/// A rectangle with continuous corners of radius `r`.
 	static func box( _ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat = 0 ) -> Path {
 		Path( roundedRect: CGRect( x: x, y: y, width: w, height: h ), cornerRadius: r, style: .continuous )
 	}
@@ -698,6 +721,7 @@ fileprivate nonisolated struct Sketch {
 
 	// MARK: Parts
 
+	/// A Stream Deck with its cable and USB-A plug.
 	static func streamDeck( _ s: inout Sketch ) {
 		deckBody( s )
 
@@ -724,6 +748,7 @@ fileprivate nonisolated struct Sketch {
 		}
 	}
 
+	/// The ESP32-S3 dev kit from above, its two USB-C ports labelled.
 	static func devKit( _ s: inout Sketch ) {
 		s.stroke( box( 16, 36, 172, 70, 4 ) )
 
@@ -756,6 +781,7 @@ fileprivate nonisolated struct Sketch {
 		s.label( "S3", 138, 71, size: 10 )
 	}
 
+	/// The OTG adapter, its plug and sockets labelled.
 	static func otgAdapter( _ s: inout Sketch ) {
 		// Body, with the USB-C plug for the dev kit on a short lead to the left.
 		s.stroke( box( 80, 48, 72, 48, 6 ) )
@@ -784,6 +810,7 @@ fileprivate nonisolated struct Sketch {
 		s.label( "USB-C socket\n(power)", 162, 26 )
 	}
 
+	/// The USB-A to USB-C adapter.
 	static func aToCAdapter( _ s: inout Sketch ) {
 		// USB-A plug out of the left of the body, USB-C socket in its right end.
 		let scale: CGFloat = 1.4
@@ -795,6 +822,7 @@ fileprivate nonisolated struct Sketch {
 		s.label( "USB-C\nsocket", body + 42, 106 )
 	}
 
+	/// A 5 V USB-C power supply.
 	static func powerSupply( _ s: inout Sketch ) {
 		// The brick, its wall prongs (over its edge), and its USB-C socket in the bottom edge.
 		s.stroke( box( 66, 30, 68, 76, 12 ) )
@@ -805,6 +833,7 @@ fileprivate nonisolated struct Sketch {
 		s.label( "USB-C socket", 100, 124 )
 	}
 
+	/// A coiled USB-C cable.
 	static func dataCable( _ s: inout Sketch ) {
 		// A loose coil between two USB-C plugs.
 		for ( index, offset ) in [ -12 as CGFloat, 0, 12 ].enumerated() {
@@ -824,7 +853,9 @@ fileprivate nonisolated struct Sketch {
 
 	// MARK: Assembly
 
-	/// Everything connected, in a 640 × 350 space.
+	static let assemblySpace = CGSize( width: 640, height: 350 )
+
+	/// Everything connected, in an `assemblySpace`.
 	static func assembly( _ s: inout Sketch ) {
 		// The dev kit on the right; its USB socket lands at (406, 166).
 		var kit = s.placed( at: CGPoint( x: 390, y: 110 ) )
@@ -881,16 +912,21 @@ fileprivate nonisolated struct Sketch {
 		s.label( "If the deck's cable is USB-C,\nthe USB-A to USB-C adapter goes here", grip, 286, size: 8.5 )
 
 		// Wi-Fi from the dev kit to the Mac.
-		for radius in [ 7 as CGFloat, 13, 19 ] {
-			var arc = Path()
-			arc.addArc( center: CGPoint( x: 495, y: 252 ), radius: radius, startAngle: .degrees( -135 ), endAngle: .degrees( -45 ), clockwise: false )
-			s.context.stroke( arc, with: .color( accentColor ), style: StrokeStyle( lineWidth: 2.6, lineCap: .round ) )
-		}
-		s.context.fill( Path( ellipseIn: CGRect( x: 492, y: 249, width: 6, height: 6 ) ), with: .color( accentColor ) )
+		wifiWaves( s, at: CGPoint( x: 495, y: 252 ) )
 
 		// The Mac running ESPDeck Bridge.
 		macBook( s.placed( at: CGPoint( x: 495, y: 262 ) ) )
 		s.label( "Mac", 495, 340 )
+	}
+
+	/// The Wi-Fi symbol in amber: three arcs over a dot centred on `center`.
+	static func wifiWaves( _ s: Sketch, at center: CGPoint ) {
+		for radius in [ 7 as CGFloat, 13, 19 ] {
+			var arc = Path()
+			arc.addArc( center: center, radius: radius, startAngle: .degrees( -135 ), endAngle: .degrees( -45 ), clockwise: false )
+			s.context.stroke( arc, with: .color( accentColor ), style: StrokeStyle( lineWidth: 2.6, lineCap: .round ) )
+		}
+		s.context.fill( Path( ellipseIn: CGRect( x: center.x - 3, y: center.y - 3, width: 6, height: 6 ) ), with: .color( accentColor ) )
 	}
 
 	/// A MacBook running ESPDeck Bridge: thin-bezelled lid, and a flat base with the opening
@@ -971,12 +1007,7 @@ fileprivate nonisolated struct Sketch {
 		s.label( "Stream Deck Mini in setup mode", 160, 246 )
 
 		// Wi-Fi from the deck to the iPhone.
-		for radius in [ 7 as CGFloat, 13, 19 ] {
-			var arc = Path()
-			arc.addArc( center: CGPoint( x: 364, y: 124 ), radius: radius, startAngle: .degrees( -135 ), endAngle: .degrees( -45 ), clockwise: false )
-			s.context.stroke( arc, with: .color( accentColor ), style: StrokeStyle( lineWidth: 2.6, lineCap: .round ) )
-		}
-		s.context.fill( Path( ellipseIn: CGRect( x: 361, y: 121, width: 6, height: 6 ) ), with: .color( accentColor ) )
+		wifiWaves( s, at: CGPoint( x: 364, y: 124 ) )
 		s.label( "ESPDeck-XXXX", 364, 142, size: 8.5 )
 
 		// The iPhone, its Camera on the join code and offering the network.

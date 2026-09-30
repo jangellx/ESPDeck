@@ -12,6 +12,7 @@ import Foundation
 extension MenuBarController {
 	// MARK: - Ports
 
+	/// Reports the serial ports now and on every change, replacing any earlier watcher.
 	func watchSerialPorts( changed: @escaping ( [[String]] ) -> Void ) {
 		portWatcher?.stop()
 		portWatcher = SerialPortWatcher { ports in
@@ -19,6 +20,7 @@ extension MenuBarController {
 		}
 	}
 
+	/// Stops reporting serial port changes.
 	func stopWatchingSerialPorts() {
 		portWatcher?.stop()
 		portWatcher = nil
@@ -26,12 +28,15 @@ extension MenuBarController {
 
 	// MARK: - Installing firmware
 
+	/// The install's callbacks, carried from its detached task to the main thread.
 	private enum InstallEvent: Sendable {
 		case identified( String )
 		case progress( String, Double )
 		case finished( String?, String )
 	}
 
+	/// Runs ESPLoader.install in the background, stopping Improv first, and relays its
+	/// callbacks on the main thread.
 	func installFirmware( port: String, offsets: [Int], images: [Data], minimumFlashSize: Int, identified: @escaping ( String ) -> Void,
 						  progress: @escaping ( String, Double ) -> Void, completion: @escaping ( String?, String ) -> Void ) {
 		stopImprov()   // one user of the port at a time
@@ -59,6 +64,7 @@ extension MenuBarController {
 		}
 	}
 
+	/// Cancels the install in progress, which stops between flash blocks.
 	func cancelFirmwareInstall() {
 		installTask?.cancel()
 		installTask = nil
@@ -66,6 +72,7 @@ extension MenuBarController {
 
 	// MARK: - Improv
 
+	/// Opens an Improv session on `port`, read in the background, replacing any earlier one.
 	func startImprov( port: String, received: @escaping ( Int, Int, [String] ) -> Void, log: @escaping ( String ) -> Void,
 					  stopped: @escaping ( String? ) -> Void ) {
 		stopImprov()
@@ -92,12 +99,8 @@ extension MenuBarController {
 			for await event in events {
 				switch event {
 					case .packet( let type, let data ):
-						let bytes = [UInt8]( data )
-						if type == ImprovPacket.typeResult {
-							received( Int( type ), Int( bytes.first ?? 0 ), ImprovPacket.strings( inResult: data ) )
-						} else {
-							received( Int( type ), Int( bytes.first ?? 0 ), [] )
-						}
+						let strings = type == ImprovPacket.typeResult ? ImprovPacket.strings( inResult: data ) : []
+						received( Int( type ), Int( data.first ?? 0 ), strings )
 					case .text( let line ):
 						log( line )
 				}
@@ -111,6 +114,7 @@ extension MenuBarController {
 		improvReader = reader
 	}
 
+	/// Sends an RPC command on the open session; returns an error message, or nil.
 	func sendImprov( command: Int, data: Data ) -> String? {
 		guard let improvSession else { return "The board isn't connected." }
 		guard let command = UInt8( exactly: command ) else { return "Improv has no command \(command)." }
@@ -122,6 +126,7 @@ extension MenuBarController {
 		}
 	}
 
+	/// Stops reading and forgets the session; the reader closes the port as it finishes.
 	func stopImprov() {
 		improvReader?.cancel()
 		improvTask?.cancel()

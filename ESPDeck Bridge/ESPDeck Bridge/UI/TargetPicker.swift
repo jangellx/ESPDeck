@@ -11,6 +11,7 @@
 import HomeKit
 import SwiftUI
 
+/// The picker's tabs: what kind of thing an assignment controls.
 enum TargetMode: String, CaseIterable, Identifiable {
 	/// One accessory (sleep triggers, which watch one).
 	case accessory = "Accessory"
@@ -23,7 +24,7 @@ enum TargetMode: String, CaseIterable, Identifiable {
 
 	var id: String { rawValue }
 
-	/// Keys, and sleep and wake commands.
+	/// Keys' tabs, and sleep and wake commands'.
 	static let keyModes: [TargetMode]  = [ .home, .shortcut, .page ]
 	static let homeModes: [TargetMode] = [ .home, .shortcut ]
 
@@ -33,6 +34,7 @@ enum TargetMode: String, CaseIterable, Identifiable {
 		return modes.contains( .home ) && ( mode == .accessory || mode == .scene ) ? .home : mode
 	}
 
+	/// The mode a kind belongs to; accessories for no kind.
 	init( kind: KeyKind? ) {
 		switch kind {
 			case .scene:    self = .scene
@@ -42,6 +44,7 @@ enum TargetMode: String, CaseIterable, Identifiable {
 		}
 	}
 
+	/// Whether this tab lists `target`: Home lists accessories and scenes.
 	func includes( _ target: HomeTarget ) -> Bool {
 		let mode = TargetMode( kind: target.kind )
 		return mode == self || ( self == .home && ( mode == .accessory || mode == .scene ) )
@@ -95,6 +98,7 @@ extension KeyAssignment {
 	}
 }
 
+/// What an assignment controls: a tab per mode, and each mode's rows.
 struct TargetPicker: View {
 	let controller : DeckController
 	let assignment : KeyAssignment
@@ -108,6 +112,7 @@ struct TargetPicker: View {
 	var modeRequest: Binding<TargetMode?>?
 	let onSelect   : ( HomeTarget? ) -> Void
 
+	/// Choosing several accessories at once, rather than one from the menu.
 	private var multiple: Bool { edit != nil && mode == .accessory }
 	/// The Accessories & Scenes sheet is up.
 	@State private var choosing = false
@@ -175,20 +180,14 @@ struct TargetPicker: View {
 					Text( targets.first { $0.actionSetID == id }?.name ?? "Missing Scene" )
 						.lineLimit( 1 )
 					Text( [ severalHomes ? targets.first { $0.actionSetID == id }?.home : nil, "Scene" ].compactMap { $0 }.joined( separator: " · " ) )
-						.font( .caption )
-						.foregroundStyle( .secondary )
+						.secondaryCaption()
 				}
 				.frame( maxWidth: .infinity, alignment: .leading )
-				Button {
+				RemoveButton {
 					edit? { assignment in
 						assignment.setHomeTargets( accessories: assignment.members, scenes: assignment.allScenes.filter { $0 != id } )
 					}
-				} label: {
-					Image( systemName: "minus.circle.fill" )
-						.foregroundStyle( .red )
 				}
-				.buttonStyle( .borderless )
-				.help( "Remove" )
 			}
 		}
 
@@ -206,8 +205,7 @@ struct TargetPicker: View {
 		}
 		if targets.isEmpty {
 			Text( emptyExplanation )
-				.font( .caption )
-				.foregroundStyle( .secondary )
+				.secondaryCaption()
 		}
 	}
 
@@ -249,8 +247,7 @@ struct TargetPicker: View {
 						Text( target.name )
 						if let detail = detail( for: target ) {
 							Text( detail )
-								.font( .caption )
-								.foregroundStyle( .secondary )
+								.secondaryCaption()
 						}
 					}
 					.frame( maxWidth: .infinity, alignment: .leading )
@@ -262,8 +259,7 @@ struct TargetPicker: View {
 
 		if mode != .shortcut && targets.isEmpty {
 			Text( emptyExplanation )
-				.font( .caption )
-				.foregroundStyle( .secondary )
+				.secondaryCaption()
 		}
 	}
 
@@ -303,6 +299,7 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// What `mode` offers, limited by kindFilter.
 	private func targets( for mode: TargetMode ) -> [HomeTarget] {
 		let all = mode == .shortcut ? controller.shortcuts : controller.home.targets().filter { mode.includes( $0 ) }
 		guard let kindFilter else { return all }
@@ -337,20 +334,14 @@ struct TargetPicker: View {
 						.lineLimit( 1 )
 						.truncationMode( .middle )
 					Text( [ place( of: member, in: targets ), member.kind.title, index == 0 && members.count > 1 ? "key accessory" : nil ].compactMap { $0 }.joined( separator: " · " ) )
-						.font( .caption )
-						.foregroundStyle( .secondary )
+						.secondaryCaption()
 						.lineLimit( 1 )
 				}
 				.frame( maxWidth: .infinity, alignment: .leading )
 
-				Button {
+				RemoveButton {
 					remove( member )
-				} label: {
-					Image( systemName: "minus.circle.fill" )
-						.foregroundStyle( .red )
 				}
-				.buttonStyle( .borderless )
-				.help( "Remove" )
 			}
 		}
 
@@ -382,14 +373,12 @@ struct TargetPicker: View {
 				.fixedSize()
 				if members.count == 1 {
 					Text( "Add more accessories to control them together with this key." )
-						.font( .caption )
-						.foregroundStyle( .secondary )
+						.secondaryCaption()
 				}
 			}
 		} else {
 			Text( "Only accessories that can be switched, opened or locked can join a group." )
-				.font( .caption )
-				.foregroundStyle( .secondary )
+				.secondaryCaption()
 		}
 	}
 
@@ -401,6 +390,7 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// Adds an accessory to the key's group, or binds to it when there's none yet.
 	private func add( _ target: HomeTarget ) {
 		guard let edit else { return }
 		edit { assignment in
@@ -415,6 +405,7 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// Removes an accessory; removing the key accessory promotes the next one.
 	private func remove( _ member: KeyMember ) {
 		edit? { assignment in
 			let members = assignment.members
@@ -436,6 +427,7 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// Makes `member` the key accessory, the old one first among the others.
 	private func makeKey( _ member: KeyMember ) {
 		edit? { assignment in
 			let members = assignment.members
@@ -444,6 +436,7 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// The accessory's name, or "Missing Accessory" once it's gone from the Home.
 	private func name( of member: KeyMember, in targets: [HomeTarget] ) -> String {
 		targets.first { $0.accessoryID == member.accessoryID && $0.serviceID == member.serviceID && $0.kind == member.kind }?.name ?? "Missing Accessory"
 	}
@@ -498,31 +491,26 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// `text` with its middle cut out to fit `limit` characters.
 	private static func shortened( _ text: String, limit: Int = 42 ) -> String {
 		guard text.count > limit else { return text }
 		let half = ( limit - 1 ) / 2
 		return String( text.prefix( half ) ) + "…" + String( text.suffix( half ) )
 	}
 
+	/// The rooms (or folders) in `targets`, in order, with the ungrouped submenu's title.
 	private func groups( in targets: [HomeTarget] ) -> [String] {
-		Self.ordered( targets.map { $0.room ?? mode.ungroupedTitle } )
+		targets.map { $0.room ?? mode.ungroupedTitle }.uniqued()
 	}
 
-	private static func ordered( _ values: [String] ) -> [String] {
-		var seen: [String] = []
-		for value in values where !seen.contains( value ) {
-			seen.append( value )
-		}
-		return seen
-	}
-
+	/// Names include their Home only when there's more than one.
 	private var severalHomes: Bool { controller.home.hasSeveralHomes }
 
 	/// A submenu per Home when there are several; otherwise the content itself.
 	@ViewBuilder
 	private func byHome<Content: View>( _ targets: [HomeTarget], @ViewBuilder content: @escaping ( [HomeTarget] ) -> Content ) -> some View {
 		if severalHomes {
-			ForEach( Self.ordered( targets.map { $0.home ?? "" } ), id: \.self ) { home in
+			ForEach( targets.map { $0.home ?? "" }.uniqued(), id: \.self ) { home in
 				Menu( home ) {
 					content( targets.filter { ( $0.home ?? "" ) == home } )
 				}
@@ -532,6 +520,7 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// A submenu per room (or folder), each with `item` for its targets.
 	private func roomMenus<Item: View>( _ targets: [HomeTarget], @ViewBuilder item: @escaping ( HomeTarget ) -> Item ) -> some View {
 		ForEach( groups( in: targets ), id: \.self ) { room in
 			Menu( room ) {
@@ -542,18 +531,16 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// A target in the menu, ticked when it's the one bound.
 	private func menuItem( _ target: HomeTarget, title: String ) -> some View {
 		Button {
 			onSelect( target )
 		} label: {
-			if target.matches( assignment ) {
-				Label( title, systemImage: "checkmark" )
-			} else {
-				Text( title )
-			}
+			MenuChoice( title: title, chosen: target.matches( assignment ) )
 		}
 	}
 
+	/// The menu's label: what's bound in this mode, with its Home and room.
 	private func currentTitle( _ targets: [HomeTarget] ) -> String {
 		// Something bound in another mode reads as None here.
 		guard let kind = assignment.kind, TargetMode( kind: kind ) == mode else { return "None" }
@@ -577,6 +564,7 @@ struct TargetPicker: View {
 		return "\(home)\(place)\(target.name) (\(kind.title))"
 	}
 
+	/// Under a search result: its folder, Home, or Home, room and kind.
 	private func detail( for target: HomeTarget ) -> String? {
 		let home = severalHomes ? target.home : nil
 		return switch target.kind {
@@ -590,31 +578,32 @@ struct TargetPicker: View {
 	private func shortcutStatus( _ targets: [HomeTarget] ) -> some View {
 		HStack( alignment: .firstTextBaseline ) {
 			if let error = controller.shortcutError {
-				Label( error, systemImage: "exclamationmark.triangle.fill" )
+				WarningLabel( error )
 					.font( .caption )
-					.foregroundStyle( .orange )
 			} else if targets.isEmpty && controller.shortcutsLoaded {
 				Text( "No shortcuts found." )
-					.font( .caption )
-					.foregroundStyle( .secondary )
+					.secondaryCaption()
 			}
 			Spacer()
 			Button( "Reload Shortcuts" ) { controller.reloadShortcuts() }
 		}
 	}
 
+	/// Every word searched for is in the target's name, room, kind, or Home.
 	private func matchesSearch( _ target: HomeTarget ) -> Bool {
 		let terms = search.split( separator: " " ).map( String.init )
 		let text  = [ target.name, target.room ?? "", target.kind.title, severalHomes ? target.home ?? "" : "" ].joined( separator: " " )
 		return terms.allSatisfy { text.localizedStandardContains( $0 ) }
 	}
 
+	/// Switches to the mode the Key menu asked for, once.
 	private func takeModeRequest() {
 		guard let request = modeRequest?.wrappedValue else { return }
 		if modes.contains( request ) { mode = request }
 		modeRequest?.wrappedValue = nil
 	}
 
+	/// Shows the tab for what's bound, and loads shortcuts when that's their tab.
 	private func syncMode() {
 		// A blank key keeps the tab the last key was on.
 		let bound = assignment.kind == nil && modes == TargetMode.keyModes ? controller.window.lastKeyTargetMode : TargetMode.of( assignment.kind, in: modes )
@@ -624,6 +613,7 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// The search field's prompt for this mode.
 	private var searchPrompt: String {
 		switch mode {
 			case .accessory: severalHomes ? "Search accessories, rooms, Homes, or types" : "Search accessories, rooms, or types"
@@ -633,6 +623,7 @@ struct TargetPicker: View {
 		}
 	}
 
+	/// Why there's nothing to choose: no HomeKit access yet, no homes, or nothing of this kind.
 	private var emptyExplanation: String {
 		let status = controller.home.authorization
 		if !status.contains( .determined ) { return "Waiting for HomeKit access…" }
@@ -640,5 +631,19 @@ struct TargetPicker: View {
 		if controller.home.homes.isEmpty    { return "No HomeKit homes found for this iCloud account." }
 		if severalHomes { return mode == .scene ? "No scenes in your Homes." : "No supported accessories in your Homes." }
 		return mode == .scene ? "No scenes in this home." : "No supported accessories in this home."
+	}
+}
+
+/// A red minus that removes an accessory or scene from the list.
+private struct RemoveButton: View {
+	let action: () -> Void
+
+	var body: some View {
+		Button( action: action ) {
+			Image( systemName: "minus.circle.fill" )
+				.foregroundStyle( .red )
+		}
+		.buttonStyle( .borderless )
+		.help( "Remove" )
 	}
 }

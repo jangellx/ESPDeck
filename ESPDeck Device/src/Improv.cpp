@@ -19,15 +19,24 @@
 #include "Config.h"
 #include "SecureNVS.h"
 #include "Text.h"
+#include "Timing.h"
 
 static const char *TAG = "Improv";
 
 namespace {
 	constexpr char     kHeader[]         = "IMPROV";
 	constexpr size_t   kHeaderSize       = 6;
+	constexpr size_t   kFieldsSize       = 3;       // version, type, length: after the header, before the data
 	constexpr uint8_t  kVersion          = 1;
 	constexpr uint32_t kConnectTimeout   = 20000;   // ms
 	constexpr uint32_t kScanStartTimeout = 10000;   // ms to get a scan going
+	constexpr uint32_t kScanRetry        = 500;     // ms between attempts to start a scan
+	constexpr size_t   kSafeText         = 40;      // buffer for a name or SSID made printable
+
+	// Serial driver buffers, bytes.
+	constexpr int      kUARTReceiveBuffer = 512;
+	constexpr uint32_t kUSBReceiveBuffer  = 512;
+	constexpr uint32_t kUSBTransmitBuffer = 1024;
 
 	// Packet types
 	constexpr uint8_t  kTypeState       = 0x01;
@@ -52,10 +61,12 @@ namespace {
 	// Serial output lock: log lines and Improv packets each go out whole.
 	SemaphoreHandle_t  outputLock       = nullptr;
 
+	// Whether taking outputLock is possible here (not in an interrupt, nor before the scheduler).
 	bool canLock() {
 		return !xPortInIsrContext() && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING;
 	}
 
+	// The log writer: each line goes out whole, between Improv packets.
 	int lockedVprintf( const char *format, va_list args ) {
 		if( !canLock() )
 			return vprintf( format, args );
@@ -74,7 +85,7 @@ void Improv::begin( bool usbSerial ) {
 	// FIFO; with no transmit buffer, uart_write_bytes() also writes the FIFO directly, so
 	// the two stay in order.
 	if( !uart_is_driver_installed( UART_NUM_0 ) ) {
-		esp_err_t err = uart_driver_install( UART_NUM_0, 512, 0, 0, nullptr, 0 );
+		esp_err_t err = uart_driver_install( UART_NUM_0, kUARTReceiveBuffer, 0, 0, nullptr, 0 );
 		if( err != ESP_OK )
 			ESP_LOGE( TAG, "UART driver: %s", esp_err_to_name( err ) );
 	}
@@ -82,8 +93,8 @@ void Improv::begin( bool usbSerial ) {
 	// On the USB-Serial-JTAG port, logs go through the driver too, so both share its buffer.
 	if( usbSerial && !usb_serial_jtag_is_driver_installed() ) {
 		usb_serial_jtag_driver_config_t config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
-		config.rx_buffer_size = 512;
-		config.tx_buffer_size = 1024;
+		config.rx_buffer_size = kUSBReceiveBuffer;
+		config.tx_buffer_size = kUSBTransmitBuffer;
 		esp_err_t err = usb_serial_jtag_driver_install( &config );
 		if( err == ESP_OK )
 			usb_serial_jtag_vfs_use_driver();
@@ -133,25 +144,26 @@ void Improv::receive( Parser &parser, uint8_t value ) {
 	}
 
 	parser.buffer[parser.length++] = value;
-	if( parser.length < kHeaderSize + 3 )
+	if( parser.length < kHeaderSize + kFieldsSize )
 		return;
 	size_t dataLength = parser.buffer[kHeaderSize + 2];
-	if( parser.length < kHeaderSize + 3 + dataLength + 1 )
+	if( parser.length < kHeaderSize + kFieldsSize + dataLength + 1 )
 		return;
 
 	// Complete: version, type, length, data, checksum (sum of every byte before it).
 	parser.length = 0;
 	uint8_t sum = 0;
-	for( size_t i = 0; i < kHeaderSize + 3 + dataLength; i++ )
+	for( size_t i = 0; i < kHeaderSize + kFieldsSize + dataLength; i++ )
 		sum += parser.buffer[i];
-	if( parser.buffer[kHeaderSize] != kVersion || sum != parser.buffer[kHeaderSize + 3 + dataLength] ) {
+	if( parser.buffer[kHeaderSize] != kVersion || sum != parser.buffer[kHeaderSize + kFieldsSize + dataLength] ) {
 		ESP_LOGW( TAG, "Bad packet" );
 		sendError( Error::InvalidRPC );
 		return;
 	}
-	handlePacket( parser.buffer[kHeaderSize + 1], parser.buffer + kHeaderSize + 3, dataLength );
+	handlePacket( parser.buffer[kHeaderSize + 1], parser.buffer + kHeaderSize + kFieldsSize, dataLength );
 }
 
+// Only RPCs are acted on: command, length of its data, data.
 void Improv::handlePacket( uint8_t type, const uint8_t *data, size_t length ) {
 	if( type != kTypeRPC )
 		return;
@@ -163,6 +175,7 @@ void Improv::handlePacket( uint8_t type, const uint8_t *data, size_t length ) {
 	handleCommand( data[0], data + 2, length - 2 );
 }
 
+// Runs one RPC; data is the command's own.
 void Improv::handleCommand( uint8_t command, const uint8_t *data, size_t length ) {
 	switch( command ) {
 		case kSendWiFi: {
@@ -211,7 +224,7 @@ void Improv::handleCommand( uint8_t command, const uint8_t *data, size_t length 
 						sendError( Error::InvalidRPC );
 						return;
 					}
-					char safe[40];
+					char safe[kSafeText];
 					ESP_LOGI( TAG, "Renamed to %s", Text::printable( name, safe, sizeof( safe ) ) );
 				}
 			}
@@ -268,7 +281,7 @@ void Improv::handleCommand( uint8_t command, const uint8_t *data, size_t length 
 			if( !scanWanted_ ) {
 				scanWanted_   = true;
 				scanDeadline_ = millis() + kScanStartTimeout;
-				scanTried_    = millis() - 500;
+				scanTried_    = millis() - kScanRetry;
 			}
 			break;
 
@@ -280,6 +293,7 @@ void Improv::handleCommand( uint8_t command, const uint8_t *data, size_t length 
 
 // MARK: - Provisioning
 
+// Provisioned means on the saved network.
 Improv::State Improv::currentState() const {
 	if( connecting_ )
 		return State::Provisioning;
@@ -294,7 +308,7 @@ Improv::State Improv::currentState() const {
 void Improv::startConnecting( const char *ssid, const char *password ) {
 	strlcpy( ssid_, ssid, sizeof( ssid_ ) );
 	strlcpy( password_, password, sizeof( password_ ) );
-	char safe[40];
+	char safe[kSafeText];
 	ESP_LOGI( TAG, "Joining %s", Text::printable( ssid_, safe, sizeof( safe ) ) );
 	sendState( State::Provisioning );
 
@@ -305,11 +319,12 @@ void Improv::startConnecting( const char *ssid, const char *password ) {
 	WiFi.begin( ssid_, password_ );
 }
 
+// Saves the credentials once they've got an address, or goes back after kConnectTimeout.
 void Improv::trackConnection() {
 	if( !connecting_ )
 		return;
 
-	char safe[40];
+	char safe[kSafeText];
 	Text::printable( ssid_, safe, sizeof( safe ) );
 	if( gotIP ) {
 		connecting_ = false;
@@ -335,6 +350,7 @@ void Improv::trackConnection() {
 	}
 }
 
+// Starts a requested scan, then answers with its results.
 void Improv::trackScan() {
 	if( !scanWanted_ )
 		return;
@@ -343,11 +359,11 @@ void Improv::trackScan() {
 	// a while. A scan that's already running (the setup page's) is shared.
 	if( !scanning_ ) {
 		uint32_t now = millis();
-		if( now - scanTried_ < 500 )
+		if( now - scanTried_ < kScanRetry )
 			return;
 		scanTried_ = now;
 		scanning_  = WiFi.scanComplete() == WIFI_SCAN_RUNNING || WiFi.scanNetworks( true ) == WIFI_SCAN_RUNNING;
-		if( !scanning_ && (int32_t)( now - scanDeadline_ ) >= 0 ) {
+		if( !scanning_ && Timing::reached( scanDeadline_, now ) ) {
 			ESP_LOGW( TAG, "Couldn't scan" );
 			scanWanted_ = false;
 			sendResult( kRequestScan, {} );
@@ -393,6 +409,7 @@ void Improv::trackScan() {
 
 // MARK: - Sending
 
+// One-byte packets: the current state, and the error (or None) for the last RPC.
 void Improv::sendState( State state ) {
 	uint8_t value = (uint8_t)state;
 	sendPacket( kTypeState, &value, 1 );
@@ -423,13 +440,13 @@ void Improv::sendResult( uint8_t command, std::initializer_list<const char *> st
 // "IMPROV", version, type, length, data, checksum, and a newline so logs that follow start
 // on their own line.
 void Improv::sendPacket( uint8_t type, const uint8_t *data, size_t length ) {
-	uint8_t packet[kHeaderSize + 3 + 255 + 2];
+	uint8_t packet[kHeaderSize + kFieldsSize + 255 + 2];
 	memcpy( packet, kHeader, kHeaderSize );
 	packet[kHeaderSize]     = kVersion;
 	packet[kHeaderSize + 1] = type;
 	packet[kHeaderSize + 2] = (uint8_t)length;
-	memcpy( packet + kHeaderSize + 3, data, length );
-	size_t  size = kHeaderSize + 3 + length;
+	memcpy( packet + kHeaderSize + kFieldsSize, data, length );
+	size_t  size = kHeaderSize + kFieldsSize + length;
 	uint8_t sum  = 0;
 	for( size_t i = 0; i < size; i++ )
 		sum += packet[i];

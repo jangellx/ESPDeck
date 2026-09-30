@@ -10,7 +10,9 @@
 import Darwin
 import Foundation
 
+/// An open serial port, set up raw at 8N1, with blocking reads and writes that time out.
 nonisolated final class SerialPort {
+	/// Why a call on the port failed.
 	enum Failure: LocalizedError {
 		/// The port went away: the board was unplugged, or it restarted and re-enumerated.
 		case disconnected
@@ -24,16 +26,18 @@ nonisolated final class SerialPort {
 		}
 	}
 
+	/// The speed a port opens at, and the ROM bootloader's.
+	static let defaultBaudRate = 115_200
+
 	/// `_IOW( 'T', 2, speed_t )` from IOKit/serial/ioss.h: any speed, not only the B* ones.
 	private static let setSpeed: UInt = 0x8008_5402
 
 	let path: String
-	private(set) var baudRate: Int
 	private var descriptor: Int32
 
-	init( path: String, baudRate: Int = 115_200 ) throws {
-		self.path     = path
-		self.baudRate = baudRate
+	/// Opens the port exclusively and sets it up. Throws `.disconnected` when it's gone.
+	init( path: String, baudRate: Int = SerialPort.defaultBaudRate ) throws {
+		self.path = path
 		// Non-blocking, so opening doesn't wait for carrier detect; reads go through poll().
 		// Busy for a moment while an earlier user of the port finishes closing it.
 		descriptor = open( path, O_RDWR | O_NOCTTY | O_NONBLOCK )
@@ -64,18 +68,18 @@ nonisolated final class SerialPort {
 		close()
 	}
 
+	/// Closes the port; later calls fail. Safe to call more than once.
 	func close() {
 		guard descriptor >= 0 else { return }
 		Darwin.close( descriptor )
 		descriptor = -1
 	}
 
-	/// Also what the 1200 bps "touch" uses: the new speed reaches a USB CDC device as a
-	/// SET_LINE_CODING request.
+	/// Changes the speed, to any rate. Also what the 1200 bps "touch" uses: the new speed
+	/// reaches a USB CDC device as a SET_LINE_CODING request.
 	func setBaudRate( _ rate: Int ) throws {
 		var speed = speed_t( rate )
 		guard ioctl( descriptor, Self.setSpeed, &speed ) == 0 else { throw failure( "IOSSIOSPEED" ) }
-		baudRate = rate
 	}
 
 	/// Sets both lines in one call, so a reset sequence never passes through a combination
@@ -88,6 +92,7 @@ nonisolated final class SerialPort {
 		guard ioctl( descriptor, TIOCMSET, &bits ) == 0 else { throw failure( "TIOCMSET" ) }
 	}
 
+	/// Writes all of `data`, waiting for room as needed; fails if that takes past `timeout`.
 	func write( _ data: Data, timeout: TimeInterval = 10 ) throws {
 		let deadline = Date( timeIntervalSinceNow: timeout )
 		try data.withUnsafeBytes { buffer in
@@ -138,6 +143,7 @@ nonisolated final class SerialPort {
 		}
 	}
 
+	/// The error for a call that just failed, from errno: `.disconnected` when the device went away.
 	private func failure( _ call: String ) -> Failure {
 		switch errno {
 			case ENXIO, ENODEV, EIO, EBADF: .disconnected

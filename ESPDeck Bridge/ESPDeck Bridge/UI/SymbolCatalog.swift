@@ -9,12 +9,14 @@
 
 import Foundation
 
+/// One of SF Symbols' categories, with its own symbol.
 struct SymbolCategory: Identifiable, Hashable {
 	let key  : String
 	let icon : String
 
 	var id: String { key }
 
+	/// The name shown in the picker, from its key.
 	var title: String {
 		switch key {
 			case "all":              "All"
@@ -27,6 +29,7 @@ struct SymbolCategory: Identifiable, Hashable {
 	}
 }
 
+/// The system's SF Symbols, searchable by name, keyword and category; read once.
 final class SymbolCatalog {
 	static let shared = SymbolCatalog()
 
@@ -35,6 +38,7 @@ final class SymbolCatalog {
 	private let keywords      : [String: [String]]
 	private let categoryNames : [String: [String]]
 
+	/// Offered when the system's lists can't be read.
 	private static let fallback = [
 		"house.fill", "sparkles", "sun.max.fill", "moon.fill", "bed.double.fill", "sofa.fill", "tv.fill",
 		"lightbulb.fill", "lamp.floor.fill", "fan.fill", "thermometer.medium", "snowflake", "flame.fill",
@@ -42,6 +46,7 @@ final class SymbolCatalog {
 		"power", "car.fill", "figure.walk", "leaf.fill", "drop.fill", "wifi", "star.fill", "heart.fill",
 	]
 
+	/// Reads the lists from CoreGlyphs, falling back to the short list.
 	private init() {
 		let resources = URL( fileURLWithPath: "/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources" )
 

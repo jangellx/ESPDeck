@@ -23,6 +23,7 @@ enum SliderLevel: String, Codable, CaseIterable, Identifiable {
 		}
 	}
 
+	/// The HomeKit characteristic it writes.
 	var characteristicType: String {
 		switch self {
 			case .brightness: HMCharacteristicTypeBrightness
@@ -32,7 +33,6 @@ enum SliderLevel: String, Codable, CaseIterable, Identifiable {
 
 	/// Both are percentages in HomeKit.
 	static let defaultStep = 10.0
-	static let stepRange   = 1.0...50.0
 }
 
 /// The symbols a pair of slider keys shows: the key that raises the level points up (or
@@ -50,6 +50,7 @@ enum SliderStyle: String, Codable, CaseIterable, Identifiable {
 
 	var id: String { rawValue }
 
+	/// The symbol for the key that raises (or lowers) the level, pointing along the pair.
 	func symbol( raises: Bool, horizontal: Bool ) -> String {
 		let direction = horizontal ? ( raises ? "right" : "left" ) : ( raises ? "up" : "down" )
 		return switch self {
@@ -65,6 +66,7 @@ enum SliderStyle: String, Codable, CaseIterable, Identifiable {
 	}
 }
 
+/// One key of a slider pair: what it adjusts, which way, and its partner.
 struct SliderKey: Codable, Equatable {
 	var level   : SliderLevel
 	/// This key raises the level; its partner lowers it (or the other way round).
@@ -83,25 +85,25 @@ struct SliderKey: Codable, Equatable {
 
 	init( level: SliderLevel, raises: Bool, partner: Int, step: Double = SliderLevel.defaultStep, style: SliderStyle = .chevron, labelsFacing: Bool = true,
 		  doubleTapToEnd: Bool = false ) {
+		self.level          = level
+		self.raises         = raises
+		self.partner        = partner
+		self.step           = step
+		self.style          = style
+		self.labelsFacing   = labelsFacing
 		self.doubleTapToEnd = doubleTapToEnd
-		self.level        = level
-		self.raises       = raises
-		self.partner      = partner
-		self.step         = step
-		self.style        = style
-		self.labelsFacing = labelsFacing
 	}
 
 	/// Missing or unreadable settings (from an earlier version) take their defaults; only the
 	/// level, direction and partner are needed.
 	init( from decoder: Decoder ) throws {
 		let container = try decoder.container( keyedBy: CodingKeys.self )
-		level        = try container.decode( SliderLevel.self, forKey: .level )
-		raises       = try container.decode( Bool.self, forKey: .raises )
-		partner      = try container.decode( Int.self, forKey: .partner )
-		step         = container.lenient( Double.self, forKey: .step ) ?? SliderLevel.defaultStep
-		style        = container.lenient( SliderStyle.self, forKey: .style ) ?? .chevron
-		labelsFacing = container.lenient( Bool.self, forKey: .labelsFacing ) ?? true
+		level          = try container.decode( SliderLevel.self, forKey: .level )
+		raises         = try container.decode( Bool.self, forKey: .raises )
+		partner        = try container.decode( Int.self, forKey: .partner )
+		step           = container.lenient( Double.self, forKey: .step ) ?? SliderLevel.defaultStep
+		style          = container.lenient( SliderStyle.self, forKey: .style ) ?? .chevron
+		labelsFacing   = container.lenient( Bool.self, forKey: .labelsFacing ) ?? true
 		doubleTapToEnd = container.lenient( Bool.self, forKey: .doubleTapToEnd ) ?? false
 	}
 }

@@ -11,6 +11,7 @@
 import CryptoKit
 import Foundation
 
+/// Keys, proofs and MACs for pairing, authentication and sessions.
 enum DeckCrypto {
 	static let nonceSize = 16
 	static let macSize   = 16
@@ -26,6 +27,7 @@ enum DeckCrypto {
 		SymmetricKey( size: SymmetricKeySize( bitCount: count * 8 ) ).withUnsafeBytes { Data( $0 ) }
 	}
 
+	/// HMAC-SHA256 of the parts, one after another.
 	static func hmac( _ key: Data, _ parts: [Data] ) -> Data {
 		var mac = HMAC<SHA256>( key: SymmetricKey( data: key ) )
 		for part in parts { mac.update( data: part ) }
@@ -48,29 +50,36 @@ enum DeckCrypto {
 		return String( format: "%06u", value % 1_000_000 )
 	}
 
+	/// K, the pairing key both sides store: from the X25519 shared secret and everything
+	/// the pairing exchanged.
 	static func pairingKey( sharedSecret: Data, macPublicKey: Data, devicePublicKey: Data, macNonce: Data, deviceNonce: Data,
 							bridgeID: String, deviceID: String ) -> Data {
 		hmac( sharedSecret, [ utf8( "espdeck-pairing-key-v4" ), macPublicKey, devicePublicKey, macNonce, deviceNonce, utf8( bridgeID ), utf8( deviceID ) ] )
 	}
 
+	/// The deck's proof, after the user confirmed there, that it derived the same K.
 	static func pairConfirmProof( key: Data ) -> Data {
 		hmac( key, [ utf8( "espdeck-pair-confirm" ) ] )
 	}
 
 	// MARK: Authentication
 
+	/// The Mac's proof that it holds the pairing key, sent with `auth`.
 	static func bridgeProof( key: Data, deviceNonce: Data, bridgeNonce: Data ) -> Data {
 		hmac( key, [ utf8( "espdeck-bridge" ), deviceNonce, bridgeNonce ] )
 	}
 
+	/// The device's proof that it holds the pairing key, covering its exact hello.
 	static func deviceProof( key: Data, bridgeNonce: Data, deviceNonce: Data, hello: Data ) -> Data {
 		hmac( key, [ utf8( "espdeck-device" ), bridgeNonce, deviceNonce, Data( SHA256.hash( data: hello ) ) ] )
 	}
 
+	/// The key for the session's frame MACs.
 	static func sessionKey( key: Data, deviceNonce: Data, bridgeNonce: Data ) -> Data {
 		hmac( key, [ utf8( "espdeck-session" ), deviceNonce, bridgeNonce ] )
 	}
 
+	/// A frame's MAC: the direction and counter bind it to its place in the session.
 	static func frameMAC( session: Data, direction: Direction, counter: UInt64, payload: Data ) -> Data {
 		var count = counter.bigEndian
 		let counterBytes = withUnsafeBytes( of: &count ) { Data( $0 ) }
@@ -86,11 +95,13 @@ enum DeckCrypto {
 		return box.ciphertext + box.tag
 	}
 
+	/// The inverse of sealDevOTA; only tools/crypto_test uses it, to check the round trip.
 	static func openDevOTA( session: Data, counter: UInt64, sealed: Data ) -> Data? {
 		guard sealed.count > 16, let box = try? AES.GCM.SealedBox( nonce: devOTANonce( counter ), ciphertext: sealed.dropLast( 16 ), tag: sealed.suffix( 16 ) ) else { return nil }
 		return try? AES.GCM.open( box, using: devOTAKey( session ) )
 	}
 
+	/// HMAC( S, "espdeck-devota" ).
 	private static func devOTAKey( _ session: Data ) -> SymmetricKey {
 		SymmetricKey( data: hmac( session, [ utf8( "espdeck-devota" ) ] ) )
 	}
@@ -110,6 +121,7 @@ enum DeckCrypto {
 }
 
 extension Data {
+	/// Two lowercase hex digits per byte.
 	var hex: String { map { String( format: "%02x", $0 ) }.joined() }
 
 	/// Exactly two hex digits (either case) per byte, and nothing else: no signs, spaces or "0x".
@@ -125,6 +137,7 @@ extension Data {
 		self.init( bytes )
 	}
 
+	/// A hex digit's value.
 	private static func nibble( _ digit: UInt8 ) -> UInt8? {
 		switch digit {
 			case UInt8( ascii: "0" )...UInt8( ascii: "9" ): digit - UInt8( ascii: "0" )

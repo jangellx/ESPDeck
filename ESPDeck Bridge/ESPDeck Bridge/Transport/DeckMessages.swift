@@ -92,6 +92,7 @@ struct DeviceStatus: Codable, Equatable {
 		return copy
 	}
 
+	/// A `reason` in a few words, for the log.
 	static func describe( reason: String ) -> String {
 		switch reason {
 			case "timer":     "sleep timer"
@@ -111,21 +112,23 @@ struct DeviceStatus: Codable, Equatable {
 	}
 }
 
+/// The hello a device opens every connection with.
 struct DeviceHello {
 	var protocolVersion : Int
 	/// 16 random bytes for the authentication handshake (protocol 3 and later).
 	var nonce           : Data?
 	/// Bridge ID the device is paired with; empty when unpaired.
 	var pairedBridge    : String
-	var id        : String
-	var name      : String
-	var firmware  : String
+	var id              : String
+	var name            : String
+	var firmware        : String
 	/// Hex SHA-256 of the running app's ELF file (firmware 3.1.0 and later).
-	var elfSHA256 : String?
-	var cached    : [String]
-	var deck      : DeckInfo
-	var settings  : DeviceReportedSettings
-	var status    : DeviceStatus
+	var elfSHA256       : String?
+	/// Hashes of the images it has cached.
+	var cached          : [String]
+	var deck            : DeckInfo
+	var settings        : DeviceReportedSettings
+	var status          : DeviceStatus
 }
 
 /// ESP32 → Mac
@@ -158,6 +161,7 @@ enum DeviceMessage {
 	/// the log, which describes it from the JSON.
 	case usbDevice
 
+	/// The device's answer during a firmware update.
 	struct FirmwareStatus {
 		enum State: String {
 			case ready, progress, installed, error
@@ -167,6 +171,7 @@ enum DeviceMessage {
 		var message  : String?
 	}
 
+	/// The device's answer to encryptStorage.
 	struct StorageStatus {
 		enum State: String {
 			/// Under way; the device restarts when it's done.
@@ -186,8 +191,9 @@ enum DeviceMessage {
 		}
 	}
 
+	/// Every field any message has; each message reads its own.
 	private struct Envelope: Decodable {
-		var type     : String
+		var type         : String
 		var `protocol`   : Int?
 		var nonce        : String?
 		var pairedBridge : String?
@@ -197,17 +203,17 @@ enum DeviceMessage {
 		var state        : String?
 		var received     : Int?
 		var message      : String?
-		var id        : String?
-		var name      : String?
-		var firmware  : String?
-		var elfSHA256 : String?
-		var cached    : [String]?
-		var deck      : DeckInfo?
-		var settings  : DeviceReportedSettings?
-		var status    : DeviceStatus?
-		var reason    : String?        // beside `status`, not inside it
-		var hash      : String?
-		var key       : Int?
+		var id           : String?
+		var name         : String?
+		var firmware     : String?
+		var elfSHA256    : String?
+		var cached       : [String]?
+		var deck         : DeckInfo?
+		var settings     : DeviceReportedSettings?
+		var status       : DeviceStatus?
+		var reason       : String?   // beside `status`, not inside it
+		var hash         : String?
+		var key          : Int?
 	}
 
 	/// Keys beyond this are ignored; no Stream Deck has more.
@@ -215,6 +221,7 @@ enum DeviceMessage {
 	/// Longer names (from a device that hasn't authenticated, say) are cut.
 	static let maxNameLength = 64
 
+	/// Parses a text frame; nil for anything malformed or unknown.
 	init?( json: Data ) {
 		guard let envelope = try? JSONDecoder().decode( Envelope.self, from: json ) else { return nil }
 
@@ -238,19 +245,19 @@ enum DeviceMessage {
 				guard let hash = envelope.hash else { return nil }
 				self = .need( hash: hash )
 			case "keyDown":
-				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
+				guard let key = Self.deckKey( envelope.key ) else { return nil }
 				self = .keyDown( key )
 			case "keyUp":
-				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
+				guard let key = Self.deckKey( envelope.key ) else { return nil }
 				self = .keyUp( key )
 			case "keyRepeat":
-				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
+				guard let key = Self.deckKey( envelope.key ) else { return nil }
 				self = .keyRepeat( key )
 			case "keyTap", "keyDoubleTap", "keyHold":
-				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ) else { return nil }
+				guard let key = Self.deckKey( envelope.key ) else { return nil }
 				self = .keyPress( key, envelope.type == "keyTap" ? .tap : envelope.type == "keyDoubleTap" ? .doubleTap : .hold )
 			case "shown":
-				guard let key = envelope.key, ( 0..<Self.maxKeys ).contains( key ), let hash = envelope.hash else { return nil }
+				guard let key = Self.deckKey( envelope.key ), let hash = envelope.hash else { return nil }
 				self = .shown( key: key, hash: hash )
 			case "auth":
 				guard let proof = envelope.proof.flatMap( { Data( hex: $0 ) } ) else { return nil }
@@ -278,6 +285,12 @@ enum DeviceMessage {
 			default:
 				return nil
 		}
+	}
+
+	/// `key` if a deck can have it.
+	private static func deckKey( _ key: Int? ) -> Int? {
+		guard let key, ( 0..<maxKeys ).contains( key ) else { return nil }
+		return key
 	}
 
 	/// The Wi-Fi MAC address, "aa:bb:cc:dd:ee:ff" in lowercase.

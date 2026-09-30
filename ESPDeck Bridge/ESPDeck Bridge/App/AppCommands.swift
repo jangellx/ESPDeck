@@ -11,6 +11,7 @@
 import UIKit
 
 extension AppDelegate {
+	/// Builds the main menu: the app's own items, and the system's it doesn't use removed.
 	override func buildMenu( with builder: UIMenuBuilder ) {
 		super.buildMenu( with: builder )
 		guard builder.system == .main else { return }
@@ -158,6 +159,7 @@ extension AppDelegate {
 		}
 	}
 
+	/// On the Mac, with the AppKit bundle loaded; not on iPad.
 	private var menuBarAvailable: Bool { controller.macBridge != nil }
 	private var window: WindowState { controller.window }
 
@@ -181,10 +183,12 @@ extension AppDelegate {
 		return ( device.id, window.selectedKey )
 	}
 
+	/// A text field or view is being edited, and keeps its keys.
 	private var isEditingText: Bool {
 		UIResponder.firstResponder is UITextInput
 	}
 
+	/// Enables each menu item only when it has something to act on.
 	override func canPerformAction( _ action: Selector, withSender sender: Any? ) -> Bool {
 		switch action {
 			case #selector( toggleLaunchAtLogin ):
@@ -197,9 +201,7 @@ extension AppDelegate {
 				currentDevice != nil
 			case #selector( nextDevice ), #selector( previousDevice ):
 				controller.devices.count > 1 || ( currentDevice == nil && !controller.devices.isEmpty )
-			case #selector( toggleSleep ):
-				onlineDevice != nil
-			case #selector( toggleSetupMode ):
+			case #selector( toggleSleep ), #selector( toggleSetupMode ):
 				onlineDevice != nil
 			case #selector( installFirmwareUpdate ):
 				onlineDevice.map { controller.updates.firmwareUpdateAvailable( for: $0 ) && $0.firmwareProgress?.isActive != true && !$0.status.setupMode } ?? false
@@ -212,12 +214,14 @@ extension AppDelegate {
 		}
 	}
 
+	/// The selected key does something when pressed (Key ▸ Test Action).
 	private var currentAssignmentActs: Bool {
 		guard let key = currentKey else { return false }
 		let assignment = controller.assignment( key.device, key: key.key )
 		return assignment.kind != nil && assignment.action != .none
 	}
 
+	/// Ticks the current page, sidebar item and device, and titles the items that toggle.
 	override func validate( _ command: UICommand ) {
 		super.validate( command )
 		switch command.action {
@@ -256,6 +260,7 @@ extension AppDelegate {
 		show( SidebarItem.about )
 	}
 
+	/// Opens Updates and checks now.
 	@objc func checkForUpdates() {
 		show( SidebarItem.updates )
 		Task { await controller.updates.check( userInitiated: true ) }
@@ -265,6 +270,7 @@ extension AppDelegate {
 		controller.setLaunchAtLogin( controller.launchAtLogin != .on )
 	}
 
+	/// Adds a demo deck of the command's model and shows its keys.
 	@objc func newDemoDeck( _ sender: UICommand ) {
 		guard let model = sender.propertyList as? String, let layout = DeckLayout.presets.first( where: { $0.model == model } ) else { return }
 		show( controller.addDemoDevice( layout: layout ), page: .keys )
@@ -296,6 +302,7 @@ extension AppDelegate {
 		window.deckKeySize = 0
 	}
 
+	/// View ▸ Keys, Device or Log.
 	@objc func showPage( _ sender: UICommand ) {
 		guard let raw = sender.propertyList as? String, let page = WindowState.Page( rawValue: raw ) else { return }
 		window.page = page
@@ -322,6 +329,7 @@ extension AppDelegate {
 		menuBarOpenConfiguration()
 	}
 
+	/// File ▸ Reset Bridge…, confirmed in the configuration window.
 	@objc func resetBridge() {
 		window.confirmingResetBridge = true
 		menuBarOpenConfiguration()
@@ -332,6 +340,7 @@ extension AppDelegate {
 		menuBarOpenConfiguration()
 	}
 
+	/// The README on GitHub.
 	@objc func openHelp() {
 		let repository = controller.updates.repository ?? "jangellx/ESPDeck"
 		guard let url = URL( string: "https://github.com/\(repository)#readme" ) else { return }
@@ -340,6 +349,7 @@ extension AppDelegate {
 
 	// MARK: - Devices
 
+	/// Device ▸ a device by name (⌃⌘1–9).
 	@objc func selectDevice( _ sender: UICommand ) {
 		guard let id = sender.propertyList as? String else { return }
 		show( id )
@@ -374,11 +384,13 @@ extension AppDelegate {
 		}
 	}
 
+	/// Enter Setup Mode, or Exit Setup Mode while it's in setup mode.
 	@objc func toggleSetupMode() {
 		guard let device = onlineDevice else { return }
 		controller.setSetupMode( device: device.id, !device.status.setupMode )
 	}
 
+	/// Installs the latest release on the device showing.
 	@objc func installFirmwareUpdate() {
 		guard let device = onlineDevice else { return }
 		Task { await controller.updates.installFirmware( on: device.id ) }
@@ -399,18 +411,20 @@ extension AppDelegate {
 		window.confirmingClearKey = true
 	}
 
+	/// Presses the selected key, as if on the deck.
 	@objc func testAction() {
 		guard let key = currentKey else { return }
 		controller.press( device: key.device, key: key.key )
 	}
 
+	/// Key ▸ Assign Home/Shortcut/Page…: switches the key's picker to that tab.
 	@objc func assignTarget( _ sender: UICommand ) {
 		guard currentDevice != nil, let raw = sender.propertyList as? String, let mode = TargetMode( rawValue: raw ) else { return }
 		window.page                = .keys
 		window.requestedTargetMode = mode
 	}
 
-	/// ⌥-arrows from the Key menu, and plain arrows while the deck preview has focus.
+	/// Asks before quitting, as the status item's Quit does.
 	@objc func confirmQuit() {
 		if let menuBar {
 			menuBar.confirmQuit()
@@ -423,6 +437,7 @@ extension AppDelegate {
 		show( SidebarItem.usbSetup )
 	}
 
+	/// ⌥-arrows from the Key menu, and plain arrows while the deck preview has focus.
 	@objc func moveKeySelection( _ sender: UIKeyCommand ) {
 		guard let key = currentKey else { return }
 		let layout = controller.layout( key.device )
@@ -440,6 +455,7 @@ extension AppDelegate {
 }
 
 extension UIResponder {
+	/// Set by markFirstResponder while firstResponder looks.
 	private static weak var found: UIResponder?
 
 	/// The first responder, found by sending an action to it.
