@@ -82,9 +82,11 @@ private struct SidebarAccent: ViewModifier {
 	}
 }
 
-/// A count in a capsule, accent on white text, turned around on a selected sidebar row.
+/// A count in a capsule, white on `color` (the accent unless given), turned around on a
+/// selected sidebar row.
 struct SidebarBadge: View {
-	let count: Int
+	let count : Int
+	var color : Color = .accentColor
 
 	@Environment( \.backgroundProminence ) private var prominence
 
@@ -92,10 +94,10 @@ struct SidebarBadge: View {
 		let selected = prominence == .increased
 		Text( "\(count)" )
 			.font( .caption.weight( .bold ).monospacedDigit() )
-			.foregroundStyle( selected ? Color.accentColor : .white )
+			.foregroundStyle( selected ? color : .white )
 			.frame( minWidth: 18, minHeight: 18 )
 			.padding( .horizontal, count > 9 ? 3 : 0 )
-			.background( Capsule().fill( selected ? Color.white : Color.accentColor ) )
+			.background( Capsule().fill( selected ? Color.white : color ) )
 	}
 }
 

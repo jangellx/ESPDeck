@@ -252,14 +252,16 @@ private struct Sidebar: View {
 						deviceRow( device )
 					}
 				} header: {
+					// The whole header opens and closes it, not just the disclosure arrow.
 					HStack {
 						SectionHeader( "Not Connected", sidebar: true )
 						Spacer()
-						Text( "\(away.count)" )
-							.font( .subheadline )
-							.foregroundStyle( Color.secondary )
-							.textCase( nil )
+						SidebarBadge( count: away.count, color: .orange )
 					}
+					.contentShape( Rectangle() )
+					.onTapGesture { withAnimation { showNotConnected.toggle() } }
+					.accessibilityAddTraits( .isButton )
+					.accessibilityHint( showNotConnected ? "Hides the decks that aren't connected" : "Shows the decks that aren't connected" )
 				}
 			}
 
