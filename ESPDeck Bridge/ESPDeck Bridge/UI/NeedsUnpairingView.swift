@@ -32,8 +32,8 @@ struct NeedsUnpairingView: View {
 					} else {
 						Label {
 							Text( setup.scanning
-								  ? "Plug it into this Mac with a USB cable, in the board's port labeled USB, to unpair it from here."
-								  : "To unpair it from here, turn on USB Setup's “Look for boards plugged in over USB”, then plug it into this Mac." )
+								  ? "Plug the deck's board into this Mac with a USB cable, using its port labeled USB, to unpair it from the bridge."
+								  : "To unpair this deck from the bridge, turn on “Look for boards plugged in over USB” in USB Setup, then plug it into this Mac." )
 						} icon: {
 							Image( systemName: "cable.connector" )
 						}
@@ -44,7 +44,7 @@ struct NeedsUnpairingView: View {
 						Image( systemName: "qrcode" )
 					}
 					Label {
-						Text( "Once it's unpaired, it shows under New Devices: pair it, and it picks up its keys and settings where it left off. They're kept here meanwhile, under Not Connected, and can be copied onto another deck with Copy From Deck on that deck's Device page." )
+						Text( "Once the deck is unpaired, it will show up under New Devices: pair it, and it will pick up its old keys and settings. They can also be copied onto another deck with Copy From Deck on that deck's Device page." )
 					} icon: {
 						Image( systemName: "square.on.square" )
 					}
@@ -81,7 +81,7 @@ struct NeedsUnpairingView: View {
 				.padding( .vertical, 4 )
 			switch setup.unpairingPath == board.port.path ? setup.unpairing : .idle {
 				case .done:
-					Text( "Unpaired. It reconnects as a new device in a moment, ready to pair." )
+					Text( "Unpaired. It will reconnect as a new device in a moment, ready to pair." )
 						.font( .callout )
 						.foregroundStyle( .secondary )
 				case .failed( let problem ):

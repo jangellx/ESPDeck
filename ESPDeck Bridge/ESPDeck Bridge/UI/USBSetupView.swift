@@ -270,7 +270,7 @@ struct USBSetupView: View {
 		} header: {
 			SectionHeader( "1. Install Firmware" )
 		} footer: {
-			Text( "Installing keeps the board's Wi-Fi settings, name, and pairing. Before writing anything, it verifies that the board is an ESP32-S3 with enough flash and the PSRAM for ESPDeck. If the board can't enter flash mode by itself, hold BOOT, press and release RST, release BOOT, then click Install Firmware again." )
+			Text( "Installing will keep the board's Wi-Fi settings, name, and pairing. Before writing anything, it will verify that the board is an ESP32-S3 with enough flash and the PSRAM for ESPDeck. If the board can't enter flash mode by itself, hold BOOT, press and release RST, release BOOT, then click Install Firmware again." )
 		}
 	}
 
@@ -503,7 +503,7 @@ struct USBSetupView: View {
 		} header: {
 			SectionHeader( "3. Name Your Deck" )
 		} footer: {
-			Text( "The device keeps its name. If it's connected to ESPDeck Bridge, the new name shows up there right away." )
+			Text( "The device keeps its name. If it's connected to ESPDeck Bridge, the new name will show up there right away." )
 		}
 		.disabled( setup.install.isBusy )
 	}
@@ -575,12 +575,12 @@ struct USBSetupView: View {
 	/// Pairing needs Confirm held on the deck, and on the board's native USB port the Mac is
 	/// where the deck would be.
 	private var nextSteps: String {
-		let pairing = "It then appears under New Devices in the sidebar: click Pair, check that the deck shows the same code, and hold Confirm on the deck."
+		let pairing = "It will then appear under New Devices in the sidebar: click Pair, check that it shows the same code, and press and hold Confirm on the deck."
 		let guide   = "[Putting It Together](espdeck:assembly)"
 		if setup.selectedBoard?.port.isEspressif != false {
-			return "The device connects to ESPDeck Bridge over Wi-Fi within a few seconds. Pairing needs the Stream Deck, so unplug the board from this Mac and connect it to the deck and power, as in \(guide). \(pairing)"
+			return "The deck will connect to ESPDeck Bridge over Wi-Fi within a few seconds. Pairing needs the Stream Deck, so unplug the board from this Mac and connect it to the deck and power, as in \(guide). \(pairing)"
 		}
-		return "The device connects to ESPDeck Bridge over Wi-Fi within a few seconds. \(pairing) The deck needs to be connected; see \(guide)."
+		return "The deck will connect to ESPDeck Bridge over Wi-Fi within a few seconds. \(pairing) The deck needs to be connected; see \(guide)."
 	}
 
 	/// What comes after USB Setup, as on Getting Started's Connect to This Mac, and the way

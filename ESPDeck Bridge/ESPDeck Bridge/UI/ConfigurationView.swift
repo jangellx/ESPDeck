@@ -93,7 +93,7 @@ struct ConfigurationView: View {
 					Label( "No Device Selected", systemImage: "square.grid.3x2" )
 				} description: {
 					Text( controller.devices.isEmpty
-						  ? "Plug a Stream Deck into an ESPDeck and power it up. A new device shows QR codes on its keys: scan them to join its Wi-Fi network and set it up. It appears here once it's on your network.\n\nNo deck yet? Add a demo deck to lay out keys now and copy them to a real device later."
+						  ? "Plug a Stream Deck into an ESPDeck and power it up. A new device shows QR codes on its keys: scan them to join its Wi-Fi network and set it up. It will appear here once it's on your network.\n\nNo deck yet? Add a demo deck to lay out keys now and copy them to a real device later."
 						  : "Choose a device in the sidebar." )
 				} actions: {
 					if controller.devices.isEmpty {
@@ -111,7 +111,7 @@ struct ConfigurationView: View {
 			Button( "Reset Bridge", role: .destructive ) { controller.removeBridge() }
 			Button( "Export First…" ) { window.bridgeTransfer = .export }
 		} message: {
-			Text( "This Mac forgets every device's pairing, the devices and their key layouts, icons, triggers and commands, and the developer password, and starts over as a new bridge. Your decks then need unpairing on their setup pages before they can pair again. To keep them working on another Mac instead, export the bridge first." )
+			Text( "This Mac will forget every device's pairing, the devices and their key layouts, icons, triggers and commands, and the developer password, and start over as a new bridge. Your decks will then need unpairing on their setup pages before they can pair again. To keep them working on another Mac instead, export the bridge first." )
 		}
 		.sheet( item: Bindable( window ).bridgeTransfer ) { sheet in
 			switch sheet {
@@ -510,6 +510,16 @@ struct LabelPositionControl: View {
 }
 
 extension NewDevice.Reason {
+	/// After USB Setup, once the deck has found this bridge.
+	var foundBridge: String {
+		switch self {
+			case .unpaired:        "The deck found ESPDeck Bridge and is waiting to be paired."
+			case .oldFirmware:     "The deck found ESPDeck Bridge, but needs a firmware update before it can be paired."
+			case .pairedElsewhere: "The deck found ESPDeck Bridge, but it's paired with another Mac, so it needs to be unpaired first."
+			case .keyMissing:      "The deck found ESPDeck Bridge, but this Mac lost its pairing key, so the deck needs to be unpaired first."
+		}
+	}
+
 	/// Under the device's name in the sidebar.
 	var status: String {
 		switch self {

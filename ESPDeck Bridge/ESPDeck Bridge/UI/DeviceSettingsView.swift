@@ -87,7 +87,7 @@ struct DeviceSettingsView: View {
 					.confirmationDialog( "Delete \(settings.name)?", isPresented: confirmingForget ) {
 						Button( "Delete Demo Deck", role: .destructive ) { controller.forget( device: deviceID ) }
 					} message: {
-						Text( "This removes its key assignments." )
+						Text( "This will remove its key assignments." )
 					}
 			} footer: {
 				Text( "To use this layout on a real deck, open that device's Keys page and choose Copy Keys From under the deck. Keys are matched by row and column, so layouts carry across deck sizes." )
@@ -154,7 +154,7 @@ struct DeviceSettingsView: View {
 				SectionHeader( "Device" )
 			} footer: {
 				if !online {
-					Text( "This device is offline. Its keys can still be edited; they're sent when it reconnects. Name, display, and sleep timer changes need it online." )
+					Text( "This device is offline. Its keys can still be edited; they'll be sent when it reconnects. Name, display, and sleep timer changes need it online." )
 				}
 			}
 
@@ -260,7 +260,7 @@ struct DeviceSettingsView: View {
 							FactoryResetSheet( controller: controller, deviceID: deviceID )
 						}
 					InfoButton( help: "About Factory Reset",
-								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It restarts in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again it gets back its own settings, or another deck's." )
+								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It will restart in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again, it will get back its own settings, or another deck's." )
 				}
 				HStack {
 					Button( "Copy From Deck…" ) { copyingDeck = true }
@@ -273,10 +273,10 @@ struct DeviceSettingsView: View {
 						.confirmationDialog( "Forget \(settings.name)?", isPresented: confirmingForget ) {
 							Button( "Forget Device", role: .destructive ) { controller.forget( device: deviceID ) }
 						} message: {
-							Text( "This removes its key assignments and settings from ESPDeck Bridge. If it connects again, it appears as a new device." )
+							Text( "This will remove its key assignments and settings from ESPDeck Bridge. If it connects again, it will appear as a new device." )
 						}
 					InfoButton( help: "About Forget Device",
-								text: "Forget Device removes it from ESPDeck Bridge, with its key assignments and settings, and unpairs it, but leaves its Wi-Fi settings alone. If it connects again, it appears as a new device." )
+								text: "Forget Device removes it from ESPDeck Bridge, with its key assignments and settings, and unpairs it, but leaves its Wi-Fi settings alone. If it connects again, it will appear as a new device." )
 				}
 			} header: {
 				SectionHeader( "Setup" )
@@ -371,7 +371,7 @@ private enum StorageText {
 	/// The confirmation's title, naming the device.
 	static func confirmTitle( _ name: String ) -> String { "Encrypt the secrets stored on \(name)?" }
 
-	static let confirmMessage = "This encrypts the Wi-Fi password, pairing key and developer password stored on the dev kit, so someone who takes it and reads its flash can't recover them. Its settings and pairing move across, so it keeps working as it does now.\n\nTurning encryption on is permanent: it burns a one-time key into the chip, so this dev kit always encrypts what it stores from now on. What it stores isn't locked in: you can still change its Wi-Fi network, rename it, pair it again or reset it, and it keeps working and updating as before.\n\nKeep the deck powered for the few seconds it takes. It restarts when it's done."
+	static let confirmMessage = "This will encrypt the Wi-Fi password, pairing key and developer password stored on the dev kit, so someone who takes it and reads its flash can't recover them. Its settings and pairing will move across, so it will keep working as it does now.\n\nTurning encryption on is permanent: it burns a one-time key into the chip, so this dev kit will always encrypt what it stores from now on. What it stores isn't locked in: you can still change its Wi-Fi network, rename it, pair it again or reset it, and it will keep working and updating as before.\n\nKeep the deck powered for the few seconds it takes. It will restart when it's done."
 
 	static let learnMore = "The dev kit keeps your Wi-Fi password, its pairing key and the developer password in its flash. Unencrypted (Standard), anyone who takes it can read them over USB, and the pairing key could let them trigger this deck's actions from your network. Encrypted stores them with a key burned into the chip that no software can read, so the flash alone gives nothing away. New devices are encrypted when they're first set up, over USB or on their setup page, unless Standard is chosen there.\n\nEnabling encryption is permanent: the key can't be removed, so this dev kit always encrypts what it stores. The settings themselves can still be changed any time (Wi-Fi network, name, pairing), and updates, factory reset and the web installer work as before (a reset starts over with empty storage, still encrypted). ESPDeck Bridge won't install firmware older than 4.1.0 on it, since that can't read encrypted storage."
 }
@@ -407,7 +407,7 @@ private struct SecuritySection: View {
 			}
 			switch controller.storageEncryption[device.id] {
 				case .encrypting:
-					ProgressView( "Encrypting; the deck restarts when it's done…" )
+					ProgressView( "Encrypting; the deck will restart when it's done…" )
 				case .failed( let message ):
 					WarningLabel( message )
 				case nil:
@@ -599,7 +599,7 @@ private struct DeveloperPasswordRows: View {
 		let offline = controller.devices.filter { device in
 			!device.isOnline && controller.settings( device.id ).map { $0.devOTA && !$0.isDemo } == true
 		}.compactMap { controller.settings( $0.id )?.name }
-		var text = "Connected devices that allow uploads through PlatformIO get the new password right away. Save it as ota_password.txt again afterward."
+		var text = "Connected devices that allow uploads through PlatformIO will get the new password right away. Save it as ota_password.txt again afterward."
 		if !offline.isEmpty {
 			let names = ListFormatter.localizedString( byJoining: offline )
 			text += " \(names) \(offline.count == 1 ? "is" : "are") offline and will keep the old password; turn uploads off and on again for \(offline.count == 1 ? "it" : "them") later."
@@ -714,9 +714,9 @@ struct CopyKeysMenu: View {
 			let source = pending.flatMap { controller.settings( $0.source ) }
 			let name   = pending?.source == deviceID ? "this device" : source?.name ?? "the other device"
 			if let page = pending?.page {
-				Text( "The page showing is replaced with page \(page + 1) of \(name), key for key by row and column. Its other pages stay as they are." )
+				Text( "The page showing will be replaced with page \(page + 1) of \(name), key for key by row and column. Its other pages will stay as they are." )
 			} else {
-				Text( "Every page is replaced with \(name)'s pages, key for key by row and column. Keys a deck can't show are kept for a bigger one." )
+				Text( "Every page will be replaced with \(name)'s pages, key for key by row and column. Keys a deck can't show will be kept for a bigger one." )
 			}
 		}
 	}
@@ -870,7 +870,7 @@ private struct NetworkNameRow: View {
 						.help( "Back to \(settings.defaultHostname)" )
 				}
 				.buttonStyle( .borderless )
-				Text( "The device restarts to use a new name. Depending on your router, the old name can stay in its list for a while, until the device's address is renewed. Uploads through PlatformIO use the new name too." )
+				Text( "The device will restart to use a new name. Depending on your router, the old name can stay in its list for a while, until the device's address is renewed. Uploads through PlatformIO use the new name too." )
 					.secondaryCaption()
 			}
 		}

@@ -377,7 +377,7 @@ final class DeckController {
 			var text  = updated.isEmpty && offline.isEmpty && turnedOff.isEmpty ? "No device allows uploads right now." : "\(count)."
 			if !offline.isEmpty {
 				let names = ListFormatter.localizedString( byJoining: offline )
-				text = "\(count); \(names) \(offline.count == 1 ? "is" : "are") offline and still \(offline.count == 1 ? "uses" : "use") the old password."
+				text = "\(count); \(names) \(offline.count == 1 ? "is" : "are") offline and will keep using the old password."
 			}
 			if !turnedOff.isEmpty {
 				let names = ListFormatter.localizedString( byJoining: turnedOff )

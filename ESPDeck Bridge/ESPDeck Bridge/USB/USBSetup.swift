@@ -873,18 +873,16 @@ final class USBSetup {
 		// A known device the bridge can't authenticate shows on its own row (stuckConnection).
 		let listed = { ( new: NewDevice ) -> ( selection: String, status: String, needsPairing: Bool ) in
 			if controller.stuckConnection( for: new.hello.id )?.client == new.client, controller.device( new.hello.id ) != nil {
-				return ( new.hello.id, "It found ESPDeck Bridge, but \(new.reason.status).", false )
+				return ( new.hello.id, new.reason.foundBridge, false )
 			}
-			return ( SidebarItem.newDevice( new.client ),
-					 new.reason.canPair ? "It found ESPDeck Bridge and is waiting to be paired." : "It found ESPDeck Bridge, but \(new.reason.status).",
-					 new.reason.canPair )
+			return ( SidebarItem.newDevice( new.client ), new.reason.foundBridge, new.reason.canPair )
 		}
 		if let id = board.deviceID {
 			if let new = controller.newDevices.first( where: { $0.hello.id == id } ) {
 				return listed( new )
 			}
 			if let device = controller.device( id ), device.isOnline {
-				return ( device.id, "It's connected to ESPDeck Bridge.", false )
+				return ( device.id, "The deck is connected to ESPDeck Bridge.", false )
 			}
 			return nil
 		}
@@ -892,7 +890,7 @@ final class USBSetup {
 			return listed( new )
 		}
 		if let device = controller.devices.first( where: { $0.isOnline && controller.settings( $0.id )?.name == board.name } ) {
-			return ( device.id, "It's connected to ESPDeck Bridge.", false )
+			return ( device.id, "The deck is connected to ESPDeck Bridge.", false )
 		}
 		return nil
 	}

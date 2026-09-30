@@ -206,9 +206,9 @@ struct KeyInspectorView: View {
 			}
 		} message: {
 			if let partner = assignment.slider?.partner {
-				Text( "This removes the key's accessory, action, label, background color, and icons. It's one of a pair of Level keys with Key \(partner + 1), which can be cleared too, or kept as an ordinary key." )
+				Text( "This will remove the key's accessory, action, label, background color, and icons. It's one of a pair of Level keys with Key \(partner + 1), which can be cleared too, or kept as an ordinary key." )
 			} else {
-				Text( "This removes the key's accessory, action, label, background color, and icons." )
+				Text( "This will remove the key's accessory, action, label, background color, and icons." )
 			}
 		}
 		.onChange( of: key ) { choosingPartner = false }

@@ -136,9 +136,9 @@ struct FirmwareRow: View {
 		} message: {
 			if let pending {
 				let older = isDowngrade( pending )
-					? "This is older than the \(device.firmware ?? "") it's running, and ESPDeck Bridge may expect things it can't do. "
+					? "This firmware is older than the \(device.firmware ?? "") the deck is running now, and may not support everything this version of ESPDeck Bridge expects. "
 					: ""
-				Text( "\(older)From \(pending.source), built \(pending.info.built). Firmware from a file isn't checked against the release signature, so only install builds you trust. The device restarts into it; if it can't reconnect, it goes back to the firmware it runs now." )
+				Text( "\(older)Source: \(pending.source), built \(pending.info.built). Firmware from a file isn't checked against the release signature, so only install builds you trust. The device will restart into it; if it can't reconnect, it will go back to the firmware it runs now." )
 			}
 		}
 		.alert( "Can't Install That Firmware", isPresented: Binding( presenting: $problem ) ) {

@@ -202,8 +202,8 @@ struct ImportBridgeSheet: View {
 
 	/// What importing replaces, in a sentence.
 	private var replacement: String {
-		existing.devices > 0 ? "This replaces this Mac's bridge: its \(devicesText( existing.devices )) and their pairings."
-							 : "This replaces this Mac's bridge and its \(existing.pairings == 1 ? "pairing" : "\(existing.pairings) pairings")."
+		existing.devices > 0 ? "This will replace this Mac's bridge: its \(devicesText( existing.devices )) and their pairings."
+							 : "This will replace this Mac's bridge and its \(existing.pairings == 1 ? "pairing" : "\(existing.pairings) pairings")."
 	}
 
 	var body: some View {

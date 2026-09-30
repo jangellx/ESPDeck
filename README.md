@@ -52,8 +52,8 @@ The app writes the flash through the ESP32-S3's ROM bootloader protocol itself (
 The device starts in setup mode when it has no Wi-Fi credentials. To enter it later, hold the top-left and bottom-right keys for 5 seconds, or turn it on from the Mac. After 2 seconds of holding, the other keys go dark and the middle column counts down (3, 2, 1) under "Entering Setup In"; letting go of either key cancels and the keys go back to normal. The deck then shows:
 - top-left: a QR code that joins the device's access point, `ESPDeck-XXXX` (last four hex digits of its MAC address), with "1. Scan to join Wi-Fi" on the key below;
 - top-right: a QR code for the setup page, `http://192.168.4.1/`, with "2. Scan to open setup" below;
-- top centre: the network's name, `ESPDeck-XXXX`;
-- bottom centre: **Exit setup**, once the device has credentials that work.
+- top center: the network's name, `ESPDeck-XXXX`;
+- bottom center: **Exit setup**, once the device has credentials that work.
 
 **Joining its network:**
 1. Scan the left QR code with your phone's camera and join the network it offers.

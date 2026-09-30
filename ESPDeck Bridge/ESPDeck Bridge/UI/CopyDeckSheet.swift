@@ -47,8 +47,8 @@ struct CopyDeckSheet: View {
 					SectionHeader( "Copy" )
 				} footer: {
 					Text( online
-						  ? "Replaces these on this deck. Keys can be undone; the rest goes to the deck at once, and a new network name restarts it."
-						  : "Replaces these on this deck. It's not connected, so its name, network name, display and sleep timer go to it when it next connects." )
+						  ? "Replaces these on this deck. Keys can be undone; the rest will go to the deck at once, and a new network name will restart it."
+						  : "Replaces these on this deck. It's not connected, so its name, network name, display and sleep timer will go to it when it next connects." )
 				}
 			}
 			.formStyle( .grouped )
@@ -93,7 +93,7 @@ struct FactoryResetSheet: View {
 		NavigationStack {
 			Form {
 				Section {
-					Text( "\(name) erases its Wi-Fi settings, name, pairing, and stored key images, and restarts in setup mode as if new. Set it up over USB or on its setup page, then pair it again here." )
+					Text( "\(name) will erase its Wi-Fi settings, name, pairing, and stored key images, and restart in setup mode as if new. Set it up over USB or on its setup page, then pair it again here." )
 				}
 				Section {
 					Picker( "Then Restore", selection: $restore ) {
@@ -110,11 +110,11 @@ struct FactoryResetSheet: View {
 				} footer: {
 					switch restore {
 						case "":
-							Text( "Its keys stay in ESPDeck Bridge either way. Once it's paired again, it gets back its name, network name, display and sleep settings." )
+							Text( "Its keys stay in ESPDeck Bridge either way. Once it's paired again, it will get back its name, network name, display and sleep settings." )
 						case nil:
-							Text( "Its keys stay in ESPDeck Bridge. Its name, network name, display and sleep settings start over." )
+							Text( "Its keys stay in ESPDeck Bridge. Its name, network name, display and sleep settings will start over." )
 						default:
-							Text( "Its keys, display, sleep and key press settings become that deck's now; its display and sleep timer go to it once it's paired again. Its own name and network name are kept here for it." )
+							Text( "Its keys, display, sleep and key press settings will become that deck's now; its display and sleep timer will go to it once it's paired again. Its own name and network name are kept here for it." )
 					}
 				}
 			}

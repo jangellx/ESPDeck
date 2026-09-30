@@ -33,7 +33,7 @@ struct NewDeviceView: View {
 			}
 		} else {
 			ContentUnavailableView( "Device Disconnected", systemImage: "wifi.slash",
-									description: Text( "It will appear again when it reconnects." ) )
+									description: Text( "The deck will reappear once it reconnects." ) )
 		}
 	}
 
@@ -71,7 +71,7 @@ struct NewDeviceView: View {
 				.foregroundStyle( .secondary )
 				.multilineTextAlignment( .center )
 		} else if !device.reason.canPair {
-			Text( "Open the deck's setup page: hold its top-left and bottom-right keys for 5 seconds, scan the QR codes, then choose Unpair. It then shows up here ready to pair." )
+			Text( "Open the deck's setup page: hold its top-left and bottom-right keys for 5 seconds, scan the QR codes, then choose Unpair. It will then show up here, ready to pair." )
 				.font( .callout )
 				.foregroundStyle( .secondary )
 				.multilineTextAlignment( .center )
@@ -141,7 +141,7 @@ struct NewDeviceView: View {
 
 	/// Asking to replace this Mac's pairing with a deck of the same MAC address.
 	private func replaceMessage( _ device: NewDevice ) -> String {
-		var text = "This Mac is already paired with a deck with this MAC address (\(device.hello.id)). Pairing this one replaces that pairing, and keeps its key layout."
+		var text = "This Mac is already paired with a deck with this MAC address (\(device.hello.id)). Pairing this one will replace that pairing, and keep its key layout."
 		if controller.device( device.hello.id )?.isOnline == true {
 			text += " That deck is connected right now, and will be disconnected."
 		}

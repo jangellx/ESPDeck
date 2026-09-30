@@ -181,7 +181,7 @@ struct PartsView: View {
 
 	private static let connectSteps = [
 		GuideStep( title: "Connect the dev kit to this Mac.",
-				   detail: "Use the USB-C cable, in the dev kit's port labelled **USB**. The Mac powers the dev kit; nothing else needs to be plugged in yet." ),
+				   detail: "Use the USB-C cable, in the dev kit's port labeled **USB**. The Mac powers the dev kit; nothing else needs to be plugged in yet." ),
 		GuideStep( title: "Open USB Setup.",
 				   detail: "Once it finds the dev kit, install ESPDeck on it, set your Wi-Fi network, and give it a name." ),
 	]
@@ -217,7 +217,7 @@ struct PartsView: View {
 
 	private static let assemblySteps = [
 		GuideStep( title: "Plug the OTG adapter into the dev kit.",
-				   detail: "Use the port labelled **USB**, not the one labelled UART or COM." ),
+				   detail: "Use the port labeled **USB**, not the one labeled UART or COM." ),
 		GuideStep( title: "Plug in the Stream Deck.",
 				   detail: "It goes in the OTG adapter's USB-A socket. If the deck's cable ends in USB-C, put the USB-A to USB-C adapter in between." ),
 		GuideStep( title: "Connect the power supply.",
@@ -253,13 +253,13 @@ struct PartsView: View {
 
 	private static let wifiSteps = [
 		GuideStep( title: "Join the deck's Wi-Fi network.",
-				   detail: "Scan the code on the top-left key with a phone's camera, and join the network it offers. It's named **ESPDeck-XXXX**, ending in the last four characters of the deck's ID, as shown on the top-centre key." ),
+				   detail: "Scan the code on the top-left key with a phone's camera, and join the network it offers. It's named **ESPDeck-XXXX**, ending in the last four characters of the deck's ID, as shown on the top-center key." ),
 		GuideStep( title: "Open the setup page.",
 				   detail: "Scan the code on the top-right key, or open **http://192.168.4.1** in a web browser. It often opens by itself once the phone has joined." ),
 		GuideStep( title: "Choose your Wi-Fi network.",
 				   detail: "Pick it on the setup page, enter its password, and tap **Save & Connect**. It needs a 2.4 GHz network, the one this Mac is on. You can name the deck there too." ),
 		GuideStep( title: "Find it in ESPDeck Bridge.",
-				   detail: "The deck joins your network, leaves setup mode, and finds ESPDeck Bridge on this Mac. It then appears under Find Your Device and New Devices, to be paired." ),
+				   detail: "The deck will join your network, leave setup mode, and find ESPDeck Bridge on this Mac. It will then appear under Find Your Device and New Devices, to be paired." ),
 	]
 
 	/// Set Up over Wi-Fi: the setup codes, the steps, and what to do when they go wrong.
@@ -278,7 +278,7 @@ struct PartsView: View {
 					 detail: "A dev kit that already has Wi-Fi starts normally. To enter setup mode, hold the top-left and bottom-right keys together for 5 seconds: after 2 seconds the other keys go dark and a countdown shows. Letting go of either key cancels. A paired deck can also start setup mode from its Device page in ESPDeck Bridge." )
 				steps( Array( Self.wifiSteps[1..<2] ), from: 2 )
 				tip( icon: "wifi.exclamationmark", title: "If the Phone Leaves the Deck's Network",
-					 detail: "The deck's network has no internet, so a phone may join it and then drop back to your usual Wi-Fi. If that happens, join it directly: in the phone's Wi-Fi settings, choose **ESPDeck-XXXX**, the name on the top-centre key. The deck doesn't show the password; it's in the top-left code, and scanning that code saves it on the phone, so if the settings ask for it, scan the code again. The password changes each time setup mode starts (firmware 4.0 and later), so scan again after it restarts. The setup page only opens while the phone is on the deck's network." )
+					 detail: "The deck's network has no internet, so a phone may join it and then drop back to your usual Wi-Fi. If that happens, join it directly: in the phone's Wi-Fi settings, choose **ESPDeck-XXXX**, the name on the top-center key. The deck doesn't show the password; it's in the top-left code, and scanning that code saves it on the phone, so if the settings ask for it, scan the code again. The password changes each time setup mode starts (firmware 4.0 and later), so scan again after it restarts. The setup page only opens while the phone is on the deck's network." )
 				steps( Array( Self.wifiSteps[2...] ), from: 3 )
 			}
 		}
@@ -450,7 +450,7 @@ private struct FindDevicesSheet: View {
 	var body: some View {
 		VStack( alignment: .leading, spacing: 24 ) {
 			SheetHeading( title: "Find Your Device",
-						  detail: "Once the dev kit is on your Wi-Fi, it finds ESPDeck Bridge and shows up here to be paired. A new dev kit needs Wi-Fi first: plug it into this Mac and set it up over USB, or scan the setup codes on the deck." )
+						  detail: "Once the dev kit is on your Wi-Fi, it will find ESPDeck Bridge and show up here to be paired. A new dev kit needs Wi-Fi first: plug it into this Mac and set it up over USB, or scan the setup codes on the deck." )
 
 			HStack( spacing: 10 ) {
 				ProgressView()
@@ -576,13 +576,13 @@ private struct Part: Identifiable {
 			  detail: "**Any model with keys**: Mini, Original, MK.2, XL, Neo, +, Pedal, or a module.",
 			  draw: Sketch.streamDeck ),
 		Part( number: 2, title: "ESP32-S3 Dev Kit",
-			  detail: "ESP32-S3-DevKitC-1 **N16R8** (**16 MB flash, 8 MB PSRAM**), or a clone of it. It has two USB-C ports: the Stream Deck uses the one labelled **USB**, not the one labelled UART (or COM on many clones).",
+			  detail: "ESP32-S3-DevKitC-1 **N16R8** (**16 MB flash, 8 MB PSRAM**), or a clone of it. It has two USB-C ports: the Stream Deck uses the one labeled **USB**, not the one labeled UART (or COM on many clones).",
 			  draw: Sketch.devKit ),
 		Part( number: 3, title: "USB-C OTG Adapter",
 			  detail: "**Passive**, with a USB-C plug for the dev kit, a USB-A port for the Stream Deck, and a **USB-C port for power**. Adapters that need USB-PD may never power the deck.",
 			  draw: Sketch.otgAdapter ),
 		Part( number: 4, title: "USB-A to USB-C Adapter",
-			  detail: "USB-A plug to USB-C socket, labelled for **charging and data** (not charge-only).",
+			  detail: "USB-A plug to USB-C socket, labeled for **charging and data** (not charge-only).",
 			  note: "Only if your Stream Deck's cable ends in USB-C",
 			  draw: Sketch.aToCAdapter ),
 		Part( number: 5, title: "5 V Power Supply",
