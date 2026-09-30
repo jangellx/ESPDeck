@@ -292,6 +292,7 @@ private struct Sidebar: View {
 								Spacer()
 								Image( systemName: "magnifyingglass.circle" )
 									.sidebarAccent()
+									.sidebarSlot()
 									.help( "Looking for boards plugged in over USB" )
 									.accessibilityLabel( "Looking for boards" )
 							}
@@ -309,7 +310,7 @@ private struct Sidebar: View {
 						Text( "Updates" )
 						if !controller.updates.statusItems.isEmpty {
 							Spacer()
-							Circle().frame( width: 8, height: 8 ).sidebarAccent()
+							Circle().frame( width: 8, height: 8 ).sidebarAccent().sidebarSlot()
 						}
 					}
 					.sidebarTrailingInset()
@@ -367,6 +368,7 @@ private struct Sidebar: View {
 					Spacer( minLength: 4 )
 					if let explanation = controller.statusExplanation( device: device ) {
 						InfoButton( help: "About \(status.stateText)", text: explanation )
+							.sidebarSlot()
 					}
 					if controller.updates.firmwareUpdateAvailable( for: device ), let latest = controller.updates.latestFirmware {
 						Button {
@@ -377,6 +379,7 @@ private struct Sidebar: View {
 								.sidebarAccent()
 						}
 						.buttonStyle( .borderless )
+						.sidebarSlot()
 						.help( "Firmware \(latest.version.description) is available. Click to open Updates." )
 						.accessibilityLabel( "Firmware update available" )
 					}
@@ -427,6 +430,7 @@ private struct LaunchAtLoginRow: View {
 
 			InfoButton( help: "About Launch at Login",
 						text: "ESPDeck Bridge is what connects your decks to HomeKit. If it isn't running, the keys can't control anything and the decks show Connecting. Launching at login keeps it running after a restart." )
+				.sidebarSlot()
 		}
 		.sidebarTrailingInset()
 		.onAppear { controller.refreshLaunchAtLogin() }

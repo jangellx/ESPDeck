@@ -92,6 +92,9 @@ private struct SidebarAccent: ViewModifier {
 /// A count in a capsule, white on `color` (the accent unless given), turned around on a
 /// selected sidebar row.
 struct SidebarBadge: View {
+	/// Its diameter (wider for two digits).
+	static let size: CGFloat = 18
+
 	let count : Int
 	var color : Color = .accentColor
 
@@ -103,7 +106,7 @@ struct SidebarBadge: View {
 		Text( "\(count)" )
 			.font( .caption.weight( .bold ).monospacedDigit() )
 			.foregroundStyle( selected ? color : .white )
-			.frame( minWidth: 18, minHeight: 18 )
+			.frame( minWidth: Self.size, minHeight: Self.size )
 			.padding( .horizontal, count > 9 ? 3 : 0 )
 			.background( Capsule().fill( selected ? Color.white : color ) )
 	}
@@ -147,6 +150,7 @@ struct ProblemRow: View {
 							.foregroundStyle( .secondary )
 					}
 					.buttonStyle( .borderless )
+					.sidebarSlot()
 					.help( "Clear" )
 					.accessibilityLabel( "Clear \(problem.title)" )
 				}
@@ -220,6 +224,12 @@ extension View {
 	/// Room on the right of a sidebar row, so its badge or button lines up with the count in a
 	/// collapsible section's header, which sits left of the system's disclosure arrow.
 	func sidebarTrailingInset() -> some View {
-		padding( .trailing, 14 )
+		padding( .trailing, 15.5 )   // measured against the header's count
+	}
+
+	/// A sidebar row's right-hand item (ⓘ, arrow, dot, ✕) in a badge-wide slot, centered, so
+	/// its center lines up with the counts'.
+	func sidebarSlot() -> some View {
+		frame( minWidth: SidebarBadge.size )
 	}
 }
