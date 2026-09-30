@@ -13,19 +13,18 @@ import ServiceManagement
 /// The bundle's principal class: the menu bar item and its menu, and the AppKit services
 /// the Catalyst app reaches through DeckMenuBarPlugin.
 @objc( MenuBarController )
-final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
+final class MenuBarController: NSObject, DeckMenuBarPlugin {
 	private var statusItem   : NSStatusItem?
 	private weak var host    : DeckMenuBarHost?
-	private let menu         = NSMenu()
+	/// The menu, as a panel of our own (MenuPanel.swift says why), and what it lists.
+	private var panel        : MenuPanel?
+	private let panelModel   = MenuPanelModel()
+	/// When the panel last closed: a click on the icon that closed it shouldn't reopen it.
+	private var panelClosedAt = Date.distantPast
 	private var statusLines  : [String] = [ "Starting…" ]
 	private var statusLevels : [Int]    = [ 0 ]
 	private var connected    = false
 	private var decks        : [( id: String, title: String, level: Int )] = []
-
-	/// The app that was frontmost when the menu opened, and whether a menu item then opened
-	/// a window; see menuWillOpen(_:).
-	private var appBeforeMenu   : NSRunningApplication?
-	private var menuOpensWindow = false
 
 	// USB setup; see MenuBarController+USB.swift.
 	var portWatcher   : SerialPortWatcher?
@@ -44,8 +43,9 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		DockPresence.start()
 
 		let item = NSStatusBar.system.statusItem( withLength: NSStatusItem.squareLength )
-		menu.delegate = self
-		item.menu = menu
+		item.button?.target = self
+		item.button?.action = #selector( togglePanel( _: ) )
+		item.button?.sendAction( on: [ .leftMouseDown, .rightMouseDown ] )
 		statusItem = item
 		rebuild()
 	}
@@ -58,7 +58,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		rebuild()
 	}
 
-	/// New deck list; rebuilds the menu.
+	/// New deck list; updates the panel.
 	func updateDecks( ids: [String], titles: [String], levels: [Int] ) {
 		decks = zip( ids, zip( titles, levels ) ).map { ( $0, $1.0, $1.1 ) }
 		rebuild()
@@ -67,7 +67,6 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	/// Called while handling the click that opens the window, and still an accessory, which
 	/// WindowServer lets activate; DockPresence goes regular once the window is on screen.
 	func activateApp() {
-		menuOpensWindow = true
 		DockPresence.windowWillOpen()
 		Self.forceActivate()
 	}
@@ -112,61 +111,53 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		}
 	}
 
-	/// Redraws the status icon and rebuilds the whole menu from the current state.
+	/// Redraws the status icon and updates what the panel lists.
 	private func rebuild() {
 		statusItem?.button?.image = Self.statusIcon( connected: connected )
 
-		menu.removeAllItems()
-
-		// The decks, each opening its Keys page. (HomeKit's state is with the status lines;
-		// there can be several Homes, so no one Home heads the list.)
-		menu.addItem( .sectionHeader( title: "Decks" ) )
-		if decks.isEmpty {
-			let none = NSMenuItem( title: "None yet", action: nil, keyEquivalent: "" )
-			none.isEnabled = false
-			menu.addItem( none )
-		}
-		for deck in decks {
-			// The app sends "Name: state" or "Name (demo)": the state goes on a second line.
+		// The app sends "Name: state" or "Name (demo)": the state goes on a second line.
+		panelModel.decks = decks.map { deck in
 			let parts = deck.title.components( separatedBy: ": " )
 			let name  = parts.count > 1 ? parts.dropLast().joined( separator: ": " ) : deck.title
 			let state = parts.count > 1 ? parts.last.map { $0.prefix( 1 ).uppercased() + $0.dropFirst() } : nil
-			let item  = actionItem( deck.title, #selector( showDeck( _: ) ) )
-			item.representedObject = deck.id
-			item.attributedTitle   = Self.title( name, icon: Self.deckImage( level: deck.level ), detail: state )
-			menu.addItem( item )
+			return MenuPanelModel.Deck( id: deck.id, name: name, state: state, icon: Self.deckImage( level: deck.level ) )
 		}
-		menu.addItem( .separator() )
-
-		for ( index, line ) in statusLines.enumerated() {
-			// Enabled, so it isn't drawn dimmed (macOS 27 dims a disabled item whatever its
-			// colors); choosing it opens the configuration window, where the same status is.
-			let item = actionItem( line, #selector( openConfiguration ) )
-			item.attributedTitle = Self.title( line, icon: Self.statusImage( level: index < statusLevels.count ? statusLevels[index] : 0 ) )
-			menu.addItem( item )
+		panelModel.lines = statusLines.enumerated().map { index, line in
+			MenuPanelModel.Line( id: index, text: line, icon: Self.statusImage( level: index < statusLevels.count ? statusLevels[index] : 0 ) )
 		}
-		menu.addItem( .separator() )
-
-		menu.addItem( actionItem( "Configure…", #selector( openConfiguration ), symbol: "gearshape" ) )
-		menu.addItem( actionItem( "Set Up a Device over USB…", #selector( openUSBSetup ), symbol: "cable.connector" ) )
-		let login = actionItem( "Launch at Login", #selector( toggleLaunchAtLogin ) )
-		login.state = launchAtLoginMenuState
-		menu.addItem( login )
-
-		menu.addItem( .separator() )
-
-		menu.addItem( actionItem( "Quit ESPDeck Bridge", #selector( quit ), symbol: "power" ) )
+		panelModel.launchAtLogin = SMAppService.mainApp.status == .enabled
 	}
 
-	/// A menu item that sends `action` to this controller, with an SF Symbol if named. No key
-	/// equivalents: the app usually isn't active to take them (its own menus have ⌘, and ⌘Q).
-	private func actionItem( _ title: String, _ action: Selector, symbol name: String? = nil ) -> NSMenuItem {
-		let item = NSMenuItem( title: title, action: action, keyEquivalent: "" )
-		item.target = self
-		if let name {
-			item.image = Self.symbol( name )
+	/// The icon's click: opens the panel under it, or closes it if it's open.
+	@objc private func togglePanel( _ sender: NSStatusBarButton ) {
+		if panel?.isVisible == true {
+			panel?.close()
+			return
 		}
-		return item
+		// The same click took the keyboard from the panel and closed it: leave it closed.
+		guard Date().timeIntervalSince( panelClosedAt ) > 0.25 else { return }
+		rebuild()   // Launch at Login may have changed in System Settings
+		let panel = self.panel ?? makePanel()
+		self.panel = panel
+		sender.highlight( true )
+		panel.show( below: sender )
+	}
+
+	/// Builds the panel; each row closes it, then acts while its click is the latest input.
+	private func makePanel() -> MenuPanel {
+		let actions = MenuPanelActions(
+			showDeck:      { [weak self] id in self?.showDeck( id: id ) },
+			configure:     { [weak self] in self?.openConfiguration() },
+			usbSetup:      { [weak self] in self?.openUSBSetup() },
+			launchAtLogin: { [weak self] in self?.toggleLaunchAtLogin() },
+			quit:          { [weak self] in self?.quit() } )
+		var panel: MenuPanel!
+		panel = MenuPanel( content: MenuPanelView( model: panelModel, actions: actions ) { panel?.close() } )
+		panel.onClose = { [weak self] in
+			self?.panelClosedAt = Date()
+			self?.statusItem?.button?.highlight( false )
+		}
+		return panel
 	}
 
 	/// The app icon's design as a menu bar template: a Stream Deck Mini's 3 × 2 keys with the
@@ -196,45 +187,6 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		image.isTemplate = true
 		image.accessibilityDescription = connected ? "ESPDeck Bridge, connected" : "ESPDeck Bridge, no deck connected"
 		return image
-	}
-
-	/// A title with its icon in front, and optionally a smaller second line (like a
-	/// subtitle, which would start under the icon) lined up with the text. macOS 27 gives a
-	/// menu item's own image no room unless the item also shows a state (a checkmark), but an
-	/// attachment in the title gets its space. The icon sits in a fixed-width box so the
-	/// titles line up.
-	private static func title( _ text: String, icon: NSImage?, detail: String? = nil ) -> NSAttributedString {
-		let font  = NSFont.menuFont( ofSize: 0 )
-		let title = NSMutableAttributedString()
-		var indent: CGFloat = 0
-		if let icon {
-			let side: CGFloat = 16
-			let box = NSImage( size: NSSize( width: side, height: side ), flipped: false ) { rect in
-				let size = icon.size
-				icon.draw( in: NSRect( x: rect.midX - size.width / 2, y: rect.midY - size.height / 2, width: size.width, height: size.height ) )
-				return true
-			}
-			let attachment = NSTextAttachment()
-			attachment.image  = box
-			attachment.bounds = NSRect( x: 0, y: ( font.capHeight - side ) / 2, width: side, height: side )
-			title.append( NSAttributedString( attachment: attachment ) )
-			title.append( NSAttributedString( string: " " ) )
-			indent = side + NSAttributedString( string: " ", attributes: [ .font: font ] ).size().width
-		}
-		title.append( NSAttributedString( string: text ) )
-		title.addAttribute( .font, value: font, range: NSRange( location: 0, length: title.length ) )
-
-		if let detail {
-			let paragraph = NSMutableParagraphStyle()
-			paragraph.headIndent          = indent   // the second line starts where the text does
-			paragraph.firstLineHeadIndent = 0
-			title.append( NSAttributedString( string: "\n" + detail, attributes: [
-				.font:            NSFont.menuFont( ofSize: NSFont.smallSystemFontSize ),
-				.foregroundColor: NSColor.secondaryLabelColor,
-			] ) )
-			title.addAttribute( .paragraphStyle, value: paragraph, range: NSRange( location: 0, length: title.length ) )
-		}
-		return title
 	}
 
 	/// A menu-sized SF Symbol, in a color or (without one) as a template like the menu's text.
@@ -269,20 +221,19 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 	}
 
 	/// "Configure…" and the status lines: the configuration window.
-	@objc private func openConfiguration() {
+	private func openConfiguration() {
 		activateApp()
 		host?.menuBarOpenConfiguration()
 	}
 
 	/// A deck: the configuration window on that deck's Keys page.
-	@objc private func showDeck( _ sender: NSMenuItem ) {
-		guard let id = sender.representedObject as? String else { return }
+	private func showDeck( id: String ) {
 		activateApp()
 		host?.menuBarShowDevice( id: id )
 	}
 
 	/// "Set Up a Device over USB…": the configuration window's USB Setup page.
-	@objc private func openUSBSetup() {
+	private func openUSBSetup() {
 		activateApp()
 		host?.menuBarOpenUSBSetup()
 	}
@@ -354,48 +305,8 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		}
 	}
 
-	/// launchAtLoginStatus() as the menu item's checkmark, a dash while awaiting approval.
-	private var launchAtLoginMenuState: NSControl.StateValue {
-		switch launchAtLoginStatus() {
-			case 1:  .on
-			case 2:  .mixed
-			default: .off
-		}
-	}
-
-	/// Activates the app while the click that opened the menu is the latest input. macOS 27
-	/// runs the menu outside the app, so choosing an item delivers no event of its own, and an
-	/// activation asked for then carries the opening click's time; WindowServer refuses it as
-	/// expired ("earlier than the time of the last activation"). If no item opens a window,
-	/// menuDidClose(_:) hands activation back.
-	func menuWillOpen( _ menu: NSMenu ) {
-		menuOpensWindow = false
-		let front = NSWorkspace.shared.frontmostApplication
-		appBeforeMenu = front == NSRunningApplication.current ? nil : front
-		NSApp.activate()
-		DockPresence.logState( "menu opened" )
-	}
-
-	/// Gives activation back to the app that was in front, unless an item opened a window.
-	func menuDidClose( _ menu: NSMenu ) {
-		// The chosen item's action runs after this.
-		DispatchQueue.main.async { [self] in
-			guard !menuOpensWindow, let app = appBeforeMenu else { return }
-			appBeforeMenu = nil
-			NSApp.yieldActivation( to: app )
-			app.activate( from: .current, options: [] )
-			DockPresence.logState( "menu closed; gave activation back to \(app.localizedName ?? "?")" )
-		}
-	}
-
-	/// Refreshes Launch at Login's checkmark.
-	func menuNeedsUpdate( _ menu: NSMenu ) {
-		// The user can change this in System Settings while the app runs.
-		menu.items.first { $0.action == #selector( toggleLaunchAtLogin ) }?.state = launchAtLoginMenuState
-	}
-
-	/// The Launch at Login menu item.
-	@objc private func toggleLaunchAtLogin() {
+	/// The panel's Launch at Login row.
+	private func toggleLaunchAtLogin() {
 		setLaunchAtLogin( SMAppService.mainApp.status != .enabled )
 	}
 
@@ -419,9 +330,8 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		host?.menuBarLaunchAtLoginChanged()
 	}
 
-	/// The Quit menu item.
-	@objc private func quit() {
-		menuOpensWindow = true   // the alert
+	/// The panel's Quit row.
+	private func quit() {
 		confirmQuit()
 	}
 
