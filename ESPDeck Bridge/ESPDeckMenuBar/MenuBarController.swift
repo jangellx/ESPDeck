@@ -18,7 +18,6 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 	private weak var host    : DeckMenuBarHost?
 	/// The menu, as a panel of our own (MenuPanel.swift says why), and what it lists.
 	private var panel        : MenuPanel?
-	private let panelModel   = MenuPanelModel()
 	/// When the panel last closed: a click on the icon that closed it shouldn't reopen it.
 	private var panelClosedAt = Date.distantPast
 	private var statusLines  : [String] = [ "Starting…" ]
@@ -111,21 +110,42 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		}
 	}
 
-	/// Redraws the status icon and updates what the panel lists.
+	/// Redraws the status icon, and the panel's rows if it's open.
 	private func rebuild() {
 		statusItem?.button?.image = Self.statusIcon( connected: connected )
+		if panel?.isVisible == true {
+			panel?.setEntries( entries )
+		}
+	}
 
-		// The app sends "Name: state" or "Name (demo)": the state goes on a second line.
-		panelModel.decks = decks.map { deck in
+	/// The panel's rows, as the menu had them: decks (each opening its Keys page), the status
+	/// lines (opening the window, where the same status is), the commands, Quit.
+	private var entries: [MenuPanelEntry] {
+		var entries: [MenuPanelEntry] = [ .header( "Decks" ) ]
+		if decks.isEmpty {
+			entries.append( .row( icon: nil, title: "None yet", action: nil ) )
+		}
+		for deck in decks {
+			// The app sends "Name: state" or "Name (demo)": the state goes on a second line.
 			let parts = deck.title.components( separatedBy: ": " )
 			let name  = parts.count > 1 ? parts.dropLast().joined( separator: ": " ) : deck.title
 			let state = parts.count > 1 ? parts.last.map { $0.prefix( 1 ).uppercased() + $0.dropFirst() } : nil
-			return MenuPanelModel.Deck( id: deck.id, name: name, state: state, icon: Self.deckImage( level: deck.level ) )
+			let id    = deck.id
+			entries.append( .row( icon: Self.deckImage( level: deck.level ), title: name, detail: state ) { [weak self] in self?.showDeck( id: id ) } )
 		}
-		panelModel.lines = statusLines.enumerated().map { index, line in
-			MenuPanelModel.Line( id: index, text: line, icon: Self.statusImage( level: index < statusLevels.count ? statusLevels[index] : 0 ) )
+		entries.append( .separator )
+		for ( index, line ) in statusLines.enumerated() {
+			let level = index < statusLevels.count ? statusLevels[index] : 0
+			entries.append( .row( icon: Self.statusImage( level: level ), title: line ) { [weak self] in self?.openConfiguration() } )
 		}
-		panelModel.launchAtLogin = SMAppService.mainApp.status == .enabled
+		entries.append( .separator )
+		entries.append( .row( icon: Self.symbol( "gearshape" ), title: "Configure…" ) { [weak self] in self?.openConfiguration() } )
+		entries.append( .row( icon: Self.symbol( "cable.connector" ), title: "Set Up a Device over USB…" ) { [weak self] in self?.openUSBSetup() } )
+		let loginOn = SMAppService.mainApp.status == .enabled
+		entries.append( .row( icon: loginOn ? Self.symbol( "checkmark" ) : nil, title: "Launch at Login" ) { [weak self] in self?.toggleLaunchAtLogin() } )
+		entries.append( .separator )
+		entries.append( .row( icon: Self.symbol( "power" ), title: "Quit ESPDeck Bridge" ) { [weak self] in self?.quit() } )
+		return entries
 	}
 
 	/// The icon's click: opens the panel under it, or closes it if it's open.
@@ -136,23 +156,16 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		}
 		// The same click took the keyboard from the panel and closed it: leave it closed.
 		guard Date().timeIntervalSince( panelClosedAt ) > 0.25 else { return }
-		rebuild()   // Launch at Login may have changed in System Settings
 		let panel = self.panel ?? makePanel()
 		self.panel = panel
+		panel.setEntries( entries )
 		sender.highlight( true )
 		panel.show( below: sender )
 	}
 
-	/// Builds the panel; each row closes it, then acts while its click is the latest input.
+	/// Builds the panel, un-highlighting the icon when it closes.
 	private func makePanel() -> MenuPanel {
-		let actions = MenuPanelActions(
-			showDeck:      { [weak self] id in self?.showDeck( id: id ) },
-			configure:     { [weak self] in self?.openConfiguration() },
-			usbSetup:      { [weak self] in self?.openUSBSetup() },
-			launchAtLogin: { [weak self] in self?.toggleLaunchAtLogin() },
-			quit:          { [weak self] in self?.quit() } )
-		var panel: MenuPanel!
-		panel = MenuPanel( content: MenuPanelView( model: panelModel, actions: actions ) { panel?.close() } )
+		let panel = MenuPanel()
 		panel.onClose = { [weak self] in
 			self?.panelClosedAt = Date()
 			self?.statusItem?.button?.highlight( false )

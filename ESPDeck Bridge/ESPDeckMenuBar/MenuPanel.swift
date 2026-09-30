@@ -10,41 +10,20 @@
 //  It's a non-activating panel (as Spotlight's): it takes the keyboard without making the
 //  app active, so the app in front stays so, and its first click goes straight to the row.
 //
+//  AppKit only: this bundle is loaded into a Catalyst app, where SwiftUI is the iOS one.
+//
 
 import AppKit
-import SwiftUI
 
-/// What the panel lists, kept current by MenuBarController.
-@MainActor
-@Observable
-final class MenuPanelModel {
-	/// A deck row: its name, its state on a second line, and its status icon.
-	struct Deck: Identifiable {
-		let id    : String
-		let name  : String
-		let state : String?
-		let icon  : NSImage?
-	}
-
-	/// A status line, e.g. "HomeKit: Connected".
-	struct Line: Identifiable {
-		let id   : Int
-		let text : String
-		let icon : NSImage?
-	}
-
-	var decks         : [Deck] = []
-	var lines         : [Line] = []
-	var launchAtLogin = false
-}
-
-/// What the rows do; the panel closes first.
-struct MenuPanelActions {
-	let showDeck       : ( String ) -> Void
-	let configure      : () -> Void
-	let usbSetup       : () -> Void
-	let launchAtLogin  : () -> Void
-	let quit           : () -> Void
+/// One line of the panel.
+enum MenuPanelEntry {
+	/// A small gray heading ("Decks").
+	case header( String )
+	/// A row: an icon (an image, or an SF Symbol) or blank space, its title, an optional
+	/// second line, and what choosing it does (nil: shown but not choosable).
+	case row( icon: NSImage?, title: String, detail: String? = nil, action: ( () -> Void )? )
+	/// A thin line between groups.
+	case separator
 }
 
 /// The panel itself: borderless, with the menu's material and rounded corners, floating at
@@ -54,16 +33,21 @@ final class MenuPanel: NSPanel {
 	/// Called when it closes, however that happened.
 	var onClose: ( () -> Void )?
 
-	init<Content: View>( content: Content ) {
-		super.init( contentRect: NSRect( x: 0, y: 0, width: 280, height: 100 ), styleMask: [ .nonactivatingPanel, .borderless ], backing: .buffered, defer: true )
-		isFloatingPanel    = true
-		level              = .popUpMenu
-		hasShadow          = true
-		isOpaque           = false
-		backgroundColor    = .clear
-		hidesOnDeactivate  = false
+	private let stack = NSStackView()
+
+	/// Its width, as a menu's.
+	private static let width: CGFloat = 280
+
+	init() {
+		super.init( contentRect: NSRect( x: 0, y: 0, width: Self.width, height: 100 ), styleMask: [ .nonactivatingPanel, .borderless ], backing: .buffered, defer: true )
+		isFloatingPanel      = true
+		level                = .popUpMenu
+		hasShadow            = true
+		isOpaque             = false
+		backgroundColor      = .clear
+		hidesOnDeactivate    = false
 		isReleasedWhenClosed = false
-		collectionBehavior = [ .transient, .ignoresCycle, .moveToActiveSpace ]
+		collectionBehavior   = [ .transient, .ignoresCycle, .moveToActiveSpace ]
 
 		let effect = NSVisualEffectView()
 		effect.material     = .menu
@@ -74,16 +58,44 @@ final class MenuPanel: NSPanel {
 		effect.layer?.cornerCurve   = .continuous
 		effect.layer?.masksToBounds = true
 
-		let host = FirstClickHostingView( rootView: content )
-		host.translatesAutoresizingMaskIntoConstraints = false
-		effect.addSubview( host )
+		stack.orientation = .vertical
+		stack.alignment   = .leading
+		stack.spacing     = 0
+		stack.edgeInsets  = NSEdgeInsets( top: 5, left: 5, bottom: 5, right: 5 )
+		stack.translatesAutoresizingMaskIntoConstraints = false
+		effect.addSubview( stack )
 		NSLayoutConstraint.activate( [
-			host.leadingAnchor.constraint( equalTo: effect.leadingAnchor ),
-			host.trailingAnchor.constraint( equalTo: effect.trailingAnchor ),
-			host.topAnchor.constraint( equalTo: effect.topAnchor ),
-			host.bottomAnchor.constraint( equalTo: effect.bottomAnchor ),
+			stack.leadingAnchor.constraint( equalTo: effect.leadingAnchor ),
+			stack.trailingAnchor.constraint( equalTo: effect.trailingAnchor ),
+			stack.topAnchor.constraint( equalTo: effect.topAnchor ),
+			stack.bottomAnchor.constraint( equalTo: effect.bottomAnchor ),
+			stack.widthAnchor.constraint( equalToConstant: Self.width ),
 		] )
 		contentView = effect
+	}
+
+	/// Replaces the rows. Choosing one closes the panel, then runs its action while that
+	/// click is still the latest input.
+	func setEntries( _ entries: [MenuPanelEntry] ) {
+		stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+		for entry in entries {
+			let view: NSView
+			switch entry {
+				case .header( let title ):
+					view = MenuPanelHeaderView( title )
+				case .separator:
+					view = MenuPanelSeparatorView()
+				case .row( let icon, let title, let detail, let action ):
+					view = MenuPanelRowView( icon: icon, title: title, detail: detail, action: action.map { action in
+						{ [weak self] in
+							self?.close()
+							action()
+						}
+					} )
+			}
+			stack.addArrangedSubview( view )
+			view.widthAnchor.constraint( equalTo: stack.widthAnchor, constant: -10 ).isActive = true
+		}
 	}
 
 	/// Takes the keyboard (for Esc) without activating the app: it's a non-activating panel.
@@ -112,8 +124,9 @@ final class MenuPanel: NSPanel {
 
 	/// Shows it just under `button` (the status item's), kept on that screen.
 	func show( below button: NSView ) {
-		guard let buttonWindow = button.window else { return }
-		let size   = contentView?.fittingSize ?? frame.size
+		guard let buttonWindow = button.window, let content = contentView else { return }
+		content.layoutSubtreeIfNeeded()
+		let size   = NSSize( width: Self.width, height: content.fittingSize.height )
 		let anchor = buttonWindow.convertToScreen( button.convert( button.bounds, to: nil ) )
 		let screen = buttonWindow.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
 		var origin = NSPoint( x: anchor.minX, y: anchor.minY - size.height - 4 )
@@ -123,114 +136,120 @@ final class MenuPanel: NSPanel {
 	}
 }
 
-/// A hosting view that takes the first click even while its window isn't key, so choosing
-/// a row never spends a click on focusing the panel.
-private final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
-	override func acceptsFirstMouse( for event: NSEvent? ) -> Bool { true }
+/// "Decks": a small gray heading.
+private final class MenuPanelHeaderView: NSView {
+	init( _ title: String ) {
+		super.init( frame: .zero )
+		let label = NSTextField( labelWithString: title )
+		label.font      = .systemFont( ofSize: 11, weight: .semibold )
+		label.textColor = .secondaryLabelColor
+		label.translatesAutoresizingMaskIntoConstraints = false
+		addSubview( label )
+		NSLayoutConstraint.activate( [
+			label.leadingAnchor.constraint( equalTo: leadingAnchor, constant: 9 ),
+			label.topAnchor.constraint( equalTo: topAnchor, constant: 3 ),
+			label.bottomAnchor.constraint( equalTo: bottomAnchor, constant: -2 ),
+		] )
+	}
+
+	required init?( coder: NSCoder ) { nil }
 }
 
-/// The rows, laid out as the menu was: decks, status lines, the commands, Quit.
-struct MenuPanelView: View {
-	let model   : MenuPanelModel
-	let actions : MenuPanelActions
-	/// Closes the panel before a row's action runs.
-	let dismiss : () -> Void
+/// A thin line between groups, inset as a menu's are.
+private final class MenuPanelSeparatorView: NSView {
+	init() {
+		super.init( frame: .zero )
+		let line = NSBox()
+		line.boxType = .separator
+		line.translatesAutoresizingMaskIntoConstraints = false
+		addSubview( line )
+		NSLayoutConstraint.activate( [
+			line.leadingAnchor.constraint( equalTo: leadingAnchor, constant: 9 ),
+			line.trailingAnchor.constraint( equalTo: trailingAnchor, constant: -9 ),
+			line.centerYAnchor.constraint( equalTo: centerYAnchor ),
+			heightAnchor.constraint( equalToConstant: 11 ),
+		] )
+	}
 
-	var body: some View {
-		VStack( alignment: .leading, spacing: 0 ) {
-			Text( "Decks" )
-				.font( .system( size: 11, weight: .semibold ) )
-				.foregroundStyle( .secondary )
-				.padding( .horizontal, 9 )
-				.padding( .top, 3 )
-				.padding( .bottom, 2 )
-			if model.decks.isEmpty {
-				MenuPanelRow( title: "None yet", enabled: false ) {}
-			}
-			ForEach( model.decks ) { deck in
-				MenuPanelRow( icon: deck.icon, title: deck.name, detail: deck.state ) { run { actions.showDeck( deck.id ) } }
-			}
-			separator
-			// Chosen, a status line opens the configuration window, where the same status is.
-			ForEach( model.lines ) { line in
-				MenuPanelRow( icon: line.icon, title: line.text ) { run( actions.configure ) }
-			}
-			separator
-			MenuPanelRow( symbol: "gearshape", title: "Configure…" ) { run( actions.configure ) }
-			MenuPanelRow( symbol: "cable.connector", title: "Set Up a Device over USB…" ) { run( actions.usbSetup ) }
-			MenuPanelRow( symbol: model.launchAtLogin ? "checkmark" : nil, title: "Launch at Login" ) { run( actions.launchAtLogin ) }
-			separator
-			MenuPanelRow( symbol: "power", title: "Quit ESPDeck Bridge" ) { run( actions.quit ) }
+	required init?( coder: NSCoder ) { nil }
+}
+
+/// One row: an icon (or blank space), the title, and an optional second line, highlighted in
+/// the accent color under the pointer as a menu item is. Clicked, it runs its action; it
+/// takes the first click even if the panel isn't key.
+private final class MenuPanelRowView: NSView {
+	private let action     : ( () -> Void )?
+	private let iconView   = NSImageView()
+	private let titleLabel : NSTextField
+	private let detailLabel: NSTextField?
+	private var highlighted = false { didSet { updateColors() } }
+
+	init( icon: NSImage?, title: String, detail: String?, action: ( () -> Void )? ) {
+		self.action = action
+		titleLabel  = NSTextField( labelWithString: title )
+		detailLabel = detail.map { NSTextField( labelWithString: $0 ) }
+		super.init( frame: .zero )
+		wantsLayer = true
+		layer?.cornerRadius = 5
+		layer?.cornerCurve  = .continuous
+
+		iconView.image        = icon
+		iconView.imageScaling = .scaleProportionallyDown
+		titleLabel.font       = .menuFont( ofSize: 13 )
+		titleLabel.lineBreakMode = .byTruncatingTail
+		detailLabel?.font     = .systemFont( ofSize: 11 )
+		detailLabel?.lineBreakMode = .byTruncatingTail
+
+		let text = NSStackView( views: [ titleLabel ] + ( detailLabel.map { [ $0 ] } ?? [] ) )
+		text.orientation = .vertical
+		text.alignment   = .leading
+		text.spacing     = 1
+		for view in [ iconView, text ] as [NSView] {
+			view.translatesAutoresizingMaskIntoConstraints = false
+			addSubview( view )
 		}
-		.padding( 5 )
-		.frame( width: 280 )
-		.fixedSize( horizontal: false, vertical: true )
+		NSLayoutConstraint.activate( [
+			iconView.leadingAnchor.constraint( equalTo: leadingAnchor, constant: 9 ),
+			iconView.widthAnchor.constraint( equalToConstant: 16 ),
+			iconView.heightAnchor.constraint( equalToConstant: 16 ),
+			iconView.centerYAnchor.constraint( equalTo: titleLabel.centerYAnchor ),
+			text.leadingAnchor.constraint( equalTo: iconView.trailingAnchor, constant: 6 ),
+			text.trailingAnchor.constraint( lessThanOrEqualTo: trailingAnchor, constant: -9 ),
+			text.topAnchor.constraint( equalTo: topAnchor, constant: 3 ),
+			text.bottomAnchor.constraint( equalTo: bottomAnchor, constant: -3 ),
+		] )
+		updateColors()
 	}
 
-	/// A thin line between groups, inset as a menu's are.
-	private var separator: some View {
-		Divider()
-			.padding( .horizontal, 9 )
-			.padding( .vertical, 5 )
+	required init?( coder: NSCoder ) { nil }
+
+	/// Hover tracking over the whole row.
+	override func updateTrackingAreas() {
+		super.updateTrackingAreas()
+		trackingAreas.forEach( removeTrackingArea )
+		addTrackingArea( NSTrackingArea( rect: bounds, options: [ .mouseEnteredAndExited, .activeAlways, .inVisibleRect ], owner: self ) )
 	}
 
-	/// Closes the panel, then runs `action` while this click is still the latest input.
-	private func run( _ action: () -> Void ) {
-		dismiss()
+	override func mouseEntered( with event: NSEvent ) { highlighted = action != nil }
+	override func mouseExited( with event: NSEvent ) { highlighted = false }
+
+	/// A click never goes to focusing the panel.
+	override func acceptsFirstMouse( for event: NSEvent? ) -> Bool { true }
+
+	/// Chosen on release inside, as a menu item is.
+	override func mouseDown( with event: NSEvent ) {}
+	override func mouseUp( with event: NSEvent ) {
+		guard let action, bounds.contains( convert( event.locationInWindow, from: nil ) ) else { return }
+		highlighted = false
 		action()
 	}
-}
 
-/// One row: an icon (an image, an SF Symbol, or blank space), the title, and an optional
-/// second line, highlighted in the accent color under the pointer as a menu item is.
-private struct MenuPanelRow: View {
-	var icon    : NSImage? = nil
-	var symbol  : String?  = nil
-	let title   : String
-	var detail  : String?  = nil
-	var enabled = true
-	let action  : () -> Void
-
-	@State private var hovering = false
-
-	var body: some View {
-		let highlighted = hovering && enabled
-		Button( action: action ) {
-			HStack( alignment: .firstTextBaseline, spacing: 6 ) {
-				Group {
-					if let icon {
-						Image( nsImage: icon )
-					} else if let symbol {
-						Image( systemName: symbol )
-							.font( .system( size: 12 ) )
-					} else {
-						Color.clear
-					}
-				}
-				.frame( width: 16, height: 16 )
-				.foregroundStyle( highlighted ? Color.white : Color.primary )   // SF Symbols; status icons keep their colors
-				.alignmentGuide( .firstTextBaseline ) { $0[ VerticalAlignment.center ] + 4 }
-
-				VStack( alignment: .leading, spacing: 1 ) {
-					Text( title )
-						.font( .system( size: 13 ) )
-						.foregroundStyle( highlighted ? Color.white : enabled ? Color.primary : Color.secondary )
-					if let detail {
-						Text( detail )
-							.font( .system( size: 11 ) )
-							.foregroundStyle( highlighted ? Color.white.opacity( 0.85 ) : Color.secondary )
-					}
-				}
-				Spacer( minLength: 0 )
-			}
-			.padding( .horizontal, 9 )
-			.padding( .vertical, 3 )
-			.frame( maxWidth: .infinity, alignment: .leading )
-			.background( RoundedRectangle( cornerRadius: 5, style: .continuous ).fill( highlighted ? Color.accentColor : Color.clear ) )
-			.contentShape( Rectangle() )
-		}
-		.buttonStyle( .plain )
-		.disabled( !enabled )
-		.onHover { hovering = $0 }
+	/// White on the accent color while highlighted; gray when it can't be chosen. SF Symbol
+	/// icons (templates) follow the text; status icons keep their colors.
+	private func updateColors() {
+		layer?.backgroundColor = highlighted ? NSColor.controlAccentColor.cgColor : NSColor.clear.cgColor
+		titleLabel.textColor   = highlighted ? .white : action == nil ? .secondaryLabelColor : .labelColor
+		detailLabel?.textColor = highlighted ? NSColor.white.withAlphaComponent( 0.85 ) : .secondaryLabelColor
+		iconView.contentTintColor = highlighted ? .white : .labelColor
 	}
 }
