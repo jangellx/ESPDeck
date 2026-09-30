@@ -1269,6 +1269,8 @@ final class DeckController {
 			case ok      = 1
 			case problem = 2
 			case demo    = 3
+			/// Connected but asleep: fine, just not showing anything. (4 is the menu's new device.)
+			case asleep  = 5
 		}
 
 		let text  : String
@@ -1298,7 +1300,7 @@ final class DeckController {
 		guard device.isOnline else { return StatusItem( text: "\(name): offline", level: .waiting ) }
 		if device.status.setupMode { return StatusItem( text: "\(name): setup mode", level: .waiting ) }
 		if !device.deck.connected  { return StatusItem( text: "\(name): no Stream Deck", level: .waiting ) }
-		if device.status.asleep    { return StatusItem( text: "\(name): asleep", level: .ok ) }
+		if device.status.asleep    { return StatusItem( text: "\(name): asleep", level: .asleep ) }
 		return StatusItem( text: "\(name): connected", level: .ok )
 	}
 

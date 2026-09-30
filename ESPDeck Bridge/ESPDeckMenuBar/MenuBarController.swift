@@ -245,21 +245,22 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		return NSImage( systemSymbolName: name, accessibilityDescription: nil )?.withSymbolConfiguration( configuration )
 	}
 
-	/// A deck: the status lines' icons (green check connected, yellow dot connecting or
-	/// asleep, red exclamation mark a problem, dashed circle a demo), or the sidebar's
+	/// A deck: the status lines' icons (green check connected, green dot asleep, yellow dot
+	/// connecting, red exclamation mark a problem, dashed circle a demo), or the sidebar's
 	/// shield for a new device waiting to be paired.
 	private static func deckImage( level: Int ) -> NSImage? {
 		level == 4 ? symbol( "lock.shield", color: .controlAccentColor ) : statusImage( level: level )
 	}
 
 	/// A status line's icon, matching the configuration window: yellow circle while waiting,
-	/// white check on green when found, white exclamation mark on red for a problem, dashed
-	/// circle for a demo deck.
+	/// white check on green when found, green dot while asleep, white exclamation mark on red
+	/// for a problem, dashed circle for a demo deck.
 	private static func statusImage( level: Int ) -> NSImage? {
 		let ( name, colors ): ( String, [NSColor] ) = switch level {
 			case 1:  ( "checkmark.circle.fill", [ .white, .systemGreen ] )
 			case 2:  ( "exclamationmark.circle.fill", [ .white, .systemRed ] )
 			case 3:  ( "circle.dashed", [ .secondaryLabelColor ] )
+			case 5:  ( "circle.fill", [ .systemGreen ] )   // asleep: fine, just dark
 			default: ( "circle.fill", [ .systemYellow ] )
 		}
 		let configuration = NSImage.SymbolConfiguration( paletteColors: colors ).applying( .init( pointSize: 12, weight: .regular ) )

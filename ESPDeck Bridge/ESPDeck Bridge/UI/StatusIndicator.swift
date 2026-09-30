@@ -5,8 +5,8 @@
 
 import SwiftUI
 
-/// Yellow circle while waiting, white check on green when found, white exclamation
-/// mark on red for a problem, dashed circle for a demo deck. The menu bar draws the
+/// Yellow circle while waiting, white check on green when found, a green dot while asleep,
+/// white exclamation mark on red for a problem, dashed circle for a demo deck. The menu bar draws the
 /// same symbols (it never lists demo decks).
 struct StatusIndicator: View {
 	let level: DeckController.StatusItem.Level
@@ -25,6 +25,9 @@ struct StatusIndicator: View {
 			case .demo:
 				Image( systemName: "circle.dashed" )
 					.foregroundStyle( .secondary )
+			case .asleep:
+				Image( systemName: "circle.fill" )
+					.foregroundStyle( .green )
 		}
 	}
 }
