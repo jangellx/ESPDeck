@@ -90,13 +90,18 @@ extension DeckController {
 	}
 
 	/// Removes a page (the one the deck shows unless given); the one before it (or after, for
-	/// the first) is shown if it was that one.
+	/// the first) is shown if it was that one. Afterward the last page has no Next Page key
+	/// and the first no Previous Page key, since they'd have nowhere to go.
 	func deletePage( device id: String, _ page: Int? = nil ) {
 		guard let index = config.settings.deviceIndex( id ), config.settings.devices[index].pages.count > 1 else { return }
 		var settings = config.settings.devices[index]
 		let removed  = min( page ?? settings.currentPage, settings.pages.count - 1 )
 		recordUndo( device: id, "Delete Page" )
 		settings.pages.remove( at: removed )
+		// The last page has nowhere to go on to and the first nowhere to go back to (one page
+		// left is both).
+		Self.removePageKeys( .nextPage, from: &settings.pages[settings.pages.count - 1] )
+		Self.removePageKeys( .previousPage, from: &settings.pages[0] )
 		if settings.currentPage > removed || settings.currentPage >= settings.pages.count {
 			settings.currentPage = max( settings.currentPage - 1, 0 )
 		}
@@ -105,6 +110,13 @@ extension DeckController {
 		config.settings.devices[index] = settings
 		config.removeUnusedIcons()
 		assignmentsChanged( device: id )
+	}
+
+	/// Clears a page's keys that run `action` (Next or Previous Page with nowhere to go).
+	private static func removePageKeys( _ action: KeyAction, from page: inout [KeyAssignment] ) {
+		for key in page.indices where page[key].kind == .page && page[key].action == action {
+			page[key] = KeyAssignment()
+		}
 	}
 
 	/// Keeps Go to Page keys pointing at the same pages after one is inserted or removed:
