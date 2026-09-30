@@ -357,25 +357,30 @@ private struct Sidebar: View {
 	}
 }
 
-/// A checkmark row that turns Launch at Login on and off, orange while it's off, with
-/// an explanation in a popover.
+/// Launch at Login, orange while it's off: its circle (only) turns it on and off, with an
+/// explanation in a popover.
 private struct LaunchAtLoginRow: View {
 	let controller : DeckController
 
 	var body: some View {
 		let state = controller.launchAtLogin
 		HStack {
-			Button {
-				controller.setLaunchAtLogin( state != .on )
-			} label: {
-				Label {
-					Text( state == .needsApproval ? "Launch at Login (needs approval)" : "Launch at Login" )
-				} icon: {
+			// Only the circle toggles it, not the whole row: turning it off should be deliberate.
+			Label {
+				Text( state == .needsApproval ? "Launch at Login (needs approval)" : "Launch at Login" )
+			} icon: {
+				Button {
+					controller.setLaunchAtLogin( state != .on )
+				} label: {
 					Image( systemName: state == .on ? "checkmark.circle.fill" : "circle" )
+						.contentShape( Circle() )
 				}
-				.foregroundStyle( state == .on ? AnyShapeStyle( .primary ) : AnyShapeStyle( .orange ) )
+				.buttonStyle( .plain )
+				.help( state == .on ? "Turn off Launch at Login" : "Turn on Launch at Login" )
+				.accessibilityLabel( "Launch at Login" )
+				.accessibilityValue( state == .on ? "On" : "Off" )
 			}
-			.buttonStyle( .plain )
+			.foregroundStyle( state == .on ? AnyShapeStyle( .primary ) : AnyShapeStyle( .orange ) )
 
 			Spacer()
 
