@@ -229,7 +229,7 @@ struct PartsView: View {
 		switch path {
 			case .usb:
 				GuideStep( title: "Pair it with this Mac.",
-						   detail: "It joins the Wi-Fi network you gave it in USB Setup and finds ESPDeck Bridge on this Mac. Pair it under New Devices, then hold Confirm on the deck." )
+						   detail: "It will join the Wi-Fi network you gave it during USB Setup and finds ESPDeck Bridge on this Mac. Pair it under New Devices, then hold Confirm on the deck." )
 			case .wifi:
 				GuideStep( title: "Look for the setup codes.",
 						   detail: "A dev kit with no Wi-Fi set up starts in setup mode, and the deck's keys show two QR codes. Set Up over Wi-Fi, next, gives it your network from a phone or tablet." )
