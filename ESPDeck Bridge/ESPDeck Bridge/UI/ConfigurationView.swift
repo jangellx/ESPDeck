@@ -246,15 +246,23 @@ private struct Sidebar: View {
 			// Decks that aren't connected, to look at or copy from; closed at first.
 			let away = notConnectedDevices
 			if !away.isEmpty {
-				Section( isExpanded: $showNotConnected ) {
-					ForEach( away ) { device in
-						deviceRow( device )
+				// Opened and closed here rather than with Section( isExpanded: ): the system's
+				// disclosure arrow sits at the far right, and the count belongs there, lined up
+				// with the sidebar's other counts. The whole header toggles it.
+				Section {
+					if showNotConnected {
+						ForEach( away ) { device in
+							deviceRow( device )
+						}
 					}
 				} header: {
-					// The whole header opens and closes it, not just the disclosure arrow.
-					HStack {
+					HStack( spacing: 6 ) {
 						SectionHeader( "Not Connected", sidebar: true )
 						Spacer()
+						Image( systemName: "chevron.right" )
+							.font( .caption.weight( .semibold ) )
+							.foregroundStyle( .secondary )
+							.rotationEffect( .degrees( showNotConnected ? 90 : 0 ) )
 						SidebarBadge( count: away.count, color: .orange )
 					}
 					.contentShape( Rectangle() )
