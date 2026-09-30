@@ -49,8 +49,8 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// Turns it on or off, opening System Settings if macOS wants approval.
 	func setLaunchAtLogin( _ enabled: Bool )
 
-	/// Brings the app to the front, as the configuration window is about to open; Catalyst
-	/// can't do this for an LSUIElement app on its own.
+	/// The configuration window is about to open: activates the app, and makes the window key
+	/// when it appears (Catalyst doesn't for an LSUIElement app).
 	func activateApp()
 
 	/// Asks whether to quit (or, with a window open, whether to close it instead), then does it.

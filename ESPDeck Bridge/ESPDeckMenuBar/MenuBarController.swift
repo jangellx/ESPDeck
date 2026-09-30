@@ -66,33 +66,21 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		rebuild()
 	}
 
-	/// Called while handling the click that opens the window, and still an accessory, which
-	/// WindowServer lets activate; DockPresence goes regular once the window is on screen.
+	/// A row of the menu panel (or a notification) is opening a window: the app is active,
+	/// and the window is made key when it appears.
 	func activateApp() {
 		DockPresence.windowWillOpen()
-		Self.forceActivate()
+		DockPresence.activate()
 	}
 
 	/// Activates the app and orders its windows, except those titled `title`, to the front.
 	func bringWindowsToFront( excluding title: String ) {
-		Self.forceActivate()
+		DockPresence.update()   // a window that just opened makes the app regular first
+		DockPresence.activate()
 		// Not by title: the configuration window's title follows the selected device.
 		for window in NSApp.windows where window.isVisible && window.canBecomeKey && window.title != title {
-			// An agent app's activation request can be declined, so also order the window
-			// forward directly.
 			window.makeKeyAndOrderFront( nil )
-			window.orderFrontRegardless()
 		}
-	}
-
-	/// Cooperative activation (`NSApp.activate()`) can be declined while another app is
-	/// frontmost. The window then comes forward without the app becoming active, so the
-	/// window isn't key and its first click is swallowed. The older call still activates an
-	/// agent app outright; it's deprecated, but has no replacement that can't be declined.
-	private static func forceActivate() {
-		DockPresence.update()   // a window that just opened makes the app regular first
-		DockPresence.forceActivate()
-		DockPresence.logState( "activate requested" )
 	}
 
 	/// The column-resize pointer, or the arrow again.
@@ -372,7 +360,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		}
 		alert.addButton( withTitle: "Cancel" ).keyEquivalent = "\u{1b}"
 
-		Self.forceActivate()
+		DockPresence.activate()
 		switch alert.runModal() {
 			case .alertFirstButtonReturn:
 				NSApp.terminate( nil )

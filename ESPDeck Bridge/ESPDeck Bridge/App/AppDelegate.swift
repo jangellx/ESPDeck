@@ -92,10 +92,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 
 	// MARK: - DeckMenuBarHost
 
-	/// A few tries, since the window can appear a little after its scene connects.
+	/// Now, and once more after the window has had time to appear (a new one's made key
+	/// when it does, by the menu bar plugin).
 	func bringConfigurationToFront() {
 		Task { @MainActor in
-			for delay in [ 0, 150, 400, 800 ] {
+			for delay in [ 0, 400 ] {
 				try? await Task.sleep( for: .milliseconds( delay ) )
 				menuBar?.bringWindowsToFront( excluding: SceneDelegate.splashTitle )
 			}

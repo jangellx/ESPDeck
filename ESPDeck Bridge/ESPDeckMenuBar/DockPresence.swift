@@ -19,12 +19,8 @@ enum DockPresence {
 	private static let splashTitle = "ESPDeck Bridge Starting"
 
 	private static var observers: [NSObjectProtocol] = []
-	/// Until then, stay regular without a window: one has been asked for and is on its way.
+	/// Until then, a window that appears is the one just asked for, to make key.
 	private static var expectingWindowUntil = Date.distantPast
-	/// A tiny, invisible window shown while one is on its way: WindowServer denies activation
-	/// to an app that presents no windows, and macOS won't focus a window of an app with no
-	/// Dock icon, so the app goes regular with this in place before asking.
-	private static var placeholder: NSWindow?
 
 	/// The app icon for the Dock and alerts: the AppIcon.icns Xcode builds from the asset
 	/// catalog. Asking the workspace for the bundle's icon could give the generic one (a
@@ -84,35 +80,11 @@ enum DockPresence {
 	/// Whether a window that counts is open.
 	static var hasOpenWindow: Bool { !openWindows.isEmpty }
 
-	/// A window is about to open. Present a placeholder window and go regular (a Dock icon),
-	/// then activate a moment later, once macOS has caught up: then the app has both things
-	/// WindowServer checks for. focusExpectedWindow() finishes the job when the real window
-	/// shows up.
+	/// A window was asked for (the app is active: a click in the menu panel activated it);
+	/// focusExpectedWindow() makes it key when it shows up.
 	static func windowWillOpen() {
 		expectingWindowUntil = Date( timeIntervalSinceNow: 5 )
-		showPlaceholder()
-		update()
 		logState( "window requested" )
-		RunLoop.main.add( Timer( timeInterval: 0.1, repeats: false ) { _ in
-			MainActor.assumeIsolated {
-				forceActivate()
-				logState( "activated after going regular" )
-			}
-		}, forMode: .common )
-		// Nothing came: back to how it was.
-		RunLoop.main.add( Timer( timeInterval: 5, repeats: false ) { _ in
-			MainActor.assumeIsolated {
-				guard Date() >= expectingWindowUntil else { return }
-				hidePlaceholder()
-				update()
-			}
-		}, forMode: .common )
-		// Timers in the common modes, so they also fire while a menu is tracking.
-		for delay in [ 0.5, 1.5, 3 ] {
-			RunLoop.main.add( Timer( timeInterval: delay, repeats: false ) { _ in
-				MainActor.assumeIsolated { logState( "\(delay) s later" ) }
-			}, forMode: .common )
-		}
 	}
 
 	/// Activation diagnostics:
@@ -135,49 +107,20 @@ enum DockPresence {
 
 	/// UIKit builds the window asynchronously, sometimes well after the click that asked for
 	/// it, and orders it in without making it key. So when the expected window shows up, make
-	/// it key and activate for it, once.
+	/// it key, once.
 	private static func focusExpectedWindow() {
 		guard Date() < expectingWindowUntil, let window = openWindows.first( where: \.isVisible ) else { return }
 		expectingWindowUntil = .distantPast
-		logState( "window appeared" )
 		update()   // regular now that a window is on screen
-		forceActivate()
+		activate()
 		window.makeKeyAndOrderFront( nil )
-		hidePlaceholder()
-		// UIKit sometimes makes its window key a moment later; make sure it's this one.
-		DispatchQueue.main.asyncAfter( deadline: .now() + 0.2 ) {
-			forceActivate()
-			window.makeKeyAndOrderFront( nil )
-			logState( "activated for window (again)" )
-		}
-		logState( "activated for window" )
+		logState( "window appeared" )
 	}
 
-	/// Shows the placeholder: one point, all but transparent, ignoring the mouse, in the
-	/// corner of the main screen. Borderless, so it never counts as a window (openWindows).
-	private static func showPlaceholder() {
-		if placeholder == nil {
-			let window = NSWindow( contentRect: NSRect( x: 0, y: 0, width: 1, height: 1 ), styleMask: .borderless, backing: .buffered, defer: false )
-			window.isReleasedWhenClosed = false
-			window.alphaValue           = 0.01   // fully transparent might not count as presented
-			window.ignoresMouseEvents   = true
-			window.hasShadow            = false
-			window.collectionBehavior   = [ .transient, .ignoresCycle ]
-			placeholder = window
-		}
-		placeholder?.orderFrontRegardless()
-	}
-
-	/// Takes the placeholder away, once the real window is up (or none came).
-	private static func hidePlaceholder() {
-		placeholder?.orderOut( nil )
-	}
-
-	/// Activates the app even while another is frontmost. Cooperative activation alone can be
-	/// declined; the deprecated call can't (see MenuBarController.forceActivate()).
-	static func forceActivate() {
+	/// Asks to be the active app. Only granted after input in one of the app's own activating
+	/// windows (see MenuPanel), which is how every window here gets opened.
+	static func activate() {
 		NSApp.activate()
-		NSApp.activate( ignoringOtherApps: true )
 	}
 
 	/// Closes every window that counts, as if with its close button.
@@ -188,10 +131,9 @@ enum DockPresence {
 		}
 	}
 
-	/// Regular while a window is open (minimized counts) or one is on its way, an accessory
-	/// otherwise.
+	/// Regular while a window is open (minimized counts), an accessory otherwise.
 	static func update() {
-		let policy: NSApplication.ActivationPolicy = hasOpenWindow || Date() < expectingWindowUntil ? .regular : .accessory
+		let policy: NSApplication.ActivationPolicy = hasOpenWindow ? .regular : .accessory
 		if NSApp.activationPolicy() != policy {
 			NSApp.setActivationPolicy( policy )
 			// The new Dock tile takes the icon Launch Services has on file (often the generic
