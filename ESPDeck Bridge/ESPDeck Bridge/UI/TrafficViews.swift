@@ -111,30 +111,29 @@ struct TrafficLogView: View {
 	}
 }
 
-/// Under the simulated deck: how far the physical deck is through its updates. Nothing once
-/// it's caught up (the sidebar and the Log page already say so).
-struct TransferStatusView: View {
-	let device: DeckDevice
+/// In the window's title bar: how far a deck is through sending its key images, for any
+/// deck (not just the one showing), named when there are several. Nothing when all are
+/// caught up.
+struct DeckTransferIndicator: View {
+	let controller: DeckController
 
 	var body: some View {
-		VStack( alignment: .leading, spacing: 6 ) {
-			if !device.isOnline {
-				Label( "Offline", systemImage: "wifi.slash" )
+		let busy = controller.devices.filter { $0.isOnline && !$0.pendingShows.isEmpty }
+		if let device = busy.first {
+			let total = max( device.batchTotal, device.pendingShows.count )
+			let done  = total - device.pendingShows.count
+			let name  = controller.settings( device.id )?.name ?? "the deck"
+			HStack( spacing: 8 ) {
+				Text( busy.count > 1 ? "Updating \(busy.count) decks" : "Updating \(name)" )
+					.font( .caption )
 					.foregroundStyle( .secondary )
-			} else if !device.pendingShows.isEmpty {
-				let total = max( device.batchTotal, device.pendingShows.count )
-				let done  = total - device.pendingShows.count
-				ProgressView( value: Double( done ), total: Double( total ) ) {
-					Text( "Updating the deck: \(done) of \(total) \(total == 1 ? "key" : "keys")" )
-				} currentValueLabel: {
-					if let last = device.log.last {
-						Text( "\(last.direction == .sent ? "↑" : last.direction == .received ? "↓" : "•") \(last.summary)" )
-							.lineLimit( 1 )
-					}
-				}
+					.lineLimit( 1 )
+				ProgressView( value: Double( done ), total: Double( total ) )
+					.frame( width: 90 )
 			}
+			.help( "\(name): \(done) of \(total) \(total == 1 ? "key" : "keys") sent" )
+			.accessibilityElement( children: .combine )
+			.accessibilityLabel( "Updating \(name): \(done) of \(total) keys" )
 		}
-		.font( .caption )
-		.frame( maxWidth: .infinity, alignment: .leading )
 	}
 }

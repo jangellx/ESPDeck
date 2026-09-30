@@ -79,10 +79,6 @@ struct KeysPageView: View {
 				ScrollView( [ .vertical, .horizontal ] ) {
 					VStack( spacing: 14 ) {
 						DeckGridView( controller: controller, deviceID: deviceID, keySize: keySize, selection: $selection )
-						if let device = controller.device( deviceID ), controller.settings( deviceID )?.isDemo != true {
-							TransferStatusView( device: device )
-								.frame( maxWidth: 520 )
-						}
 					}
 					.padding( Self.contentPadding )
 					.frame( minWidth: geometry.size.width )   // centered while it's narrower

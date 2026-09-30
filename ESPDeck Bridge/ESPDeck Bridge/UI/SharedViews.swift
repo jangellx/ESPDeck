@@ -72,13 +72,20 @@ extension Sequence where Element: Hashable {
 	}
 }
 
+extension EnvironmentValues {
+	/// Set on a sidebar row while it's selected. The Mac's sidebar doesn't raise
+	/// backgroundProminence for its selection, so rows say so themselves.
+	@Entry var sidebarRowSelected = false
+}
+
 /// The accent color, except on a selected sidebar row, where it would vanish into the blue
 /// selection: there it's the row's text color (white).
 private struct SidebarAccent: ViewModifier {
 	@Environment( \.backgroundProminence ) private var prominence
+	@Environment( \.sidebarRowSelected ) private var rowSelected
 
 	func body( content: Content ) -> some View {
-		content.foregroundStyle( prominence == .increased ? AnyShapeStyle( .primary ) : AnyShapeStyle( .tint ) )
+		content.foregroundStyle( prominence == .increased || rowSelected ? AnyShapeStyle( .white ) : AnyShapeStyle( .tint ) )
 	}
 }
 
@@ -89,9 +96,10 @@ struct SidebarBadge: View {
 	var color : Color = .accentColor
 
 	@Environment( \.backgroundProminence ) private var prominence
+	@Environment( \.sidebarRowSelected ) private var rowSelected
 
 	var body: some View {
-		let selected = prominence == .increased
+		let selected = prominence == .increased || rowSelected
 		Text( "\(count)" )
 			.font( .caption.weight( .bold ).monospacedDigit() )
 			.foregroundStyle( selected ? color : .white )

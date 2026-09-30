@@ -107,6 +107,12 @@ struct ConfigurationView: View {
 				}
 			}
 		}
+		// Any deck sending key images, top right in the title bar.
+		.toolbar {
+			ToolbarItem( placement: .primaryAction ) {
+				DeckTransferIndicator( controller: controller )
+			}
+		}
 		.confirmationDialog( "Reset Bridge?", isPresented: Bindable( window ).confirmingResetBridge, titleVisibility: .visible ) {
 			Button( "Reset Bridge", role: .destructive ) { controller.removeBridge() }
 			Button( "Export First…" ) { window.bridgeTransfer = .export }
@@ -225,6 +231,7 @@ private struct Sidebar: View {
 								.sidebarAccent()
 						}
 						.tag( SidebarItem.newDevice( device.client ) )
+						.environment( \.sidebarRowSelected, selection == SidebarItem.newDevice( device.client ) )
 					}
 				} header: {
 					SectionHeader( "New Devices", sidebar: true )
@@ -305,6 +312,7 @@ private struct Sidebar: View {
 						Image( systemName: "cable.connector" )
 					}
 					.tag( SidebarItem.usbSetup )
+					.environment( \.sidebarRowSelected, selection == SidebarItem.usbSetup )
 				}
 
 				Label {
@@ -319,6 +327,7 @@ private struct Sidebar: View {
 					Image( systemName: "arrow.down.circle" )
 				}
 				.tag( SidebarItem.updates )
+				.environment( \.sidebarRowSelected, selection == SidebarItem.updates )
 
 				Label( "About", systemImage: "info.circle" )
 					.tag( SidebarItem.about )
@@ -337,10 +346,13 @@ private struct Sidebar: View {
 				if controller.macBridge != nil {
 					LaunchAtLoginRow( controller: controller )
 				}
-				if let problem = controller.lastError {
-					ProblemRow( problem: problem ) { controller.lastError = nil }
-						.id( Self.problemRowID )
-						.onOnScreenChange { problemShowing = $0 }
+				// A ForEach, so the list knows the row by its id even before it's built (it builds
+				// rows as they scroll into view): the problem bar can scroll to it.
+				ForEach( controller.lastError == nil ? [] : [ Self.problemRowID ], id: \.self ) { _ in
+					if let problem = controller.lastError {
+						ProblemRow( problem: problem ) { controller.lastError = nil }
+							.onOnScreenChange { problemShowing = $0 }
+					}
 				}
 				if let file = controller.config.unreadableSettings {
 					ProblemRow( problem: BridgeProblem( "Settings Reset", "The settings couldn't be read, so ESPDeck Bridge started over. The old file is kept as \(file) in its Application Support folder." ) )
@@ -380,14 +392,18 @@ private struct Sidebar: View {
 					}
 				}
 				// Firmware, then the state.
+				// One line even when selection makes it bold: smaller, not taller.
 				Text( device.firmware.map { "\($0) · \(status.stateText)" } ?? status.stateText )
 					.font( .caption )
 					.foregroundStyle( .secondary )
+					.lineLimit( 1 )
+					.minimumScaleFactor( 0.8 )
 			}
 		} icon: {
 			StatusIndicator( level: status.level )
 		}
 		.tag( device.id )
+		.environment( \.sidebarRowSelected, selection == device.id )
 	}
 }
 
