@@ -45,7 +45,10 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 		let item = NSStatusBar.system.statusItem( withLength: NSStatusItem.squareLength )
 		menu.delegate = self
-		item.menu = menu
+		// Not item.menu: see statusItemClicked(_:).
+		item.button?.target = self
+		item.button?.action = #selector( statusItemClicked( _: ) )
+		item.button?.sendAction( on: [ .leftMouseDown, .rightMouseDown ] )
 		statusItem = item
 		rebuild()
 	}
@@ -265,6 +268,20 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		}
 		let configuration = NSImage.SymbolConfiguration( paletteColors: colors ).applying( .init( pointSize: 12, weight: .regular ) )
 		return NSImage( systemSymbolName: name, accessibilityDescription: nil )?.withSymbolConfiguration( configuration )
+	}
+
+	/// Pops the menu up from the icon here, rather than through the status item's menu:
+	/// macOS 26 and later run a status item's menu in another process, so choosing an item
+	/// reaches this app as no event of its own, and the activation it asks for then carries
+	/// the opening click's time; WindowServer rejects it as expired once the menu's closing
+	/// has re-activated the app that was in front. Tracked here, the choice is this app's own
+	/// fresh event, and the window it opens can come to the front.
+	@objc private func statusItemClicked( _ sender: NSStatusBarButton ) {
+		sender.highlight( true )
+		// Just under the icon; the button's coordinates may be flipped.
+		let below = sender.isFlipped ? sender.bounds.maxY + 5 : sender.bounds.minY - 5
+		menu.popUp( positioning: nil, at: NSPoint( x: sender.bounds.minX, y: below ), in: sender )
+		sender.highlight( false )
 	}
 
 	/// "Configure…" and the status lines: the configuration window.

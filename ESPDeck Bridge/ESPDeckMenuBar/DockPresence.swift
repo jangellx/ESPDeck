@@ -129,7 +129,8 @@ enum DockPresence {
 		let front   = NSWorkspace.shared.frontmostApplication?.localizedName ?? "none"
 		let key     = NSApp.keyWindow.map { "'\($0.title)'" } ?? "none"
 		let windows = openWindows.map { "'\($0.title)' visible \($0.isVisible) key \($0.isKeyWindow)" }.joined( separator: ", " )
-		log.info( "\(event, privacy: .public): pid \(ProcessInfo.processInfo.processIdentifier) active \(NSApp.isActive) policy \(policy, privacy: .public) frontmost \(front, privacy: .public) key \(key, privacy: .public) windows [\(windows, privacy: .public)]" )
+		let input   = NSApp.currentEvent.map { "type \($0.type.rawValue) at \(String( format: "%.3f", $0.timestamp ))" } ?? "none"
+		log.info( "\(event, privacy: .public): pid \(ProcessInfo.processInfo.processIdentifier) event \(input, privacy: .public) active \(NSApp.isActive) policy \(policy, privacy: .public) frontmost \(front, privacy: .public) key \(key, privacy: .public) windows [\(windows, privacy: .public)]" )
 	}
 
 	/// UIKit builds the window asynchronously, sometimes well after the click that asked for
