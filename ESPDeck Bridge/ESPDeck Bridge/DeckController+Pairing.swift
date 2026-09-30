@@ -28,9 +28,21 @@ struct NewDevice: Identifiable {
 		var explanation: String {
 			switch self {
 				case .unpaired:        "Not paired yet."
-				case .pairedElsewhere: "Paired with a different ESPDeck Bridge. To move it to this Mac, forget it on that Mac first, or use Unpair on the deck's setup page."
-				case .keyMissing:      "It's paired with this Mac, but this Mac can't read its pairing key. If the Keychain was only unavailable for a while, it connects by itself within a minute of the key being readable again. Otherwise, use Unpair on the deck's setup page, then pair it again here."
+				case .pairedElsewhere: "It's paired with another Mac's ESPDeck Bridge. Unpairing it is the first step: it then shows up here as a new device, ready to pair."
+				case .keyMissing:      "This Mac lost its pairing key for this deck, so they can't connect securely. Unpairing the deck is the first step: it then shows up here as a new device, ready to pair again."
 				case .oldFirmware:     "Its firmware is too old to pair with this version of ESPDeck Bridge. Update it over USB."
+			}
+		}
+
+		/// For a deck that needs unpairing: the way to using it again, step by step.
+		var steps: String? {
+			switch self {
+				case .pairedElsewhere:
+					"To use it here:\n1. Unpair the deck: over USB from its page here, on its setup page, or by forgetting it on the other Mac.\n2. It shows up under New Devices. Pair it."
+				case .keyMissing:
+					"To use it again:\n1. Unpair the deck: over USB from its page here, or on its setup page.\n2. It shows up under New Devices. Pair it, and its keys and settings come back."
+				case .unpaired, .oldFirmware:
+					nil
 			}
 		}
 

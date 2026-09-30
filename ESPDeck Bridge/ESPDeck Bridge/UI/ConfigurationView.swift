@@ -509,9 +509,9 @@ extension NewDevice.Reason {
 	var status: String {
 		switch self {
 			case .unpaired:                     "waiting to be paired"
-			case .oldFirmware:                  "needs a firmware update"
-			case .pairedElsewhere:              "paired with another Mac; unpair it"
-			case .keyMissing:                   "pairing key lost here; unpair it"
+			case .oldFirmware:                  "needs firmware update"
+			case .pairedElsewhere:              "paired with another Mac; unpair deck"
+			case .keyMissing:                   "bridge lost pairing key; unpair deck"
 		}
 	}
 
@@ -519,9 +519,9 @@ extension NewDevice.Reason {
 	var detail: String {
 		switch self {
 			case .unpaired:                     "Waiting to be paired"
-			case .oldFirmware:                  "Needs a firmware update before it can be paired"
-			case .pairedElsewhere:              "Paired with another Mac; unpair it"
-			case .keyMissing:                   "Pairing key lost here; unpair it"
+			case .oldFirmware:                  "Needs firmware update before it can be paired"
+			case .pairedElsewhere:              "Paired with another Mac; unpair deck"
+			case .keyMissing:                   "Bridge lost pairing key; unpair deck"
 		}
 	}
 

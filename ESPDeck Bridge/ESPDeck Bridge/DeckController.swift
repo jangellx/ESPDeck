@@ -1294,16 +1294,22 @@ final class DeckController {
 	func statusExplanation( device: DeckDevice ) -> String? {
 		if settings( device.id )?.isDemo == true { return nil }
 		if !device.isOnline, let stuck = stuckConnection( for: device.id ) {
-			return "It's on the network and connected to this Mac, but can't be used. " + stuck.reason.explanation
+			var text = "The deck is on the network and connected to this Mac, but can't be used. " + stuck.reason.explanation
+			if let steps = stuck.reason.steps { text += "\n\n" + steps }
+			// A Keychain that failed to answer (rather than having no key) may yet recover.
+			if stuck.reason == .keyMissing && !PairingKeyStore.isMissing( device.id ) {
+				text += "\n\nIf the Keychain was only unavailable for a while, it connects by itself within a minute instead."
+			}
+			return text
 		}
 		guard device.isOnline else {
-			return "ESPDeck Bridge can't reach this device. Check that it has power and is on the same Wi-Fi network as this Mac; after a restart or a firmware update it takes a few seconds to come back. If its Wi-Fi network has changed, set it up again: plug it into this Mac for USB Setup, or hold its top-left and bottom-right keys for 5 seconds to open its setup page."
+			return "ESPDeck Bridge can't reach this device. Check that it has power and is on the same Wi-Fi network as this Mac.\n\nAfter a restart or a firmware update, it takes a few seconds to come back online.\n\nIf its Wi-Fi network has changed, set it up again by either plugging it into this Mac for USB Setup, or holding its top-left and bottom-right keys for 5 seconds to show the QR codes for its setup page."
 		}
 		if device.status.setupMode {
-			return "The device is in setup mode: its keys show QR codes for joining its own Wi-Fi network and opening its setup page, and it doesn't run your keys. Finish on its setup page, press its Exit key, or choose Exit Setup Mode on the Device page."
+			return "The device is in setup mode. Scan the left key's QR code to join its own Wi-Fi network, then scan its second to open its setup page.\n\nOnce setup is finished, press the Exit key or choose Exit Setup Mode on the Device page."
 		}
 		if !device.deck.connected {
-			return "The device is online, but no Stream Deck is working with it. Check the Stream Deck's USB cable and the OTG adapter, and that the power supply gives at least 2 A. With firmware 4.1.0 or later, the Log page shows what the device saw when something was plugged in."
+			return "The device is online, but no Stream Deck is connected to it.\n\nCheck the Stream Deck's USB cable and the OTG adapter, and make sure that the power supply is at least 2 A. The Log page shows what the device saw when a Stream Deck was plugged into it."
 		}
 		return nil
 	}
