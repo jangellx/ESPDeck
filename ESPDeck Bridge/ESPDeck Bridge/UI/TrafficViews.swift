@@ -114,23 +114,25 @@ struct TrafficLogView: View {
 	}
 }
 
-/// Under the Log: how far this deck is through the key images being sent to it, while
-/// some are. A diagnostic, so it lives here rather than with the keys.
+/// Under the Log: how far this deck is through the key images being sent to it, or Idle
+/// (Offline) when nothing is. Always there, so the list doesn't jump. A diagnostic, so it
+/// lives here rather than with the keys.
 struct TransferProgressFooter: View {
 	let device: DeckDevice
 
 	var body: some View {
-		if device.isOnline && !device.pendingShows.isEmpty {
-			let total = max( device.batchTotal, device.pendingShows.count )
-			let done  = total - device.pendingShows.count
-			VStack( spacing: 0 ) {
-				Divider()
-				ProgressView( value: Double( done ), total: Double( total ) ) {
-					Text( "Updating the deck: \(done) of \(total) \(total == 1 ? "key" : "keys")" )
-						.font( .caption )
-				}
-				.padding( 12 )
+		let busy  = device.isOnline && !device.pendingShows.isEmpty
+		let total = busy ? max( device.batchTotal, device.pendingShows.count ) : 1
+		let done  = busy ? total - device.pendingShows.count : 0
+		VStack( spacing: 0 ) {
+			Divider()
+			ProgressView( value: Double( done ), total: Double( total ) ) {
+				Text( busy ? "Updating the deck: \(done) of \(total) \(total == 1 ? "key" : "keys")"
+						   : device.isOnline ? "Idle" : "Offline" )
+					.font( .caption )
+					.foregroundStyle( busy ? .primary : .secondary )
 			}
+			.padding( 12 )
 		}
 	}
 }
