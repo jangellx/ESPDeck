@@ -20,11 +20,15 @@ struct BridgeProblem: Equatable {
 	let title  : String
 	let detail : String
 	var link   : Link?
+	/// Worth a notification: it happened behind the user's back (a key press, a trigger),
+	/// not in answer to something just done in the window.
+	var notifies = false
 
-	init( _ title: String, _ detail: String, link: Link? = nil ) {
-		self.title  = title
-		self.detail = detail
-		self.link   = link
+	init( _ title: String, _ detail: String, link: Link? = nil, notifies: Bool = false ) {
+		self.title    = title
+		self.detail   = detail
+		self.link     = link
+		self.notifies = notifies
 	}
 
 	/// Opens a shortcut in the Shortcuts editor, by name (Shortcuts' own URL scheme).

@@ -2,9 +2,9 @@
 //  AppDelegate+Notifications.swift
 //  ESPDeck Bridge
 //
-//  A notification for a problem (a shortcut that failed, say) while the configuration
-//  window isn't in front, where the sidebar's Status would show it. Clicking it opens the
-//  window scrolled to the problem.
+//  A notification for a problem that happened behind the user's back (a shortcut that
+//  failed on a key press, say), which the sidebar's Status may not have on screen. Clicking
+//  it opens the window scrolled to the problem.
 //
 
 import UIKit
@@ -17,10 +17,11 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 		controller.onProblem = { [weak self] problem in self?.notify( problem ) }
 	}
 
-	/// Posts `problem`, unless the window is in front showing it already. Permission is asked
-	/// the first time there's something to say. The same kind of problem replaces the last.
+	/// Posts `problem` if it's one that notifies: the window may be closed, behind another
+	/// app, or scrolled so Status is out of sight. Permission is asked the first time there's
+	/// something to say. The same kind of problem replaces the last.
 	private func notify( _ problem: BridgeProblem ) {
-		if controller.window.isShowing && UIApplication.shared.applicationState == .active { return }
+		guard problem.notifies else { return }
 		Task {
 			let center = UNUserNotificationCenter.current()
 			guard ( try? await center.requestAuthorization( options: [ .alert, .sound ] ) ) == true else { return }

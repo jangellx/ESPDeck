@@ -186,7 +186,8 @@ private struct Sidebar: View {
 	/// The problem row's id, to scroll to it.
 	private static let problemRowID = "status-problem"
 
-	/// Whether the problem row is on screen (List builds rows as they scroll into view).
+	/// Whether the problem row is on screen: List builds rows as they scroll into view and
+	/// drops them as they leave, so its onAppear and onDisappear say so.
 	@State private var problemShowing = false
 
 	var body: some View {
@@ -195,7 +196,6 @@ private struct Sidebar: View {
 				.problemBar( problemShowing ? nil : controller.lastError ) {
 					withAnimation { proxy.scrollTo( Self.problemRowID, anchor: .bottom ) }
 				}
-				.onChange( of: controller.lastError ) { problemShowing = false }
 				.onChange( of: controller.window.scrollToProblem, initial: true ) {
 					guard controller.window.scrollToProblem else { return }
 					controller.window.scrollToProblem = false

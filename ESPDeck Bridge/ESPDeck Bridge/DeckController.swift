@@ -1069,7 +1069,7 @@ final class DeckController {
 				logEvent( "\(context): \(summary)", device: id )
 			} catch {
 				print( "[DeckController] \(context) failed: \(error)" )
-				lastError = BridgeProblem( "HomeKit Error", "\(context): \(error.localizedDescription)" )
+				lastError = BridgeProblem( "HomeKit Error", "\(context): \(error.localizedDescription)", notifies: true )
 				logEvent( "\(context) failed: \(error.localizedDescription)", device: id )
 			}
 		}
@@ -1191,7 +1191,7 @@ final class DeckController {
 					? " One of its actions needs an app that isn't installed on this Mac."
 					: ""
 				lastError = BridgeProblem( "Shortcut Error", "\(context): \(message)\(hint)",
-											link: assignment.shortcutName.flatMap { BridgeProblem.openShortcut( named: $0 ) } )
+											link: assignment.shortcutName.flatMap { BridgeProblem.openShortcut( named: $0 ) }, notifies: true )
 				logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} failed: \(message)", device: device )
 				return
 			}
