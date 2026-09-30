@@ -1188,9 +1188,10 @@ final class DeckController {
 			if let message {
 				// Shortcuts' own wording doesn't say where to look.
 				let hint = message.localizedCaseInsensitiveContains( "required app is missing" )
-					? " Open \u{201C}\(name)\u{201D} in Shortcuts on this Mac to see which action needs an app that isn't installed here."
+					? " One of its actions needs an app that isn't installed on this Mac."
 					: ""
-				lastError = BridgeProblem( "Shortcut Error", "\(context): \(message)\(hint)" )
+				lastError = BridgeProblem( "Shortcut Error", "\(context): \(message)\(hint)",
+											link: assignment.shortcutName.flatMap { BridgeProblem.openShortcut( named: $0 ) } )
 				logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} failed: \(message)", device: device )
 				return
 			}

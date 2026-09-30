@@ -121,6 +121,14 @@ struct ProblemRow: View {
 						.foregroundStyle( .primary )
 					Text( problem.detail )
 						.secondaryCaption()
+					if let link = problem.link {
+						Link( destination: link.url ) {
+							Label( link.title, systemImage: "arrow.up.forward.app" )
+						}
+						.font( .caption )
+						.buttonStyle( .borderless )
+						.padding( .top, 3 )
+					}
 				}
 				Spacer( minLength: 4 )
 				if let onDismiss {
