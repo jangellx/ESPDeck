@@ -186,8 +186,7 @@ private struct Sidebar: View {
 	/// The problem row's id, to scroll to it.
 	private static let problemRowID = "status-problem"
 
-	/// Whether the problem row is on screen: List builds rows as they scroll into view and
-	/// drops them as they leave, so its onAppear and onDisappear say so.
+	/// Whether the problem row is on screen (onOnScreenChange).
 	@State private var problemShowing = false
 
 	var body: some View {
@@ -333,8 +332,7 @@ private struct Sidebar: View {
 				if let problem = controller.lastError {
 					ProblemRow( problem: problem ) { controller.lastError = nil }
 						.id( Self.problemRowID )
-						.onAppear { problemShowing = true }
-						.onDisappear { problemShowing = false }
+						.onOnScreenChange { problemShowing = $0 }
 				}
 				if let file = controller.config.unreadableSettings {
 					ProblemRow( problem: BridgeProblem( "Settings Reset", "The settings couldn't be read, so ESPDeck Bridge started over. The old file is kept as \(file) in its Application Support folder." ) )

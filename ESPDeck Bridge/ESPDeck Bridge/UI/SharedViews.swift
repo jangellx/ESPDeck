@@ -191,3 +191,18 @@ private struct ProblemBar: View {
 		.help( "Show it in Status" )
 	}
 }
+
+extension View {
+	/// Reports whether this view is on screen in its scroll view (List included): at least
+	/// half of it showing. Before iOS 18, onAppear and onDisappear stand in, which a List that
+	/// doesn't need to scroll doesn't report reliably.
+	@ViewBuilder
+	func onOnScreenChange( _ action: @escaping ( Bool ) -> Void ) -> some View {
+		if #available( iOS 18.0, * ) {
+			onScrollVisibilityChange( threshold: 0.5, action )
+		} else {
+			onAppear { action( true ) }
+				.onDisappear { action( false ) }
+		}
+	}
+}
