@@ -491,7 +491,14 @@ private struct FindDevicesSheet: View {
 					Text( "Nothing yet. Make sure the dev kit is powered, and on the same Wi-Fi network as this Mac." )
 						.foregroundStyle( .secondary )
 					if controller.usbSetup.isAvailable {
-						Button( "Open USB Setup" ) { selection = SidebarItem.usbSetup }
+						Button {
+							selection = SidebarItem.usbSetup
+						} label: {
+							ForwardLabel( title: "Open USB Setup" )
+						}
+						.prominentButtonStyle()
+						.frame( maxWidth: .infinity )
+						.padding( .top, 4 )
 					}
 				}
 			}
