@@ -19,6 +19,7 @@ struct HomeTargetSheet: View {
 	@State private var accessories : [KeyMember]
 	@State private var scenes      : [UUID]
 	@State private var search      = ""
+	@FocusState private var searchFocused: Bool
 
 	init( controller: DeckController, accessories: [KeyMember], scenes: [UUID], onDone: @escaping ( [KeyMember], [UUID] ) -> Void ) {
 		self.controller   = controller
@@ -56,12 +57,16 @@ struct HomeTargetSheet: View {
 			}
 			// Above the list rather than a section of it, which spaced it like one.
 			.safeAreaInset( edge: .top, spacing: 0 ) {
-				SearchField( prompt: "Search accessories, scenes and rooms", text: $search )
+				SearchField( prompt: "Search accessories, scenes and rooms", text: $search, focus: $searchFocused )
 					.padding( .horizontal, 20 )
 					.padding( .top, 6 )
 					.padding( .bottom, 2 )
 			}
 			.contentMargins( .top, 8, for: .scrollContent )
+			.task {
+				try? await Task.sleep( for: .milliseconds( 100 ) )   // once the sheet is up
+				searchFocused = true
+			}
 			.navigationTitle( "Home" )
 			.navigationBarTitleDisplayMode( .inline )
 			.toolbar {
