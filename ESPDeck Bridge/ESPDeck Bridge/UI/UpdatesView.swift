@@ -156,7 +156,7 @@ struct FirmwareRow: View {
 							chooseRelease: { choice = .release },
 							chooseFile: { choice = .file },
 							pickFile: controller.macBridge != nil ? { pickingFile = true } : nil )
-			.disabled( device.status.setupMode || device.firmwareProgress?.isActive == true )
+			.disabled( !device.isOnline || device.status.setupMode || device.firmwareProgress?.isActive == true )
 	}
 
 	/// Installs the menu's choice: a release only when it's newer than what the device runs.

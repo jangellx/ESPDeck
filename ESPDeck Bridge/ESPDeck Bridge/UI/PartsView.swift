@@ -255,7 +255,7 @@ struct PartsView: View {
 		GuideStep( title: "Join the deck's Wi-Fi network.",
 				   detail: "Scan the code on the top-left key with the iPhone's Camera, and join the network it offers. It's named **ESPDeck-XXXX**, ending in the last four characters of the deck's ID, as shown on the top-centre key." ),
 		GuideStep( title: "Open the setup page.",
-				   detail: "Scan the code on the top-right key, or open **http://192.168.4.1** in Safari. It often opens by itself once the iPhone has joined." ),
+				   detail: "Scan the code on the top-right key, or open **http://192.168.4.1** in a web browser. It often opens by itself once the iPhone has joined." ),
 		GuideStep( title: "Choose your Wi-Fi network.",
 				   detail: "Pick it on the setup page, enter its password, and tap **Save & Connect**. It needs a 2.4 GHz network, the one this Mac is on. You can name the deck there too." ),
 		GuideStep( title: "Find it in ESPDeck Bridge.",
@@ -271,13 +271,15 @@ struct PartsView: View {
 			PartIllustration( space: Sketch.wifiSetupSpace, draw: Sketch.wifiSetup )
 				.illustrationCard( Sketch.wifiSetupSpace )
 
-			steps( Self.wifiSteps )
-
-			VStack( alignment: .leading, spacing: 12 ) {
-				tip( icon: "wifi.exclamationmark", title: "If the iPhone Leaves the Deck's Network",
-					 detail: "The deck's network has no internet, so iOS may join it and then drop back to your usual Wi-Fi. If that happens, join it directly: on the iPhone (or iPad) open **Settings ▸ Wi-Fi** and choose **ESPDeck-XXXX**, the name on the top-centre key. The deck doesn't show the password; it's in the top-left code, and scanning that code saves it on the iPhone, so if Settings asks for it, scan the code again. The password changes each time setup mode starts (firmware 4.0 and later), so scan again after it restarts. The setup page only opens while the iPhone is on the deck's network." )
+			// Each tip under the step it's about.
+			VStack( alignment: .leading, spacing: 16 ) {
+				steps( Array( Self.wifiSteps[0..<1] ) )
 				tip( icon: "square.grid.3x2", title: "Not Showing the Codes?",
 					 detail: "A dev kit that already has Wi-Fi starts normally. To enter setup mode, hold the top-left and bottom-right keys together for 5 seconds: after 2 seconds the other keys go dark and a countdown shows. Letting go of either key cancels. A paired deck can also start setup mode from its Device page in ESPDeck Bridge." )
+				steps( Array( Self.wifiSteps[1..<2] ), from: 2 )
+				tip( icon: "wifi.exclamationmark", title: "If the iPhone Leaves the Deck's Network",
+					 detail: "The deck's network has no internet, so iOS may join it and then drop back to your usual Wi-Fi. If that happens, join it directly: on the iPhone (or iPad) open **Settings ▸ Wi-Fi** and choose **ESPDeck-XXXX**, the name on the top-centre key. The deck doesn't show the password; it's in the top-left code, and scanning that code saves it on the iPhone, so if Settings asks for it, scan the code again. The password changes each time setup mode starts (firmware 4.0 and later), so scan again after it restarts. The setup page only opens while the iPhone is on the deck's network." )
+				steps( Array( Self.wifiSteps[2...] ), from: 3 )
 			}
 		}
 	}

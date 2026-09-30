@@ -177,7 +177,7 @@ struct AboutView: View {
 					}
 				}
 
-				Text( "Turns an Elgato Stream Deck on an ESP32-S3 into a HomeKit control panel. This app watches your HomeKit accessories, draws the keys, and runs the actions; the ESPDeck firmware connects the Stream Deck to it over Wi-Fi." )
+				Text( "Turns an [Elgato Stream Deck](https://www.elgato.com/stream-deck) plugged into an ESP32-S3 into a HomeKit control panel. This macOS bridge watches your HomeKit accessories and runs the actions; the ESPDeck firmware connects the Stream Deck to it over Wi-Fi." )
 
 				if let repository = controller.updates.repository, let url = URL( string: "https://github.com/\(repository)" ) {
 					Link( "Source code and releases on GitHub", destination: url )
@@ -190,16 +190,22 @@ struct AboutView: View {
 					// **Bold** marks what to look for: versions, parts and specs.
 					bullet( "A Mac running **macOS 14 Sonoma or later**, signed in to an iCloud account that's a **member of the Home**. The Mac must **stay on and logged in** (turn on automatic login and Launch at Login for an always-on panel)." )
 					bullet( "An **ESP32-S3 dev kit with 16 MB flash and 8 MB PSRAM** (ESP32-S3-DevKitC-1 **N16R8**), running ESPDeck firmware." )
-					bullet( "An **Elgato Stream Deck** (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module)." )
+					bullet( "An **[Elgato Stream Deck](https://www.elgato.com/stream-deck)** (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module)." )
 					bullet( "A **5 V USB-C power supply rated 2 A or more**. Through the OTG adapter, it powers both the dev kit and the Stream Deck." )
 					bullet( "A **passive USB-C OTG adapter with a power input**: a USB-C plug for the dev kit's **USB** port, a USB-A port for the Stream Deck, and a USB-C port for power. Adapters that need USB-PD negotiation may never switch on power to the Stream Deck." )
 					bullet( "If the Stream Deck's cable ends in USB-C: a **USB-A (male) to USB-C (female) adapter**, labeled for **charging and data** (not charge-only). Not needed if the cable ends in USB-A." )
 					bullet( "A **USB-C cable that carries data**, for the power supply and for setting up the dev kit from this Mac." )
 					bullet( "A **2.4 GHz Wi-Fi network** shared by the Mac and the dev kit." )
+					Button {
+						controller.window.selection = SidebarItem.parts
+					} label: {
+						ForwardLabel( title: "Getting Started" )
+					}
+					.padding( .top, 4 )
 				}
 
 				section( "Moving to Another Mac" ) {
-					Text( "Decks only work with the bridge they're paired with. To move this bridge to another Mac with its devices, pairings and keys, export it here and import the file there; the decks don't need pairing again." )
+					Text( "Decks only work with the bridge they're paired with. To move this bridge to another Mac with its devices, pairings and keys, export it from here, and import the generated file on the new Mac. The existing decks won't need to be paired again." )
 						.font( .callout )
 					HStack {
 						Button( "Export Bridge…" ) { controller.window.bridgeTransfer = .export }
