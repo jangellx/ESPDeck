@@ -222,15 +222,15 @@ struct KeysPageView: View {
 			.buttonStyle( HoverButtonStyle() )
 			.help( "Full-size keys" )
 
-			// On (tinted) while the deck follows the pane's size; turning it off keeps the
-			// current size.
-			Toggle( "Size to Fit", isOn: Binding {
-				window.deckKeySize == 0
-			} set: { fit in
-				window.deckKeySize = fit ? 0 : Double( window.deckFitKeySize.rounded() )
-			} )
-			.toggleStyle( .button )
-			.help( "Size the deck preview to fit this pane (⌘0)" )
+			// Blue while the deck follows the pane's size (a button-style Toggle doesn't tint on
+			// Mac Catalyst); turning it off keeps the current size.
+			let fitting = window.deckKeySize == 0
+			Button( "Size to Fit" ) {
+				window.deckKeySize = fitting ? Double( window.deckFitKeySize.rounded() ) : 0
+			}
+			.fittingButtonStyle( on: fitting )
+			.help( fitting ? "The deck preview fits this pane; click to keep this size (⌘0)" : "Size the deck preview to fit this pane (⌘0)" )
+			.accessibilityAddTraits( fitting ? .isSelected : [] )
 			.padding( .leading, 6 )
 		}
 		.controlSize( .small )
@@ -301,5 +301,17 @@ struct KeysPageView: View {
 				dragStartWidth = nil
 				controller.macBridge?.setResizeCursor( false )
 			}
+	}
+}
+
+private extension View {
+	/// Size to Fit's look: filled blue while on, the ordinary bordered button while off.
+	@ViewBuilder
+	func fittingButtonStyle( on: Bool ) -> some View {
+		if on {
+			buttonStyle( .borderedProminent )
+		} else {
+			buttonStyle( .bordered )
+		}
 	}
 }
