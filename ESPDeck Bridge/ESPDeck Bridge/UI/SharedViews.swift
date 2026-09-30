@@ -233,3 +233,31 @@ extension View {
 		frame( minWidth: SidebarBadge.size )
 	}
 }
+
+/// An icon button with no border that shows a faint rounded background on hover and a
+/// darker one while pressed, so it reads as clickable (the zoom buttons).
+struct HoverButtonStyle: ButtonStyle {
+	func makeBody( configuration: Configuration ) -> some View {
+		HoverButtonBody( configuration: configuration )
+	}
+
+	/// The label with its hover and press background.
+	private struct HoverButtonBody: View {
+		let configuration: ButtonStyleConfiguration
+
+		@State private var hovering = false
+		@Environment( \.isEnabled ) private var isEnabled
+
+		var body: some View {
+			configuration.label
+				.padding( 4 )
+				.background {
+					RoundedRectangle( cornerRadius: 5, style: .continuous )
+						.fill( Color.primary.opacity( !isEnabled ? 0 : configuration.isPressed ? 0.16 : hovering ? 0.08 : 0 ) )
+				}
+				.contentShape( RoundedRectangle( cornerRadius: 5, style: .continuous ) )
+				.onHover { hovering = $0 }
+				.animation( .easeOut( duration: 0.12 ), value: hovering )
+		}
+	}
+}

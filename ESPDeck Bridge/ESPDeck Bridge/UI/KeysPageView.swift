@@ -197,7 +197,7 @@ struct KeysPageView: View {
 	/// Smallest and full size at either end of the slider; Size to Fit goes back to the
 	/// largest keys that fit.
 	private var zoomBar: some View {
-		HStack( spacing: 6 ) {
+		HStack( spacing: 2 ) {   // the buttons' hover backgrounds add their own room
 			Button {
 				window.zoomDeck( to: DeckGridView.minKeySize, range: Self.keySizes )
 			} label: {
@@ -205,7 +205,7 @@ struct KeysPageView: View {
 					.imageScale( .small )
 					.foregroundStyle( Color.secondary )
 			}
-			.buttonStyle( .borderless )
+			.buttonStyle( HoverButtonStyle() )
 			.help( "Smallest keys" )
 
 			Slider( value: sliderBinding, in: Self.keySizes )
@@ -219,7 +219,7 @@ struct KeysPageView: View {
 					.imageScale( .medium )
 					.foregroundStyle( Color.secondary )
 			}
-			.buttonStyle( .borderless )
+			.buttonStyle( HoverButtonStyle() )
 			.help( "Full-size keys" )
 
 			// On (tinted) while the deck follows the pane's size; turning it off keeps the
