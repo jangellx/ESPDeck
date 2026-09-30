@@ -232,7 +232,7 @@ struct PartsView: View {
 						   detail: "It joins the Wi-Fi network you gave it in USB Setup and finds ESPDeck Bridge on this Mac. Pair it under New Devices, then hold Confirm on the deck." )
 			case .wifi:
 				GuideStep( title: "Look for the setup codes.",
-						   detail: "A dev kit with no Wi-Fi set up starts in setup mode, and the deck's keys show two QR codes. Set Up over Wi-Fi, next, gives it your network from an iPhone or iPad." )
+						   detail: "A dev kit with no Wi-Fi set up starts in setup mode, and the deck's keys show two QR codes. Set Up over Wi-Fi, next, gives it your network from a phone or tablet." )
 		}
 	}
 
@@ -253,9 +253,9 @@ struct PartsView: View {
 
 	private static let wifiSteps = [
 		GuideStep( title: "Join the deck's Wi-Fi network.",
-				   detail: "Scan the code on the top-left key with the iPhone's Camera, and join the network it offers. It's named **ESPDeck-XXXX**, ending in the last four characters of the deck's ID, as shown on the top-centre key." ),
+				   detail: "Scan the code on the top-left key with a phone's camera, and join the network it offers. It's named **ESPDeck-XXXX**, ending in the last four characters of the deck's ID, as shown on the top-centre key." ),
 		GuideStep( title: "Open the setup page.",
-				   detail: "Scan the code on the top-right key, or open **http://192.168.4.1** in a web browser. It often opens by itself once the iPhone has joined." ),
+				   detail: "Scan the code on the top-right key, or open **http://192.168.4.1** in a web browser. It often opens by itself once the phone has joined." ),
 		GuideStep( title: "Choose your Wi-Fi network.",
 				   detail: "Pick it on the setup page, enter its password, and tap **Save & Connect**. It needs a 2.4 GHz network, the one this Mac is on. You can name the deck there too." ),
 		GuideStep( title: "Find it in ESPDeck Bridge.",
@@ -266,7 +266,7 @@ struct PartsView: View {
 	private var wifi: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
 			SheetHeading( title: "Set Up over Wi-Fi",
-						  detail: "Put together and powered, the dev kit shows setup codes on the deck's keys. Scan them with an iPhone or iPad to join the dev kit's own network and give it your Wi-Fi." )
+						  detail: "Put together and powered, the dev kit shows setup codes on the deck's keys. Scan them with a phone or tablet to join the dev kit's own network and give it your Wi-Fi." )
 
 			PartIllustration( space: Sketch.wifiSetupSpace, draw: Sketch.wifiSetup )
 				.illustrationCard( Sketch.wifiSetupSpace )
@@ -277,8 +277,8 @@ struct PartsView: View {
 				tip( icon: "square.grid.3x2", title: "Not Showing the Codes?",
 					 detail: "A dev kit that already has Wi-Fi starts normally. To enter setup mode, hold the top-left and bottom-right keys together for 5 seconds: after 2 seconds the other keys go dark and a countdown shows. Letting go of either key cancels. A paired deck can also start setup mode from its Device page in ESPDeck Bridge." )
 				steps( Array( Self.wifiSteps[1..<2] ), from: 2 )
-				tip( icon: "wifi.exclamationmark", title: "If the iPhone Leaves the Deck's Network",
-					 detail: "The deck's network has no internet, so iOS may join it and then drop back to your usual Wi-Fi. If that happens, join it directly: on the iPhone (or iPad) open **Settings ▸ Wi-Fi** and choose **ESPDeck-XXXX**, the name on the top-centre key. The deck doesn't show the password; it's in the top-left code, and scanning that code saves it on the iPhone, so if Settings asks for it, scan the code again. The password changes each time setup mode starts (firmware 4.0 and later), so scan again after it restarts. The setup page only opens while the iPhone is on the deck's network." )
+				tip( icon: "wifi.exclamationmark", title: "If the Phone Leaves the Deck's Network",
+					 detail: "The deck's network has no internet, so a phone may join it and then drop back to your usual Wi-Fi. If that happens, join it directly: in the phone's Wi-Fi settings, choose **ESPDeck-XXXX**, the name on the top-centre key. The deck doesn't show the password; it's in the top-left code, and scanning that code saves it on the phone, so if the settings ask for it, scan the code again. The password changes each time setup mode starts (firmware 4.0 and later), so scan again after it restarts. The setup page only opens while the phone is on the deck's network." )
 				steps( Array( Self.wifiSteps[2...] ), from: 3 )
 			}
 		}
@@ -978,7 +978,7 @@ fileprivate nonisolated struct Sketch {
 
 	static let wifiSetupSpace = CGSize( width: 600, height: 262 )
 
-	/// A Stream Deck Mini in setup mode, keyed as the firmware draws it, and an iPhone
+	/// A Stream Deck Mini in setup mode, keyed as the firmware draws it, and a phone
 	/// joining its network, in a `wifiSetupSpace`. Top row: the code that joins the deck's
 	/// network, the network's name, and the code that opens the setup page; the bottom row
 	/// says which is which, with the middle key dark (Exit setup, once it has Wi-Fi that works).
@@ -1008,11 +1008,11 @@ fileprivate nonisolated struct Sketch {
 		}
 		s.label( "Stream Deck Mini in setup mode", 160, 246 )
 
-		// Wi-Fi from the deck to the iPhone.
+		// Wi-Fi from the deck to the phone.
 		wifiWaves( s, at: CGPoint( x: 364, y: 124 ) )
 		s.label( "ESPDeck-XXXX", 364, 142, size: 8.5 )
 
-		// The iPhone, its Camera on the join code and offering the network.
+		// The phone, its camera on the join code and offering the network.
 		s.stroke( box( 430, 14, 112, 216, 20 ) )
 		s.thin( box( 437, 21, 98, 202, 14 ) )
 		s.solid( box( 472, 28, 28, 8, 4 ) )
@@ -1029,7 +1029,7 @@ fileprivate nonisolated struct Sketch {
 		s.stroke( brackets )
 		s.highlight( box( 440, 146, 92, 30, 15 ) )
 		s.label( "Join network\n“ESPDeck-XXXX”", 486, 161, size: 7.5 )
-		s.label( "iPhone", 486, 246 )
+		s.label( "Phone", 486, 246 )
 	}
 
 	/// A QR code's look, not a real one: the three finder squares in its corners and a

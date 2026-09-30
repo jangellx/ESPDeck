@@ -57,7 +57,7 @@ The device starts in setup mode when it has no Wi-Fi credentials. To enter it la
 
 **Joining its network:**
 1. Scan the left QR code with your phone's camera and join the network it offers.
-2. If the phone doesn't stay connected (an iPhone may drop back to your usual Wi-Fi, because this network has no internet), open **Settings → Wi-Fi** on the phone and choose the name shown on the top-centre key. Scanning the QR code already saved its password.
+2. If the phone doesn't stay connected (it may drop back to your usual Wi-Fi, because this network has no internet), open the phone's Wi-Fi settings and choose the name shown on the top-centre key. Scanning the QR code already saved its password.
 3. Joining from Settings usually opens the setup page by itself. If it doesn't, scan the right QR code.
 
 The access point (WPA2/WPA3) gets a new random password each time setup mode starts, and the QR code carries it, so scan the QR code again each time. The setup page only answers phones joined to the deck's own network. On the page, set the device name and pick a Wi-Fi network (2.4 GHz only). The network is saved only once the device has joined it (within 30 seconds); if it can't, the page says why and the previous network stays. After it joins, the page shows its new address, and the device leaves setup mode 8 seconds later. With a working network, setup mode also ends after 15 minutes with no phone connected. Settings live in NVS, so reflashing keeps them. The setup page also shows which bridge the device is paired with, and can unpair it.
