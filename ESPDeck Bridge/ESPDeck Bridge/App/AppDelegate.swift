@@ -53,6 +53,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 			}
 		}
 		controller.refreshLaunchAtLogin()
+		setUpNotifications()
 		controller.start()
 
 		return true

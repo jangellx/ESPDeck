@@ -21,7 +21,11 @@ final class DeckController {
 
 	/// One per configured device, in the same order as `config.settings.devices`.
 	private(set) var devices   : [DeckDevice] = []
-	var lastError              : BridgeProblem?
+	var lastError              : BridgeProblem? {
+		didSet { if let lastError, lastError != oldValue { onProblem?( lastError ) } }
+	}
+	/// A new problem, for a notification when the window isn't in front.
+	@ObservationIgnored var onProblem: ( ( BridgeProblem ) -> Void )?
 
 	/// The key selected in the configuration window, which Copy and Paste act on.
 	var focusedKey       : ( device: String, key: Int )?

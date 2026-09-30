@@ -66,6 +66,8 @@ final class WindowState {
 	var lastKeyTargetMode   = TargetMode.home
 	/// Key ▸ Assign Accessory/Scene/Shortcut: the mode the key's picker switches to.
 	var requestedTargetMode : TargetMode?
+	/// A problem notification was clicked: the sidebar scrolls to the problem.
+	var scrollToProblem     = false
 	/// File ▸ Reset Bridge…, asking first.
 	var confirmingResetBridge = false
 	/// Export Bridge or Import Bridge, from the File menu or the About page.

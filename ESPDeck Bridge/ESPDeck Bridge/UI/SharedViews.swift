@@ -107,20 +107,77 @@ extension View {
 }
 
 /// A problem in the sidebar's Status section, laid out like the rows above it: an orange
-/// warning sign, the title in the body font, and what happened in a caption under it.
+/// warning sign, the title in the body font, what happened in a caption under it, and an ✕
+/// that clears it (when it can be cleared).
 struct ProblemRow: View {
-	let problem: BridgeProblem
+	let problem   : BridgeProblem
+	var onDismiss : ( () -> Void )?
 
 	var body: some View {
 		Label {
-			VStack( alignment: .leading, spacing: 1 ) {
-				Text( problem.title )
-				Text( problem.detail )
-					.secondaryCaption()
+			HStack( alignment: .firstTextBaseline ) {
+				VStack( alignment: .leading, spacing: 1 ) {
+					Text( problem.title )
+						.foregroundStyle( .primary )
+					Text( problem.detail )
+						.secondaryCaption()
+				}
+				Spacer( minLength: 4 )
+				if let onDismiss {
+					Button( action: onDismiss ) {
+						Image( systemName: "xmark.circle.fill" )
+							.foregroundStyle( .secondary )
+					}
+					.buttonStyle( .borderless )
+					.help( "Clear" )
+					.accessibilityLabel( "Clear \(problem.title)" )
+				}
 			}
 		} icon: {
 			Image( systemName: "exclamationmark.triangle.fill" )
 				.foregroundStyle( .orange )
 		}
+	}
+}
+
+extension View {
+	/// A bar along the bottom naming a problem further down, while there's one to show;
+	/// clicking it runs `reveal`. On the glass-era systems it's a safe-area bar, so content
+	/// scrolls under it; before that, an inset.
+	@ViewBuilder
+	func problemBar( _ problem: BridgeProblem?, reveal: @escaping () -> Void ) -> some View {
+		if #available( iOS 26.0, * ) {
+			safeAreaBar( edge: .bottom ) {
+				if let problem { ProblemBar( title: problem.title, reveal: reveal ) }
+			}
+		} else {
+			safeAreaInset( edge: .bottom ) {
+				if let problem { ProblemBar( title: problem.title, reveal: reveal ).background( .bar ) }
+			}
+		}
+	}
+}
+
+/// "Shortcut Error ⌄" at the bottom of the sidebar, which scrolls to it when clicked.
+private struct ProblemBar: View {
+	let title  : String
+	let reveal : () -> Void
+
+	var body: some View {
+		Button( action: reveal ) {
+			HStack {
+				Label( title, systemImage: "exclamationmark.triangle.fill" )
+				Spacer()
+				Image( systemName: "chevron.down" )
+			}
+			.font( .callout )
+			.frame( maxWidth: .infinity, alignment: .leading )
+			.padding( .horizontal, 14 )
+			.padding( .vertical, 8 )
+			.contentShape( Rectangle() )
+		}
+		.buttonStyle( .plain )
+		.foregroundStyle( .orange )
+		.help( "Show it in Status" )
 	}
 }

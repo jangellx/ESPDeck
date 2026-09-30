@@ -183,7 +183,32 @@ private struct Sidebar: View {
 		}
 	}
 
+	/// The problem row's id, to scroll to it.
+	private static let problemRowID = "status-problem"
+
+	/// Whether the problem row is on screen (List builds rows as they scroll into view).
+	@State private var problemShowing = false
+
 	var body: some View {
+		ScrollViewReader { proxy in
+			sidebarList
+				.problemBar( problemShowing ? nil : controller.lastError ) {
+					withAnimation { proxy.scrollTo( Self.problemRowID, anchor: .bottom ) }
+				}
+				.onChange( of: controller.lastError ) { problemShowing = false }
+				.onChange( of: controller.window.scrollToProblem, initial: true ) {
+					guard controller.window.scrollToProblem else { return }
+					controller.window.scrollToProblem = false
+					// A window the notification just opened lays out first.
+					DispatchQueue.main.asyncAfter( deadline: .now() + 0.3 ) {
+						withAnimation { proxy.scrollTo( Self.problemRowID, anchor: .bottom ) }
+					}
+				}
+		}
+	}
+
+	/// The sidebar's sections.
+	private var sidebarList: some View {
 		List( selection: listSelection ) {
 			if !controller.listedNewDevices.isEmpty {
 				Section {
@@ -304,7 +329,10 @@ private struct Sidebar: View {
 					LaunchAtLoginRow( controller: controller )
 				}
 				if let problem = controller.lastError {
-					ProblemRow( problem: problem )
+					ProblemRow( problem: problem ) { controller.lastError = nil }
+						.id( Self.problemRowID )
+						.onAppear { problemShowing = true }
+						.onDisappear { problemShowing = false }
 				}
 				if let file = controller.config.unreadableSettings {
 					ProblemRow( problem: BridgeProblem( "Settings Reset", "The settings couldn't be read, so ESPDeck Bridge started over. The old file is kept as \(file) in its Application Support folder." ) )
