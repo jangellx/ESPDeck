@@ -27,7 +27,7 @@ struct KeysPageView: View {
 	private static let minInspectorWidth : CGFloat = 380
 	/// Around the deck and the controls under it, inside the scroll view.
 	private static let contentPadding    : CGFloat = 24
-	/// The divider's grab area, centred on its line.
+	/// The divider's grab area, centered on its line.
 	private static let handleWidth       : CGFloat = 14
 	private static let keySizes          = DeckGridView.minKeySize...DeckGridView.fullKeySize
 
@@ -85,7 +85,7 @@ struct KeysPageView: View {
 						}
 					}
 					.padding( Self.contentPadding )
-					.frame( minWidth: geometry.size.width )   // centred while it's narrower
+					.frame( minWidth: geometry.size.width )   // centered while it's narrower
 				}
 				.simultaneousGesture( pinchGesture( current: keySize ) )
 				.onChange( of: fittingKeySize( in: geometry.size ), initial: true ) { window.deckFitKeySize = $1 }

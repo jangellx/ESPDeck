@@ -117,9 +117,9 @@ void StatusLed::show( uint8_t red, uint8_t green, uint8_t blue ) {
 }
 
 void StatusLed::write( uint8_t red, uint8_t green, uint8_t blue ) {
-	uint32_t colour = (uint32_t)red << 16 | (uint32_t)green << 8 | blue;
-	if( colour == written_ )
+	uint32_t color = (uint32_t)red << 16 | (uint32_t)green << 8 | blue;
+	if( color == written_ )
 		return;
-	written_ = colour;
+	written_ = color;
 	rgbLedWrite( pin_, red, green, blue );
 }

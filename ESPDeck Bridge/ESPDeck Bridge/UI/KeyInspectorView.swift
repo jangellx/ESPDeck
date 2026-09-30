@@ -313,7 +313,7 @@ struct KeyInspectorView: View {
 		}
 	}
 
-	/// The key's background colour; black when it has none.
+	/// The key's background color; black when it has none.
 	private var backgroundBinding: Binding<Color> {
 		Binding {
 			assignment.backgroundColor.flatMap( Color.init( hex: ) ) ?? .black

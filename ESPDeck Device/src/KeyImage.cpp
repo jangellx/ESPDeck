@@ -217,7 +217,7 @@ void KeyImage::drawText( const char *const *lines, size_t count, uint32_t backgr
 		}
 	}
 
-	// Centre the block from the first line's cap height to the last line's baseline.
+	// Center the block from the first line's cap height to the last line's baseline.
 	int block = font->capHeight + (int)( count - 1 ) * font->lineHeight;
 	int top   = ( height_ - block ) / 2;
 	for( size_t i = 0; i < count; i++ )

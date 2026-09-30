@@ -882,7 +882,7 @@ private struct NetworkNameRow: View {
 private struct StatusLightSection: View {
 	private enum Style { case solid, pulsing, blinking }
 
-	/// One colour and pattern of the light, and what it means.
+	/// One color and pattern of the light, and what it means.
 	private struct Entry: Identifiable {
 		let color   : Color
 		let style   : Style

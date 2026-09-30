@@ -1,4 +1,4 @@
-// Draws the app icon: a Stream Deck Mini's 3 × 2 keys, with the bottom-centre key lit amber
+// Draws the app icon: a Stream Deck Mini's 3 × 2 keys, with the bottom-center key lit amber
 // and showing a house. Writes the light, dark and tinted 1024 px images into the asset catalog.
 // The house is drawn here rather than taken from SF Symbols, which can't be used in app icons.
 //
@@ -35,7 +35,7 @@ let dark = Palette( background: ( rgb( 0x1e1e21 ), rgb( 0x0a0a0b ) ),
 					key: ( rgb( 0x3a3a3e ), rgb( 0x29292c ) ), keyEdge: gray( 1, 0.08 ),
 					lit: ( rgb( 0xffc247 ), rgb( 0xff9500 ) ), glow: rgb( 0xff9f0a, 0.6 ), house: rgb( 0x2a1a00 ) )
 
-// Tinted icons are greyscale on black; the system applies the user's tint.
+// Tinted icons are grayscale on black; the system applies the user's tint.
 let tinted = Palette( background: ( gray( 0 ), gray( 0 ) ),
 					  key: ( gray( 0.30 ), gray( 0.22 ) ), keyEdge: gray( 1, 0.10 ),
 					  lit: ( gray( 1 ), gray( 0.86 ) ), glow: gray( 1, 0.35 ), house: gray( 0 ) )
@@ -81,7 +81,7 @@ func draw( _ palette: Palette, to name: String ) {
 	// Full-bleed square; the system applies the icon shape.
 	context.drawLinearGradient( gradient( palette.background ), start: .zero, end: CGPoint( x: 0, y: size ), options: [] )
 
-	// 3 × 2 keys, centred, the lit one bottom-centre.
+	// 3 × 2 keys, centered, the lit one bottom-center.
 	let key: CGFloat = 236, gap: CGFloat = 58, radius: CGFloat = 52
 	let originX = ( size - ( key * 3 + gap * 2 ) ) / 2
 	let originY = ( size - ( key * 2 + gap ) ) / 2

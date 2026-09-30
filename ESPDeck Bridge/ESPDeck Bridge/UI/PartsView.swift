@@ -7,7 +7,7 @@
 //  setting it up over USB), "Putting It Together" (the parts assembled), "Set Up over
 //  Wi-Fi" (the setup codes on the deck, for setting it up from a phone), and "Find Your
 //  Device" (devices waiting to be set up, as they appear). The switcher and pager follow
-//  the chosen way of setting up. The illustrations are two-colour line drawings (ink and
+//  the chosen way of setting up. The illustrations are two-color line drawings (ink and
 //  the app icon's amber) drawn in code, so they stay sharp and follow light and dark mode.
 //
 
@@ -330,7 +330,7 @@ struct GuideStep {
 /// A step's title, and the rest under it in the body font.
 struct GuideStepText: View {
 	let step: GuideStep
-	/// The detail in the primary colour, not grey (in a form, next to other rows).
+	/// The detail in the primary color, not gray (in a form, next to other rows).
 	var primaryDetail = false
 
 	var body: some View {
@@ -596,7 +596,7 @@ private struct Part: Identifiable {
 
 // MARK: - Drawing
 
-/// Draws a sketch in its own coordinate space (200 × 140 for a part), scaled to fit and centred.
+/// Draws a sketch in its own coordinate space (200 × 140 for a part), scaled to fit and centered.
 struct PartIllustration: View {
 	static let accent = Sketch.accentColor
 
@@ -624,7 +624,7 @@ struct USBConnectionIllustration: View {
 	}
 }
 
-/// The two colours: ink outlines and amber highlights. Nonisolated: Canvas draws off the
+/// The two colors: ink outlines and amber highlights. Nonisolated: Canvas draws off the
 /// main actor.
 fileprivate nonisolated struct Sketch {
 	static let accentColor = Color( red: 1, green: 0.62, blue: 0.04 )
@@ -654,7 +654,7 @@ fileprivate nonisolated struct Sketch {
 		stroke( path )
 	}
 
-	/// Centred on the point; "\n" starts a new, also centred, line.
+	/// Centered on the point; "\n" starts a new, also centered, line.
 	func label( _ text: String, _ x: CGFloat, _ y: CGFloat, size: CGFloat = 9 ) {
 		let lines = text.split( separator: "\n" )
 		let top   = y - CGFloat( lines.count - 1 ) * size * 0.6
@@ -757,7 +757,7 @@ fileprivate nonisolated struct Sketch {
 		}
 	}
 
-	/// The ESP32-S3 dev kit from above, its two USB-C ports labelled.
+	/// The ESP32-S3 dev kit from above, its two USB-C ports labeled.
 	static func devKit( _ s: inout Sketch ) {
 		s.stroke( box( 16, 36, 172, 70, 4 ) )
 
@@ -790,7 +790,7 @@ fileprivate nonisolated struct Sketch {
 		s.label( "S3", 138, 71, size: 10 )
 	}
 
-	/// The OTG adapter, its plug and sockets labelled.
+	/// The OTG adapter, its plug and sockets labeled.
 	static func otgAdapter( _ s: inout Sketch ) {
 		// Body, with the USB-C plug for the dev kit on a short lead to the left.
 		s.stroke( box( 80, 48, 72, 48, 6 ) )
@@ -912,7 +912,7 @@ fileprivate nonisolated struct Sketch {
 		deckCable.addCurve( to: CGPoint( x: 285 + aEnd * aScale, y: 166 ), control1: CGPoint( x: 120, y: 150 ), control2: CGPoint( x: 220, y: 166 ) )
 		s.stroke( deckCable )
 
-		// Straight down from the plug's grip to the note, which is centred under it.
+		// Straight down from the plug's grip to the note, which is centered under it.
 		let grip = 285 - 8 * aScale
 		var leader = Path()
 		leader.move( to: CGPoint( x: grip, y: 180 ) )
@@ -928,7 +928,7 @@ fileprivate nonisolated struct Sketch {
 		s.label( "Mac", 495, 340 )
 	}
 
-	/// The Wi-Fi symbol in amber: three arcs over a dot centred on `center`.
+	/// The Wi-Fi symbol in amber: three arcs over a dot centered on `center`.
 	static func wifiWaves( _ s: Sketch, at center: CGPoint ) {
 		for radius in [ 7 as CGFloat, 13, 19 ] {
 			var arc = Path()
@@ -939,7 +939,7 @@ fileprivate nonisolated struct Sketch {
 	}
 
 	/// A MacBook running ESPDeck Bridge: thin-bezelled lid, and a flat base with the opening
-	/// notch. The origin is the top centre of the lid; the base spans x ±55 at y 56–63.
+	/// notch. The origin is the top center of the lid; the base spans x ±55 at y 56–63.
 	static func macBook( _ s: Sketch ) {
 		s.stroke( UnevenRoundedRectangle( topLeadingRadius: 6, topTrailingRadius: 6, style: .continuous ).path( in: CGRect( x: -43, y: 0, width: 86, height: 56 ) ) )
 		s.thin( UnevenRoundedRectangle( topLeadingRadius: 2, topTrailingRadius: 2, style: .continuous ).path( in: CGRect( x: -38, y: 5, width: 76, height: 46 ) ) )

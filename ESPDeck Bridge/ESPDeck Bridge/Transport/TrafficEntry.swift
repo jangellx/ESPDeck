@@ -107,7 +107,7 @@ struct TrafficEntry: Identifiable {
 			case "auth":           return "Sent this Mac's proof of identity"
 			case "pairRequest":    return "Pairing: asked the deck to pair"
 			case "pairNonce":      return "Pairing: sent this Mac's nonce"
-			case "pairCancel":     return "Pairing cancelled on this Mac"
+			case "pairCancel":     return "Pairing canceled on this Mac"
 			case "noKey":          return "Told the deck this Mac has no key for it, so it waits"
 			default:               return "Sent \(plain( type ))"
 		}
@@ -125,14 +125,14 @@ struct TrafficEntry: Identifiable {
 			case "pairConfirm":    return "Pairing: code confirmed on the deck"
 			case "pairCancel":
 				switch object["reason"] as? String {
-					case "deck":      return "Pairing cancelled on the deck"
+					case "deck":      return "Pairing canceled on the deck"
 					case "timeout":   return "Pairing timed out on the deck"
 					case "setupMode": return "The deck refused pairing: it's in setup mode"
 					case "paired":    return "The deck refused pairing: it's paired with another Mac"
 					case "busy":      return "The deck refused pairing: it's installing firmware"
 					case "failed":    return "Pairing failed on the deck"
-					case let reason?: return "The deck cancelled pairing (\(plain( reason )))"
-					case nil:         return "The deck cancelled pairing"
+					case let reason?: return "The deck canceled pairing (\(plain( reason )))"
+					case nil:         return "The deck canceled pairing"
 				}
 			case "firmwareStatus":
 				switch object["state"] as? String {

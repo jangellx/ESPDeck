@@ -140,7 +140,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 
 		for ( index, line ) in statusLines.enumerated() {
 			// Enabled, so it isn't drawn dimmed (macOS 27 dims a disabled item whatever its
-			// colours); choosing it opens the configuration window, where the same status is.
+			// colors); choosing it opens the configuration window, where the same status is.
 			let item = actionItem( line, #selector( openConfiguration ) )
 			item.attributedTitle = Self.title( line, icon: Self.statusImage( level: index < statusLevels.count ? statusLevels[index] : 0 ) )
 			menu.addItem( item )
@@ -236,7 +236,7 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin, NSMenuDelegate {
 		return title
 	}
 
-	/// A menu-sized SF Symbol, in a colour or (without one) as a template like the menu's text.
+	/// A menu-sized SF Symbol, in a color or (without one) as a template like the menu's text.
 	private static func symbol( _ name: String, color: NSColor? = nil ) -> NSImage? {
 		var configuration = NSImage.SymbolConfiguration( pointSize: 13, weight: .regular )
 		if let color {

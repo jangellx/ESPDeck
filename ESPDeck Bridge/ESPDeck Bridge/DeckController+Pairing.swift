@@ -172,7 +172,7 @@ extension DeckController {
 	/// What the deck's pairCancel reason means for the user.
 	private static func pairCancelExplanation( _ reason: String? ) -> String {
 		switch reason {
-			case "deck":      "Pairing was cancelled on the deck."
+			case "deck":      "Pairing was canceled on the deck."
 			case "timeout":   "The deck stopped waiting. Try again, and hold Confirm on the deck within 2 minutes."
 			case "setupMode": "The deck is in setup mode. Exit setup mode on the deck, then try again."
 			case "paired":    "The deck is already paired with a Mac. Use Unpair on its setup page (or forget it on that Mac), then try again."
@@ -371,7 +371,7 @@ extension DeckController {
 		abortPairing( client, "Pairing stopped because the codes didn't match. Something else on your network may have answered for this deck." )
 	}
 
-	/// The user cancelled: the deck is told, and the connection waits again.
+	/// The user canceled: the deck is told, and the connection waits again.
 	func cancelPairing( _ client: ClientID ) {
 		server.send( .pairCancel, to: client )
 		endPairingState( client )

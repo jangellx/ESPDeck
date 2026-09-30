@@ -92,7 +92,7 @@ struct TrafficLogView: View {
 		}
 	}
 
-	/// Each direction's colour.
+	/// Each direction's color.
 	private static func color( _ direction: TrafficEntry.Direction ) -> Color {
 		switch direction {
 			case .sent:     .accentColor

@@ -29,22 +29,22 @@ public:
 	// strip). Only None and Rotate180 transforms suit one that isn't square.
 	bool begin( uint16_t width, uint16_t height );
 
-	// Paints the whole canvas one colour.
+	// Paints the whole canvas one color.
 	void fill( uint8_t red, uint8_t green, uint8_t blue );
 
-	// Black modules on white, centred, with a quiet zone of at least two modules and the
+	// Black modules on white, centered, with a quiet zone of at least two modules and the
 	// largest integer scale that fits. False if the text doesn't fit on the key.
 	bool drawQR( const char *text );
 
-	// White, anti-aliased lines of text centred on a background (0xRRGGBB, black by
+	// White, anti-aliased lines of text centered on a background (0xRRGGBB, black by
 	// default). Uses the largest of the style's fonts in which every line fits.
 	void drawText( const char *const *lines, size_t count, uint32_t background = 0x000000, TextStyle style = TextStyle::Label );
 
 	// A square RGB888 icon (iconSize × iconSize) and one line of white text beside it, the
-	// pair centred on black.
+	// pair centered on black.
 	void drawIconAndText( const uint8_t *icon, int iconSize, const char *text );
 
-	// A filled, anti-aliased circle (0xRRGGBB) centred on black, diameter a fraction of the key.
+	// A filled, anti-aliased circle (0xRRGGBB) centered on black, diameter a fraction of the key.
 	void drawDot( uint32_t color, float diameter );
 
 	// Encodes the canvas. Returns the encoded data (valid until the next encode() or
@@ -58,9 +58,9 @@ private:
 	bool contains( int x, int y ) const { return x >= 0 && y >= 0 && x < width_ && y < height_; }
 	// The canvas pixel at (x, y), which must be on it.
 	uint8_t *pixel( int x, int y ) { return canvas_ + ( (size_t)y * width_ + x ) * 3; }
-	// Sets a pixel to a grey level; off-canvas pixels are ignored.
+	// Sets a pixel to a gray level; off-canvas pixels are ignored.
 	void setPixel( int x, int y, uint8_t value );
-	// Blends a pixel towards white by level (0–15, a glyph's coverage); off-canvas pixels are ignored.
+	// Blends a pixel toward white by level (0–15, a glyph's coverage); off-canvas pixels are ignored.
 	void blendWhite( int x, int y, uint8_t level );
 	// One line of white text, starting at x, sitting on the baseline.
 	void drawLine( const Font &font, const char *line, int x, int baseline );

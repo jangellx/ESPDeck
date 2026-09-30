@@ -11,7 +11,7 @@ The Mac app (ESPDeck Bridge) runs a WebSocket server. Any number of ESP32s (ESPD
   - An address where a paired ESP32's handshake failed (the bridge's `auth` didn't verify, or didn't come within 10 seconds of connecting) is skipped for 10 minutes, unless it's the address where it last authenticated. So something else on the network advertising the bridge's `id` can't keep the device from its real bridge.
 - If a device reconnects, its new connection replaces its old one on the Mac.
 - Liveness: the ESP32 sends a WebSocket ping every 5 s and closes the connection if no pong arrives within 10 s, so the Mac must answer pings promptly (its Network framework does, on the queue its app logic runs on, so that queue must not stall). The Mac also enables TCP keepalive.
-- While a paired device has no authenticated session (Wi-Fi or the bridge unreachable, for 3 s after a drop and from boot until the first session), its deck shows "Connecting / to Wi-Fi" or "Connecting / to Mac" on the top-centre key with a row of blue dots below that fill in left to right and then empty left to right, instead of keys that wouldn't do anything.
+- While a paired device has no authenticated session (Wi-Fi or the bridge unreachable, for 3 s after a drop and from boot until the first session), its deck shows "Connecting / to Wi-Fi" or "Connecting / to Mac" on the top-center key with a row of blue dots below that fill in left to right and then empty left to right, instead of keys that wouldn't do anything.
 
 ## Security
 
@@ -124,7 +124,7 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 | `pairResponse` | `publicKey`, `commitment` | **Unauthenticated.** Pairing step 2 |
 | `pairReveal` | `nonce` | **Unauthenticated.** Pairing step 4 |
 | `pairConfirm` | `proof` | **Unauthenticated.** Pairing step 7: confirmed on the deck |
-| `pairCancel` | `reason` | **Unauthenticated.** Pairing cancelled on the deck, timed out, or refused; see Pairing |
+| `pairCancel` | `reason` | **Unauthenticated.** Pairing canceled on the deck, timed out, or refused; see Pairing |
 | `firmwareStatus` | `state` (`ready`, `progress`, `installed`, `error`), `received` (bytes, for `progress`), `message` (for `error`) | answers to a firmware update |
 | `storageStatus` | `state` (`encrypting`, `error`), `message` (for `error`) | the answer to `encryptStorage` (firmware 4.1.0 and later): `encrypting` just before it starts (the device restarts when it's done), or `error` if it refused and nothing changed. See Storage encryption. |
 | `deck` | `deck` | the Stream Deck is plugged in or unplugged, or its transform changed; also right after `status` `session` (firmware 4.1.0 and later), since a deck plugged in before the session couldn't be reported |
@@ -196,7 +196,7 @@ These are the unauthenticated messages from the Mac:
 | `auth` | `nonce`, `proof` | handshake step 2 |
 | `pairRequest` | `bridgeID`, `bridgeName`, `publicKey` | pairing step 1 |
 | `pairNonce` | `nonce` | pairing step 3 |
-| `pairCancel` | | pairing cancelled on the Mac (or the codes didn't match) |
+| `pairCancel` | | pairing canceled on the Mac (or the codes didn't match) |
 | `noKey` | | **Unauthenticated.** This Mac knows the deck but can't authenticate it (no key, or paired elsewhere); the deck waits, idle, while looking for another bridge with its ID (see Limits). Firmware 4.1.0 and later |
 
 ### devOTA
@@ -219,7 +219,7 @@ Once the session is authenticated, the Mac sends `show` for every key, preceded 
 | 4 | 16 | raw hash bytes |
 | 20 | n | image file in the deck's `format`, `keySize` square, transform already applied |
 
-BMP images are 24-bit uncompressed: a 54-byte header (BITMAPFILEHEADER + BITMAPINFOHEADER, 2835 pixels per metre), rows bottom-up, BGR, each row padded to 4 bytes. JPEG images are baseline.
+BMP images are 24-bit uncompressed: a 54-byte header (BITMAPFILEHEADER + BITMAPINFOHEADER, 2835 pixels per meter), rows bottom-up, BGR, each row padded to 4 bytes. JPEG images are baseline.
 
 The image is added to the cache. It isn't displayed until a `show` names its hash.
 

@@ -117,7 +117,7 @@ func render( _ spec: Spec ) -> Rendered {
 		glyph.left   = minX
 		glyph.top    = maxY
 
-		// White on black in an 8-bit grey context; memory row 0 is the top row.
+		// White on black in an 8-bit gray context; memory row 0 is the top row.
 		var pixels = [UInt8]( repeating: 0, count: glyph.width * glyph.height )
 		pixels.withUnsafeMutableBytes { buffer in
 			guard let context = CGContext( data: buffer.baseAddress, width: glyph.width, height: glyph.height, bitsPerComponent: 8,

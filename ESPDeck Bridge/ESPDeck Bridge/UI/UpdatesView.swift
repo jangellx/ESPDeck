@@ -235,7 +235,7 @@ struct FirmwareRow: View {
 }
 
 /// Where firmware comes from: the latest signed release, the chosen file, then Choose File…
-/// after a divider. A menu labelled with the current choice rather than a Picker: a Picker
+/// after a divider. A menu labeled with the current choice rather than a Picker: a Picker
 /// kept showing Choose File… after a file was picked, until it was opened again.
 struct FirmwareSourceMenu: View {
 	let releaseTitle  : String

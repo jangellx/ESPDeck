@@ -2,7 +2,7 @@
 //  DeckController+Slider.swift
 //  ESPDeck Bridge
 //
-//  Slider keys: two neighbouring keys that step a light's brightness or a fan's speed up
+//  Slider keys: two neighboring keys that step a light's brightness or a fan's speed up
 //  and down. Both hold the same target; editing either keeps the other in step. A slider key
 //  acts when pressed rather than released, and repeats while held (the device's delay and
 //  rate).

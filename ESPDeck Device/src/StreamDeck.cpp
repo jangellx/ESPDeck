@@ -600,7 +600,7 @@ void StreamDeck::readFeatureString( hid_host_device_handle_t handle, uint8_t rep
 // Most current decks (the MK.2 Scissor, XL, Neo, Mini 2022, Original) are high-speed parts
 // that keep their high-speed endpoint sizes at full speed: a 512-byte interrupt IN and a
 // 1024-byte interrupt OUT, where full speed allows 64. The host's FIFOs take IN packets up to
-// 600 bytes (biased towards IN in sdkconfig.defaults) but periodic OUT only up to 128, and
+// 600 bytes (biased toward IN in sdkconfig.defaults) but periodic OUT only up to 128, and
 // claiming the interface allocates every endpoint, so the claim fails. An oversized OUT
 // endpoint is shrunk to 64 bytes in the host's copy of the descriptor: the deck's endpoint
 // really takes 64-byte packets (128-byte ones fail, and it ignores SET_REPORT), and it

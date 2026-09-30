@@ -57,14 +57,14 @@ The device starts in setup mode when it has no Wi-Fi credentials. To enter it la
 
 **Joining its network:**
 1. Scan the left QR code with your phone's camera and join the network it offers.
-2. If the phone doesn't stay connected (it may drop back to your usual Wi-Fi, because this network has no internet), open the phone's Wi-Fi settings and choose the name shown on the top-centre key. Scanning the QR code already saved its password.
+2. If the phone doesn't stay connected (it may drop back to your usual Wi-Fi, because this network has no internet), open the phone's Wi-Fi settings and choose the name shown on the top-center key. Scanning the QR code already saved its password.
 3. Joining from Settings usually opens the setup page by itself. If it doesn't, scan the right QR code.
 
 The access point (WPA2/WPA3) gets a new random password each time setup mode starts, and the QR code carries it, so scan the QR code again each time. The setup page only answers phones joined to the deck's own network. On the page, set the device name and pick a Wi-Fi network (2.4 GHz only). The network is saved only once the device has joined it (within 30 seconds); if it can't, the page says why and the previous network stays. After it joins, the page shows its new address, and the device leaves setup mode 8 seconds later. With a working network, setup mode also ends after 15 minutes with no phone connected. Settings live in NVS, so reflashing keeps them. The setup page also shows which bridge the device is paired with, and can unpair it.
 
 ### Pairing
 
-A device only obeys the bridge it's paired with. When an unpaired device connects, the deck reads "Pair in / ESPDeck / Bridge". Click **Pair** on the Mac: the deck shows `Pair?` and a 6-digit code in its top row, with **Cancel** and **Hold to Confirm** in the bottom row, and the Mac shows the same code. If they match, click **The Deck Shows This Code** on the Mac and hold Confirm on the deck for 1.5 seconds, in either order. The Pedal has no display: its status LED blinks magenta, and holding any pedal confirms. A pairing that isn't confirmed within 2 minutes is cancelled.
+A device only obeys the bridge it's paired with. When an unpaired device connects, the deck reads "Pair in / ESPDeck / Bridge". Click **Pair** on the Mac: the deck shows `Pair?` and a 6-digit code in its top row, with **Cancel** and **Hold to Confirm** in the bottom row, and the Mac shows the same code. If they match, click **The Deck Shows This Code** on the Mac and hold Confirm on the deck for 1.5 seconds, in either order. The Pedal has no display: its status LED blinks magenta, and holding any pedal confirms. A pairing that isn't confirmed within 2 minutes is canceled.
 
 A paired device refuses pairing and only connects to its own bridge. To move it to another Mac, first **Forget** it on the Mac it's paired with, or use **Unpair** on the deck's setup page. To move every deck to a new Mac at once, without pairing again, move the bridge instead (see Moving to another Mac, under Mac app). Pairing needs firmware 4.0.0 or later; a device on older firmware shows under New Devices as needing an update over USB.
 
@@ -105,7 +105,7 @@ ESPDeck Bridge updates the firmware over Wi-Fi from GitHub Releases, and install
   - It's for development: anyone on the network with the password can replace the firmware.
 - **Security tests:** `ESPDeck Bridge/tools/security_test/run.sh` signs a file with a throwaway key through `tools/sign_release.sh` and checks it with the app's own signature check (and that changed files, changed signatures and other keys fail); it also round-trips a made-up bridge through the export file's encryption, and checks that a wrong passphrase, a changed byte anywhere in the file, and a newer format all fail. Needs OpenSSL 3.
 - **Crypto test vectors:** `ESPDeck Device/tools/crypto_test/run.sh` checks the firmware's pairing, session and devOTA crypto (mbedTLS) and the app's own `DeckCrypto.swift` (CryptoKit) against RFC 7748 and `vectors.txt`, the shared reference.
-- **Text tests:** `ESPDeck Device/tools/text_test/run.sh` builds the firmware's `src/Text.cpp` (the JSON nesting check, device-name validation and log sanitizing) on the Mac with the address and undefined-behaviour sanitizers, and runs its tests.
+- **Text tests:** `ESPDeck Device/tools/text_test/run.sh` builds the firmware's `src/Text.cpp` (the JSON nesting check, device-name validation and log sanitizing) on the Mac with the address and undefined-behavior sanitizers, and runs its tests.
 
 Notes:
 - The platform is pinned to pioarduino `55.03.312-1` (Arduino 3.3.12, ESP-IDF 5.5.5), which needs PlatformIO Core 6.2, as installed by the pioarduino IDE extension. The previous pin, `55.03.30-2`, doesn't build on Core 6.2.

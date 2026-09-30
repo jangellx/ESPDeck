@@ -5,7 +5,7 @@
 //  Undo and redo for key edits, on the configuration window's undo manager (Edit ▸ Undo),
 //  which text fields share. Before a change, the device's pages are snapshotted; undoing
 //  puts them back and registers the redo. Quick edits to the same key (typing a label,
-//  dragging the colour picker) are one step.
+//  dragging the color picker) are one step.
 //
 
 import Foundation

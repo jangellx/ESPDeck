@@ -566,20 +566,20 @@ static bool deckHasLayout() {
 }
 
 // The middle key of the top row.
-static uint8_t topCentreKey() {
+static uint8_t topCenterKey() {
 	return deckInfo.cols / 2;
 }
 
 // The middle key of the bottom row.
-static int bottomCentreKey() {
+static int bottomCenterKey() {
 	return ( deckInfo.rows - 1 ) * deckInfo.cols + deckInfo.cols / 2;
 }
 
-// lines on the top-centre key, every other key black.
-static void showCentredText( const char *const *lines, size_t count ) {
-	uint8_t centre = topCentreKey();
+// lines on the top-center key, every other key black.
+static void showCenterdText( const char *const *lines, size_t count ) {
+	uint8_t center = topCenterKey();
 	drawKeys( [&]( uint8_t key ) {
-		if( key == centre )
+		if( key == center )
 			keyImage.drawText( lines, count );
 		else
 			keyImage.fill( 0, 0, 0 );
@@ -596,7 +596,7 @@ static void reshowAllKeys() {
 static int setupExitKey() {
 	if( !setupExitShown || !deckHasLayout() )
 		return -1;
-	return bottomCentreKey();
+	return bottomCenterKey();
 }
 
 // Backslash-escapes the characters the WIFI: QR format reserves.
@@ -658,7 +658,7 @@ static void showSetupKeys() {
 	} );
 }
 
-// The first of the three top-row keys the pairing and not-paired screens use, centred.
+// The first of the three top-row keys the pairing and not-paired screens use, centered.
 static uint8_t pairingFirstKey() {
 	return ( deckInfo.cols - 3 ) / 2;
 }
@@ -726,7 +726,7 @@ static void showNotPairedKeys() {
 // "Updating firmware" while updating().
 static void showUpdatingKeys() {
 	static const char *const kLines[] = { "Updating", "firmware" };
-	showCentredText( kLines, 2 );
+	showCenterdText( kLines, 2 );
 }
 
 // The connecting screen's text key; redrawn when Wi-Fi comes or goes.
@@ -736,7 +736,7 @@ static void showConnectingText() {
 	connectingWiFi = WiFi.status() == WL_CONNECTED;
 	drawKeys( [&]( uint8_t ) {
 		keyImage.drawText( connectingWiFi ? kMac : kWiFi, 2 );
-	}, keyBit( topCentreKey() ) );
+	}, keyBit( topCenterKey() ) );
 }
 
 // A key with the connecting screen's dot, or a black one; nullptr if it can't be drawn.
@@ -751,7 +751,7 @@ static ImagePtr renderDot( bool dot ) {
 }
 
 // The connecting screen: "Connecting / to Wi-Fi" (or "to Mac" once Wi-Fi is up) on the
-// top-centre key, and blue dots filling and emptying the row below; every other key black,
+// top-center key, and blue dots filling and emptying the row below; every other key black,
 // so no key looks usable. Starts the chaser at its first step.
 static void showConnectingKeys() {
 	if( !deckShowsImages() )
@@ -763,7 +763,7 @@ static void showConnectingKeys() {
 	dotStep     = 0;
 	dotMovedAt  = millis();
 
-	uint32_t others = allKeys( deckInfo.keyCount() ) & ~keyBit( topCentreKey() );
+	uint32_t others = allKeys( deckInfo.keyCount() ) & ~keyBit( topCenterKey() );
 	for( uint8_t key = 0; key < deckInfo.keyCount(); key++ ) {
 		if( !( others & keyBit( key ) ) )
 			continue;
@@ -799,7 +799,7 @@ static uint8_t countdownSeconds() {
 	return held >= kSetupChordTime ? 0 : (uint8_t)( ( kSetupChordTime - held + 999 ) / 1000 );
 }
 
-// While the corner keys are held: the seconds left on the bottom-centre key, "Entering /
+// While the corner keys are held: the seconds left on the bottom-center key, "Entering /
 // Setup In" on the key above it, every other key black. digitOnly redraws just the seconds.
 static void showCountdownKeys( bool digitOnly ) {
 	if( !deckHasLayout() )
@@ -810,7 +810,7 @@ static void showCountdownKeys( bool digitOnly ) {
 	countdownShown = countdownSeconds();
 	snprintf( digit, sizeof( digit ), "%u", countdownShown );
 
-	int number = bottomCentreKey();
+	int number = bottomCenterKey();
 	drawKeys( [&]( uint8_t key ) {
 		if( key == number )
 			drawLine( digit, 0x000000, KeyImage::TextStyle::Big );
@@ -896,7 +896,7 @@ static void endPairing() {
 // reason: "deck" (Cancel pressed), "timeout", "setupMode", or why a pairRequest was refused:
 // "paired", "busy", "failed". The bridge explains it to the user.
 static void cancelPairing( bool notifyBridge, const char *reason ) {
-	ESP_LOGI( TAG, "Pairing cancelled (%s)", reason );
+	ESP_LOGI( TAG, "Pairing canceled (%s)", reason );
 	if( notifyBridge ) {
 		cJSON *json = cJSON_CreateObject();
 		cJSON_AddStringToObject( json, "type", "pairCancel" );
@@ -1181,7 +1181,7 @@ static void factoryReset( const char *reason ) {
 	disableLoopWDT();   // erasing the image cache takes longer than the watchdog allows
 
 	static const char *const kLines[] = { "Resetting" };
-	showCentredText( kLines, 1 );
+	showCenterdText( kLines, 1 );
 	uploader.waitIdle( kUploadWait );   // "Resetting" is on the deck before anything is erased
 
 	portal.stop();
@@ -1244,7 +1244,7 @@ static void encryptStorage() {
 	disableLoopWDT();   // the move and the waits add up to more than the watchdog allows
 
 	static const char *const kLines[] = { "Encrypting", "storage" };
-	showCentredText( kLines, 2 );
+	showCenterdText( kLines, 2 );
 	uploader.waitIdle( kUploadWait );
 	cache.persistNow();   // the image cache is on LittleFS, not NVS; nothing of it is lost
 

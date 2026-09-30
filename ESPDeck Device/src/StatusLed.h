@@ -15,7 +15,7 @@
 // Drives the status LED; see above for what each state looks like.
 class StatusLed {
 public:
-	// What the device is doing, which picks the colour.
+	// What the device is doing, which picks the color.
 	enum class Mode : uint8_t {
 		Setup,
 		Searching,
@@ -35,18 +35,18 @@ public:
 	// Data went to or came from the Mac.
 	void activity();
 
-	// Call every loop pass; writes the LED only when its colour changes.
+	// Call every loop pass; writes the LED only when its color changes.
 	void update( Mode mode, bool keyDown, bool asleep );
 
 private:
-	// Shows a full-scale colour, dimmed while asleep.
+	// Shows a full-scale color, dimmed while asleep.
 	void show( uint8_t red, uint8_t green, uint8_t blue );
-	// Sends a colour to the LED, unless it's already showing it.
+	// Sends a color to the LED, unless it's already showing it.
 	void write( uint8_t red, uint8_t green, uint8_t blue );
 
 	uint8_t  pin_           = 0;
 	bool     ready_         = false;
-	uint32_t written_       = 0xFFFFFFFF;   // last colour sent, 0xRRGGBB
+	uint32_t written_       = 0xFFFFFFFF;   // last color sent, 0xRRGGBB
 	uint32_t keyUntil_      = 0;            // millis()
 	uint32_t activityUntil_ = 0;
 	bool     dim_           = false;        // asleep, as of the last update()

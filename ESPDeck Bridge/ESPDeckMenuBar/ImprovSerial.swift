@@ -167,7 +167,7 @@ nonisolated final class ImprovSession: @unchecked Sendable {
 		try port.write( ImprovPacket.command( command, data: data ), timeout: 2 )
 	}
 
-	/// Reads until cancelled or the port goes away; returns why it stopped.
+	/// Reads until canceled or the port goes away; returns why it stopped.
 	func run( events: ( [ImprovPacket.Event] ) -> Void ) -> Error? {
 		var parser = ImprovPacket.Parser()
 		while !Task.isCancelled {

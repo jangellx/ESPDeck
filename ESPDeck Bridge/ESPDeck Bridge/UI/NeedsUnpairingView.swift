@@ -69,7 +69,7 @@ struct NeedsUnpairingView: View {
 				.prominentButtonStyle()
 				.tint( .red )
 				.disabled( setup.unpairing == .working )
-				// Centred, with the spinner beside it rather than pushing it over.
+				// Centered, with the spinner beside it rather than pushing it over.
 				.overlay( alignment: .trailing ) {
 					if setup.unpairing == .working && setup.unpairingPath == board.port.path {
 						ProgressView()

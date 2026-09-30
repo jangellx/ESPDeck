@@ -109,7 +109,7 @@ struct ExportBridgeSheet: View {
 			}
 			.formStyle( .grouped )
 			.navigationTitle( "Export Bridge" )
-			.navigationBarTitleDisplayMode( .inline )   // centred between the buttons
+			.navigationBarTitleDisplayMode( .inline )   // centered between the buttons
 			.toolbar {
 				ToolbarItem( placement: .cancellationAction ) {
 					Button {

@@ -102,7 +102,7 @@ struct SliderSection: View {
 					StylePicker( selection: slider.style, horizontal: horizontal ) { style in
 						controller.updateSlider( device: deviceID, key: key ) { $0.style = style }
 					}
-					.frame( maxWidth: .infinity )   // centred under its heading
+					.frame( maxWidth: .infinity )   // centered under its heading
 				}
 				.padding( .top, 6 )
 				.padding( .bottom, 4 )
@@ -199,7 +199,7 @@ private struct SliderPartnerGrid: View {
 		}
 	}
 
-	/// A key as it looks on the deck, outlined in the accent colour when `chosen`.
+	/// A key as it looks on the deck, outlined in the accent color when `chosen`.
 	private func keyCell( _ index: Int, chosen: Bool ) -> some View {
 		let preview = controller.device( deviceID ).flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
 		return ZStack {

@@ -2,14 +2,14 @@
 //  SharedViews.swift
 //  ESPDeck Bridge
 //
-//  Small pieces the pages share: grey captions, a title with a caption under it, the orange
+//  Small pieces the pages share: gray captions, a title with a caption under it, the orange
 //  warning line, and a Bool binding for dialogs shown while an optional is set.
 //
 
 import SwiftUI
 
 extension View {
-	/// Caption-sized and grey. `Color.secondary` rather than `.secondary`, so it stays grey in
+	/// Caption-sized and gray. `Color.secondary` rather than `.secondary`, so it stays gray in
 	/// section headers and button labels, where `.secondary` follows their own style.
 	func secondaryCaption() -> some View {
 		font( .caption )
@@ -17,7 +17,7 @@ extension View {
 	}
 }
 
-/// A line of text with a grey caption under it, as in a Settings row.
+/// A line of text with a gray caption under it, as in a Settings row.
 struct CaptionedText: View {
 	let title   : String
 	let caption : String
@@ -72,8 +72,8 @@ extension Sequence where Element: Hashable {
 	}
 }
 
-/// The accent colour, except on a selected sidebar row, where it would vanish into the blue
-/// selection: there it's the row's text colour (white).
+/// The accent color, except on a selected sidebar row, where it would vanish into the blue
+/// selection: there it's the row's text color (white).
 private struct SidebarAccent: ViewModifier {
 	@Environment( \.backgroundProminence ) private var prominence
 
@@ -100,7 +100,7 @@ struct SidebarBadge: View {
 }
 
 extension View {
-	/// Accent-coloured, but white on a selected sidebar row (SidebarAccent).
+	/// Accent-colored, but white on a selected sidebar row (SidebarAccent).
 	func sidebarAccent() -> some View {
 		modifier( SidebarAccent() )
 	}

@@ -119,7 +119,7 @@ struct HomeTargetSheet: View {
 		.accessibilityAddTraits( chosen ? .isSelected : [] )
 	}
 
-	/// A scene's sparkles, or the accessory's symbol in its state (grey when unreachable).
+	/// A scene's sparkles, or the accessory's symbol in its state (gray when unreachable).
 	@ViewBuilder
 	private func icon( _ target: HomeTarget ) -> some View {
 		if target.kind == .scene {

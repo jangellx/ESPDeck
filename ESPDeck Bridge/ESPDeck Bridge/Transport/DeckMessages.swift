@@ -151,7 +151,7 @@ enum DeviceMessage {
 	/// The nonce the commitment covers, after the Mac sent its own.
 	case pairReveal( nonce: Data )
 	case pairConfirm( proof: Data )
-	/// Why the deck cancelled or refused pairing: "deck", "timeout", "setupMode", "paired",
+	/// Why the deck canceled or refused pairing: "deck", "timeout", "setupMode", "paired",
 	/// "busy", "failed", or nil (firmware before 4.0.0).
 	case pairCancel( reason: String? )
 	case firmwareStatus( FirmwareStatus )
