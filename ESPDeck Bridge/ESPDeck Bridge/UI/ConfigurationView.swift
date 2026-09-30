@@ -107,12 +107,6 @@ struct ConfigurationView: View {
 				}
 			}
 		}
-		// Any deck sending key images, top right in the title bar.
-		.toolbar {
-			ToolbarItem( placement: .primaryAction ) {
-				DeckTransferIndicator( controller: controller )
-			}
-		}
 		.confirmationDialog( "Reset Bridge?", isPresented: Bindable( window ).confirmingResetBridge, titleVisibility: .visible ) {
 			Button( "Reset Bridge", role: .destructive ) { controller.removeBridge() }
 			Button( "Export First…" ) { window.bridgeTransfer = .export }
@@ -253,23 +247,17 @@ private struct Sidebar: View {
 			// Decks that aren't connected, to look at or copy from; closed at first.
 			let away = notConnectedDevices
 			if !away.isEmpty {
-				// Opened and closed here rather than with Section( isExpanded: ): the system's
-				// disclosure arrow sits at the far right, and the count belongs there, lined up
-				// with the sidebar's other counts. The whole header toggles it.
-				Section {
-					if showNotConnected {
-						ForEach( away ) { device in
-							deviceRow( device )
-						}
+				// The system's disclosure arrow is at the far right; the count sits just left of it,
+				// in line with the rows' badges and buttons (sidebarTrailingInset). The whole
+				// header toggles it.
+				Section( isExpanded: $showNotConnected ) {
+					ForEach( away ) { device in
+						deviceRow( device )
 					}
 				} header: {
-					HStack( spacing: 6 ) {
+					HStack {
 						SectionHeader( "Not Connected", sidebar: true )
 						Spacer()
-						Image( systemName: "chevron.right" )
-							.font( .caption.weight( .semibold ) )
-							.foregroundStyle( .secondary )
-							.rotationEffect( .degrees( showNotConnected ? 90 : 0 ) )
 						SidebarBadge( count: away.count, color: .orange )
 					}
 					.contentShape( Rectangle() )
@@ -308,6 +296,7 @@ private struct Sidebar: View {
 									.accessibilityLabel( "Looking for boards" )
 							}
 						}
+						.sidebarTrailingInset()
 					} icon: {
 						Image( systemName: "cable.connector" )
 					}
@@ -323,6 +312,7 @@ private struct Sidebar: View {
 							Circle().frame( width: 8, height: 8 ).sidebarAccent()
 						}
 					}
+					.sidebarTrailingInset()
 				} icon: {
 					Image( systemName: "arrow.down.circle" )
 				}
@@ -391,6 +381,7 @@ private struct Sidebar: View {
 						.accessibilityLabel( "Firmware update available" )
 					}
 				}
+				.sidebarTrailingInset()
 				// Firmware, then the state.
 				// One line even when selection makes it bold: smaller, not taller.
 				Text( device.firmware.map { "\($0) · \(status.stateText)" } ?? status.stateText )
@@ -437,6 +428,7 @@ private struct LaunchAtLoginRow: View {
 			InfoButton( help: "About Launch at Login",
 						text: "ESPDeck Bridge is what connects your decks to HomeKit. If it isn't running, the keys can't control anything and the decks show Connecting. Launching at login keeps it running after a restart." )
 		}
+		.sidebarTrailingInset()
 		.onAppear { controller.refreshLaunchAtLogin() }
 	}
 }

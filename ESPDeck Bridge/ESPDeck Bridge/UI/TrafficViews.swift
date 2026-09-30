@@ -71,6 +71,9 @@ struct TrafficLogView: View {
 				}
 				.listStyle( .plain )
 			}
+
+			// While the deck is catching up on key images: how far it's got.
+			TransferProgressFooter( device: device )
 		}
 	}
 
@@ -111,29 +114,23 @@ struct TrafficLogView: View {
 	}
 }
 
-/// In the window's title bar: how far a deck is through sending its key images, for any
-/// deck (not just the one showing), named when there are several. Nothing when all are
-/// caught up.
-struct DeckTransferIndicator: View {
-	let controller: DeckController
+/// Under the Log: how far this deck is through the key images being sent to it, while
+/// some are. A diagnostic, so it lives here rather than with the keys.
+struct TransferProgressFooter: View {
+	let device: DeckDevice
 
 	var body: some View {
-		let busy = controller.devices.filter { $0.isOnline && !$0.pendingShows.isEmpty }
-		if let device = busy.first {
+		if device.isOnline && !device.pendingShows.isEmpty {
 			let total = max( device.batchTotal, device.pendingShows.count )
 			let done  = total - device.pendingShows.count
-			let name  = controller.settings( device.id )?.name ?? "the deck"
-			HStack( spacing: 8 ) {
-				Text( busy.count > 1 ? "Updating \(busy.count) decks" : "Updating \(name)" )
-					.font( .caption )
-					.foregroundStyle( .secondary )
-					.lineLimit( 1 )
-				ProgressView( value: Double( done ), total: Double( total ) )
-					.frame( width: 90 )
+			VStack( spacing: 0 ) {
+				Divider()
+				ProgressView( value: Double( done ), total: Double( total ) ) {
+					Text( "Updating the deck: \(done) of \(total) \(total == 1 ? "key" : "keys")" )
+						.font( .caption )
+				}
+				.padding( 12 )
 			}
-			.help( "\(name): \(done) of \(total) \(total == 1 ? "key" : "keys") sent" )
-			.accessibilityElement( children: .combine )
-			.accessibilityLabel( "Updating \(name): \(done) of \(total) keys" )
 		}
 	}
 }

@@ -151,6 +151,7 @@ struct ProblemRow: View {
 					.accessibilityLabel( "Clear \(problem.title)" )
 				}
 			}
+			.sidebarTrailingInset()
 		} icon: {
 			Image( systemName: "exclamationmark.triangle.fill" )
 				.foregroundStyle( .orange )
@@ -212,5 +213,13 @@ extension View {
 			onAppear { action( true ) }
 				.onDisappear { action( false ) }
 		}
+	}
+}
+
+extension View {
+	/// Room on the right of a sidebar row, so its badge or button lines up with the count in a
+	/// collapsible section's header, which sits left of the system's disclosure arrow.
+	func sidebarTrailingInset() -> some View {
+		padding( .trailing, 14 )
 	}
 }
