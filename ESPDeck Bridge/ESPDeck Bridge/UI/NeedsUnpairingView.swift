@@ -70,9 +70,9 @@ struct NeedsUnpairingView: View {
 			} icon: {
 				Image( systemName: "cable.connector" )
 			}
-			Button( "Unpair Over USB", role: .destructive ) { setup.unpair( board ) }
+			// Blue, not red: it fixes the deck rather than risking anything, so it doesn't ask.
+			Button( "Unpair Over USB" ) { setup.unpair( board ) }
 				.prominentButtonStyle()
-				.tint( .red )
 				.disabled( setup.unpairing == .working )
 				// Centered, with the spinner beside it rather than pushing it over.
 				.overlay( alignment: .trailing ) {
