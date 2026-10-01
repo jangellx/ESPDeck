@@ -160,21 +160,75 @@ extension DeckController {
 
 	// MARK: - Pressing
 
-	/// Shift-click in the deck preview: like the key on the deck, including the flash, a
-	/// Level key's repeat while held, and other keys acting on release.
+	/// Shift-click in the deck preview: like the key on the deck, including the flash, and
+	/// judged as the deck judges presses (firmware keyModes): held past Hold Time runs a Hold
+	/// action; a second press within the double-tap window runs a Double Tap; a tap on a key
+	/// with a Double Tap waits out that window first; others act on release. A Level key
+	/// repeats while held, and with Double-Tap Goes All the Way a quick second press goes to
+	/// the end.
 	func previewPress( device id: String, key: Int, down: Bool ) {
+		let tag        = Self.keyTag( device: id, key: key )
+		let assignment = assignment( id, key: key )
+		let settings   = settings( id )
+		let window     = settings?.doubleTapWindow ?? DeviceSettings.defaultDoubleTapWindow
+		let holdTime   = settings?.holdTime ?? DeviceSettings.defaultHoldTime
+
+		if let slider = assignment.slider {
+			if down {
+				device( id )?.pressed.insert( key )
+				let quick = previewLastRelease[tag].map { Date().timeIntervalSince( $0 ) < window } ?? false
+				if slider.doubleTapToEnd && quick {
+					previewSecondPress.insert( tag )
+					performPress( device: id, key: key, kind: .doubleTap )
+				} else {
+					startSlider( device: id, key: key )
+				}
+			} else {
+				device( id )?.pressed.remove( key )
+				previewLastRelease[tag] = Date()
+				if previewSecondPress.remove( tag ) == nil {
+					stopSlider( device: id, key: key )
+				}
+			}
+			return
+		}
+
 		if down {
 			device( id )?.pressed.insert( key )
-			if assignment( id, key: key ).slider != nil {
-				startSlider( device: id, key: key )
+			// A second press while a tap waits: the double tap, on release.
+			if let pending = previewPendingTaps.removeValue( forKey: tag ) {
+				pending.cancel()
+				previewSecondPress.insert( tag )
+			}
+			if assignment.hold != nil {
+				previewHolds[tag] = Task { [weak self] in
+					try? await Task.sleep( for: .seconds( holdTime ) )
+					guard !Task.isCancelled, let self else { return }
+					previewHoldSent.insert( tag )
+					previewSecondPress.remove( tag )
+					performPress( device: id, key: key, kind: .hold )
+				}
+			}
+			return
+		}
+
+		device( id )?.pressed.remove( key )
+		previewHolds.removeValue( forKey: tag )?.cancel()
+		if previewHoldSent.remove( tag ) != nil {
+			return   // it was a hold
+		}
+		if previewSecondPress.remove( tag ) != nil {
+			performPress( device: id, key: key, kind: .doubleTap )
+		} else if assignment.doubleTap != nil {
+			// Maybe the first of two: the tap runs once the window has passed.
+			previewPendingTaps[tag] = Task { [weak self] in
+				try? await Task.sleep( for: .seconds( window ) )
+				guard !Task.isCancelled, let self else { return }
+				previewPendingTaps[tag] = nil
+				performPress( device: id, key: key, kind: .tap )
 			}
 		} else {
-			device( id )?.pressed.remove( key )
-			if assignment( id, key: key ).slider != nil {
-				stopSlider( device: id, key: key )
-			} else {
-				press( device: id, key: key )
-			}
+			press( device: id, key: key )
 		}
 	}
 

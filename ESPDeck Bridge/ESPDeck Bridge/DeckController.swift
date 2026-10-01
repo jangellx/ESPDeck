@@ -69,6 +69,14 @@ final class DeckController {
 	var pendingLevelMove: PendingLevelMove?
 	/// Slider keys being held ("device/key"): their repeat.
 	@ObservationIgnored var sliderRepeats: [String: Task<Void, Never>] = [:]
+	/// Shift-presses in the preview, judged as the deck judges presses (see previewPress):
+	/// a hold waiting for Hold Time, a tap waiting out the double-tap window, whether this
+	/// press became a hold or is a double tap's second press, and Level keys' last release.
+	@ObservationIgnored var previewHolds        : [String: Task<Void, Never>] = [:]
+	@ObservationIgnored var previewPendingTaps  : [String: Task<Void, Never>] = [:]
+	@ObservationIgnored var previewHoldSent     : Set<String> = []
+	@ObservationIgnored var previewSecondPress  : Set<String> = []
+	@ObservationIgnored var previewLastRelease  : [String: Date] = [:]
 	/// The configuration window's, for Edit ▸ Undo; see DeckController+Undo.
 	@ObservationIgnored weak var undoManager: UndoManager?
 	@ObservationIgnored var undoCoalescing : String?
