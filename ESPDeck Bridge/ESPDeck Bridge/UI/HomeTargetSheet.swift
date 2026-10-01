@@ -75,6 +75,7 @@ struct HomeTargetSheet: View {
 						dismiss()
 					} label: {
 						Image( systemName: "xmark" )
+							.font( .system( size: 12, weight: .semibold ) )   // Catalyst's default is iPad-sized
 					}
 					.accessibilityLabel( "Cancel" )
 				}
@@ -84,6 +85,7 @@ struct HomeTargetSheet: View {
 						dismiss()
 					} label: {
 						Image( systemName: "checkmark" )
+							.font( .system( size: 12, weight: .semibold ) )   // Catalyst's default is iPad-sized
 					}
 					.accessibilityLabel( "Done" )
 				}
