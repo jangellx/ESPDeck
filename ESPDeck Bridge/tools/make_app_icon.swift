@@ -1,6 +1,8 @@
-// Draws the app icon: a Stream Deck Mini's 3 × 2 keys, with the bottom-center key lit amber
-// and showing a house. Writes the light, dark and tinted 1024 px images into the asset catalog.
-// The house is drawn here rather than taken from SF Symbols, which can't be used in app icons.
+// Draws the app icon's art as flat images: a Stream Deck Mini's 3 × 2 keys, with the
+// bottom-center key lit amber and showing a house, light and dark, into the AppIconArt image
+// set (the About page shows it; the Dock falls back to it). The app icon itself is
+// AppIcon.icon, from make_app_icon_layers.swift. The house is drawn here rather than taken
+// from SF Symbols, which can't be used in app icons.
 //
 //   swift tools/make_app_icon.swift
 
@@ -8,7 +10,7 @@ import AppKit
 
 let size   : CGFloat = 1024
 let output = URL( fileURLWithPath: CommandLine.arguments.first! ).deletingLastPathComponent()
-	.appendingPathComponent( "../ESPDeck Bridge/Assets.xcassets/AppIcon.appiconset" ).standardized
+	.appendingPathComponent( "../ESPDeck Bridge/Assets.xcassets/AppIconArt.imageset" ).standardized
 
 struct Palette {
 	var background : ( CGColor, CGColor )   // top, bottom
@@ -34,11 +36,6 @@ let light = Palette( background: ( rgb( 0x3a3a3e ), rgb( 0x1c1c1f ) ),
 let dark = Palette( background: ( rgb( 0x1e1e21 ), rgb( 0x0a0a0b ) ),
 					key: ( rgb( 0x3a3a3e ), rgb( 0x29292c ) ), keyEdge: gray( 1, 0.08 ),
 					lit: ( rgb( 0xffc247 ), rgb( 0xff9500 ) ), glow: rgb( 0xff9f0a, 0.6 ), house: rgb( 0x2a1a00 ) )
-
-// Tinted icons are grayscale on black; the system applies the user's tint.
-let tinted = Palette( background: ( gray( 0 ), gray( 0 ) ),
-					  key: ( gray( 0.30 ), gray( 0.22 ) ), keyEdge: gray( 1, 0.10 ),
-					  lit: ( gray( 1 ), gray( 0.86 ) ), glow: gray( 1, 0.35 ), house: gray( 0 ) )
 
 func gradient( _ colors: ( CGColor, CGColor ) ) -> CGGradient {
 	CGGradient( colorsSpace: CGColorSpace( name: CGColorSpace.sRGB ), colors: [ colors.0, colors.1 ] as CFArray, locations: [ 0, 1 ] )!
@@ -124,34 +121,10 @@ func draw( _ palette: Palette, to name: String ) {
 }
 
 try! FileManager.default.createDirectory( at: output, withIntermediateDirectories: true )
-draw( light,  to: "AppIcon.png" )
-draw( dark,   to: "AppIcon-Dark.png" )
-draw( tinted, to: "AppIcon-Tinted.png" )
+draw( light, to: "AppIcon.png" )
+draw( dark,  to: "AppIcon-Dark.png" )
 
 let contents = """
-{
-  "images" : [
-    { "filename" : "AppIcon.png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" },
-    { "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ], "filename" : "AppIcon-Dark.png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" },
-    { "appearances" : [ { "appearance" : "luminosity", "value" : "tinted" } ], "filename" : "AppIcon-Tinted.png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" }
-  ],
-  "info" : { "author" : "xcode", "version" : 1 }
-}
-
-"""
-try! contents.write( to: output.appendingPathComponent( "Contents.json" ), atomically: true, encoding: .utf8 )
-print( "Wrote \(output.path)" )
-
-// The same art as an ordinary image, for showing the icon inside the app (the About page):
-// an app icon set can't be loaded by name.
-let art = output.deletingLastPathComponent().appendingPathComponent( "AppIconArt.imageset" )
-try! FileManager.default.createDirectory( at: art, withIntermediateDirectories: true )
-for name in [ "AppIcon.png", "AppIcon-Dark.png" ] {
-	let target = art.appendingPathComponent( name )
-	try? FileManager.default.removeItem( at: target )
-	try! FileManager.default.copyItem( at: output.appendingPathComponent( name ), to: target )
-}
-let artContents = """
 {
   "images" : [
     { "filename" : "AppIcon.png", "idiom" : "universal" },
@@ -161,5 +134,5 @@ let artContents = """
 }
 
 """
-try! artContents.write( to: art.appendingPathComponent( "Contents.json" ), atomically: true, encoding: .utf8 )
-print( "Wrote \(art.path)" )
+try! contents.write( to: output.appendingPathComponent( "Contents.json" ), atomically: true, encoding: .utf8 )
+print( "Wrote \(output.path)" )
