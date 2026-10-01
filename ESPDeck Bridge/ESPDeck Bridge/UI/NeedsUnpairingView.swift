@@ -39,7 +39,8 @@ struct NeedsUnpairingView: View {
 						}
 					}
 					Label {
-						Text( "Or on the deck: hold its top-left and bottom-right keys for 5 seconds, scan the QR codes to open its setup page, and choose Unpair." )
+						Text( "Or on the deck:" ).bold()
+							+ Text( " hold its top-left and bottom-right keys for 5 seconds, scan the QR codes to open its setup page, and choose Unpair." )
 					} icon: {
 						Image( systemName: "qrcode" )
 					}
@@ -64,7 +65,11 @@ struct NeedsUnpairingView: View {
 	@ViewBuilder
 	private func usbUnpair( _ board: USBSetup.Board, setup: USBSetup ) -> some View {
 		VStack( alignment: .leading, spacing: 8 ) {
-			Label( "It's plugged into this Mac over USB.", systemImage: "cable.connector" )
+			Label {
+				Text( "The deck is plugged into this Mac over USB." ).bold()
+			} icon: {
+				Image( systemName: "cable.connector" )
+			}
 			Button( "Unpair Over USB", role: .destructive ) { setup.unpair( board ) }
 				.prominentButtonStyle()
 				.tint( .red )
