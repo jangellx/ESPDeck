@@ -45,7 +45,7 @@ struct NeedsUnpairingView: View {
 						Image( systemName: "qrcode" )
 					}
 					Label {
-						Text( "Once the deck is unpaired, it will show up under New Devices: pair it, and it will pick up its old keys and settings. They can also be copied onto another deck with Copy From Deck on that deck's Device page." )
+						Text( "Once the deck is unpaired, it will show up under New Devices. Pair it, and it will pick up its old keys and settings. They can also be copied onto another deck with Copy From Deck on that deck's Device page." )
 					} icon: {
 						Image( systemName: "square.on.square" )
 					}
