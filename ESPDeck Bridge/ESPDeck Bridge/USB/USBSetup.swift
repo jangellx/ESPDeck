@@ -870,10 +870,11 @@ final class USBSetup {
 	/// connected can still be listed under its old name; by name otherwise.
 	func arrival( of board: JoinedBoard ) -> ( selection: String, status: String, needsPairing: Bool )? {
 		guard let controller else { return nil }
-		// A known device the bridge can't authenticate shows on its own row (stuckConnection).
+		// A known device shows on its own row, whatever's left to do (stuckConnection,
+		// waitingConnection).
 		let listed = { ( new: NewDevice ) -> ( selection: String, status: String, needsPairing: Bool ) in
-			if controller.stuckConnection( for: new.hello.id )?.client == new.client, controller.device( new.hello.id ) != nil {
-				return ( new.hello.id, new.reason.foundBridge, false )
+			if controller.device( new.hello.id ) != nil {
+				return ( new.hello.id, new.reason.foundBridge, new.reason.canPair )
 			}
 			return ( SidebarItem.newDevice( new.client ), new.reason.foundBridge, new.reason.canPair )
 		}

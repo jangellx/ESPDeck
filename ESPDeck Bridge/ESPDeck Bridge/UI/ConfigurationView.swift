@@ -63,7 +63,11 @@ struct ConfigurationView: View {
 				NewDeviceView( controller: controller, client: client )
 					.id( client )
 			} else if let id = window.selection, controller.device( id ) != nil {
-				if let stuck = controller.stuckConnection( for: id ), controller.device( id )?.isOnline != true, !showingStuckDevice.contains( id ) {
+				// Connected again but unpaired: pairing it, as for a new device.
+				if let waiting = controller.waitingConnection( for: id ), controller.device( id )?.isOnline != true {
+					NewDeviceView( controller: controller, client: waiting.client )
+						.id( waiting.client )
+				} else if let stuck = controller.stuckConnection( for: id ), controller.device( id )?.isOnline != true, !showingStuckDevice.contains( id ) {
 					NeedsUnpairingView( controller: controller, deviceID: id, stuck: stuck ) { showingStuckDevice.insert( id ) }
 						.id( id )
 				} else if let stuck = controller.stuckConnection( for: id ), controller.device( id )?.isOnline != true {
@@ -176,14 +180,16 @@ private struct Sidebar: View {
 	@State private var holdSelectionUntil = Date.distantPast
 	@State private var showNotConnected   = false
 
-	/// Connected decks, and demo decks (never connected, always usable).
+	/// Connected decks, ones connected and waiting to be paired again, and demo decks (never
+	/// connected, always usable).
 	private var connectedDevices: [DeckDevice] {
-		controller.devices.filter { $0.isOnline || controller.settings( $0.id )?.isDemo == true }
+		controller.devices.filter { $0.isOnline || controller.settings( $0.id )?.isDemo == true || controller.waitingConnection( for: $0.id ) != nil }
 	}
 
-	/// Real decks that aren't connected, listed under Not Connected.
+	/// The rest, listed under Not Connected (decks needing unpairing included).
 	private var notConnectedDevices: [DeckDevice] {
-		controller.devices.filter { !$0.isOnline && controller.settings( $0.id )?.isDemo != true }
+		let shown = Set( connectedDevices.map( \.id ) )
+		return controller.devices.filter { !shown.contains( $0.id ) }
 	}
 
 	/// The selection, ignoring the list's own changes while held (holdSelectionUntil).

@@ -1291,10 +1291,18 @@ final class DeckController {
 		newDevices.first { $0.hello.id == id && !$0.reason.canPair && $0.reason != .oldFirmware }
 	}
 
-	/// New Devices, without known devices that are only stuck (stuckConnection).
+	/// A known device that's connected but not paired with this Mac (unpaired, waiting to be
+	/// paired again; or needing a firmware update first): its pairing happens on its own row,
+	/// not under New Devices.
+	func waitingConnection( for id: String ) -> NewDevice? {
+		newDevices.first { $0.hello.id == id && ( $0.reason.canPair || $0.reason == .oldFirmware ) }
+	}
+
+	/// New Devices: devices this Mac doesn't know. A known one connected but not
+	/// authenticated (stuckConnection, waitingConnection) shows on its own row instead.
 	var listedNewDevices: [NewDevice] {
 		let known = Set( devices.map( \.id ) )
-		return newDevices.filter { !known.contains( $0.hello.id ) || stuckConnection( for: $0.hello.id )?.client != $0.client }
+		return newDevices.filter { !known.contains( $0.hello.id ) }
 	}
 
 	/// One device's state in a few words, with its indicator.
@@ -1304,6 +1312,9 @@ final class DeckController {
 		if settings?.isDemo == true { return StatusItem( text: "\(name): demo deck", level: .demo ) }
 		if !device.isOnline, let stuck = stuckConnection( for: device.id ) {
 			return StatusItem( text: "\(name): \(stuck.reason.status)", level: .problem )
+		}
+		if !device.isOnline, let waiting = waitingConnection( for: device.id ) {
+			return StatusItem( text: "\(name): \(waiting.reason.status)", level: .waiting )
 		}
 		guard device.isOnline else { return StatusItem( text: "\(name): offline", level: .waiting ) }
 		if device.status.setupMode { return StatusItem( text: "\(name): setup mode", level: .waiting ) }
@@ -1323,6 +1334,11 @@ final class DeckController {
 				text += "\n\nIf the Keychain was unavailable, the deck will connect by itself within a minute."
 			}
 			return text
+		}
+		if !device.isOnline, let waiting = waitingConnection( for: device.id ) {
+			return waiting.reason == .oldFirmware
+				? "The deck is connected to this Mac, but its firmware is too old to pair. Update it over [USB Setup](espdeck:usb-setup), then pair it."
+				: "The deck is unpaired and connected to this Mac. Click it and choose **Pair with This Mac**: its keys and settings will come back."
 		}
 		guard device.isOnline else {
 			return "ESPDeck Bridge can't reach this deck. Check that it has power and is on the same Wi-Fi network as this Mac.\n\nAfter a restart or a firmware update, it will take a few seconds to come back online.\n\nIf its Wi-Fi network has changed, set it up again by either plugging it into this Mac and using [USB Setup](espdeck:usb-setup), or holding its top-left and bottom-right keys for 5 seconds to show the setup QR codes."

@@ -301,11 +301,13 @@ extension DeckController {
 
 	// MARK: - Pairing
 
-	/// This Mac already has a pairing key or settings for this device ID: pairing replaces
-	/// them, which the user has to agree to first.
+	/// This Mac still has a pairing key for this device ID: pairing replaces it, which the
+	/// user has to agree to first (another device could be claiming the ID). Without a key
+	/// (the deck was unpaired because this Mac lost it, say) there's nothing to replace, and
+	/// its settings are kept either way.
 	func existingPairingName( for deviceID: String ) -> String? {
-		if let settings = settings( deviceID ) { return settings.name }
-		return PairingKeyStore.key( for: deviceID ) != nil ? deviceID : nil
+		guard PairingKeyStore.key( for: deviceID ) != nil else { return nil }
+		return settings( deviceID )?.name ?? deviceID
 	}
 
 	/// Starts pairing. `replacing`: the user agreed to replace this Mac's existing pairing for
