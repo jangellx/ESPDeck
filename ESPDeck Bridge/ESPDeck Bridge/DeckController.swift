@@ -1320,7 +1320,7 @@ final class DeckController {
 			return "ESPDeck Bridge can't reach this deck. Check that it has power and is on the same Wi-Fi network as this Mac.\n\nAfter a restart or a firmware update, it will take a few seconds to come back online.\n\nIf its Wi-Fi network has changed, set it up again by either plugging it into this Mac and using [USB Setup](espdeck:usb-setup), or holding its top-left and bottom-right keys for 5 seconds to show the setup QR codes."
 		}
 		if device.status.setupMode {
-			return "The deck is in setup mode.\n\nScan the left key's QR code to join its own Wi-Fi network, then scan its right code to open its setup page.\n\nOnce setup is finished, press the Exit key or choose Exit Setup Mode on the Device page."
+			return "The deck is in setup mode.\n\nScan the left key's QR code to join its own Wi-Fi network, then scan its right code to open the setup page.\n\nOnce setup is finished, press the Exit key or choose Exit Setup Mode on the Device page."
 		}
 		if !device.deck.connected {
 			return "The deck is online, but no Stream Deck is connected to it.\n\nCheck the Stream Deck's USB cable and the OTG adapter, and make sure that the power supply is at least 2 A. The Log page shows what the device saw when a Stream Deck was plugged into it."
