@@ -846,15 +846,19 @@ private struct NetworkNameRow: View {
 	let settings   : DeviceSettings
 
 	var body: some View {
-		let current  = device.status.hostname ?? settings.defaultHostname
+		// As it reports it, or as it last did while it isn't connected.
+		let current  = device.status.hostname ?? settings.hostname ?? settings.defaultHostname
 		let proposed = DeviceSettings.hostname( from: settings.name )
-		let settable = device.isOnline && device.status.hostname != nil
+		let settable = device.isOnline && device.status.hostname != nil   // connected, with firmware that can
 
 		VStack( alignment: .leading, spacing: 6 ) {
 			LabeledContent( "Network Name", value: current )
-			Text( "How it shows up on your network: in your router's list of devices, and as \(current).local." )
+			Text( "The deck can be found on your network as \(current).local." )
 				.secondaryCaption()
-			if device.isOnline && device.status.hostname == nil {
+			if !device.isOnline {
+				Text( "The deck changes this itself, so it needs to be connected to change it." )
+					.secondaryCaption()
+			} else if device.status.hostname == nil {
 				Text( "Changing it needs firmware 4.1.0 or later." )
 					.secondaryCaption()
 			} else {
