@@ -38,9 +38,9 @@ struct NewDevice: Identifiable {
 		var steps: String? {
 			switch self {
 				case .pairedElsewhere:
-					"**To use it here:**\n1. Unpair the deck: [over USB](espdeck:usb-setup), or from its own setup page, or by forgetting it on the other Mac.\n2. Unpaired decks will show up under New Devices, ready to be paired."
+					"**To use it here:**\n1. Unpair the deck [over USB](espdeck:usb-setup), or from [its own setup page](espdeck:setup-mode), or by forgetting it on the other Mac.\n2. Unpaired decks will show up under New Devices, ready to be paired."
 				case .keyMissing:
-					"**To use it again:**\n1. Unpair the deck: [over USB](espdeck:usb-setup), or from its own setup page.\n2. The unpaired deck will show up under New Devices. Pair it, and its keys and settings will come back."
+					"**To use it again:**\n1. Unpair the deck [over USB](espdeck:usb-setup), or from [its own setup page](espdeck:setup-mode).\n2. The unpaired deck will show up under New Devices. Pair it, and its keys and settings will come back."
 				case .unpaired, .oldFirmware:
 					nil
 			}

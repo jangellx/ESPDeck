@@ -17,10 +17,16 @@ struct InfoButton: View {
 	@State private var showing = false
 	@Environment( \.openURL ) private var openURL
 
-	/// `text` with its Markdown applied, or as it is if it isn't valid Markdown.
+	/// `text` with its Markdown applied, or as it is if it isn't valid Markdown. Bold is set
+	/// as a font: on Mac Catalyst, Text doesn't draw the strong-emphasis intent by itself.
 	private var styled: AttributedString {
-		( try? AttributedString( markdown: text, options: .init( interpretedSyntax: .inlineOnlyPreservingWhitespace ) ) )
-			?? AttributedString( text )
+		guard var styled = try? AttributedString( markdown: text, options: .init( interpretedSyntax: .inlineOnlyPreservingWhitespace ) ) else {
+			return AttributedString( text )
+		}
+		for run in styled.runs where run.inlinePresentationIntent?.contains( .stronglyEmphasized ) == true {
+			styled[run.range].font = .body.bold()
+		}
+		return styled
 	}
 
 	var body: some View {

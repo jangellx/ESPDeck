@@ -32,6 +32,8 @@ struct ConfigurationView: View {
 	/// In-app links in explanation text: "[USB Setup](espdeck:usb-setup)".
 	static let linkScheme   = "espdeck"
 	static let usbSetupLink = "espdeck:usb-setup"
+	/// Getting Started's Set Up over Wi-Fi, which says how to start setup mode (hold two keys).
+	static let setupModeLink = "espdeck:setup-mode"
 
 	/// Decks needing unpairing whose keys and settings were asked for anyway.
 	@State private var showingStuckDevice: Set<String> = []
@@ -127,7 +129,16 @@ struct ConfigurationView: View {
 		// In-app links in explanations, like [USB Setup](espdeck:usb-setup).
 		.environment( \.openURL, OpenURLAction { url in
 			guard url.scheme == Self.linkScheme else { return .systemAction }
-			if url.absoluteString == Self.usbSetupLink { window.selection = SidebarItem.usbSetup }
+			switch url.absoluteString {
+				case Self.usbSetupLink:
+					window.selection = SidebarItem.usbSetup
+				case Self.setupModeLink:
+					window.guidePath  = .wifi
+					window.guideSheet = .wifi
+					window.selection  = SidebarItem.parts
+				default:
+					break
+			}
 			return .handled
 		} )
 		// Choosing a deck again shows its unpairing page again.
