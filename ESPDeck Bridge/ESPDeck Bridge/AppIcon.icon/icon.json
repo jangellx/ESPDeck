@@ -2,13 +2,19 @@
   "fill-specializations" : [
     {
       "value" : {
-        "automatic-gradient" : "extended-srgb:0.22745,0.22745,0.24314,1.00000"
+        "linear-gradient" : [
+          "display-p3:0.79676,0.80016,0.85212,1.00000",
+          "display-p3:0.63093,0.63093,0.63093,1.00000"
+        ]
       }
     },
     {
       "appearance" : "dark",
       "value" : {
-        "automatic-gradient" : "extended-srgb:0.11765,0.11765,0.12941,1.00000"
+        "linear-gradient" : [
+          "display-p3:0.28651,0.28740,0.31312,1.00000",
+          "display-p3:0.12572,0.12552,0.13835,1.00000"
+        ]
       }
     }
   ],
@@ -51,6 +57,14 @@
     {
       "layers" : [
         {
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "display-p3:0.35394,0.35394,0.35394,1.00000"
+              }
+            }
+          ],
           "glass" : true,
           "image-name" : "Keys.svg",
           "name" : "Keys"

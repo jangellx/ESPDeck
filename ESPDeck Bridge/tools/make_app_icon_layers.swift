@@ -4,6 +4,9 @@
 // key, and the house. The background is the icon's fill. Open AppIcon.icon in Icon Composer
 // to tune glass, specular, shadows and the dark and tinted looks.
 //
+// The icon has been tuned in Icon Composer, so an existing icon.json (those settings) is kept:
+// running this again only redraws the layer images. Delete icon.json to start over.
+//
 //   swift tools/make_app_icon_layers.swift
 
 import AppKit
@@ -82,7 +85,7 @@ func roundedKey( _ rect: CGRect, fill: String ) -> String {
 	String( format: "<rect x=\"%.0f\" y=\"%.0f\" width=\"%.0f\" height=\"%.0f\" rx=\"%.0f\" fill=\"%@\"/>", rect.minX, rect.minY, rect.width, rect.height, radius, fill )
 }
 
-try? FileManager.default.removeItem( at: output )
+try? FileManager.default.removeItem( at: assets )
 try! FileManager.default.createDirectory( at: assets, withIntermediateDirectories: true )
 
 // The five unlit keys; each has its own gradient top to bottom.
@@ -181,5 +184,10 @@ let json = """
 }
 
 """
-try! json.write( to: output.appendingPathComponent( "icon.json" ), atomically: true, encoding: .utf8 )
-print( "Wrote \(output.path)" )
+let settings = output.appendingPathComponent( "icon.json" )
+if FileManager.default.fileExists( atPath: settings.path ) {
+	print( "Kept the tuned icon.json; redrew the layers in \(assets.path)" )
+} else {
+	try! json.write( to: settings, atomically: true, encoding: .utf8 )
+	print( "Wrote \(output.path)" )
+}
