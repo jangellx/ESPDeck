@@ -69,6 +69,14 @@ private struct DeckKeyView: View {
 	/// The page change this key has already swapped for.
 	@State private var swappedFor: Date?
 
+	/// The page this key's command goes to, if it's one that changes page, run as the deck would.
+	private func goToPage() {
+		let assignment = controller.assignment( deviceID, key: index )
+		guard assignment.kind == .page,
+			  [ .nextPage, .previousPage, .firstPage, .lastPage, .goToPage ].contains( assignment.action ) else { return }
+		controller.performPage( assignment, device: deviceID )
+	}
+
 	var body: some View {
 		let device   = controller.device( deviceID )
 		let selected = selection == index
@@ -117,6 +125,9 @@ private struct DeckKeyView: View {
 			ConfigurationHostingController.takeKeyboardFocus()
 			selection = index
 		}
+		// Double-click a Next, Previous, First, Last or Go to Page key to go there, as pressing
+		// it on the deck would. Alongside the click above, so selecting isn't delayed.
+		.simultaneousGesture( TapGesture( count: 2 ).onEnded { goToPage() } )
 		.contextMenu {
 			Button( "Copy Key", systemImage: "doc.on.doc" ) { controller.copyKey( device: deviceID, key: index ) }
 			Button( "Paste Key", systemImage: "doc.on.clipboard" ) {
