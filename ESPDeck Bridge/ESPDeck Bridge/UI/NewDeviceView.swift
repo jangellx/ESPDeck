@@ -87,7 +87,7 @@ struct NewDeviceView: View {
 						} message: {
 							Text( replaceMessage( device ) )
 						}
-					Text( "The deck will show a code to compare with the one shown here. If they match, you confirm here and hold Confirm on the deck." )
+					Text( "The deck will show a code to compare with the one shown here. If they match, confirm here and hold Confirm on the deck." )
 						.secondaryCaption()
 						.multilineTextAlignment( .center )
 
