@@ -391,6 +391,10 @@ final class HomeObserver: NSObject {
 		   let targetType = kind.targetCharacteristicType, let on = kind.targetValue( activate: true ),
 		   let switchCharacteristic = Self.characteristic( targetType, serviceID: ref.serviceID, in: accessory ) {
 			Task { try? await switchCharacteristic.writeValue( on ) }
+			// HomeKit doesn't report changes this app makes, so the keys show it on now rather
+			// than when a read back catches up (the light may take a while to report it).
+			values[power] = on
+			onChange?( power )
 		}
 		writeLevel( ref, to: targets, integer: metadata?.format != HMCharacteristicMetadataFormatFloat )
 		return goal
@@ -415,7 +419,10 @@ final class HomeObserver: NSObject {
 			}
 			levelGoals[ref] = nil
 			levelWriters.remove( ref )
+			// Read back what the light did (on at a level, off at 0 for some): HomeKit won't
+			// say. Again later, for lights behind a hub that report late.
 			refreshWatched( after: .milliseconds( 1000 ) )
+			refreshWatched( after: .milliseconds( 4000 ) )
 		}
 	}
 
