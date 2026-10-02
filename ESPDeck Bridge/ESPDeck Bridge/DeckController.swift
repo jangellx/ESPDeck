@@ -867,6 +867,8 @@ final class DeckController {
 				if status.asleep != wasAsleep, let settings = settings( id ) {
 					let why = status.reason.map { " (\(DeviceStatus.describe( reason: $0 )))" } ?? ""
 					logEvent( status.asleep ? "The deck went to sleep\(why)" : "The deck woke\(why)", device: id )
+					// Show what's true now, whatever HomeKit reported while it slept.
+					if !status.asleep { Task { await home.refreshNow( reason: "deck woke" ) } }
 					perform( status.asleep ? settings.onSleep : settings.onWake, context: status.asleep ? "On sleep" : "On wake", device: id )
 				}
 

@@ -10,6 +10,7 @@
 
 import HomeKit
 import Observation
+import os
 
 /// Something a key can be bound to, for the configuration UI.
 struct HomeTarget: Identifiable, Hashable {
@@ -88,6 +89,14 @@ final class HomeObserver: NSObject {
 
 	@ObservationIgnored private var wanted              : Set<CharacteristicRef> = []
 	@ObservationIgnored private var watched             : [( ref: CharacteristicRef, characteristic: HMCharacteristic )] = []
+	/// Re-reads everything watched every pollInterval: HomeKit's change notifications don't
+	/// always arrive (a light switched at the wall stayed off here), perhaps while the app
+	/// has no window. Started once the Homes are ready.
+	@ObservationIgnored private var poller              : Task<Void, Never>?
+	private static let pollInterval: Duration = .seconds( 20 )
+	/// Changes found by a re-read that no notification reported, for diagnosing that:
+	/// `log show --last 1h --info --predicate 'subsystem == "com.tmproductions.espdeck" AND category == "homekit"'`
+	private static let log = Logger( subsystem: "com.tmproductions.espdeck", category: "homekit" )
 	@ObservationIgnored private var observedAccessories : [HMAccessory] = []
 	@ObservationIgnored private var observedHomes       : [HMHome] = []
 	@ObservationIgnored private var rebuildTask         : Task<Void, Never>?
@@ -189,6 +198,30 @@ final class HomeObserver: NSObject {
 		if !isReady {
 			isReady = true
 			onReady?()
+		}
+		if poller == nil {
+			poller = Task { [weak self] in
+				while !Task.isCancelled {
+					try? await Task.sleep( for: Self.pollInterval )
+					await self?.refreshNow( reason: "poll" )
+				}
+			}
+		}
+	}
+
+	/// Re-reads everything watched now, and logs what changed without a notification (none of
+	/// it is this app's own doing). Also when a deck wakes: it should show what's true now.
+	func refreshNow( reason: String ) async {
+		for entry in watched where levelGoals[entry.ref] == nil {   // not mid-write: that would show the old level
+			guard ( try? await entry.characteristic.readValue() ) != nil, levelGoals[entry.ref] == nil else { continue }
+			let old = values[entry.ref] as? NSObject
+			let new = entry.characteristic.value as? NSObject
+			if old != new {
+				let name = accessory( entry.ref.accessoryID )?.name ?? "?"
+				Self.log.info( "\(reason, privacy: .public): \(name, privacy: .public) \(entry.ref.characteristicType, privacy: .public) changed without a notification: \(String( describing: old ), privacy: .public) → \(String( describing: new ), privacy: .public)" )
+				values[entry.ref] = entry.characteristic.value
+				onChange?( entry.ref )
+			}
 		}
 	}
 
