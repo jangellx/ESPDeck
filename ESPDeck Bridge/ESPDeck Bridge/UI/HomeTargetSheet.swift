@@ -19,6 +19,8 @@ struct HomeTargetSheet: View {
 	@State private var accessories : [KeyMember]
 	@State private var scenes      : [UUID]
 	@State private var search      = ""
+	/// Bumped as accessories answer readCurrentStates, so their rows redraw.
+	@State private var statesRead  = 0
 	@FocusState private var searchFocused: Bool
 
 	init( controller: DeckController, accessories: [KeyMember], scenes: [UUID], onDone: @escaping ( [KeyMember], [UUID] ) -> Void ) {
@@ -64,6 +66,8 @@ struct HomeTargetSheet: View {
 			}
 			.contentMargins( .top, 8, for: .scrollContent )
 			.task {
+				// The rows start from HomeKit's cache; ask each accessory for what's true now.
+				controller.home.readCurrentStates( of: controller.home.targets() ) { statesRead += 1 }
 				try? await Task.sleep( for: .milliseconds( 100 ) )   // once the sheet is up
 				searchFocused = true
 			}
@@ -134,6 +138,7 @@ struct HomeTargetSheet: View {
 				.font( .title3 )
 				.foregroundStyle( Color.orange )
 		} else {
+			let _         = statesRead   // redraws as fresh states arrive
 			let state     = controller.home.lastKnownState( of: target ).state
 			let reachable = controller.home.isReachable( accessoryID: target.accessoryID )
 			Image( systemName: controller.home.symbol( for: target.kind, accessoryID: target.accessoryID, serviceID: target.serviceID, state: state ) )
@@ -143,14 +148,17 @@ struct HomeTargetSheet: View {
 		}
 	}
 
-	/// Garage doors and sensors keep white on the deck; here they need to show on white.
+	/// As on the deck (amber on, green locked or closed…), except that the deck's white (off,
+	/// and garage doors, whose symbols carry their state) is gray here, as the Home app shows
+	/// accessories that are off.
 	private func tint( _ kind: KeyKind, _ state: KeyState ) -> Color {
 		let color = kind.tint( for: state )
-		return color == .white ? Color.accentColor : color
+		return color == .white ? Color.secondary : color
 	}
 
 	/// "On", "Closed", "21.5°", "No Response"; nothing for scenes.
 	private func detail( _ target: HomeTarget ) -> String? {
+		_ = statesRead   // redraws as fresh states arrive
 		guard target.kind != .scene else { return nil }
 		guard controller.home.isReachable( accessoryID: target.accessoryID ) else { return "No Response" }
 		let ( state, value ) = controller.home.lastKnownState( of: target )

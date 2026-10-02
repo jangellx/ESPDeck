@@ -478,7 +478,22 @@ final class HomeObserver: NSObject {
 		return names.isEmpty ? "" : ( names.count == 1 ? "scene " : "scenes " ) + names.joined( separator: ", " )
 	}
 
-	/// An accessory's state as HomeKit last knew it, for lists (not watched, so possibly stale).
+	/// Asks each target's accessory for its current state, all at once, calling `each` as each
+	/// answers: lastKnownState is HomeKit's cache, which for accessories not on a key can be
+	/// long out of date.
+	func readCurrentStates( of targets: [HomeTarget], each: @escaping @MainActor () -> Void ) {
+		for target in targets {
+			guard let type = target.kind.displayCharacteristicType, let accessory = accessory( target.accessoryID ),
+				  let characteristic = Self.characteristic( type, serviceID: target.serviceID, in: accessory ) else { continue }
+			Task {
+				try? await characteristic.readValue()
+				each()
+			}
+		}
+	}
+
+	/// An accessory's state as HomeKit last knew it, for lists (not watched, so possibly stale;
+	/// readCurrentStates freshens it).
 	func lastKnownState( of target: HomeTarget ) -> ( state: KeyState, value: Any? ) {
 		guard let type = target.kind.displayCharacteristicType, let accessory = accessory( target.accessoryID ),
 			  let characteristic = Self.characteristic( type, serviceID: target.serviceID, in: accessory ) else {
