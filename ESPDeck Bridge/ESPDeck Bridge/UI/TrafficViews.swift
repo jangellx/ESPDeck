@@ -53,12 +53,14 @@ struct TrafficLogView: View {
 										description: Text( device.isOnline ? "Messages to and from this device appear here." : "The device is offline." ) )
 			} else {
 				List( shown, selection: $window.logSelection ) { entry in
-					LogRow( entry: entry ) { copy( [ entry.id ] ) }
+					let selected = window.logSelection.contains( entry.id )
+					LogRow( entry: entry, selected: selected ) { copy( [ entry.id ] ) }
 						// No lines between entries, and only as tall as their text.
 						.listRowSeparator( .hidden )
 						.listRowInsets( EdgeInsets( top: 2, leading: 12, bottom: 2, trailing: 12 ) )
-						// A tint of our own for the selection, which the row's colors stay readable on.
-						.listRowBackground( window.logSelection.contains( entry.id ) ? Color.accentColor.opacity( 0.22 ) : Color.clear )
+						// The selection in the full accent color: the list turns a selected row's text
+						// white, which a paler tint left unreadable.
+						.listRowBackground( selected ? Color.accentColor : Color.clear )
 				}
 				.listStyle( .plain )
 				.environment( \.defaultMinListRowHeight, 0 )
@@ -94,19 +96,12 @@ struct TrafficLogView: View {
 /// size, then a copy button at the right edge that shows while the pointer is over the row.
 /// The button's space is always there, so nothing moves.
 private struct LogRow: View {
-	let entry : TrafficEntry
-	let copy  : () -> Void
+	let entry    : TrafficEntry
+	/// On the selection's accent color, where the direction's own color would be lost.
+	let selected : Bool
+	let copy     : () -> Void
 
 	@State private var hovering = false
-
-	/// On the Mac the button waits for the pointer; on iPad, with nothing to hover, it stays.
-	private static var hasPointer: Bool {
-		#if targetEnvironment( macCatalyst )
-		true
-		#else
-		false
-		#endif
-	}
 
 	var body: some View {
 		HStack( alignment: .firstTextBaseline, spacing: 10 ) {
@@ -114,7 +109,7 @@ private struct LogRow: View {
 				.monospacedDigit()
 				.foregroundStyle( .secondary )
 			Image( systemName: Self.symbol( entry.direction ) )
-				.foregroundStyle( Self.color( entry.direction ) )
+				.foregroundStyle( selected ? Color.white : Self.color( entry.direction ) )
 				.accessibilityLabel( Self.name( entry.direction ) )
 			VStack( alignment: .leading, spacing: 1 ) {
 				Text( entry.summary )
@@ -137,9 +132,10 @@ private struct LogRow: View {
 				Image( systemName: "doc.on.doc" )
 			}
 			.buttonStyle( .borderless )
+			.tint( selected ? Color.white : nil )
 			.help( "Copy this entry" )
 			.accessibilityLabel( "Copy entry" )
-			.opacity( hovering || !Self.hasPointer ? 1 : 0 )
+			.opacity( hovering ? 1 : 0 )
 		}
 		.font( .callout )
 		.contentShape( Rectangle() )

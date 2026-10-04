@@ -294,10 +294,10 @@ final class USBSetup {
 		self.controller = controller
 	}
 
-	/// The AppKit bundle, which does the serial work; nil on iPad.
+	/// The AppKit bundle, which does the serial work; nil if it didn't load.
 	private var bridge: DeckMenuBarPlugin? { controller?.macBridge }
 
-	/// USB Setup exists only on the Mac.
+	/// USB Setup needs the AppKit bundle.
 	var isAvailable: Bool { bridge != nil }
 
 	/// "Look for boards plugged in over USB". Off, nothing is watched or opened.

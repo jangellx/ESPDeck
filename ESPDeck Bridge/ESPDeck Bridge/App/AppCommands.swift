@@ -159,7 +159,7 @@ extension AppDelegate {
 		}
 	}
 
-	/// On the Mac, with the AppKit bundle loaded; not on iPad.
+	/// The AppKit bundle loaded (it always should), so there's a menu bar item.
 	private var menuBarAvailable: Bool { controller.macBridge != nil }
 	private var window: WindowState { controller.window }
 
@@ -429,7 +429,7 @@ extension AppDelegate {
 		if let menuBar {
 			menuBar.confirmQuit()
 		} else {
-			exit( 0 )   // no plugin (iPad): nothing to ask through
+			exit( 0 )   // the plugin didn't load: nothing to ask through
 		}
 	}
 

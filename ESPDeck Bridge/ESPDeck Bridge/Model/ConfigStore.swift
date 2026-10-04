@@ -76,7 +76,7 @@ final class ConfigStore {
 		}
 		BridgeIdentity.store( settings.bridgeID, fileIn: support )
 
-		// Quitting, or on iPad being suspended, must not lose a change still waiting to be saved.
+		// Quitting, or going to the background, must not lose a change still waiting to be saved.
 		let names = [ UIApplication.willTerminateNotification, UIApplication.didEnterBackgroundNotification ]
 		observers = names.map { name in
 			NotificationCenter.default.addObserver( forName: name, object: nil, queue: .main ) { [weak self] _ in
