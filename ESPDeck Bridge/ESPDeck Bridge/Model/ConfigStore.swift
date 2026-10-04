@@ -14,10 +14,60 @@ import UniformTypeIdentifiers
 /// The settings and icon files on disk; every change to `settings` is saved shortly after.
 @Observable
 final class ConfigStore {
-	/// Everything in Settings.json; saved shortly after each change.
+	/// Everything in Settings.json; saved shortly after each change. A view that reads it
+	/// redraws on any change at all: for one deck's settings, read `device( _: )` instead,
+	/// which follows only that deck.
 	var settings: BridgeSettings {
-		didSet {
-			if settings != oldValue { scheduleSave() }
+		get {
+			_ = anyChange.count
+			return storedSettings
+		}
+		set {
+			guard newValue != storedSettings else { return }
+			let old = storedSettings
+			storedSettings = newValue
+			noteChanges( from: old )
+			scheduleSave()
+		}
+	}
+
+	/// One deck's settings. A view that reads them redraws when that deck's settings change
+	/// (or it's added or forgotten), and not when another deck's or the bridge's do.
+	func device( _ id: String ) -> DeviceSettings? {
+		_ = changes( to: id ).count
+		return storedSettings.devices.first { $0.id == id }
+	}
+
+	/// Counts changes to one part of the settings. Observed, so reading `count` in a view's
+	/// body is what makes the view follow that part.
+	@Observable
+	final class ChangeCount {
+		var count = 0
+	}
+
+	/// `settings` itself, outside observation: `anyChange` and `deviceChanges` stand in for it,
+	/// so that views can follow one deck's settings rather than all of them.
+	@ObservationIgnored private var storedSettings = BridgeSettings()
+	@ObservationIgnored private let anyChange = ChangeCount()
+	/// By device ID; made as each deck is first asked about.
+	@ObservationIgnored private var deviceChanges: [String: ChangeCount] = [:]
+
+	/// The count of changes to one deck's settings.
+	private func changes( to id: String ) -> ChangeCount {
+		if let count = deviceChanges[id] { return count }
+		let count = ChangeCount()
+		deviceChanges[id] = count
+		return count
+	}
+
+	/// Counts a change for everything, and for each deck whose settings differ from `old`'s
+	/// (including decks added or removed).
+	private func noteChanges( from old: BridgeSettings ) {
+		anyChange.count += 1
+		for ( id, count ) in deviceChanges {
+			if old.devices.first( where: { $0.id == id } ) != storedSettings.devices.first( where: { $0.id == id } ) {
+				count.count += 1
+			}
 		}
 	}
 
@@ -67,12 +117,13 @@ final class ConfigStore {
 				setAside = Self.setAside( url )
 			}
 		}
-		settings           = loaded ?? BridgeSettings()
+		// Straight into the storage: nothing is watching yet, and loading isn't a change to save.
+		storedSettings     = loaded ?? BridgeSettings()
 		unreadableSettings = setAside
 
 		// The bridge ID survives settings that had to start over.
 		if fileID == nil || fileID?.isEmpty == true, let stored = BridgeIdentity.stored( fileIn: support ) {
-			settings.bridgeID = stored
+			storedSettings.bridgeID = stored
 		}
 		BridgeIdentity.store( settings.bridgeID, fileIn: support )
 

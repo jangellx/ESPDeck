@@ -40,12 +40,23 @@ struct DeckGridView: View {
 		let layout  = controller.layout( deviceID )
 		let spacing = Self.spacing( layout )
 		let size    = keySize
+		// Read once here and handed to each key as its own image and flags: a key's view then
+		// redraws only when what it shows changes, not whenever any key's does.
+		let device  = controller.device( deviceID )
+		let keys    = device?.keys ?? []
+		let pressed = device?.pressed ?? []
+		let change  = device?.pageChange
 
 		Grid( horizontalSpacing: spacing, verticalSpacing: spacing ) {
 			ForEach( 0..<layout.rows, id: \.self ) { row in
 				GridRow {
 					ForEach( 0..<layout.cols, id: \.self ) { column in
-						DeckKeyView( controller: controller, deviceID: deviceID, index: row * layout.cols + column, size: size, selection: $selection )
+						let index   = row * layout.cols + column
+						let changed = change.flatMap { index < $0.previews.count ? $0 : nil }
+						DeckKeyView( controller: controller, deviceID: deviceID, index: index, size: size,
+									 preview: index < keys.count ? keys[index]?.preview : nil,
+									 pressed: pressed.contains( index ), selected: selection == index,
+									 changedAt: changed?.at, oldPreview: changed?.previews[index], selection: $selection )
 					}
 				}
 			}
@@ -64,6 +75,15 @@ private struct DeckKeyView: View {
 	let deviceID           : String
 	let index              : Int
 	let size               : CGFloat
+	/// What the key shows now; nil before it has been rendered.
+	let preview            : UIImage?
+	/// Held down on the deck, or shift-clicked here.
+	let pressed            : Bool
+	let selected           : Bool
+	/// The last page change, and what this key showed before it.
+	let changedAt          : Date?
+	let oldPreview         : UIImage?
+	/// Only written here (a click selects the key); `selected` says whether it is.
 	@Binding var selection : Int
 	@State private var isTargeted = false
 	/// The page change this key has already swapped for.
@@ -78,19 +98,15 @@ private struct DeckKeyView: View {
 	}
 
 	var body: some View {
-		let device   = controller.device( deviceID )
-		let selected = selection == index
-		let pressed  = device?.pressed.contains( index ) ?? false
-		let change   = device?.pageChange
-		let current  = device.flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
+		let current  = preview
 		// Only just after the change: a key that appears later (another page, back again) doesn't.
-		let recent   = change.flatMap { index < $0.previews.count && -$0.at.timeIntervalSinceNow < Double( index ) * DeckDevice.pagePopStep + 0.5 ? $0 : nil }
-		let waiting  = recent.map { $0.at != swappedFor } ?? false
+		let recent   = changedAt.flatMap { -$0.timeIntervalSinceNow < Double( index ) * DeckDevice.pagePopStep + 0.5 ? $0 : nil }
+		let waiting  = recent.map { $0 != swappedFor } ?? false
 		let radius   = size * 0.125
 
 		// On its turn the new image fades up quickly over the old one.
 		ZStack {
-			if let old = recent?.previews[index] {
+			if recent != nil, let old = oldPreview {
 				Image( uiImage: old )
 					.resizable()
 					.interpolation( .high )
@@ -170,8 +186,8 @@ private struct DeckKeyView: View {
 					.onDisappear { controller.previewKeyFrames[index] = nil }
 			}
 		}
-		.task( id: change?.at ) {
-			guard let at = change?.at else { return }
+		.task( id: changedAt ) {
+			guard let at = changedAt else { return }
 			let due = at.addingTimeInterval( Double( index ) * DeckDevice.pagePopStep )
 			if due > Date() { try? await Task.sleep( for: .seconds( due.timeIntervalSinceNow ) ) }
 			guard !Task.isCancelled else { return }

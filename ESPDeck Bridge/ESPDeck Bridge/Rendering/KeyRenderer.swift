@@ -21,7 +21,8 @@ struct KeyFace: Equatable {
 	var label       : String?
 	var labelOnTop  = false
 	var unreachable = false
-	/// Its last action failed: an orange triangle in the corner, for a few seconds.
+	/// Its last action failed: an orange triangle in the corner away from the label, for a
+	/// few seconds.
 	var failed      = false
 	/// Arrow drawn inside the opening of `door.garage.open` while the door moves.
 	var doorArrow   : String?
@@ -67,12 +68,13 @@ struct KeyFaceView: View {
 			.padding( 6 )
 			.opacity( face.unreachable || face.failed ? 0.45 : 1 )   // so the triangle stands out
 
-			// Orange for a failed action, over yellow for an accessory that isn't responding.
+			// Orange for a failed action, over yellow for an accessory that isn't responding; in
+			// the corner away from the label (at the bottom when the label is on top).
 			if face.failed || face.unreachable {
 				Image( systemName: "exclamationmark.triangle.fill" )
 					.font( .system( size: face.failed ? 18 : 14 ) )
 					.foregroundStyle( .black, face.failed ? .orange : .yellow )
-					.frame( maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing )
+					.frame( maxWidth: .infinity, maxHeight: .infinity, alignment: face.labelOnTop ? .bottomTrailing : .topTrailing )
 					.padding( 4 )
 			}
 		}

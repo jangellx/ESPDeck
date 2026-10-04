@@ -183,9 +183,10 @@ final class DeckController {
 		devices.first { $0.id == id }
 	}
 
-	/// A configured device's settings.
+	/// A configured device's settings. A view that reads them follows that deck's settings
+	/// only (ConfigStore.device).
 	func settings( _ id: String ) -> DeviceSettings? {
-		config.settings.devices.first { $0.id == id }
+		config.device( id )
 	}
 
 	/// The layout to render for: what the deck reports now, else what it last reported.
