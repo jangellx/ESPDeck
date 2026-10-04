@@ -201,7 +201,7 @@ private struct Sidebar: View {
 	}
 
 	/// The problem row's id, to scroll to it.
-	private static let problemRowID = "status-problem"
+	fileprivate static let problemRowID = "status-problem"
 
 	/// Whether the problem row is on screen (onOnScreenChange).
 	@State private var problemShowing = false
@@ -356,11 +356,11 @@ private struct Sidebar: View {
 				}
 				// A ForEach, so the list knows the row by its id even before it's built (it builds
 				// rows as they scroll into view): the problem bar can scroll to it.
-				ForEach( controller.lastError == nil ? [] : [ Self.problemRowID ], id: \.self ) { _ in
-					if let problem = controller.lastError {
-						ProblemRow( problem: problem ) { controller.lastError = nil }
-							.onOnScreenChange { problemShowing = $0 }
-					}
+				// Over the problem itself, so each row is exactly one view (a row that may be none
+				// takes the list off its fast path), under an ID that's the same for any problem.
+				ForEach( controller.lastError.map { [ $0 ] } ?? [], id: \.sidebarRowID ) { problem in
+					ProblemRow( problem: problem ) { controller.lastError = nil }
+						.onOnScreenChange { problemShowing = $0 }
 				}
 				if let file = controller.config.unreadableSettings {
 					ProblemRow( problem: BridgeProblem( "Settings Reset", "The settings couldn't be read, so ESPDeck Bridge started over. The old file is kept as \(file) in its Application Support folder." ) )
@@ -616,4 +616,9 @@ extension NewDevice.Reason {
 			case .pairedElsewhere, .keyMissing: "Details…"
 		}
 	}
+}
+
+private extension BridgeProblem {
+	/// The sidebar's problem row's ID: one row, whatever the problem.
+	var sidebarRowID: String { Sidebar.problemRowID }
 }
