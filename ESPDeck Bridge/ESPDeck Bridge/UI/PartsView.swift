@@ -62,6 +62,10 @@ struct PartsView: View {
 		Binding { sheet } set: { controller.window.guideSheet = $0 }
 	}
 
+	/// After USB Setup, here and at the end of USB Setup.
+	static let unplugStep = GuideStep( title: "Unplug the board and put it together.",
+									   detail: "When USB Setup says the dev kit has joined your network, unplug it from this Mac and connect it to the Stream Deck and power." )
+
 	var body: some View {
 		VStack( spacing: 0 ) {
 			// Outside the scroll view, so it stays put while the sheet scrolls.
@@ -79,8 +83,15 @@ struct PartsView: View {
 
 			ScrollView {
 				VStack( alignment: .leading, spacing: 28 ) {
-					page( sheet )
-					pager
+					// One sheet's content.
+					switch sheet {
+						case .parts:    PartsSheet( path: path, offersPathChoice: controller.usbSetup.isAvailable, window: window )
+						case .connect:  ConnectSheet( selection: $selection )
+						case .assembly: AssemblySheet( path: path )
+						case .wifi:     WiFiSetupSheet()
+						case .find:     FindDevicesSheet( controller: controller, selection: $selection )
+					}
+					GuidePager( sheet: sheet, path: path, window: window )
 				}
 				.padding( 28 )
 				.frame( maxWidth: 900, alignment: .leading )
@@ -88,26 +99,20 @@ struct PartsView: View {
 			.id( sheet )   // each sheet starts at the top
 		}
 	}
+}
 
-	/// One sheet's content.
-	@ViewBuilder
-	private func page( _ sheet: GuideSheet ) -> some View {
-		switch sheet {
-			case .parts:    parts
-			case .connect:  connect
-			case .assembly: assembly
-			case .wifi:     wifi
-			case .find:     FindDevicesSheet( controller: controller, selection: $selection )
-		}
-	}
+/// Previous and next sheet on the chosen path, at the end of each one.
+private struct GuidePager: View {
+	let sheet   : GuideSheet
+	let path    : GuidePath
+	let window  : WindowState
 
-	/// Previous and next sheet on the chosen path, at the end of each one.
-	private var pager: some View {
+	var body: some View {
 		let sheets   = path.sheets
 		let index    = sheets.firstIndex( of: sheet ) ?? 0
 		let previous = index > 0 ? sheets[index - 1] : nil
 		let next     = index + 1 < sheets.count ? sheets[index + 1] : nil
-		return HStack {
+		HStack {
 			if let previous {
 				Button {
 					window.guideSheet = previous
@@ -127,11 +132,18 @@ struct PartsView: View {
 		}
 		.padding( .top, 8 )
 	}
+}
 
-	// MARK: - What You Need
+// MARK: - What You Need
 
-	/// What You Need: the parts, what else is needed, and the choice of path.
-	private var parts: some View {
+/// What You Need: the parts, what else is needed, and the choice of path.
+private struct PartsSheet: View {
+	let path              : GuidePath
+	/// Whether there's a choice to make: only where setting up over USB is available.
+	let offersPathChoice  : Bool
+	let window            : WindowState
+
+	var body: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
 			SheetHeading( title: "What You Need",
 						  detail: "Everything for one ESPDeck. The Stream Deck plugs into the ESP32-S3 dev kit, which talks to this Mac over Wi-Fi." )
@@ -150,14 +162,19 @@ struct PartsView: View {
 			}
 			.foregroundStyle( .secondary )
 
-			if controller.usbSetup.isAvailable {
-				pathChoice
+			if offersPathChoice {
+				PathChoice( path: path, window: window )
 			}
 		}
 	}
+}
 
-	/// Over USB or over Wi-Fi: the rest of the sheets follow the choice.
-	private var pathChoice: some View {
+/// Over USB or over Wi-Fi: the rest of the sheets follow the choice.
+private struct PathChoice: View {
+	let path    : GuidePath
+	let window  : WindowState
+
+	var body: some View {
 		VStack( alignment: .leading, spacing: 12 ) {
 			Text( "How Do You Want to Set It Up?" )
 				.font( .headline )
@@ -176,9 +193,15 @@ struct PartsView: View {
 			.fixedSize( horizontal: false, vertical: true )   // both cards as tall as the taller one
 		}
 	}
+}
 
-	// MARK: - Connect to This Mac
+// MARK: - Connect to This Mac
 
+/// Connect to This Mac: plugging the dev kit in, and the way to USB Setup.
+private struct ConnectSheet: View {
+	@Binding var selection: String?
+
+	/// The steps up to opening USB Setup; PartsView.unplugStep comes after them.
 	private static let connectSteps = [
 		GuideStep( title: "Connect the dev kit to this Mac.",
 				   detail: "Use the USB-C cable, in the dev kit's port labeled **USB**. The Mac powers the dev kit; nothing else needs to be plugged in yet." ),
@@ -186,12 +209,7 @@ struct PartsView: View {
 				   detail: "Once it finds the dev kit, install ESPDeck on it, set your Wi-Fi network, and give it a name." ),
 	]
 
-	/// After USB Setup, here and at the end of USB Setup.
-	static let unplugStep = GuideStep( title: "Unplug the board and put it together.",
-									   detail: "When USB Setup says the dev kit has joined your network, unplug it from this Mac and connect it to the Stream Deck and power." )
-
-	/// Connect to This Mac: plugging the dev kit in, and the way to USB Setup.
-	private var connect: some View {
+	var body: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
 			SheetHeading( title: "Connect to This Mac",
 						  detail: "Before putting it together, plug the dev kit into this Mac to install ESPDeck and set up its Wi-Fi." )
@@ -199,7 +217,7 @@ struct PartsView: View {
 			USBConnectionIllustration()
 				.illustrationCard( USBConnectionIllustration.space )
 
-			steps( Self.connectSteps )
+			GuideSteps( steps: Self.connectSteps )
 
 			// Between the step that opens USB Setup and the one after it.
 			Button {
@@ -209,12 +227,18 @@ struct PartsView: View {
 			}
 			.frame( maxWidth: .infinity )
 
-			steps( [ Self.unplugStep ], from: Self.connectSteps.count + 1 )
+			GuideSteps( steps: [ PartsView.unplugStep ], first: Self.connectSteps.count + 1 )
 		}
 	}
+}
 
-	// MARK: - Putting It Together
+// MARK: - Putting It Together
 
+/// Putting It Together: the parts assembled, and the steps.
+private struct AssemblySheet: View {
+	let path: GuidePath
+
+	/// The steps that are the same on both paths.
 	private static let assemblySteps = [
 		GuideStep( title: "Plug the OTG adapter into the dev kit.",
 				   detail: "Use the port labeled **USB**, not the one labeled UART or COM." ),
@@ -236,8 +260,7 @@ struct PartsView: View {
 		}
 	}
 
-	/// Putting It Together: the parts assembled, and the steps.
-	private var assembly: some View {
+	var body: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
 			SheetHeading( title: "Putting It Together",
 						  detail: "The dev kit sits between the Stream Deck and the power supply, and reaches this Mac over Wi-Fi." )
@@ -245,12 +268,16 @@ struct PartsView: View {
 			PartIllustration( space: Sketch.assemblySpace, draw: Sketch.assembly )
 				.illustrationCard( Sketch.assemblySpace )
 
-			steps( Self.assemblySteps + [ lastAssemblyStep ] )
+			GuideSteps( steps: Self.assemblySteps + [ lastAssemblyStep ] )
 		}
 	}
+}
 
-	// MARK: - Set Up over Wi-Fi
+// MARK: - Set Up over Wi-Fi
 
+/// Set Up over Wi-Fi: the setup codes, the steps, and what to do when they go wrong.
+private struct WiFiSetupSheet: View {
+	/// The steps, from joining the deck's network to finding it in ESPDeck Bridge.
 	private static let wifiSteps = [
 		GuideStep( title: "Join the deck's Wi-Fi network.",
 				   detail: "Scan the code on the top-left key with a phone's camera, and join the network it offers. It's named **ESPDeck-XXXX**, ending in the last four characters of the deck's ID, as shown on the top-center key." ),
@@ -262,8 +289,7 @@ struct PartsView: View {
 				   detail: "The deck will join your network, leave setup mode, and find ESPDeck Bridge on this Mac. It will then appear under Find Your Device and New Devices, to be paired." ),
 	]
 
-	/// Set Up over Wi-Fi: the setup codes, the steps, and what to do when they go wrong.
-	private var wifi: some View {
+	var body: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
 			SheetHeading( title: "Set Up over Wi-Fi",
 						  detail: "Put together and powered, the dev kit shows setup codes on the deck's keys. Scan them with a phone or tablet to join the dev kit's own network and give it your Wi-Fi." )
@@ -273,19 +299,25 @@ struct PartsView: View {
 
 			// Each tip under the step it's about.
 			VStack( alignment: .leading, spacing: 16 ) {
-				steps( Array( Self.wifiSteps[0..<1] ) )
-				tip( icon: "square.grid.3x2", title: "Not Showing the Codes?",
-					 detail: "A dev kit that already has Wi-Fi starts normally. To enter setup mode, hold the top-left and bottom-right keys together for 5 seconds: after 2 seconds the other keys go dark and a countdown shows. Letting go of either key cancels. A paired deck can also start setup mode from its Device page in ESPDeck Bridge." )
-				steps( Array( Self.wifiSteps[1..<2] ), from: 2 )
-				tip( icon: "wifi.exclamationmark", title: "If the Phone Leaves the Deck's Network",
-					 detail: "The deck's network has no internet, so a phone may join it and then drop back to your usual Wi-Fi. If that happens, join it directly: in the phone's Wi-Fi settings, choose **ESPDeck-XXXX**, the name on the top-center key. The deck doesn't show the password; it's in the top-left code, and scanning that code saves it on the phone, so if the settings ask for it, scan the code again. The password changes each time setup mode starts (firmware 4.0 and later), so scan again after it restarts. The setup page only opens while the phone is on the deck's network." )
-				steps( Array( Self.wifiSteps[2...] ), from: 3 )
+				GuideSteps( steps: Array( Self.wifiSteps[0..<1] ) )
+				GuideTip( icon: "square.grid.3x2", title: "Not Showing the Codes?",
+						  detail: "A dev kit that already has Wi-Fi starts normally. To enter setup mode, hold the top-left and bottom-right keys together for 5 seconds: after 2 seconds the other keys go dark and a countdown shows. Letting go of either key cancels. A paired deck can also start setup mode from its Device page in ESPDeck Bridge." )
+				GuideSteps( steps: Array( Self.wifiSteps[1..<2] ), first: 2 )
+				GuideTip( icon: "wifi.exclamationmark", title: "If the Phone Leaves the Deck's Network",
+						  detail: "The deck's network has no internet, so a phone may join it and then drop back to your usual Wi-Fi. If that happens, join it directly: in the phone's Wi-Fi settings, choose **ESPDeck-XXXX**, the name on the top-center key. The deck doesn't show the password; it's in the top-left code, and scanning that code saves it on the phone, so if the settings ask for it, scan the code again. The password changes each time setup mode starts (firmware 4.0 and later), so scan again after it restarts. The setup page only opens while the phone is on the deck's network." )
+				GuideSteps( steps: Array( Self.wifiSteps[2...] ), first: 3 )
 			}
 		}
 	}
+}
 
-	/// Something that could go wrong, set off in amber so it's seen.
-	private func tip( icon: String, title: String, detail: String ) -> some View {
+/// Something that could go wrong, set off in amber so it's seen.
+private struct GuideTip: View {
+	let icon    : String
+	let title   : String
+	let detail  : String
+
+	var body: some View {
 		HStack( alignment: .top, spacing: 12 ) {
 			Image( systemName: icon )
 				.font( .title2 )
@@ -304,9 +336,15 @@ struct PartsView: View {
 		.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( PartIllustration.accent.opacity( 0.12 ) ) )
 		.overlay( RoundedRectangle( cornerRadius: 14, style: .continuous ).strokeBorder( PartIllustration.accent.opacity( 0.5 ), lineWidth: 1 ) )
 	}
+}
 
-	/// Numbered in amber, from `first`, each with its title over the rest.
-	private func steps( _ steps: [GuideStep], from first: Int = 1 ) -> some View {
+/// Steps numbered in amber, from `first`, each with its title over the rest.
+private struct GuideSteps: View {
+	let steps  : [GuideStep]
+	/// The first step's number.
+	var first  = 1
+
+	var body: some View {
 		VStack( alignment: .leading, spacing: 16 ) {
 			ForEach( Array( steps.enumerated() ), id: \.offset ) { index, step in
 				HStack( alignment: .firstTextBaseline, spacing: 10 ) {
@@ -464,10 +502,9 @@ private struct FindDevicesSheet: View {
 					Text( "On Your Network" )
 						.font( .headline )
 					ForEach( controller.listedNewDevices ) { device in
-						row( icon: "lock.shield", title: device.hello.name,
-							 detail: device.reason.detail, action: device.reason.action ) {
-							selection = SidebarItem.newDevice( device.client )
-						}
+						FoundDeviceRow( icon: "lock.shield", title: device.hello.name,
+										detail: device.reason.detail, action: device.reason.action,
+										destination: SidebarItem.newDevice( device.client ), selection: $selection )
 					}
 				}
 			}
@@ -477,11 +514,9 @@ private struct FindDevicesSheet: View {
 					Text( "Plugged In over USB" )
 						.font( .headline )
 					ForEach( usbBoards ) { board in
-						row( icon: "cable.connector", title: board.espDeck?.name ?? board.port.title,
-							 detail: board.espDeck.map { "ESPDeck \($0.version), not set up on this Mac yet" } ?? "Needs ESPDeck installed",
-							 action: "Set Up…" ) {
-							selection = SidebarItem.usbSetup
-						}
+						FoundDeviceRow( icon: "cable.connector", title: board.espDeck?.name ?? board.port.title,
+										detail: board.espDeck.map { "ESPDeck \($0.version), not set up on this Mac yet" } ?? "Needs ESPDeck installed",
+										action: "Set Up…", destination: SidebarItem.usbSetup, selection: $selection )
 					}
 				}
 			}
@@ -504,9 +539,20 @@ private struct FindDevicesSheet: View {
 			}
 		}
 	}
+}
 
-	/// A device or board, what it is, and the button that goes on with it.
-	private func row( icon: String, title: String, detail: String, action: String, perform: @escaping () -> Void ) -> some View {
+/// A device or board, what it is, and the button that goes on with it.
+private struct FoundDeviceRow: View {
+	let icon                : String
+	let title               : String
+	let detail              : String
+	/// The button's title.
+	let action              : String
+	/// The sidebar selection the button goes to.
+	let destination         : String
+	@Binding var selection  : String?
+
+	var body: some View {
 		HStack( spacing: 12 ) {
 			Image( systemName: icon )
 				.font( .title2 )
@@ -520,8 +566,10 @@ private struct FindDevicesSheet: View {
 					.foregroundStyle( .secondary )
 			}
 			Spacer()
-			Button( action, action: perform )
-				.prominentButtonStyle()
+			Button( action ) {
+				selection = destination
+			}
+			.prominentButtonStyle()
 		}
 		.padding( 14 )
 		.cardBackground()

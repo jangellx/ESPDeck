@@ -23,30 +23,30 @@ struct USBSetupView: View {
 	@State private var encrypt          = true
 	@State private var pickingFile      = false
 	@State private var fileProblem      : String?
-	@State private var confirmingOlder  = false
-
-	/// The picker's "Other Network…" tag: longer than any network name (32 bytes).
-	private static let otherNetwork = "(other network, typed in by hand)"
 
 	private var setup: USBSetup { controller.usbSetup }
 
 	var body: some View {
 		Form {
-			scanningSection
+			ScanningSection( setup: setup )
 			if setup.scanning {
-				boardsSection
+				BoardsSection( setup: setup,
+							   latestVersion: controller.updates.latestFirmware?.version,
+							   bridgeID: controller.config.settings.bridgeID )
 				if setup.selectedBoard != nil {
-					firmwareSection
+					FirmwareSection( setup: setup, updates: controller.updates, pickingFile: $pickingFile )
 				}
 				if let info = setup.selectedBoard?.espDeck {
-					wifiSection
-					nameSection( info )
+					WiFiSection( setup: setup, savedSSID: savedSSID, ssid: $ssid, otherSSID: $otherSSID,
+								 password: $password, encrypt: $encrypt )
+					NameSection( setup: setup, name: info.name, nameDraft: $nameDraft )
 				}
 				if case .joined( let network ) = setup.wifi, let joined = setup.joinedBoard {
-					nextSection( network, joined )
+					NextSection( setup: setup, window: controller.window, network: network, joined: joined,
+								 selection: $selection )
 				}
 			}
-			assemblySection
+			AssemblySection( window: controller.window, selection: $selection )
 		}
 		.formStyle( .grouped )
 		.navigationTitle( "USB Setup" )
@@ -89,10 +89,35 @@ struct USBSetupView: View {
 		}
 	}
 
-	// MARK: - Scanning
+	/// Makes a picked file the source, or says why it can't be.
+	private func choose( _ url: URL ) {
+		do {
+			try setup.choose( url )
+		} catch {
+			fileProblem = error.localizedDescription
+		}
+	}
 
-	/// The switch that turns scanning for boards on and off.
-	private var scanningSection: some View {
+	/// The network the selected board is set up for, when its firmware says.
+	private var savedSSID: String? {
+		setup.selectedBoard?.espDeck?.network.flatMap { $0.ssid.isEmpty ? nil : $0.ssid }
+	}
+}
+
+/// Shows Getting Started's Putting It Together sheet, on the USB path.
+@MainActor private func showAssembly( in window: WindowState, selection: Binding<String?> ) {
+	window.guidePath        = .usb
+	window.guideSheet       = .assembly
+	selection.wrappedValue  = SidebarItem.parts
+}
+
+// MARK: - Scanning
+
+/// The switch that turns scanning for boards on and off.
+private struct ScanningSection: View {
+	let setup : USBSetup
+
+	var body: some View {
 		Section {
 			// A switch, so the symbol in front of the text can't be taken for a checkbox.
 			Toggle( isOn: Bindable( setup ).scanning ) {
@@ -112,16 +137,25 @@ struct USBSetupView: View {
 			}
 		}
 	}
+}
 
-	// MARK: - Boards
+// MARK: - Boards
 
-	/// The boards plugged in, or a picture of plugging one in while there are none.
-	private var boardsSection: some View {
+/// The boards plugged in, or a picture of plugging one in while there are none.
+private struct BoardsSection: View {
+	let setup         : USBSetup
+	/// The latest release's version, to say how each board's firmware compares.
+	let latestVersion : Version?
+	/// This bridge, to say whether a board is paired with it.
+	let bridgeID      : String
+
+	var body: some View {
 		Section {
 			if setup.boards.isEmpty {
 				VStack( spacing: 12 ) {
+					// At the size it's drawn for, as in Getting Started: smaller, its labels are hard to read.
 					USBConnectionIllustration()
-						.frame( height: 130 )
+						.frame( height: USBConnectionIllustration.space.height )
 						.frame( maxWidth: .infinity )
 					Label( "No board is plugged in.", systemImage: "cable.connector.slash" )
 						.foregroundStyle( .secondary )
@@ -129,7 +163,7 @@ struct USBSetupView: View {
 				.padding( .vertical, 8 )
 			}
 			ForEach( setup.boards ) { board in
-				boardRow( board )
+				BoardRow( setup: setup, board: board, latestVersion: latestVersion, bridgeID: bridgeID )
 					.padding( .vertical, 8 )
 					.padding( .horizontal, 4 )
 			}
@@ -141,13 +175,22 @@ struct USBSetupView: View {
 		}
 		.disabled( setup.install.isBusy )
 	}
+}
 
-	/// A board and what it's said about itself, chosen by clicking when there are several.
-	private func boardRow( _ board: USBSetup.Board ) -> some View {
+/// A board and what it's said about itself, chosen by clicking when there are several.
+private struct BoardRow: View {
+	let setup         : USBSetup
+	let board         : USBSetup.Board
+	/// The latest release's version, to say how the board's firmware compares.
+	let latestVersion : Version?
+	/// This bridge, to say whether the board is paired with it.
+	let bridgeID      : String
+
+	var body: some View {
 		let choosable = setup.boards.count > 1
 		let chosen    = setup.selectedBoard?.id == board.id
 
-		return Button {
+		Button {
 			setup.selectedPath = board.port.path
 		} label: {
 			HStack( alignment: .top, spacing: 10 ) {
@@ -157,7 +200,7 @@ struct USBSetupView: View {
 				}
 				VStack( alignment: .leading, spacing: 3 ) {
 					Text( board.espDeck.map { "\($0.name)" } ?? board.port.title )
-					ForEach( details( board ), id: \.self ) { line in
+					ForEach( details, id: \.self ) { line in
 						HStack( alignment: .firstTextBaseline, spacing: 6 ) {
 							Text( "•" )
 							Text( line )
@@ -185,13 +228,13 @@ struct USBSetupView: View {
 	}
 
 	/// What it runs, how that compares with the latest release, and what hardware it is.
-	private func details( _ board: USBSetup.Board ) -> [String] {
+	private var details: [String] {
 		var lines: [String] = []
 		switch board.answer {
 			case .asking:
 				lines.append( "Asking what it's running…" )
 			case .answered( let info ) where info.isESPDeck:
-				let standing = FirmwareStanding( running: info.version, latest: controller.updates.latestFirmware?.version ).description
+				let standing = FirmwareStanding( running: info.version, latest: latestVersion ).description
 				lines.append( ( [ "ESPDeck \(info.version)", standing ].compactMap { $0 } ).joined( separator: " · " ) )
 			case .answered( let info ):
 				lines.append( "Runs \(info.firmware) \(info.version), not ESPDeck" )
@@ -211,7 +254,7 @@ struct USBSetupView: View {
 			lines.append( "Network name: \(hostname) (\(hostname).local)" )
 		}
 		if let paired = board.espDeck?.pairedBridge {
-			lines.append( paired.isEmpty ? "Not paired" : paired == controller.config.settings.bridgeID ? "Paired with this Mac" : "Paired with another ESPDeck Bridge" )
+			lines.append( paired.isEmpty ? "Not paired" : paired == bridgeID ? "Paired with this Mac" : "Paired with another ESPDeck Bridge" )
 		}
 		if let storage = board.espDeck?.storage {
 			lines.append( storage.isEncrypted ? "Stored secrets: encrypted" : "Stored secrets: not encrypted" )
@@ -225,24 +268,34 @@ struct USBSetupView: View {
 		}
 		return lines
 	}
+}
 
-	// MARK: - Firmware
+// MARK: - Firmware
 
-	/// Step 1: the firmware to install, and installing it.
-	private var firmwareSection: some View {
+/// Step 1: the firmware to install, and installing it.
+private struct FirmwareSection: View {
+	let setup                : USBSetup
+	let updates              : UpdateManager
+	/// Opens the page's file picker.
+	@Binding var pickingFile : Bool
+
+	/// Asking before installing older firmware than the board runs.
+	@State private var confirmingOlder = false
+
+	var body: some View {
 		Section {
 			LabeledContent( "Firmware" ) {
 				// The popup with its refresh button, and when releases were last looked for
 				// under it.
 				VStack( alignment: .leading, spacing: 4 ) {
 					HStack( spacing: 6 ) {
-						sourcePicker
-						if controller.updates.repository != nil {
-							refreshReleasesButton
+						FirmwareSourcePicker( setup: setup, updates: updates, pickingFile: $pickingFile )
+						if updates.repository != nil {
+							RefreshReleasesButton( setup: setup, updates: updates )
 						}
 					}
-					if controller.updates.repository != nil {
-						releaseCheck
+					if updates.repository != nil {
+						ReleaseCheckStatus( updates: updates )
 					}
 				}
 			}
@@ -256,7 +309,7 @@ struct USBSetupView: View {
 					.prominentButtonStyle()
 					// Nothing to install while "No signed release yet" is chosen.
 					.disabled( setup.selectedBoard == nil || setup.install.isBusy
-							   || ( setup.source == .release && controller.updates.latestFirmware == nil ) )
+							   || ( setup.source == .release && updates.latestFirmware == nil ) )
 			}
 			// A row that starts with a spacer gets a divider only as wide as its button.
 			.alignmentGuide( .listRowSeparatorLeading ) { _ in 0 }
@@ -266,48 +319,12 @@ struct USBSetupView: View {
 				Text( "The board runs a newer version than the one you chose. ESPDeck Bridge may expect things the older firmware can't do." )
 			}
 
-			installStatus
+			InstallStatus( install: setup.install )
 		} header: {
 			SectionHeader( "1. Install Firmware" )
 		} footer: {
 			Text( "Installing will keep the board's Wi-Fi settings, name, and pairing. Before writing anything, it will verify that the board is an ESP32-S3 with enough flash and the PSRAM for ESPDeck. If the board can't enter flash mode by itself, hold BOOT, press and release RST, release BOOT, then click Install Firmware again." )
 		}
-	}
-
-	/// As in Updates.
-	private var sourcePicker: some View {
-		let isFile: Bool = { if case .file = setup.source { true } else { false } }()
-		return FirmwareSourceMenu( releaseTitle: controller.updates.latestReleaseTitle,
-								   fileTitle: setup.chosenFile.map { "\($0.url.lastPathComponent) (\($0.version))" },
-								   isFile: isFile,
-								   chooseRelease: { setup.source = .release },
-								   chooseFile: { if let chosenFile = setup.chosenFile { setup.source = .file( chosenFile.url ) } },
-								   pickFile: { pickingFile = true } )
-			.disabled( setup.install.isBusy )
-	}
-
-	/// Looks for new releases; a spinner while it does.
-	private var refreshReleasesButton: some View {
-		let updates = controller.updates
-		return RefreshButton( busy: updates.checking, help: "Check for new releases" ) {
-			Task { await updates.check( userInitiated: true ) }
-		}
-		.disabled( setup.install.isBusy )
-	}
-
-	/// When releases were last looked for, under the popup.
-	@ViewBuilder private var releaseCheck: some View {
-		let updates = controller.updates
-		Group {
-			if updates.checking {
-				Text( "Checking for new releases…" )
-			} else if let error = updates.checkError {
-				WarningLabel( error )
-			} else if let date = updates.lastCheck {
-				Text( "Last checked \( date.formatted( .relative( presentation: .named ) ) )" )
-			}
-		}
-		.secondaryCaption()
 	}
 
 	/// Asking before installing older firmware than the board runs.
@@ -324,10 +341,64 @@ struct USBSetupView: View {
 			setup.installFirmware()
 		}
 	}
+}
 
-	/// How the install is going, or how it ended.
-	@ViewBuilder private var installStatus: some View {
-		switch setup.install {
+/// The firmware to install: the latest release or a chosen file. As in Updates.
+private struct FirmwareSourcePicker: View {
+	let setup                : USBSetup
+	let updates              : UpdateManager
+	/// Opens the page's file picker.
+	@Binding var pickingFile : Bool
+
+	var body: some View {
+		let isFile: Bool = { if case .file = setup.source { true } else { false } }()
+		FirmwareSourceMenu( releaseTitle: updates.latestReleaseTitle,
+							fileTitle: setup.chosenFile.map { "\($0.url.lastPathComponent) (\($0.version))" },
+							isFile: isFile,
+							chooseRelease: { setup.source = .release },
+							chooseFile: { if let chosenFile = setup.chosenFile { setup.source = .file( chosenFile.url ) } },
+							pickFile: { pickingFile = true } )
+			.disabled( setup.install.isBusy )
+	}
+}
+
+/// Looks for new releases; a spinner while it does.
+private struct RefreshReleasesButton: View {
+	let setup   : USBSetup
+	let updates : UpdateManager
+
+	var body: some View {
+		RefreshButton( busy: updates.checking, help: "Check for new releases" ) {
+			Task { await updates.check( userInitiated: true ) }
+		}
+		.disabled( setup.install.isBusy )
+	}
+}
+
+/// When releases were last looked for, under the popup.
+private struct ReleaseCheckStatus: View {
+	let updates : UpdateManager
+
+	var body: some View {
+		Group {
+			if updates.checking {
+				Text( "Checking for new releases…" )
+			} else if let error = updates.checkError {
+				WarningLabel( error )
+			} else if let date = updates.lastCheck {
+				Text( "Last checked \( date.formatted( .relative( presentation: .named ) ) )" )
+			}
+		}
+		.secondaryCaption()
+	}
+}
+
+/// How the install is going, or how it ended.
+private struct InstallStatus: View {
+	let install : USBSetup.Install
+
+	var body: some View {
+		switch install {
 			case .idle:
 				EmptyView()
 			case .preparing( let text ):
@@ -348,24 +419,29 @@ struct USBSetupView: View {
 				WarningLabel( message )
 		}
 	}
+}
 
-	/// Makes a picked file the source, or says why it can't be.
-	private func choose( _ url: URL ) {
-		do {
-			try setup.choose( url )
-		} catch {
-			fileProblem = error.localizedDescription
-		}
-	}
+// MARK: - Wi-Fi
 
-	// MARK: - Wi-Fi
+/// Step 2: the network and password, and joining it.
+private struct WiFiSection: View {
+	let setup              : USBSetup
+	/// The network the selected board is set up for, when its firmware says.
+	let savedSSID          : String?
+	@Binding var ssid      : String
+	@Binding var otherSSID : String
+	@Binding var password  : String
+	/// "Encrypt stored secrets", for a new board with plain storage.
+	@Binding var encrypt   : Bool
 
-	/// Step 2: the network and password, and joining it.
-	private var wifiSection: some View {
+	/// The picker's "Other Network…" tag: longer than any network name (32 bytes).
+	static let otherNetwork = "(other network, typed in by hand)"
+
+	var body: some View {
 		Section {
 			LabeledContent( "Network" ) {
 				HStack( spacing: 6 ) {
-					networkPicker
+					NetworkPicker( setup: setup, savedSSID: savedSSID, ssid: $ssid )
 					RefreshButton( busy: setup.findingNetworks, help: "Look for networks again" ) { setup.findNetworks() }
 				}
 			}
@@ -417,39 +493,6 @@ struct USBSetupView: View {
 		.disabled( setup.install.isBusy )
 	}
 
-	/// The networks the board can see, its current one, and Other Network….
-	private var networkPicker: some View {
-		Picker( "Network", selection: $ssid ) {
-			if setup.networks.isEmpty {
-				Text( setup.findingNetworks ? "Looking for networks…" : "No networks found" ).tag( "" )
-			} else if ssid.isEmpty {
-				// Otherwise the popup shows the first network, as if it were chosen.
-				Text( "Choose…" ).tag( "" )
-			}
-			ForEach( setup.networks ) { network in
-				Label {
-					Text( network.ssid )
-				} icon: {
-					Image( systemName: network.secure ? "lock.fill" : "wifi" )
-				}
-				.tag( network.ssid )
-			}
-			// Set up for a network it can't see now (out of range, or hidden).
-			if let savedSSID, !setup.networks.contains( where: { $0.ssid == savedSSID } ) {
-				Text( "\(savedSSID) (current setting)" ).tag( savedSSID )
-			}
-			Divider()
-			Text( "Other Network…" ).tag( Self.otherNetwork )
-		}
-		.labelsHidden()
-		.fixedSize()
-	}
-
-	/// The network the selected board is set up for, when its firmware says.
-	private var savedSSID: String? {
-		setup.selectedBoard?.espDeck?.network.flatMap { $0.ssid.isEmpty ? nil : $0.ssid }
-	}
-
 	/// The network to join: the one chosen, or the one typed in.
 	private var joinSSID: String {
 		ssid == Self.otherNetwork ? otherSSID : ssid
@@ -481,17 +524,59 @@ struct USBSetupView: View {
 		guard wifiProblem == nil else { return }
 		setup.join( ssid: joinSSID, password: password, encrypt: storageChoice ? encrypt : nil )
 	}
+}
 
-	// MARK: - Name
+/// The networks the board can see, its current one, and Other Network….
+private struct NetworkPicker: View {
+	let setup         : USBSetup
+	/// The network the selected board is set up for, when its firmware says.
+	let savedSSID     : String?
+	@Binding var ssid : String
 
-	/// Step 3: renaming the board.
-	private func nameSection( _ info: USBSetup.DeviceInfo ) -> some View {
+	var body: some View {
+		Picker( "Network", selection: $ssid ) {
+			if setup.networks.isEmpty {
+				Text( setup.findingNetworks ? "Looking for networks…" : "No networks found" ).tag( "" )
+			} else if ssid.isEmpty {
+				// Otherwise the popup shows the first network, as if it were chosen.
+				Text( "Choose…" ).tag( "" )
+			}
+			ForEach( setup.networks ) { network in
+				Label {
+					Text( network.ssid )
+				} icon: {
+					Image( systemName: network.secure ? "lock.fill" : "wifi" )
+				}
+				.tag( network.ssid )
+			}
+			// Set up for a network it can't see now (out of range, or hidden).
+			if let savedSSID, !setup.networks.contains( where: { $0.ssid == savedSSID } ) {
+				Text( "\(savedSSID) (current setting)" ).tag( savedSSID )
+			}
+			Divider()
+			Text( "Other Network…" ).tag( WiFiSection.otherNetwork )
+		}
+		.labelsHidden()
+		.fixedSize()
+	}
+}
+
+// MARK: - Name
+
+/// Step 3: renaming the board.
+private struct NameSection: View {
+	let setup              : USBSetup
+	/// The name the board has now.
+	let name               : String
+	@Binding var nameDraft : String
+
+	var body: some View {
 		Section {
 			HStack {
 				TextField( "Name", text: $nameDraft )
 					.onSubmit( saveName )
 				Button( "Rename" ) { saveName() }
-					.disabled( nameProblem != nil || nameDraft == info.name || setup.rename == .saving )
+					.disabled( nameProblem != nil || nameDraft == name || setup.rename == .saving )
 			}
 			if let problem = nameProblem, !nameDraft.isEmpty {
 				Text( problem )
@@ -526,11 +611,21 @@ struct USBSetupView: View {
 		nameDraft = trimmedName
 		setup.setName( trimmedName )
 	}
+}
 
-	// MARK: - Next
+// MARK: - Next
 
-	/// Step 4: the board that joined a network, until it has found this bridge and after.
-	private func nextSection( _ network: String, _ joined: USBSetup.JoinedBoard ) -> some View {
+/// Step 4: the board that joined a network, until it has found this bridge and after.
+private struct NextSection: View {
+	let setup              : USBSetup
+	let window             : WindowState
+	/// The network it joined.
+	let network            : String
+	let joined             : USBSetup.JoinedBoard
+	/// The sidebar's selection.
+	@Binding var selection : String?
+
+	var body: some View {
 		Section {
 			let arrival = setup.arrival( of: joined )
 			HStack {
@@ -566,7 +661,7 @@ struct USBSetupView: View {
 			// The link opens Getting Started's Putting It Together.
 			Text( LocalizedStringKey( nextSteps ) )
 				.environment( \.openURL, OpenURLAction { _ in
-					showAssembly()
+					showAssembly( in: window, selection: $selection )
 					return .handled
 				} )
 		}
@@ -582,15 +677,21 @@ struct USBSetupView: View {
 		}
 		return "The deck will connect to ESPDeck Bridge over Wi-Fi within a few seconds. \(pairing) The deck needs to be connected; see \(guide)."
 	}
+}
 
-	/// What comes after USB Setup, as on Getting Started's Connect to This Mac, and the way
-	/// to the sheet about it.
-	private var assemblySection: some View {
+/// What comes after USB Setup, as on Getting Started's Connect to This Mac, and the way
+/// to the sheet about it.
+private struct AssemblySection: View {
+	let window             : WindowState
+	/// The sidebar's selection.
+	@Binding var selection : String?
+
+	var body: some View {
 		Section {
 			VStack( alignment: .leading, spacing: 14 ) {
 				GuideStepText( step: PartsView.unplugStep, primaryDetail: true )
 				Button {
-					showAssembly()
+					showAssembly( in: window, selection: $selection )
 				} label: {
 					ForwardLabel( title: GuideSheet.assembly.rawValue )
 				}
@@ -599,13 +700,6 @@ struct USBSetupView: View {
 			}
 			.padding( .vertical, 8 )   // even, as Board Info's rows
 		}
-	}
-
-	/// Getting Started's Putting It Together sheet, on the USB path.
-	private func showAssembly() {
-		controller.window.guidePath  = .usb
-		controller.window.guideSheet = .assembly
-		selection                    = SidebarItem.parts
 	}
 }
 
