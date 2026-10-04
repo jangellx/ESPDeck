@@ -41,7 +41,7 @@ struct TrafficLogView: View {
 										description: Text( device.isOnline ? "Messages to and from this device appear here." : "The device is offline." ) )
 			} else {
 				List( entries ) { entry in
-					HStack( alignment: .firstTextBaseline, spacing: 10 ) {
+					LogRow( copy: { UIPasteboard.general.string = text( [ entry ] ) } ) {
 						Text( entry.date, format: Self.time )
 							.monospacedDigit()
 							.foregroundStyle( .secondary )
@@ -59,6 +59,9 @@ struct TrafficLogView: View {
 									.lineLimit( 2 )
 							}
 						}
+						// Selectable, without the focus ring the Mac draws around the selected block.
+						.textSelection( .enabled )
+						.focusEffectDisabled()
 						Spacer( minLength: 8 )
 						if entry.bytes > 0 {
 							Text( ByteCountFormatter.string( fromByteCount: Int64( entry.bytes ), countStyle: .file ) )
@@ -67,11 +70,6 @@ struct TrafficLogView: View {
 						}
 					}
 					.font( .callout )
-					// Not selectable text (double-clicking it drew a focus ring around the block):
-					// right-click copies the entry.
-					.contextMenu {
-						Button( "Copy", systemImage: "doc.on.doc" ) { UIPasteboard.general.string = text( [ entry ] ) }
-					}
 					// No lines between entries, and only as tall as their text.
 					.listRowSeparator( .hidden )
 					.listRowInsets( EdgeInsets( top: 2, leading: 12, bottom: 2, trailing: 12 ) )
@@ -119,6 +117,39 @@ struct TrafficLogView: View {
 			case .received: "Received"
 			case .event:    "Event"
 		}
+	}
+}
+
+/// A log entry's row: its content, then a copy button at the right edge that shows while the
+/// pointer is over the row. Its space is always there, so nothing moves.
+private struct LogRow<Content: View>: View {
+	let copy: () -> Void
+	@ViewBuilder let content: Content
+
+	@State private var hovering = false
+
+	/// On the Mac the button waits for the pointer; on iPad, with nothing to hover, it stays.
+	private static var hasPointer: Bool {
+		#if targetEnvironment( macCatalyst )
+		true
+		#else
+		false
+		#endif
+	}
+
+	var body: some View {
+		HStack( alignment: .firstTextBaseline, spacing: 10 ) {
+			content
+			Button( action: copy ) {
+				Image( systemName: "doc.on.doc" )
+			}
+			.buttonStyle( .borderless )
+			.help( "Copy this entry" )
+			.accessibilityLabel( "Copy entry" )
+			.opacity( hovering || !Self.hasPointer ? 1 : 0 )
+		}
+		.contentShape( Rectangle() )
+		.onHover { hovering = $0 }
 	}
 }
 
