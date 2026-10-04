@@ -48,20 +48,14 @@ struct TrafficLogView: View {
 						Image( systemName: Self.symbol( entry.direction ) )
 							.foregroundStyle( Self.color( entry.direction ) )
 							.accessibilityLabel( Self.name( entry.direction ) )
+						// Selectable, in a text view of our own: SwiftUI's selectable Text draws a focus
+						// ring around the block on the Mac that can't be turned off.
 						VStack( alignment: .leading, spacing: 1 ) {
-							Text( entry.summary )
-								.lineLimit( 2 )
-								.fontWeight( entry.direction == .event ? .semibold : .regular )
+							SelectableText( entry.summary, font: Self.summaryFont( bold: entry.direction == .event ), color: .label )
 							if !entry.detail.isEmpty {
-								Text( entry.detail )
-									.font( .caption.monospaced() )
-									.foregroundStyle( .secondary )
-									.lineLimit( 2 )
+								SelectableText( entry.detail, font: Self.detailFont, color: .secondaryLabel )
 							}
 						}
-						// Selectable, without the focus ring the Mac draws around the selected block.
-						.textSelection( .enabled )
-						.focusEffectDisabled()
 						Spacer( minLength: 8 )
 						if entry.bytes > 0 {
 							Text( ByteCountFormatter.string( fromByteCount: Int64( entry.bytes ), countStyle: .file ) )
@@ -82,6 +76,15 @@ struct TrafficLogView: View {
 			TransferProgressFooter( device: device )
 		}
 	}
+
+	/// The summary's font: the callout size, semibold for events.
+	private static func summaryFont( bold: Bool ) -> UIFont {
+		let size = UIFont.preferredFont( forTextStyle: .callout ).pointSize
+		return .systemFont( ofSize: size, weight: bold ? .semibold : .regular )
+	}
+
+	/// The raw message's font: caption-sized, monospaced.
+	private static let detailFont = UIFont.monospacedSystemFont( ofSize: UIFont.preferredFont( forTextStyle: .caption1 ).pointSize, weight: .regular )
 
 	/// The entries as plain text, oldest first, for Copy.
 	private func text( _ entries: [TrafficEntry] ) -> String {
@@ -117,6 +120,48 @@ struct TrafficLogView: View {
 			case .received: "Received"
 			case .event:    "Event"
 		}
+	}
+}
+
+/// Text that can be selected with the mouse, up to two lines, without the focus ring the
+/// Mac draws around SwiftUI's selectable Text: a read-only UITextView with no focus effect.
+private struct SelectableText: UIViewRepresentable {
+	let text  : String
+	let font  : UIFont
+	let color : UIColor
+
+	init( _ text: String, font: UIFont, color: UIColor ) {
+		self.text  = text
+		self.font  = font
+		self.color = color
+	}
+
+	func makeUIView( context: Context ) -> UITextView {
+		let view = UITextView()
+		view.isEditable      = false
+		view.isSelectable    = true
+		view.isScrollEnabled = false   // so it sizes to its text
+		view.backgroundColor = .clear
+		view.focusEffect     = nil     // no ring when a selection gives it focus
+		view.textContainerInset                    = .zero
+		view.textContainer.lineFragmentPadding     = 0
+		view.textContainer.maximumNumberOfLines    = 2
+		view.textContainer.lineBreakMode           = .byTruncatingTail
+		view.setContentCompressionResistancePriority( .defaultLow, for: .horizontal )
+		return view
+	}
+
+	func updateUIView( _ view: UITextView, context: Context ) {
+		if view.text != text { view.text = text }
+		view.font      = font
+		view.textColor = color
+	}
+
+	/// As wide as its text, up to the width offered; as tall as that takes.
+	func sizeThatFits( _ proposal: ProposedViewSize, uiView: UITextView, context: Context ) -> CGSize? {
+		let width = proposal.width ?? .greatestFiniteMagnitude
+		let size  = uiView.sizeThatFits( CGSize( width: width, height: .greatestFiniteMagnitude ) )
+		return CGSize( width: min( size.width, width ), height: size.height )
 	}
 }
 
