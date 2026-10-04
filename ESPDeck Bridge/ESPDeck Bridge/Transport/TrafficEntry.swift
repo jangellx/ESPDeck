@@ -235,25 +235,29 @@ struct TrafficEntry: Identifiable {
 
 	// MARK: - The frame, briefly
 
-	/// "show  hash 9f86d081…  key 4", "hello  cached [12]  id f4:12:…  …".
+	/// "show  hash: 9f86d081…  key: 4", "hello  cached: [12 items]  id: f4:12:…  …".
 	private static func describe( _ type: String, _ object: [String: Any] ) -> String {
 		var parts = [ plain( type ) ]
 		for key in object.keys.sorted() where key != "type" {
-			parts.append( "\(key) \(describe( value: object[key] as Any ))" )
+			parts.append( "\(key): \(describe( value: object[key] as Any ))" )
 		}
 		return parts.joined( separator: "  " )
 	}
 
-	/// One field's value, briefly: long strings cut, arrays as their count.
+	/// One field's value, briefly: long strings cut, short lists of numbers in full, longer
+	/// or other lists as their count.
 	private static func describe( value: Any ) -> String {
 		switch value {
 			case let string as String:
 				return string.count > 20 ? plain( String( string.prefix( 8 ) ) ) + "…" : plain( string )
 			case let array as [Any]:
-				return "[\(array.count)]"
+				if array.count <= 8, let numbers = array as? [NSNumber] {
+					return "[" + numbers.map( \.stringValue ).joined( separator: ", " ) + "]"
+				}
+				return array.count == 1 ? "[1 item]" : "[\(array.count) items]"
 			case let dictionary as [String: Any]:
-				// One level, briefly: "{connected true, model Stream Deck Mini, …}".
-				let inner = dictionary.keys.sorted().prefix( 4 ).map { "\($0) \(describe( value: dictionary[$0] as Any ))" }
+				// One level, briefly: "{connected: true, model: Stream Deck Mini, …}".
+				let inner = dictionary.keys.sorted().prefix( 4 ).map { "\($0): \(describe( value: dictionary[$0] as Any ))" }
 				return "{" + inner.joined( separator: ", " ) + ( dictionary.count > 4 ? ", …" : "" ) + "}"
 			case let number as NSNumber:
 				return CFGetTypeID( number ) == CFBooleanGetTypeID() ? ( number.boolValue ? "true" : "false" ) : number.stringValue

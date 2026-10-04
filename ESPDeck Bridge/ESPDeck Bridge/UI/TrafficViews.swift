@@ -59,7 +59,6 @@ struct TrafficLogView: View {
 									.lineLimit( 2 )
 							}
 						}
-						.textSelection( .enabled )
 						Spacer( minLength: 8 )
 						if entry.bytes > 0 {
 							Text( ByteCountFormatter.string( fromByteCount: Int64( entry.bytes ), countStyle: .file ) )
@@ -68,6 +67,11 @@ struct TrafficLogView: View {
 						}
 					}
 					.font( .callout )
+					// Not selectable text (double-clicking it drew a focus ring around the block):
+					// right-click copies the entry.
+					.contextMenu {
+						Button( "Copy", systemImage: "doc.on.doc" ) { UIPasteboard.general.string = text( [ entry ] ) }
+					}
 					// No lines between entries, and only as tall as their text.
 					.listRowSeparator( .hidden )
 					.listRowInsets( EdgeInsets( top: 2, leading: 12, bottom: 2, trailing: 12 ) )
