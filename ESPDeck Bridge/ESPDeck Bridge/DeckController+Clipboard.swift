@@ -24,6 +24,18 @@ extension UTType {
 }
 
 extension DeckController {
+	/// The Log page's selected entries, oldest first, while that page is showing.
+	var selectedLogEntries: [TrafficEntry] {
+		guard window.isShowing, window.page == .log, !window.logSelection.isEmpty,
+			  let device = window.selection.flatMap( device ) else { return [] }
+		return device.log.filter { window.logSelection.contains( $0.id ) }
+	}
+
+	/// Puts log entries on the clipboard as text.
+	func copyLogEntries( _ entries: some Sequence<TrafficEntry> ) {
+		UIPasteboard.general.string = TrafficEntry.plainText( entries )
+	}
+
 	/// Puts a key on the clipboard: its assignment with its images, and a PNG of how it looks.
 	func copyKey( device id: String, key: Int ) {
 		let assignment = assignment( id, key: key )

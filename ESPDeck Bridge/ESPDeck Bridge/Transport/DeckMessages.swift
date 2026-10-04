@@ -113,7 +113,7 @@ struct DeviceStatus: Codable, Equatable {
 }
 
 /// The hello a device opens every connection with.
-struct DeviceHello {
+struct DeviceHello: Equatable {
 	var protocolVersion : Int
 	/// 16 random bytes for the authentication handshake (protocol 3 and later).
 	var nonce           : Data?

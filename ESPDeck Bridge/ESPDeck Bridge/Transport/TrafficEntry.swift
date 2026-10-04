@@ -8,7 +8,7 @@
 import Foundation
 
 /// One line of a device's Log tab.
-struct TrafficEntry: Identifiable {
+struct TrafficEntry: Identifiable, Equatable {
 	/// Which way the frame went, or neither for an event.
 	enum Direction {
 		case sent
@@ -31,6 +31,19 @@ struct TrafficEntry: Identifiable {
 		self.summary   = summary
 		self.detail    = detail
 		self.bytes     = bytes
+	}
+
+	/// How the Log shows an entry's time: to the millisecond, without AM or PM.
+	static let timeFormat: Date.FormatStyle = .dateTime.hour( .twoDigits( amPM: .omitted ) ).minute( .twoDigits ).second( .twoDigits ).secondFraction( .fractional( 3 ) )
+
+	/// Entries as plain text in the order given, for copying: the time, an arrow for the
+	/// direction and the summary, with the frame and its size on a second line.
+	static func plainText( _ entries: some Sequence<TrafficEntry> ) -> String {
+		entries.map { entry in
+			let arrow  = entry.direction == .sent ? "→" : entry.direction == .received ? "←" : "•"
+			let detail = [ entry.detail, entry.bytes > 0 ? "(\(entry.bytes) B)" : "" ].filter { !$0.isEmpty }.joined( separator: "  " )
+			return "\(entry.date.formatted( timeFormat ))  \(arrow)  \(entry.summary)" + ( detail.isEmpty ? "" : "\n                 \(detail)" )
+		}.joined( separator: "\n" )
 	}
 
 	/// A JSON frame, sent or received.

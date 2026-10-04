@@ -31,6 +31,8 @@ final class WindowState {
 	}
 	var page        = Page.keys
 	var selectedKey = 0
+	/// The Log page's selected entries, which Copy acts on.
+	var logSelection: Set<TrafficEntry.ID> = []
 
 	/// The Keys page's deck preview: its key size, or 0 to size it to fit (kept between
 	/// launches), and the size that fits as last laid out, which zooming starts from.

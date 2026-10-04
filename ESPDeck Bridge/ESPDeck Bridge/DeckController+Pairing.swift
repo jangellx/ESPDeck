@@ -15,7 +15,7 @@ import CryptoKit
 import Foundation
 
 /// A connected device that hasn't authenticated.
-struct NewDevice: Identifiable {
+struct NewDevice: Identifiable, Equatable {
 	/// Why it hasn't authenticated.
 	enum Reason {
 		case unpaired

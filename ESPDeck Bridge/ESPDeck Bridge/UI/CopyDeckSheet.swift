@@ -20,13 +20,13 @@ struct CopyDeckSheet: View {
 
 	var body: some View {
 		let sources = controller.copySources( for: deviceID )
-		let source  = sources.first { $0.id == sourceID } ?? sources.first
+		let source  = sources.first { $0.id == sourceID }
 		let online  = controller.device( deviceID )?.isOnline == true
 
 		NavigationStack {
 			Form {
 				Section {
-					Picker( "Copy From", selection: Binding( get: { source?.id }, set: { sourceID = $0 } ) ) {
+					Picker( "Copy From", selection: $sourceID ) {
 						ForEach( sources ) { deck in
 							Text( Self.title( deck, controller: controller ) ).tag( Optional( deck.id ) )
 						}
@@ -37,9 +37,7 @@ struct CopyDeckSheet: View {
 
 				Section {
 					ForEach( DeckCopyPart.allCases ) { part in
-						Toggle( isOn: Binding( get: { parts.contains( part ) }, set: { on in
-							if on { parts.insert( part ) } else { parts.remove( part ) }
-						} ) ) {
+						Toggle( isOn: $parts[contains: part] ) {
 							CaptionedText( part.title, caption: part.detail, spacing: 2 )
 						}
 					}
@@ -52,6 +50,8 @@ struct CopyDeckSheet: View {
 				}
 			}
 			.formStyle( .grouped )
+			// The most recently seen deck to start with.
+			.onAppear { if sourceID == nil { sourceID = sources.first?.id } }
 			.navigationTitle( "Copy From Deck" )
 			.navigationBarTitleDisplayMode( .inline )
 			.toolbar {

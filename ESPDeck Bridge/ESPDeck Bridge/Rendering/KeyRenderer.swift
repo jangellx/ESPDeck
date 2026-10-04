@@ -35,10 +35,13 @@ struct KeyFace: Equatable {
 }
 
 /// A key image ready to send in the deck's format, plus an upright preview for the UI.
-struct RenderedKey {
+struct RenderedKey: Equatable {
 	let hash    : String
 	let data    : Data
 	let preview : UIImage
+
+	/// The same image: `hash` is of `data`, which `preview` is drawn from.
+	static func == ( a: RenderedKey, b: RenderedKey ) -> Bool { a.hash == b.hash }
 }
 
 /// A key face as SwiftUI draws it, at deckKeyPixels points square.

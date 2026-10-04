@@ -9,6 +9,13 @@
 
 import SwiftUI
 
+/// How many accessories have answered readCurrentStates. An object of its own, read only by
+/// the rows: they redraw as answers arrive, and the sheet's list isn't rebuilt each time.
+@Observable
+private final class StateAnswers {
+	var count = 0
+}
+
 /// The Home sheet: scenes and each room's accessories, ticked to choose them.
 struct HomeTargetSheet: View {
 	let controller : DeckController
@@ -19,8 +26,7 @@ struct HomeTargetSheet: View {
 	@State private var accessories : [KeyMember]
 	@State private var scenes      : [UUID]
 	@State private var search      = ""
-	/// Bumped as accessories answer readCurrentStates, so their rows redraw.
-	@State private var statesRead  = 0
+	@State private var answers     = StateAnswers()
 	@FocusState private var searchFocused: Bool
 
 	init( controller: DeckController, accessories: [KeyMember], scenes: [UUID], onDone: @escaping ( [KeyMember], [UUID] ) -> Void ) {
@@ -31,24 +37,25 @@ struct HomeTargetSheet: View {
 	}
 
 	var body: some View {
+		// Gathered into Homes and rooms once each time the list is built, not filtered per section.
 		let targets = controller.home.targets().filter { $0.kind != .shortcut && matches( $0 ) }
-		let homes   = Self.ordered( targets.map { $0.home ?? "" } )
+		let homes   = Self.namedFirst( targets.grouped { $0.home ?? "" } )
 		let several = controller.home.hasSeveralHomes
 
 		NavigationStack {
 			List {
-				ForEach( homes, id: \.self ) { home in
-					let inHome = targets.filter { ( $0.home ?? "" ) == home }
-					let homeScenes = inHome.filter { $0.kind == .scene }
+				ForEach( homes, id: \.key ) { home in
+					let homeScenes = home.elements.filter { $0.kind == .scene }
 					if !homeScenes.isEmpty {
-						Section( several ? "\(home) · Scenes" : "Scenes" ) {
+						Section( several ? "\(home.key) · Scenes" : "Scenes" ) {
 							ForEach( homeScenes ) { row( $0 ) }
 						}
 					}
-					let rooms = Self.ordered( inHome.filter { $0.kind != .scene }.map { $0.room ?? "" } )
-					ForEach( rooms, id: \.self ) { room in
-						Section( several ? "\(home) · \(room.isEmpty ? "No Room" : room)" : ( room.isEmpty ? "No Room" : room ) ) {
-							ForEach( inHome.filter { $0.kind != .scene && ( $0.room ?? "" ) == room } ) { row( $0 ) }
+					let rooms = Self.namedFirst( home.elements.filter { $0.kind != .scene }.grouped { $0.room ?? "" } )
+					ForEach( rooms, id: \.key ) { room in
+						let name = room.key.isEmpty ? "No Room" : room.key
+						Section( several ? "\(home.key) · \(name)" : name ) {
+							ForEach( room.elements ) { row( $0 ) }
 						}
 					}
 				}
@@ -67,7 +74,7 @@ struct HomeTargetSheet: View {
 			.contentMargins( .top, 8, for: .scrollContent )
 			.task {
 				// The rows start from HomeKit's cache; ask each accessory for what's true now.
-				controller.home.readCurrentStates( of: controller.home.targets() ) { statesRead += 1 }
+				controller.home.readCurrentStates( of: controller.home.targets() ) { [answers] in answers.count += 1 }
 				try? await Task.sleep( for: .milliseconds( 100 ) )   // once the sheet is up
 				searchFocused = true
 			}
@@ -98,78 +105,12 @@ struct HomeTargetSheet: View {
 		.frame( minWidth: 460, idealWidth: 520, minHeight: 560, idealHeight: 680 )
 	}
 
-	// MARK: - Rows
-
-	/// Icon (in its current state), name and state, and the tick.
-	private func row( _ target: HomeTarget ) -> some View {
-		let chosen = isChosen( target )
-		return Button {
-			toggle( target )
-		} label: {
-			HStack( spacing: 12 ) {
-				icon( target )
-					.frame( width: 28, height: 28 )
-				VStack( alignment: .leading, spacing: 1 ) {
-					Text( target.name )
-						.foregroundStyle( Color.primary )
-						.lineLimit( 1 )
-					if let detail = detail( target ) {
-						Text( detail )
-							.secondaryCaption()
-							.lineLimit( 1 )
-					}
-				}
-				Spacer( minLength: 8 )
-				Image( systemName: chosen ? "checkmark.circle.fill" : "circle" )
-					.font( .title3 )
-					.foregroundStyle( chosen ? Color.accentColor : Color.secondary )
-			}
-			.contentShape( Rectangle() )
-		}
-		.buttonStyle( .plain )
-		.accessibilityAddTraits( chosen ? .isSelected : [] )
-	}
-
-	/// A scene's sparkles, or the accessory's symbol in its state (gray when unreachable).
-	@ViewBuilder
-	private func icon( _ target: HomeTarget ) -> some View {
-		if target.kind == .scene {
-			Image( systemName: "sparkles" )
-				.font( .title3 )
-				.foregroundStyle( Color.orange )
-		} else {
-			let _         = statesRead   // redraws as fresh states arrive
-			let state     = controller.home.lastKnownState( of: target ).state
-			let reachable = controller.home.isReachable( accessoryID: target.accessoryID )
-			Image( systemName: controller.home.symbol( for: target.kind, accessoryID: target.accessoryID, serviceID: target.serviceID, state: state ) )
-				.resizable()
-				.scaledToFit()
-				.foregroundStyle( reachable ? tint( target.kind, state ) : Color.secondary )
-		}
-	}
-
-	/// As on the deck (amber on, green locked or closed…), except that the deck's white (off,
-	/// and garage doors, whose symbols carry their state) is gray here, as the Home app shows
-	/// accessories that are off.
-	private func tint( _ kind: KeyKind, _ state: KeyState ) -> Color {
-		let color = kind.tint( for: state )
-		return color == .white ? Color.secondary : color
-	}
-
-	/// "On", "Closed", "21.5°", "No Response"; nothing for scenes.
-	private func detail( _ target: HomeTarget ) -> String? {
-		_ = statesRead   // redraws as fresh states arrive
-		guard target.kind != .scene else { return nil }
-		guard controller.home.isReachable( accessoryID: target.accessoryID ) else { return "No Response" }
-		let ( state, value ) = controller.home.lastKnownState( of: target )
-		if target.kind == .temperature, let celsius = value as? NSNumber {
-			return Measurement( value: celsius.doubleValue, unit: UnitTemperature.celsius )
-				.formatted( .measurement( width: .narrow, numberFormatStyle: .number.precision( .fractionLength( 0...1 ) ) ) )
-		}
-		return state == .standard || state == .unknown ? target.kind.title : state.title
-	}
-
 	// MARK: - Choosing
+
+	/// The target's row, ticked if it's chosen.
+	private func row( _ target: HomeTarget ) -> some View {
+		HomeTargetRow( controller: controller, target: target, chosen: isChosen( target ), answers: answers ) { toggle( target ) }
+	}
 
 	/// The accessory as a key member; nil for scenes.
 	private func member( _ target: HomeTarget ) -> KeyMember? {
@@ -198,9 +139,82 @@ struct HomeTargetSheet: View {
 			.contains { $0.localizedCaseInsensitiveContains( search ) }
 	}
 
-	/// In order of first appearance (targets() sorts them), without repeats; "" (no room) last.
-	private static func ordered( _ values: [String] ) -> [String] {
-		let unique = values.uniqued()
-		return unique.filter { !$0.isEmpty } + unique.filter { $0.isEmpty }
+	/// The groups in their order (targets() sorts them), with "" (no room) last.
+	private static func namedFirst<Element>( _ groups: [( key: String, elements: [Element] )] ) -> [( key: String, elements: [Element] )] {
+		groups.filter { !$0.key.isEmpty } + groups.filter { $0.key.isEmpty }
+	}
+}
+
+/// One accessory or scene in the Home sheet: its icon (in its current state), name and state,
+/// and the tick. Tapping anywhere on it calls `toggle`.
+private struct HomeTargetRow: View {
+	let controller : DeckController
+	let target     : HomeTarget
+	let chosen     : Bool
+	let answers    : StateAnswers
+	let toggle     : () -> Void
+
+	var body: some View {
+		let _ = answers.count   // redraws as accessories answer with their current state
+		Button( action: toggle ) {
+			HStack( spacing: 12 ) {
+				icon
+					.frame( width: 28, height: 28 )
+				VStack( alignment: .leading, spacing: 1 ) {
+					Text( target.name )
+						.foregroundStyle( Color.primary )
+						.lineLimit( 1 )
+					if let detail {
+						Text( detail )
+							.secondaryCaption()
+							.lineLimit( 1 )
+					}
+				}
+				Spacer( minLength: 8 )
+				Image( systemName: chosen ? "checkmark.circle.fill" : "circle" )
+					.font( .title3 )
+					.foregroundStyle( chosen ? Color.accentColor : Color.secondary )
+			}
+			.contentShape( Rectangle() )
+		}
+		.buttonStyle( .plain )
+		.accessibilityAddTraits( chosen ? .isSelected : [] )
+	}
+
+	/// A scene's sparkles, or the accessory's symbol in its state (gray when unreachable).
+	@ViewBuilder
+	private var icon: some View {
+		if target.kind == .scene {
+			Image( systemName: "sparkles" )
+				.font( .title3 )
+				.foregroundStyle( Color.orange )
+		} else {
+			let state     = controller.home.lastKnownState( of: target ).state
+			let reachable = controller.home.isReachable( accessoryID: target.accessoryID )
+			Image( systemName: controller.home.symbol( for: target.kind, accessoryID: target.accessoryID, serviceID: target.serviceID, state: state ) )
+				.resizable()
+				.scaledToFit()
+				.foregroundStyle( reachable ? tint( state ) : Color.secondary )
+		}
+	}
+
+	/// As on the deck (amber on, green locked or closed…), except that the deck's white (off,
+	/// and garage doors, whose symbols carry their state) is gray here, as the Home app shows
+	/// accessories that are off.
+	private func tint( _ state: KeyState ) -> Color {
+		let color = target.kind.tint( for: state )
+		return color == .white ? Color.secondary : color
+	}
+
+	/// "On", "Closed", "21.5°", "No Response"; nothing for scenes.
+	private var detail: String? {
+		guard target.kind != .scene else { return nil }
+		guard controller.home.isReachable( accessoryID: target.accessoryID ) else { return "No Response" }
+		let ( state, value ) = controller.home.lastKnownState( of: target )
+		if target.kind == .temperature, let celsius = value as? NSNumber {
+			return Measurement( value: celsius.doubleValue, unit: UnitTemperature.celsius )
+				.formatted( .measurement( width: .narrow, numberFormatStyle: .number.precision( .fractionLength( 0...1 ) ) ) )
+		}
+		return state == .standard || state == .unknown ? target.kind.title : state.title
 	}
 }

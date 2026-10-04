@@ -3,8 +3,8 @@
 //  ESPDeck Bridge
 //
 //  Hosts the configuration window and answers Edit ▸ Copy / Paste (Cmd-C / Cmd-V) for
-//  the selected key. A focused text field sits earlier in the responder chain, so it
-//  still copies and pastes text normally.
+//  the selected key, and Copy for the Log page's selected entries. A focused text field
+//  sits earlier in the responder chain, so it still copies and pastes text normally.
 //
 
 import SwiftUI
@@ -91,10 +91,11 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		controller.undoManager = undoManager   // the window's, which Edit ▸ Undo uses
 	}
 
-	/// Copy and Paste only with a key to act on (and Paste with a key copied).
+	/// Copy and Paste only with a key to act on (and Paste with a key copied); Copy also with
+	/// log entries selected.
 	override func canPerformAction( _ action: Selector, withSender sender: Any? ) -> Bool {
 		switch action {
-			case #selector( copy( _: ) ):  controller.focusedKey != nil
+			case #selector( copy( _: ) ):  controller.focusedKey != nil || !controller.selectedLogEntries.isEmpty
 			case #selector( paste( _: ) ): controller.focusedKey != nil && controller.clipboardHasKey
 			default:                       super.canPerformAction( action, withSender: sender )
 		}
@@ -105,14 +106,18 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 	override func validate( _ command: UICommand ) {
 		super.validate( command )
 		switch command.action {
-			case #selector( copy( _: ) ):  command.title = "Copy Key"
+			case #selector( copy( _: ) ):
+				let entries = controller.selectedLogEntries.count
+				command.title = entries == 0 ? "Copy Key" : entries == 1 ? "Copy Entry" : "Copy \(entries) Entries"
 			case #selector( paste( _: ) ): command.title = "Paste Key"
 			default:                       break
 		}
 	}
 
-	/// Copies the focused key.
+	/// Copies the Log page's selected entries, or else the focused key.
 	override func copy( _ sender: Any? ) {
+		let entries = controller.selectedLogEntries
+		guard entries.isEmpty else { return controller.copyLogEntries( entries ) }
 		guard let focused = controller.focusedKey else { return }
 		controller.copyKey( device: focused.device, key: focused.key )
 	}

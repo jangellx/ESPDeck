@@ -463,14 +463,16 @@ struct TargetPicker: View {
 					}
 				case .shortcut:
 					// Folders as submenus, unfiled shortcuts at the top level.
-					ForEach( groups( in: targets.filter { $0.room != nil } ), id: \.self ) { folder in
-						Menu( folder ) {
-							ForEach( targets.filter { $0.room == folder } ) { target in
+					let filed = targets.filter { $0.room != nil }.grouped { $0.room ?? "" }
+					ForEach( filed, id: \.key ) { folder in
+						Menu( folder.key ) {
+							ForEach( folder.elements ) { target in
 								menuItem( target, title: target.name )
 							}
 						}
 					}
-					ForEach( targets.filter { $0.room == nil } ) { target in
+					let unfiled = targets.filter { $0.room == nil }
+					ForEach( unfiled ) { target in
 						menuItem( target, title: target.name )
 					}
 				case .accessory:
@@ -498,11 +500,6 @@ struct TargetPicker: View {
 		return String( text.prefix( half ) ) + "…" + String( text.suffix( half ) )
 	}
 
-	/// The rooms (or folders) in `targets`, in order, with the ungrouped submenu's title.
-	private func groups( in targets: [HomeTarget] ) -> [String] {
-		targets.map { $0.room ?? mode.ungroupedTitle }.uniqued()
-	}
-
 	/// Names include their Home only when there's more than one.
 	private var severalHomes: Bool { controller.home.hasSeveralHomes }
 
@@ -510,9 +507,9 @@ struct TargetPicker: View {
 	@ViewBuilder
 	private func byHome<Content: View>( _ targets: [HomeTarget], @ViewBuilder content: @escaping ( [HomeTarget] ) -> Content ) -> some View {
 		if severalHomes {
-			ForEach( targets.map { $0.home ?? "" }.uniqued(), id: \.self ) { home in
-				Menu( home ) {
-					content( targets.filter { ( $0.home ?? "" ) == home } )
+			ForEach( targets.grouped { $0.home ?? "" }, id: \.key ) { home in
+				Menu( home.key ) {
+					content( home.elements )
 				}
 			}
 		} else {
@@ -522,9 +519,9 @@ struct TargetPicker: View {
 
 	/// A submenu per room (or folder), each with `item` for its targets.
 	private func roomMenus<Item: View>( _ targets: [HomeTarget], @ViewBuilder item: @escaping ( HomeTarget ) -> Item ) -> some View {
-		ForEach( groups( in: targets ), id: \.self ) { room in
-			Menu( room ) {
-				ForEach( targets.filter { ( $0.room ?? mode.ungroupedTitle ) == room } ) { target in
+		ForEach( targets.grouped { $0.room ?? mode.ungroupedTitle }, id: \.key ) { room in
+			Menu( room.key ) {
+				ForEach( room.elements ) { target in
 					item( target )
 				}
 			}

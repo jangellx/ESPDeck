@@ -72,6 +72,36 @@ extension Sequence where Element: Hashable {
 	}
 }
 
+extension Sequence {
+	/// The elements gathered by `key` in one pass: groups in the order their first element
+	/// appears, each group's elements in their order.
+	nonisolated func grouped<Key: Hashable>( by key: ( Element ) -> Key ) -> [( key: Key, elements: [Element] )] {
+		var groups: [( key: Key, elements: [Element] )] = []
+		var index: [Key: Int] = [:]
+		for element in self {
+			let group = key( element )
+			if let at = index[group] {
+				groups[at].elements.append( element )
+			} else {
+				index[group] = groups.count
+				groups.append( ( group, [ element ] ) )
+			}
+		}
+		return groups
+	}
+}
+
+extension Set {
+	/// Whether `member` is in the set; setting it adds or removes it. For a Toggle's binding:
+	/// `$parts[contains: part]`.
+	subscript( contains member: Element ) -> Bool {
+		get { contains( member ) }
+		set {
+			if newValue { insert( member ) } else { remove( member ) }
+		}
+	}
+}
+
 extension EnvironmentValues {
 	/// Set on a sidebar row while it's selected. The Mac's sidebar doesn't raise
 	/// backgroundProminence for its selection, so rows say so themselves.

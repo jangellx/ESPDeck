@@ -719,7 +719,7 @@ final class DeckController {
 		}
 
 		remember( rendered, in: device )
-		if device.keys[key]?.hash != rendered.hash {
+		if device.keys[key] != rendered {
 			device.keys[key] = rendered
 		}
 		if deferPush {

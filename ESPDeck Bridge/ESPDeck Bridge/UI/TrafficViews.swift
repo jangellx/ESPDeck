@@ -8,16 +8,28 @@
 
 import SwiftUI
 
-/// The Log page: a device's traffic, newest first, with a filter, Copy and Clear.
+/// The Log page: a device's traffic, newest first, with a filter, Copy and Clear. Rows can be
+/// selected, several at once (Cmd-click, Shift-click), and copied with Cmd-C, the Copy
+/// button, or a right-click.
 struct TrafficLogView: View {
-	let device: DeckDevice
+	let device : DeckDevice
+	let window : WindowState
 
 	@State private var filter = ""
+	/// The entries that pass the filter, newest first. Kept, and only worked out again when the
+	/// log or the filter changes (see Source), not each time a selection redraws the page.
+	@State private var shown: [TrafficEntry] = []
 
-	private static let time: Date.FormatStyle = .dateTime.hour( .twoDigits( amPM: .omitted ) ).minute( .twoDigits ).second( .twoDigits ).secondFraction( .fractional( 3 ) )
+	/// What `shown` was made from.
+	private struct Source: Equatable {
+		let filter : String
+		let newest : TrafficEntry.ID?
+		let count  : Int
+	}
 
 	var body: some View {
-		let entries = device.log.reversed().filter { filter.isEmpty || $0.summary.localizedStandardContains( filter ) || $0.detail.localizedStandardContains( filter ) }
+		@Bindable var window = window
+		let selected = window.logSelection.count
 
 		VStack( spacing: 0 ) {
 			HStack {
@@ -25,10 +37,10 @@ struct TrafficLogView: View {
 					.textFieldStyle( .roundedBorder )
 					.frame( maxWidth: 320 )
 				Spacer()
-				Text( "\(device.log.count) entries" )
+				Text( selected == 0 ? "\(device.log.count) entries" : "\(selected) of \(device.log.count) selected" )
 					.secondaryCaption()
-				Button( "Copy" ) { UIPasteboard.general.string = text( entries ) }
-					.disabled( entries.isEmpty )
+				Button( selected == 0 ? "Copy All" : "Copy Selected" ) { copy( selected == 0 ? nil : window.logSelection ) }
+					.disabled( shown.isEmpty )
 				Button( "Clear" ) { device.log.removeAll() }
 					.disabled( device.log.isEmpty )
 			}
@@ -36,63 +48,102 @@ struct TrafficLogView: View {
 
 			Divider()
 
-			if entries.isEmpty {
+			if shown.isEmpty {
 				ContentUnavailableView( "No Traffic", systemImage: "arrow.up.arrow.down",
 										description: Text( device.isOnline ? "Messages to and from this device appear here." : "The device is offline." ) )
 			} else {
-				List( entries ) { entry in
-					LogRow( copy: { UIPasteboard.general.string = text( [ entry ] ) } ) {
-						Text( entry.date, format: Self.time )
-							.monospacedDigit()
-							.foregroundStyle( .secondary )
-						Image( systemName: Self.symbol( entry.direction ) )
-							.foregroundStyle( Self.color( entry.direction ) )
-							.accessibilityLabel( Self.name( entry.direction ) )
-						// Selectable, in a text view of our own: SwiftUI's selectable Text draws a focus
-						// ring around the block on the Mac that can't be turned off.
-						VStack( alignment: .leading, spacing: 1 ) {
-							SelectableText( entry.summary, font: Self.summaryFont( bold: entry.direction == .event ), color: .label )
-							if !entry.detail.isEmpty {
-								SelectableText( entry.detail, font: Self.detailFont, color: .secondaryLabel )
-							}
-						}
-						Spacer( minLength: 8 )
-						if entry.bytes > 0 {
-							Text( ByteCountFormatter.string( fromByteCount: Int64( entry.bytes ), countStyle: .file ) )
-								.monospacedDigit()
-								.foregroundStyle( .secondary )
-						}
-					}
-					.font( .callout )
-					// No lines between entries, and only as tall as their text.
-					.listRowSeparator( .hidden )
-					.listRowInsets( EdgeInsets( top: 2, leading: 12, bottom: 2, trailing: 12 ) )
+				List( shown, selection: $window.logSelection ) { entry in
+					LogRow( entry: entry ) { copy( [ entry.id ] ) }
+						// No lines between entries, and only as tall as their text.
+						.listRowSeparator( .hidden )
+						.listRowInsets( EdgeInsets( top: 2, leading: 12, bottom: 2, trailing: 12 ) )
+						// A tint of our own for the selection, which the row's colors stay readable on.
+						.listRowBackground( window.logSelection.contains( entry.id ) ? Color.accentColor.opacity( 0.22 ) : Color.clear )
 				}
 				.listStyle( .plain )
 				.environment( \.defaultMinListRowHeight, 0 )
+				.contextMenu( forSelectionType: TrafficEntry.ID.self ) { ids in
+					if !ids.isEmpty {
+						Button( ids.count == 1 ? "Copy Entry" : "Copy \(ids.count) Entries" ) { copy( ids ) }
+					}
+				}
 			}
 
 			// While the deck is catching up on key images: how far it's got.
 			TransferProgressFooter( device: device )
 		}
+		.onChange( of: Source( filter: filter, newest: device.log.last?.id, count: device.log.count ), initial: true ) { refresh() }
 	}
 
-	/// The summary's font: the callout size, semibold for events.
-	private static func summaryFont( bold: Bool ) -> UIFont {
-		let size = UIFont.preferredFont( forTextStyle: .callout ).pointSize
-		return .systemFont( ofSize: size, weight: bold ? .semibold : .regular )
+	/// Filters the log again, and drops entries that are no longer shown from the selection.
+	private func refresh() {
+		shown = device.log.reversed().filter { filter.isEmpty || $0.summary.localizedStandardContains( filter ) || $0.detail.localizedStandardContains( filter ) }
+		let ids = Set( shown.map( \.id ) )
+		if !window.logSelection.isSubset( of: ids ) {
+			window.logSelection.formIntersection( ids )
+		}
 	}
 
-	/// The raw message's font: caption-sized, monospaced.
-	private static let detailFont = UIFont.monospacedSystemFont( ofSize: UIFont.preferredFont( forTextStyle: .caption1 ).pointSize, weight: .regular )
+	/// Copies the shown entries with these IDs (all of them for nil) as text, oldest first.
+	private func copy( _ ids: Set<TrafficEntry.ID>? ) {
+		UIPasteboard.general.string = TrafficEntry.plainText( shown.reversed().filter { ids?.contains( $0.id ) ?? true } )
+	}
+}
 
-	/// The entries as plain text, oldest first, for Copy.
-	private func text( _ entries: [TrafficEntry] ) -> String {
-		entries.reversed().map { entry in
-			let arrow = entry.direction == .sent ? "→" : entry.direction == .received ? "←" : "•"
-			let detail = [ entry.detail, entry.bytes > 0 ? "(\(entry.bytes) B)" : "" ].filter { !$0.isEmpty }.joined( separator: "  " )
-			return "\(entry.date.formatted( Self.time ))  \(arrow)  \(entry.summary)" + ( detail.isEmpty ? "" : "\n                 \(detail)" )
-		}.joined( separator: "\n" )
+/// A log entry's row: the time, the direction, what happened over the frame itself, and its
+/// size, then a copy button at the right edge that shows while the pointer is over the row.
+/// The button's space is always there, so nothing moves.
+private struct LogRow: View {
+	let entry : TrafficEntry
+	let copy  : () -> Void
+
+	@State private var hovering = false
+
+	/// On the Mac the button waits for the pointer; on iPad, with nothing to hover, it stays.
+	private static var hasPointer: Bool {
+		#if targetEnvironment( macCatalyst )
+		true
+		#else
+		false
+		#endif
+	}
+
+	var body: some View {
+		HStack( alignment: .firstTextBaseline, spacing: 10 ) {
+			Text( entry.date, format: TrafficEntry.timeFormat )
+				.monospacedDigit()
+				.foregroundStyle( .secondary )
+			Image( systemName: Self.symbol( entry.direction ) )
+				.foregroundStyle( Self.color( entry.direction ) )
+				.accessibilityLabel( Self.name( entry.direction ) )
+			VStack( alignment: .leading, spacing: 1 ) {
+				Text( entry.summary )
+					.fontWeight( entry.direction == .event ? .semibold : .regular )
+					.lineLimit( 2 )
+				if !entry.detail.isEmpty {
+					Text( entry.detail )
+						.font( .caption.monospaced() )
+						.foregroundStyle( .secondary )
+						.lineLimit( 2 )
+				}
+			}
+			Spacer( minLength: 8 )
+			if entry.bytes > 0 {
+				Text( ByteCountFormatter.string( fromByteCount: Int64( entry.bytes ), countStyle: .file ) )
+					.monospacedDigit()
+					.foregroundStyle( .secondary )
+			}
+			Button( action: copy ) {
+				Image( systemName: "doc.on.doc" )
+			}
+			.buttonStyle( .borderless )
+			.help( "Copy this entry" )
+			.accessibilityLabel( "Copy entry" )
+			.opacity( hovering || !Self.hasPointer ? 1 : 0 )
+		}
+		.font( .callout )
+		.contentShape( Rectangle() )
+		.onHover { hovering = $0 }
 	}
 
 	/// Each direction's symbol.
@@ -120,81 +171,6 @@ struct TrafficLogView: View {
 			case .received: "Received"
 			case .event:    "Event"
 		}
-	}
-}
-
-/// Text that can be selected with the mouse, up to two lines, without the focus ring the
-/// Mac draws around SwiftUI's selectable Text: a read-only UITextView with no focus effect.
-private struct SelectableText: UIViewRepresentable {
-	let text  : String
-	let font  : UIFont
-	let color : UIColor
-
-	init( _ text: String, font: UIFont, color: UIColor ) {
-		self.text  = text
-		self.font  = font
-		self.color = color
-	}
-
-	func makeUIView( context: Context ) -> UITextView {
-		let view = UITextView()
-		view.isEditable      = false
-		view.isSelectable    = true
-		view.isScrollEnabled = false   // so it sizes to its text
-		view.backgroundColor = .clear
-		view.focusEffect     = nil     // no ring when a selection gives it focus
-		view.textContainerInset                    = .zero
-		view.textContainer.lineFragmentPadding     = 0
-		view.textContainer.maximumNumberOfLines    = 2
-		view.textContainer.lineBreakMode           = .byTruncatingTail
-		view.setContentCompressionResistancePriority( .defaultLow, for: .horizontal )
-		return view
-	}
-
-	func updateUIView( _ view: UITextView, context: Context ) {
-		if view.text != text { view.text = text }
-		view.font      = font
-		view.textColor = color
-	}
-
-	/// As wide as its text, up to the width offered; as tall as that takes.
-	func sizeThatFits( _ proposal: ProposedViewSize, uiView: UITextView, context: Context ) -> CGSize? {
-		let width = proposal.width ?? .greatestFiniteMagnitude
-		let size  = uiView.sizeThatFits( CGSize( width: width, height: .greatestFiniteMagnitude ) )
-		return CGSize( width: min( size.width, width ), height: size.height )
-	}
-}
-
-/// A log entry's row: its content, then a copy button at the right edge that shows while the
-/// pointer is over the row. Its space is always there, so nothing moves.
-private struct LogRow<Content: View>: View {
-	let copy: () -> Void
-	@ViewBuilder let content: Content
-
-	@State private var hovering = false
-
-	/// On the Mac the button waits for the pointer; on iPad, with nothing to hover, it stays.
-	private static var hasPointer: Bool {
-		#if targetEnvironment( macCatalyst )
-		true
-		#else
-		false
-		#endif
-	}
-
-	var body: some View {
-		HStack( alignment: .firstTextBaseline, spacing: 10 ) {
-			content
-			Button( action: copy ) {
-				Image( systemName: "doc.on.doc" )
-			}
-			.buttonStyle( .borderless )
-			.help( "Copy this entry" )
-			.accessibilityLabel( "Copy entry" )
-			.opacity( hovering || !Self.hasPointer ? 1 : 0 )
-		}
-		.contentShape( Rectangle() )
-		.onHover { hovering = $0 }
 	}
 }
 
