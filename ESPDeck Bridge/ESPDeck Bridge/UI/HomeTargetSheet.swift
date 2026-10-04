@@ -65,13 +65,14 @@ struct HomeTargetSheet: View {
 						.foregroundStyle( Color.secondary )
 				}
 			}
-			// Above the list rather than a section of it, which spaced it like one.
-			.safeAreaInset( edge: .top, spacing: 0 ) {
+			// Above the list rather than a section of it, which spaced it like one; in a bar, so
+			// the rows scroll under a blur and not straight behind the field.
+			.modifier( TopBar {
 				SearchField( prompt: "Search accessories, scenes and rooms", text: $search, focus: $searchFocused )
 					.padding( .horizontal, 20 )
 					.padding( .top, 6 )
-					.padding( .bottom, 2 )
-			}
+					.padding( .bottom, 6 )
+			} )
 			.contentMargins( .top, 8, for: .scrollContent )
 			.onChange( of: collapsed ) { UserDefaults.standard.set( collapsed.sorted(), forKey: Self.collapsedDefault ) }
 			.task {
@@ -161,6 +162,20 @@ struct HomeTargetSheet: View {
 	/// The groups in their order (targets() sorts them), with "" (no room) last.
 	private static func namedFirst<Element>( _ groups: [( key: String, elements: [Element] )] ) -> [( key: String, elements: [Element] )] {
 		groups.filter { !$0.key.isEmpty } + groups.filter { $0.key.isEmpty }
+	}
+}
+
+/// Puts `bar` above a scrolling view as a bar: the content scrolls under it and blurs away at
+/// its edge (safeAreaBar, iOS 26). Before that, an inset with the bar material behind it.
+private struct TopBar<Bar: View>: ViewModifier {
+	@ViewBuilder let bar: Bar
+
+	func body( content: Content ) -> some View {
+		if #available( iOS 26.0, * ) {
+			content.safeAreaBar( edge: .top, spacing: 0 ) { bar }
+		} else {
+			content.safeAreaInset( edge: .top, spacing: 0 ) { bar.background( .bar ) }
+		}
 	}
 }
 
