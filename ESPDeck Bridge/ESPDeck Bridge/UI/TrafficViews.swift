@@ -114,11 +114,15 @@ struct TrafficLogView: View {
 	}
 }
 
-/// Under the Log: how far this deck is through the key images being sent to it, or Idle
-/// (Offline) when nothing is. Always there, so the list doesn't jump. A diagnostic, so it
-/// lives here rather than with the keys.
+/// Under the Log: how far this deck is through the key images being sent to it, as a ring
+/// that fills, with the count beside it; a solid gray dot and Idle (or Offline) when nothing
+/// is. Always there, so the list doesn't jump. A diagnostic, so it lives here rather than
+/// with the keys.
 struct TransferProgressFooter: View {
 	let device: DeckDevice
+
+	/// The ring's (and the idle dot's) diameter.
+	private static let size: CGFloat = 14
 
 	var body: some View {
 		let busy  = device.isOnline && !device.pendingShows.isEmpty
@@ -126,13 +130,44 @@ struct TransferProgressFooter: View {
 		let done  = busy ? total - device.pendingShows.count : 0
 		VStack( spacing: 0 ) {
 			Divider()
-			ProgressView( value: Double( done ), total: Double( total ) ) {
+			HStack( spacing: 8 ) {
+				if busy {
+					ProgressRing( fraction: Double( done ) / Double( total ) )
+						.frame( width: Self.size, height: Self.size )
+				} else {
+					// A dot, not an empty ring: the ring doesn't run backward when an update ends.
+					Circle()
+						.fill( Color.secondary.opacity( 0.5 ) )
+						.frame( width: Self.size, height: Self.size )
+				}
 				Text( busy ? "Updating the deck: \(done) of \(total) \(total == 1 ? "key" : "keys")"
 						   : device.isOnline ? "Idle" : "Offline" )
 					.font( .caption )
 					.foregroundStyle( busy ? .primary : .secondary )
+				Spacer( minLength: 0 )
 			}
 			.padding( 12 )
+			.accessibilityElement( children: .combine )
 		}
+	}
+}
+
+/// A ring that fills clockwise from the top. Drawn here: Catalyst's circular ProgressView
+/// only spins, whatever its value.
+private struct ProgressRing: View {
+	/// 0 to 1.
+	let fraction: Double
+
+	var body: some View {
+		ZStack {
+			Circle()
+				.stroke( Color.secondary.opacity( 0.25 ), lineWidth: 3 )
+			Circle()
+				.trim( from: 0, to: min( max( fraction, 0 ), 1 ) )
+				.stroke( Color.accentColor, style: StrokeStyle( lineWidth: 3, lineCap: .round ) )
+				.rotationEffect( .degrees( -90 ) )
+				.animation( .easeOut( duration: 0.15 ), value: fraction )
+		}
+		.padding( 1.5 )   // the stroke straddles the circle's edge
 	}
 }
