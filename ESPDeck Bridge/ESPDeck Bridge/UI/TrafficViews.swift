@@ -48,7 +48,7 @@ struct TrafficLogView: View {
 						Image( systemName: Self.symbol( entry.direction ) )
 							.foregroundStyle( Self.color( entry.direction ) )
 							.accessibilityLabel( Self.name( entry.direction ) )
-						VStack( alignment: .leading, spacing: 2 ) {
+						VStack( alignment: .leading, spacing: 1 ) {
 							Text( entry.summary )
 								.lineLimit( 2 )
 								.fontWeight( entry.direction == .event ? .semibold : .regular )
@@ -68,8 +68,12 @@ struct TrafficLogView: View {
 						}
 					}
 					.font( .callout )
+					// No lines between entries, and only as tall as their text.
+					.listRowSeparator( .hidden )
+					.listRowInsets( EdgeInsets( top: 2, leading: 12, bottom: 2, trailing: 12 ) )
 				}
 				.listStyle( .plain )
+				.environment( \.defaultMinListRowHeight, 0 )
 			}
 
 			// While the deck is catching up on key images: how far it's got.
