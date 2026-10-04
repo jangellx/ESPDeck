@@ -130,8 +130,17 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 }
 
 extension ConfigurationHostingController: UIGestureRecognizerDelegate {
-	/// Only with Shift held, over a key of the deck preview.
+	/// Asked as every click in the window begins: notes the modifier keys held, for views
+	/// whose taps depend on them (the Log's Cmd-click and Shift-click).
+	func gestureRecognizer( _ recognizer: UIGestureRecognizer, shouldReceive event: UIEvent ) -> Bool {
+		controller.window.clickModifiers = event.modifierFlags
+		return true
+	}
+
+	/// Only with Shift held, over a key of the deck preview, while the Keys page shows it (the
+	/// key frames outlast the page, and the Log's Shift-click mustn't press a key).
 	func gestureRecognizerShouldBegin( _ recognizer: UIGestureRecognizer ) -> Bool {
-		recognizer.modifierFlags.contains( .shift ) && previewKey( at: recognizer.location( in: nil ) ) != nil
+		controller.window.page == .keys && controller.window.selection == controller.previewDevice
+			&& recognizer.modifierFlags.contains( .shift ) && previewKey( at: recognizer.location( in: nil ) ) != nil
 	}
 }

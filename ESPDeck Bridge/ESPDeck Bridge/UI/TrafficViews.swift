@@ -10,7 +10,8 @@ import SwiftUI
 
 /// The Log page: a device's traffic, newest first, with a filter, Copy and Clear. Rows can be
 /// selected, several at once (Cmd-click, Shift-click), and copied with Cmd-C, the Copy
-/// button, or a right-click.
+/// button, or a right-click. The selection is kept here rather than by the List, whose own
+/// selection ignores Cmd and Shift on Catalyst.
 struct TrafficLogView: View {
 	let device : DeckDevice
 	let window : WindowState
@@ -19,6 +20,8 @@ struct TrafficLogView: View {
 	/// The entries that pass the filter, newest first. Kept, and only worked out again when the
 	/// log or the filter changes (see Source), not each time a selection redraws the page.
 	@State private var shown: [TrafficEntry] = []
+	/// The row last clicked without Shift, which a Shift-click selects from.
+	@State private var anchor: TrafficEntry.ID?
 
 	/// What `shown` was made from.
 	private struct Source: Equatable {
@@ -28,7 +31,6 @@ struct TrafficLogView: View {
 	}
 
 	var body: some View {
-		@Bindable var window = window
 		let selected = window.logSelection.count
 
 		VStack( spacing: 0 ) {
@@ -52,23 +54,23 @@ struct TrafficLogView: View {
 				ContentUnavailableView( "No Traffic", systemImage: "arrow.up.arrow.down",
 										description: Text( device.isOnline ? "Messages to and from this device appear here." : "The device is offline." ) )
 			} else {
-				List( shown, selection: $window.logSelection ) { entry in
+				List( shown ) { entry in
 					let selected = window.logSelection.contains( entry.id )
 					LogRow( entry: entry, selected: selected ) { copy( [ entry.id ] ) }
+						.onTapGesture { click( entry ) }
+						// On a selected row, the selection; on any other, that row.
+						.contextMenu {
+							let ids = selected ? window.logSelection : [ entry.id ]
+							Button( ids.count == 1 ? "Copy Entry" : "Copy \(ids.count) Entries" ) { copy( ids ) }
+						}
 						// No lines between entries, and only as tall as their text.
 						.listRowSeparator( .hidden )
 						.listRowInsets( EdgeInsets( top: 2, leading: 12, bottom: 2, trailing: 12 ) )
-						// The selection in the full accent color: the list turns a selected row's text
-						// white, which a paler tint left unreadable.
+						// The selection in the full accent color, with the row in white on it.
 						.listRowBackground( selected ? Color.accentColor : Color.clear )
 				}
 				.listStyle( .plain )
 				.environment( \.defaultMinListRowHeight, 0 )
-				.contextMenu( forSelectionType: TrafficEntry.ID.self ) { ids in
-					if !ids.isEmpty {
-						Button( ids.count == 1 ? "Copy Entry" : "Copy \(ids.count) Entries" ) { copy( ids ) }
-					}
-				}
 			}
 
 			// While the deck is catching up on key images: how far it's got.
@@ -83,6 +85,24 @@ struct TrafficLogView: View {
 		let ids = Set( shown.map( \.id ) )
 		if !window.logSelection.isSubset( of: ids ) {
 			window.logSelection.formIntersection( ids )
+		}
+	}
+
+	/// A click on a row, as in a Mac list: alone it selects just that row; with Cmd it adds or
+	/// removes the row; with Shift it selects from the last row clicked to this one (added to
+	/// the selection with Cmd too).
+	private func click( _ entry: TrafficEntry ) {
+		let modifiers = window.clickModifiers
+		if modifiers.contains( .shift ), let anchor,
+		   let from = shown.firstIndex( where: { $0.id == anchor } ), let to = shown.firstIndex( where: { $0.id == entry.id } ) {
+			let range = Set( shown[min( from, to )...max( from, to )].map( \.id ) )
+			window.logSelection = modifiers.contains( .command ) ? window.logSelection.union( range ) : range
+		} else if modifiers.contains( .command ) {
+			window.logSelection[contains: entry.id].toggle()
+			anchor = entry.id
+		} else {
+			window.logSelection = [ entry.id ]
+			anchor = entry.id
 		}
 	}
 
@@ -103,22 +123,26 @@ private struct LogRow: View {
 
 	@State private var hovering = false
 
+	/// The secondary text's color: gray, or pale white on the selection.
+	private var dim: Color { selected ? Color.white.opacity( 0.8 ) : Color.secondary }
+
 	var body: some View {
 		HStack( alignment: .firstTextBaseline, spacing: 10 ) {
 			Text( entry.date, format: TrafficEntry.timeFormat )
 				.monospacedDigit()
-				.foregroundStyle( .secondary )
+				.foregroundStyle( dim )
 			Image( systemName: Self.symbol( entry.direction ) )
 				.foregroundStyle( selected ? Color.white : Self.color( entry.direction ) )
 				.accessibilityLabel( Self.name( entry.direction ) )
 			VStack( alignment: .leading, spacing: 1 ) {
 				Text( entry.summary )
 					.fontWeight( entry.direction == .event ? .semibold : .regular )
+					.foregroundStyle( selected ? Color.white : Color.primary )
 					.lineLimit( 2 )
 				if !entry.detail.isEmpty {
 					Text( entry.detail )
 						.font( .caption.monospaced() )
-						.foregroundStyle( .secondary )
+						.foregroundStyle( dim )
 						.lineLimit( 2 )
 				}
 			}
@@ -126,7 +150,7 @@ private struct LogRow: View {
 			if entry.bytes > 0 {
 				Text( ByteCountFormatter.string( fromByteCount: Int64( entry.bytes ), countStyle: .file ) )
 					.monospacedDigit()
-					.foregroundStyle( .secondary )
+					.foregroundStyle( dim )
 			}
 			Button( action: copy ) {
 				Image( systemName: "doc.on.doc" )

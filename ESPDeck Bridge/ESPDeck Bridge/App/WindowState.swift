@@ -10,6 +10,7 @@
 import CoreGraphics
 import Foundation
 import Observation
+import UIKit
 
 /// The configuration window's state, shared with the menus.
 @Observable
@@ -33,6 +34,9 @@ final class WindowState {
 	var selectedKey = 0
 	/// The Log page's selected entries, which Copy acts on.
 	var logSelection: Set<TrafficEntry.ID> = []
+	/// The modifier keys held when the latest click in the window began (noted by
+	/// ConfigurationHostingController): SwiftUI's taps don't say on Catalyst.
+	@ObservationIgnored var clickModifiers: UIKeyModifierFlags = []
 
 	/// The Keys page's deck preview: its key size, or 0 to size it to fit (kept between
 	/// launches), and the size that fits as last laid out, which zooming starts from.
