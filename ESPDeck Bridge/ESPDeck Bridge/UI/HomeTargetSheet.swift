@@ -4,7 +4,8 @@
 //
 //  Choosing what a key controls, as the Home app chooses accessories: scenes, then each room's
 //  accessories, with their icons and states, any number ticked. With several Homes, each Home
-//  has its own scenes and rooms.
+//  has its own scenes and rooms. Unlike the Home app, each section folds away under its
+//  heading, and stays folded the next time.
 //
 
 import SwiftUI
@@ -27,6 +28,10 @@ struct HomeTargetSheet: View {
 	@State private var scenes      : [UUID]
 	@State private var search      = ""
 	@State private var answers     = StateAnswers()
+	/// The headings of the sections folded away; kept between launches.
+	@State private var collapsed   = Set( UserDefaults.standard.stringArray( forKey: HomeTargetSheet.collapsedDefault ) ?? [] )
+
+	private static let collapsedDefault = "homeSheetCollapsedSections"
 	@FocusState private var searchFocused: Bool
 
 	init( controller: DeckController, accessories: [KeyMember], scenes: [UUID], onDone: @escaping ( [KeyMember], [UUID] ) -> Void ) {
@@ -47,16 +52,12 @@ struct HomeTargetSheet: View {
 				ForEach( homes, id: \.key ) { home in
 					let homeScenes = home.elements.filter { $0.kind == .scene }
 					if !homeScenes.isEmpty {
-						Section( several ? "\(home.key) · Scenes" : "Scenes" ) {
-							ForEach( homeScenes ) { row( $0 ) }
-						}
+						section( several ? "\(home.key) · Scenes" : "Scenes", homeScenes )
 					}
 					let rooms = Self.namedFirst( home.elements.filter { $0.kind != .scene }.grouped { $0.room ?? "" } )
 					ForEach( rooms, id: \.key ) { room in
 						let name = room.key.isEmpty ? "No Room" : room.key
-						Section( several ? "\(home.key) · \(name)" : name ) {
-							ForEach( room.elements ) { row( $0 ) }
-						}
+						section( several ? "\(home.key) · \(name)" : name, room.elements )
 					}
 				}
 				if targets.isEmpty {
@@ -72,6 +73,7 @@ struct HomeTargetSheet: View {
 					.padding( .bottom, 2 )
 			}
 			.contentMargins( .top, 8, for: .scrollContent )
+			.onChange( of: collapsed ) { UserDefaults.standard.set( collapsed.sorted(), forKey: Self.collapsedDefault ) }
 			.task {
 				// The rows start from HomeKit's cache; ask each accessory for what's true now.
 				controller.home.readCurrentStates( of: controller.home.targets() ) { [answers] in answers.count += 1 }
@@ -103,6 +105,23 @@ struct HomeTargetSheet: View {
 			}
 		}
 		.frame( minWidth: 460, idealWidth: 520, minHeight: 560, idealHeight: 680 )
+	}
+
+	// MARK: - Sections
+
+	/// A section that folds away under its heading. A search shows every match, folded or not.
+	private func section( _ title: String, _ targets: [HomeTarget] ) -> some View {
+		let searching = !search.isEmpty
+		let open      = searching || !collapsed.contains( title )
+		return Section {
+			if open {
+				ForEach( targets ) { row( $0 ) }
+			}
+		} header: {
+			HomeSectionHeader( title: title, chosen: targets.count( where: isChosen ), open: open, canFold: !searching ) {
+				withAnimation { collapsed[contains: title].toggle() }
+			}
+		}
 	}
 
 	// MARK: - Choosing
@@ -142,6 +161,52 @@ struct HomeTargetSheet: View {
 	/// The groups in their order (targets() sorts them), with "" (no room) last.
 	private static func namedFirst<Element>( _ groups: [( key: String, elements: [Element] )] ) -> [( key: String, elements: [Element] )] {
 		groups.filter { !$0.key.isEmpty } + groups.filter { $0.key.isEmpty }
+	}
+}
+
+/// A section's heading: its title, how many of its rows are ticked (so a folded section
+/// still says), and an arrow that points down while it's open. Clicking anywhere on it folds
+/// or unfolds the section.
+private struct HomeSectionHeader: View {
+	let title   : String
+	let chosen  : Int
+	let open    : Bool
+	/// False during a search, when every section is open.
+	let canFold : Bool
+	let toggle  : () -> Void
+
+	var body: some View {
+		HStack( spacing: 6 ) {
+			Text( title )
+			Spacer( minLength: 8 )
+			if chosen > 0 {
+				Text( "\(chosen) chosen" )
+					.foregroundStyle( Color.accentColor )
+			}
+			if canFold {
+				Image( systemName: "chevron.right" )
+					.font( .caption.weight( .semibold ) )
+					.rotationEffect( .degrees( open ? 90 : 0 ) )
+			}
+		}
+		.contentShape( Rectangle() )
+		.onTapGesture { if canFold { toggle() } }
+		.accessibilityAddTraits( canFold ? .isButton : [] )
+		.accessibilityHint( !canFold ? "" : open ? "Hides this section's rows" : "Shows this section's rows" )
+	}
+}
+
+/// Spins a fan's blades while `active` (iOS 18's rotate symbol effect, which turns just the
+/// blades of the fan symbols and stops for Reduce Motion).
+private struct SpinningSymbol: ViewModifier {
+	let active: Bool
+
+	func body( content: Content ) -> some View {
+		if #available( iOS 18.0, * ) {
+			content.symbolEffect( .rotate, options: .repeat( .continuous ), isActive: active )
+		} else {
+			content
+		}
 	}
 }
 
@@ -191,10 +256,13 @@ private struct HomeTargetRow: View {
 		} else {
 			let state     = controller.home.lastKnownState( of: target ).state
 			let reachable = controller.home.isReachable( accessoryID: target.accessoryID )
-			Image( systemName: controller.home.symbol( for: target.kind, accessoryID: target.accessoryID, serviceID: target.serviceID, state: state ) )
+			let symbol    = controller.home.symbol( for: target.kind, accessoryID: target.accessoryID, serviceID: target.serviceID, state: state )
+			Image( systemName: symbol )
 				.resizable()
 				.scaledToFit()
 				.foregroundStyle( reachable ? tint( state ) : Color.secondary )
+				// A fan that's running turns.
+				.modifier( SpinningSymbol( active: reachable && state == .on && symbol.hasPrefix( "fan" ) ) )
 		}
 	}
 
