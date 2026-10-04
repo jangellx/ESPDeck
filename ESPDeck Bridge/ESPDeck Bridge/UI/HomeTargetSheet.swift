@@ -276,8 +276,9 @@ private struct HomeTargetRow: View {
 				.resizable()
 				.scaledToFit()
 				.foregroundStyle( reachable ? tint( state ) : Color.secondary )
-				// A fan that's running turns.
-				.modifier( SpinningSymbol( active: reachable && state == .on && symbol.hasPrefix( "fan" ) ) )
+				// A fan that's running turns; not a ceiling fan, whose symbol is seen from below
+				// at an angle and looks wrong turning.
+				.modifier( SpinningSymbol( active: reachable && state == .on && symbol.hasPrefix( "fan" ) && !symbol.hasPrefix( "fan.ceiling" ) ) )
 		}
 	}
 
