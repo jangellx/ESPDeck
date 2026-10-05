@@ -39,8 +39,7 @@ struct NeedsUnpairingView: View {
 						}
 					}
 					Label {
-						Text( "Or on the deck:" ).bold()
-							+ Text( " hold its top-left and bottom-right keys for 5 seconds, scan the QR codes to open the setup page, and choose Unpair." )
+						Text( "\( Text( "Or on the deck:" ).bold() ) hold its top-left and bottom-right keys for 5 seconds, scan the QR codes to open the setup page, and choose Unpair." )
 					} icon: {
 						Image( systemName: "qrcode" )
 					}

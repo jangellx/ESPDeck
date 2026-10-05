@@ -432,7 +432,7 @@ final class DeckController {
 	@discardableResult
 	func addDemoDevice( layout: DeckLayout ) -> String {
 		let id    = "demo-" + UUID().uuidString.lowercased()
-		let count = config.settings.devices.filter( \.isDemo ).count
+		let count = config.settings.devices.count( where: \.isDemo )
 		var settings    = DeviceSettings( id: id, name: count == 0 ? "Demo \(layout.model)" : "Demo \(layout.model) \(count + 1)" )
 		settings.isDemo = true
 		settings.layout = layout

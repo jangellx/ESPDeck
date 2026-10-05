@@ -210,7 +210,7 @@ final class DeckServer {
 	private func accept( _ connection: NWConnection ) {
 		let host    = Self.describe( connection.endpoint )
 		let waiting = clients.filter { $0.value.session == nil }
-		guard waiting.values.filter( { $0.host == host } ).count < Self.maxUnauthenticatedPerHost else {
+		guard waiting.values.count( where: { $0.host == host } ) < Self.maxUnauthenticatedPerHost else {
 			print( "[DeckServer] Refusing another unauthenticated connection from \(host)" )
 			connection.cancel()
 			return

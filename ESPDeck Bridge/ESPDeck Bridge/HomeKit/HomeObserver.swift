@@ -423,11 +423,24 @@ final class HomeObserver: NSObject {
 		if slider.raises, let power = assignment.characteristicRef, !kind.isActive( kind.state( for: values[power] ) ),
 		   let targetType = kind.targetCharacteristicType, let on = kind.targetValue( activate: true ),
 		   let switchCharacteristic = Self.characteristic( targetType, serviceID: ref.serviceID, in: accessory ) {
-			Task { try? await switchCharacteristic.writeValue( on ) }
 			// HomeKit doesn't report changes this app makes, so the keys show it on now rather
 			// than when a read back catches up (the light may take a while to report it).
+			let before = values[power]
 			values[power] = on
 			onChange?( power )
+			Task {
+				do {
+					try await switchCharacteristic.writeValue( on )
+				} catch {
+					// It didn't turn on: the keys go back to what they showed (unless something
+					// else has changed it since), and the failure is reported with the level's.
+					levelError = error.localizedDescription
+					if ( values[power] as? NSObject ) == ( on as? NSObject ) {
+						values[power] = before
+						onChange?( power )
+					}
+				}
+			}
 		}
 		writeLevel( ref, to: targets, integer: metadata?.format != HMCharacteristicMetadataFormatFloat )
 		return goal
@@ -479,16 +492,26 @@ final class HomeObserver: NSObject {
 	}
 
 	/// Asks each target's accessory for its current state, all at once, calling `each` as each
-	/// answers: lastKnownState is HomeKit's cache, which for accessories not on a key can be
-	/// long out of date.
-	func readCurrentStates( of targets: [HomeTarget], each: @escaping @MainActor () -> Void ) {
-		for target in targets {
-			guard let type = target.kind.displayCharacteristicType, let accessory = accessory( target.accessoryID ),
-				  let characteristic = Self.characteristic( type, serviceID: target.serviceID, in: accessory ) else { continue }
+	/// answers, and returns when they all have: lastKnownState is HomeKit's cache, which for
+	/// accessories not on a key can be long out of date. Canceling the caller's task stops it
+	/// waiting (and calling `each`) for the rest.
+	func readCurrentStates( of targets: [HomeTarget], each: @escaping @MainActor @Sendable () -> Void ) async {
+		let characteristics = targets.compactMap { target -> HMCharacteristic? in
+			guard let type = target.kind.displayCharacteristicType, let accessory = accessory( target.accessoryID ) else { return nil }
+			return Self.characteristic( type, serviceID: target.serviceID, in: accessory )
+		}
+		// A task each rather than a task group: HMCharacteristic isn't Sendable, and the compiler
+		// can't check a group's child tasks capturing one. Canceled by hand instead.
+		let reads = characteristics.map { characteristic in
 			Task {
 				try? await characteristic.readValue()
-				each()
+				if !Task.isCancelled { each() }
 			}
+		}
+		await withTaskCancellationHandler {
+			for read in reads { await read.value }
+		} onCancel: {
+			reads.forEach { $0.cancel() }
 		}
 	}
 

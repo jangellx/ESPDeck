@@ -216,7 +216,8 @@ private struct Sidebar: View {
 					guard controller.window.scrollToProblem else { return }
 					controller.window.scrollToProblem = false
 					// A window the notification just opened lays out first.
-					DispatchQueue.main.asyncAfter( deadline: .now() + 0.3 ) {
+					Task {
+						try? await Task.sleep( for: .milliseconds( 300 ) )
 						withAnimation { proxy.scrollTo( Self.problemRowID, anchor: .bottom ) }
 					}
 				}

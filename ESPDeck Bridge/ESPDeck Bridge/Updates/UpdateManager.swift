@@ -376,7 +376,7 @@ final class UpdateManager {
 	var statusItems: [DeckController.StatusItem] {
 		var items: [DeckController.StatusItem] = []
 		if let controller, let latest = latestFirmware {
-			let count = controller.devices.filter { firmwareUpdateAvailable( for: $0 ) }.count
+			let count = controller.devices.count { firmwareUpdateAvailable( for: $0 ) }
 			if count > 0 {
 				items.append( .init( text: "Firmware \(latest.version) is available for \(count == 1 ? "1 device" : "\(count) devices")", level: .waiting ) )
 			}

@@ -76,10 +76,11 @@ struct HomeTargetSheet: View {
 			.contentMargins( .top, 8, for: .scrollContent )
 			.onChange( of: collapsed ) { UserDefaults.standard.set( collapsed.sorted(), forKey: Self.collapsedDefault ) }
 			.task {
-				// The rows start from HomeKit's cache; ask each accessory for what's true now.
-				controller.home.readCurrentStates( of: controller.home.targets() ) { [answers] in answers.count += 1 }
 				try? await Task.sleep( for: .milliseconds( 100 ) )   // once the sheet is up
 				searchFocused = true
+				// The rows start from HomeKit's cache; ask each accessory for what's true now.
+				// Closing the sheet cancels this task, and the reads with it.
+				await controller.home.readCurrentStates( of: controller.home.targets() ) { answers.count += 1 }
 			}
 			.navigationTitle( "Home" )
 			.navigationBarTitleDisplayMode( .inline )
@@ -156,7 +157,7 @@ struct HomeTargetSheet: View {
 	private func matches( _ target: HomeTarget ) -> Bool {
 		guard !search.isEmpty else { return true }
 		return [ target.name, target.room, target.home, target.kind.title ].compactMap { $0 }
-			.contains { $0.localizedCaseInsensitiveContains( search ) }
+			.contains { $0.localizedStandardContains( search ) }
 	}
 
 	/// The groups in their order (targets() sorts them), with "" (no room) last.

@@ -70,7 +70,7 @@ struct ExportBridgeSheet: View {
 	var body: some View {
 		let weakness = BridgeTransfer.passphraseProblem( passphrase )
 		let matches  = confirmation == passphrase
-		let count    = controller.config.settings.devices.filter { !$0.isDemo }.count
+		let count    = controller.config.settings.devices.count { !$0.isDemo }
 
 		NavigationStack {
 			Form {

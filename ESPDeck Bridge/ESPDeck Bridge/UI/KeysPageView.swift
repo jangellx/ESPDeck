@@ -110,7 +110,7 @@ struct KeysPageView: View {
 		return HStack( spacing: 6 ) {
 			Text( "Page" )
 				.foregroundStyle( Color.secondary )
-			ScrollView( .horizontal, showsIndicators: false ) {
+			ScrollView( .horizontal ) {
 				HStack( spacing: 6 ) {
 					ForEach( 0..<count, id: \.self ) { page in
 						pageButton( page, current: current, pills: count >= 10 )
@@ -128,6 +128,7 @@ struct KeysPageView: View {
 				}
 				.padding( .vertical, 1 )
 			}
+			.scrollIndicators( .hidden )
 			Spacer( minLength: 0 )
 			Button {
 				requestDelete( current )
