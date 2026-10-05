@@ -92,7 +92,9 @@ enum DeckCrypto {
 	/// of the Mac → ESP32 frame that carries it as the nonce: ciphertext, then the 16-byte tag.
 	static func sealDevOTA( session: Data, counter: UInt64, passwordHash: Data ) -> Data? {
 		guard let box = try? AES.GCM.seal( passwordHash, using: devOTAKey( session ), nonce: devOTANonce( counter ) ) else { return nil }
-		return box.ciphertext + box.tag
+		// A fresh Data: the ciphertext is a slice that doesn't start at index 0, and so would
+		// their sum, which traps a caller that indexes from 0.
+		return Data( box.ciphertext + box.tag )
 	}
 
 	/// The inverse of sealDevOTA; only tools/crypto_test uses it, to check the round trip.

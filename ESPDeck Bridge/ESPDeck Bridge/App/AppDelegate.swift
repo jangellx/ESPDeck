@@ -15,6 +15,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 
 	let controller = DeckController()
 
+	/// Launched by Xcode to run the unit tests inside it (it sets this for the test host).
+	static let isHostingTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
 	private(set) var menuBar             : DeckMenuBarPlugin?
 	private var activity                 : NSObjectProtocol?
 	private var configurationRequested   = false
@@ -33,6 +36,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 
 	/// Loads the menu bar plugin, connects it to the controller, and starts the bridge.
 	func application( _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? ) -> Bool {
+		// Hosting the unit tests: no server, HomeKit or menu bar item, which would act on the
+		// real decks and Home while the tests run.
+		guard !Self.isHostingTests else { return true }
+
 		// App Nap would throttle HomeKit notifications and the server while no window is open.
 		activity = ProcessInfo.processInfo.beginActivity( options: [ .userInitiatedAllowingIdleSystemSleep ], reason: "Bridging HomeKit to the Stream Deck" )
 
