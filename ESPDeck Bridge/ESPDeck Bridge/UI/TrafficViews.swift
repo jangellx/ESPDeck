@@ -217,7 +217,7 @@ struct TransferProgressFooter: View {
 				} else {
 					// A dot, not an empty ring: the ring doesn't run backward when an update ends.
 					Circle()
-						.fill( Color.secondary.opacity( 0.5 ) )
+						.fill( .tertiary )
 						.frame( width: Self.size, height: Self.size )
 				}
 				Text( busy ? "Updating the deck: \(done) of \(total) \(total == 1 ? "key" : "keys")"
@@ -241,7 +241,7 @@ private struct ProgressRing: View {
 	var body: some View {
 		ZStack {
 			Circle()
-				.stroke( Color.secondary.opacity( 0.25 ), lineWidth: 3 )
+				.stroke( .quaternary, lineWidth: 3 )
 			Circle()
 				.trim( from: 0, to: min( max( fraction, 0 ), 1 ) )
 				.stroke( Color.accentColor, style: StrokeStyle( lineWidth: 3, lineCap: .round ) )

@@ -40,7 +40,7 @@ struct IconWell: View {
 				KeyFaceView( face: face, icon: icon )
 					.scaleEffect( Self.size / CGFloat( deckKeyPixels ) )
 					.frame( width: Self.size, height: Self.size )
-					.clipShape( RoundedRectangle( cornerRadius: 10, style: .continuous ) )
+					.clipShape( RoundedRectangle( cornerRadius: 10 ) )
 					.keyOutline( cornerRadius: 10, isTargeted ? Color.accentColor : Color( white: 0.35 ),
 								 lineWidth: isTargeted ? 3 : 1, dash: hasCustomIcon ? [] : [ 4 ] )
 					.contentShape( Rectangle() )

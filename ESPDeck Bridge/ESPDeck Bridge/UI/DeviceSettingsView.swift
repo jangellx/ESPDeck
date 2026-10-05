@@ -924,7 +924,7 @@ private struct StatusLightSection: View {
 	private func light( _ entry: Entry ) -> some View {
 		Circle()
 			.fill( entry.color )
-			.overlay( Circle().strokeBorder( Color.secondary.opacity( 0.4 ), lineWidth: 1 ) )   // white on white
+			.overlay( Circle().strokeBorder( .tertiary, lineWidth: 1 ) )   // white on white
 			.frame( width: 14, height: 14 )
 			.phaseAnimator( entry.style == .solid ? [ 1.0 ] : [ 1.0, 0.2 ] ) { view, opacity in
 				view.opacity( opacity )

@@ -160,7 +160,7 @@ private struct SliderPartnerGrid: View {
 						if dr != 0 && dc != 0 {
 							Color.clear.frame( width: Self.cell, height: Self.cell )
 						} else if r < 0 || c < 0 || r >= layout.rows || c >= cols {
-							RoundedRectangle( cornerRadius: Self.corner, style: .continuous )
+							RoundedRectangle( cornerRadius: Self.corner )
 								.strokeBorder( Color( white: 0.5 ).opacity( 0.35 ), style: StrokeStyle( lineWidth: 1, dash: [ 3, 3 ] ) )
 								.frame( width: Self.cell, height: Self.cell )
 								.help( "Off the edge of the deck" )
@@ -188,7 +188,7 @@ private struct SliderPartnerGrid: View {
 			keyCell( key, chosen: false )
 				.help( "This key" )
 		} else {
-			RoundedRectangle( cornerRadius: Self.corner, style: .continuous )
+			RoundedRectangle( cornerRadius: Self.corner )
 				.strokeBorder( Color.accentColor, style: StrokeStyle( lineWidth: 2, dash: [ 4, 3 ] ) )
 				.overlay {
 					Image( systemName: "smallcircle.filled.circle" )
@@ -203,12 +203,12 @@ private struct SliderPartnerGrid: View {
 	private func keyCell( _ index: Int, chosen: Bool ) -> some View {
 		let preview = controller.device( deviceID ).flatMap { index < $0.keys.count ? $0.keys[index]?.preview : nil }
 		return ZStack {
-			RoundedRectangle( cornerRadius: Self.corner, style: .continuous )
+			RoundedRectangle( cornerRadius: Self.corner )
 				.fill( Color( white: 0.13 ) )
 			if let preview {
 				Image( uiImage: preview )
 					.resizable()
-					.clipShape( RoundedRectangle( cornerRadius: Self.corner, style: .continuous ) )
+					.clipShape( RoundedRectangle( cornerRadius: Self.corner ) )
 			}
 		}
 		.frame( width: Self.cell, height: Self.cell )
@@ -246,8 +246,8 @@ private struct StylePicker: View {
 				Image( systemName: style.symbol( raises: horizontal, horizontal: horizontal ) )
 			}
 			.frame( width: 58, height: 32 )
-			.background( RoundedRectangle( cornerRadius: 6, style: .continuous ).fill( style == selection ? Color.accentColor.opacity( 0.2 ) : Color( uiColor: .tertiarySystemFill ) ) )
-			.overlay( RoundedRectangle( cornerRadius: 6, style: .continuous ).strokeBorder( style == selection ? Color.accentColor : Color.clear, lineWidth: 2 ) )
+			.background( RoundedRectangle( cornerRadius: 6 ).fill( style == selection ? Color.accentColor.opacity( 0.2 ) : Color( uiColor: .tertiarySystemFill ) ) )
+			.overlay( RoundedRectangle( cornerRadius: 6 ).strokeBorder( style == selection ? Color.accentColor : Color.clear, lineWidth: 2 ) )
 			.contentShape( Rectangle() )
 		}
 		.buttonStyle( .plain )

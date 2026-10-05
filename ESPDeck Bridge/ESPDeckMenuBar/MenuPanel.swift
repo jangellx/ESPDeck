@@ -10,7 +10,10 @@
 //  This is an ordinary, activating window: clicking a row makes WindowServer itself
 //  activate the app, as clicking any app's window does, and the row takes that same click,
 //  so the window its action opens comes up in an active app. Shown, it doesn't take the
-//  keyboard or activate anything; a click anywhere else closes it.
+//  keyboard or activate anything; a click anywhere else closes it. While the app is already
+//  active (its window is in front), it can take the keyboard: then the arrow keys move
+//  through the rows and Return chooses one. From another app only the mouse works, since
+//  macOS gives the keyboard to the active app's windows alone.
 //
 //  AppKit only: this bundle is loaded into a Catalyst app, where SwiftUI is the iOS one.
 //
@@ -36,6 +39,10 @@ final class MenuPanel: NSPanel {
 	var onClose: ( () -> Void )?
 
 	private let stack = NSStackView()
+	/// The rows that can be chosen, top to bottom, and the one that's highlighted (under the
+	/// pointer, or reached with the arrow keys).
+	private var rows: [MenuPanelRowView] = []
+	private var highlightedRow: Int?
 
 	/// Its width, as a menu's.
 	private static let width: CGFloat = 280
@@ -80,6 +87,8 @@ final class MenuPanel: NSPanel {
 	/// click is still the latest input.
 	func setEntries( _ entries: [MenuPanelEntry] ) {
 		stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+		rows           = []
+		highlightedRow = nil
 		for entry in entries {
 			let view: NSView
 			switch entry {
@@ -88,12 +97,22 @@ final class MenuPanel: NSPanel {
 				case .separator:
 					view = MenuPanelSeparatorView()
 				case .row( let icon, let title, let detail, let action ):
-					view = MenuPanelRowView( icon: icon, title: title, detail: detail, action: action.map { action in
+					let row = MenuPanelRowView( icon: icon, title: title, detail: detail, action: action.map { action in
 						{ [weak self] in
 							self?.close()
 							action()
 						}
 					} )
+					if action != nil {
+						let index = rows.count
+						rows.append( row )
+						// The pointer over a row highlights it, and leaving it clears that.
+						row.onHover = { [weak self] inside in
+							guard let self else { return }
+							if inside { highlight( index ) } else if highlightedRow == index { highlight( nil ) }
+						}
+					}
+					view = row
 			}
 			stack.addArrangedSubview( view )
 			view.widthAnchor.constraint( equalTo: stack.widthAnchor, constant: -10 ).isActive = true
@@ -109,6 +128,29 @@ final class MenuPanel: NSPanel {
 	/// Esc closes it.
 	override func cancelOperation( _ sender: Any? ) {
 		close()
+	}
+
+	/// Highlights one row, or none.
+	private func highlight( _ index: Int? ) {
+		highlightedRow = index
+		for ( position, row ) in rows.enumerated() {
+			row.isHighlighted = position == index
+		}
+	}
+
+	/// Up and Down move through the rows that can be chosen, wrapping at the ends; Return,
+	/// Enter and Space choose the highlighted one. Only reached while the panel is key.
+	override func keyDown( with event: NSEvent ) {
+		switch event.keyCode {
+			case 125, 126:   // Down, Up
+				guard !rows.isEmpty else { return }
+				let step = event.keyCode == 125 ? 1 : -1
+				highlight( highlightedRow.map { ( $0 + step + rows.count ) % rows.count } ?? ( step > 0 ? 0 : rows.count - 1 ) )
+			case 36, 76, 49:   // Return, Enter, Space
+				if let highlightedRow { rows[highlightedRow].choose() }
+			default:
+				super.keyDown( with: event )
+		}
 	}
 
 	/// Watching for clicks outside it, in other apps and in this one, while it's shown.
@@ -151,6 +193,11 @@ final class MenuPanel: NSPanel {
 		origin.x   = min( max( origin.x, screen.minX + 4 ), screen.maxX - size.width - 4 )
 		setFrame( NSRect( origin: origin, size: size ), display: true )
 		orderFrontRegardless()   // without activating: only a click on a row does that
+		// With the app already active it can have the keyboard, for the arrow keys.
+		if NSApp.isActive {
+			makeKey()
+			makeFirstResponder( nil )
+		}
 		watchForClicksElsewhere()
 	}
 }
@@ -194,14 +241,17 @@ private final class MenuPanelSeparatorView: NSView {
 }
 
 /// One row: an icon (or blank space), the title, and an optional second line, highlighted in
-/// the accent color under the pointer as a menu item is. Clicked, it runs its action; it
-/// takes the first click even if the panel isn't key.
+/// the accent color while highlighted (the panel says when) as a menu item is. Clicked, it
+/// runs its action; it takes the first click even if the panel isn't key.
 private final class MenuPanelRowView: NSView {
 	private let action     : ( () -> Void )?
 	private let iconView   = NSImageView()
 	private let titleLabel : NSTextField
 	private let detailLabel: NSTextField?
-	private var highlighted = false { didSet { updateColors() } }
+	/// Set by the panel, which keeps one row highlighted at most.
+	var isHighlighted = false { didSet { updateColors() } }
+	/// The pointer came over the row, or left it.
+	var onHover: ( ( Bool ) -> Void )?
 
 	init( icon: NSImage?, title: String, detail: String?, action: ( () -> Void )? ) {
 		self.action = action
@@ -249,8 +299,14 @@ private final class MenuPanelRowView: NSView {
 		addTrackingArea( NSTrackingArea( rect: bounds, options: [ .mouseEnteredAndExited, .activeAlways, .inVisibleRect ], owner: self ) )
 	}
 
-	override func mouseEntered( with event: NSEvent ) { highlighted = action != nil }
-	override func mouseExited( with event: NSEvent ) { highlighted = false }
+	override func mouseEntered( with event: NSEvent ) { onHover?( true ) }
+	override func mouseExited( with event: NSEvent ) { onHover?( false ) }
+
+	/// Runs the row's action, as a click or Return on it does.
+	func choose() {
+		isHighlighted = false
+		action?()
+	}
 
 	/// The click that activates the app is also the one that chooses the row.
 	override func acceptsFirstMouse( for event: NSEvent? ) -> Bool { true }
@@ -258,17 +314,16 @@ private final class MenuPanelRowView: NSView {
 	/// Chosen on release inside, as a menu item is.
 	override func mouseDown( with event: NSEvent ) {}
 	override func mouseUp( with event: NSEvent ) {
-		guard let action, bounds.contains( convert( event.locationInWindow, from: nil ) ) else { return }
-		highlighted = false
-		action()
+		guard action != nil, bounds.contains( convert( event.locationInWindow, from: nil ) ) else { return }
+		choose()
 	}
 
 	/// White on the accent color while highlighted; gray when it can't be chosen. SF Symbol
 	/// icons (templates) follow the text; status icons keep their colors.
 	private func updateColors() {
-		layer?.backgroundColor = highlighted ? NSColor.controlAccentColor.cgColor : NSColor.clear.cgColor
-		titleLabel.textColor   = highlighted ? .white : action == nil ? .secondaryLabelColor : .labelColor
-		detailLabel?.textColor = highlighted ? NSColor.white.withAlphaComponent( 0.85 ) : .secondaryLabelColor
-		iconView.contentTintColor = highlighted ? .white : .labelColor
+		layer?.backgroundColor = isHighlighted ? NSColor.controlAccentColor.cgColor : NSColor.clear.cgColor
+		titleLabel.textColor   = isHighlighted ? .white : action == nil ? .secondaryLabelColor : .labelColor
+		detailLabel?.textColor = isHighlighted ? NSColor.white.withAlphaComponent( 0.85 ) : .secondaryLabelColor
+		iconView.contentTintColor = isHighlighted ? .white : .labelColor
 	}
 }

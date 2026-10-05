@@ -333,8 +333,8 @@ private struct GuideTip: View {
 			Spacer( minLength: 0 )
 		}
 		.padding( 14 )
-		.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( PartIllustration.accent.opacity( 0.12 ) ) )
-		.overlay( RoundedRectangle( cornerRadius: 14, style: .continuous ).strokeBorder( PartIllustration.accent.opacity( 0.5 ), lineWidth: 1 ) )
+		.background( RoundedRectangle( cornerRadius: 14 ).fill( PartIllustration.accent.opacity( 0.12 ) ) )
+		.overlay( RoundedRectangle( cornerRadius: 14 ).strokeBorder( PartIllustration.accent.opacity( 0.5 ), lineWidth: 1 ) )
 	}
 }
 
@@ -413,7 +413,7 @@ struct ForwardLabel: View {
 extension View {
 	/// The faint rounded card the Getting Started sheets set things on.
 	fileprivate func cardBackground() -> some View {
-		background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( .quaternary.opacity( 0.5 ) ) )
+		background( RoundedRectangle( cornerRadius: 14 ).fill( .quaternary.opacity( 0.5 ) ) )
 	}
 
 	/// An illustration at the proportions of its drawing `space`, on a card.
@@ -455,7 +455,7 @@ private struct PathCard: View {
 			.padding( 14 )
 			.frame( maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading )
 			.cardBackground()
-			.overlay( RoundedRectangle( cornerRadius: 14, style: .continuous ).strokeBorder( chosen ? Color.accentColor : .clear, lineWidth: 2 ) )
+			.overlay( RoundedRectangle( cornerRadius: 14 ).strokeBorder( chosen ? Color.accentColor : .clear, lineWidth: 2 ) )
 			.contentShape( Rectangle() )
 		}
 		.buttonStyle( .plain )

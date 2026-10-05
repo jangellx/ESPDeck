@@ -17,7 +17,7 @@ struct Pill<Content: View>: View {
 			content
 		}
 		.buttonStyle( PillSegmentStyle() )
-		.background( Capsule().fill( Color.secondary.opacity( 0.14 ) ) )
+		.background( Capsule().fill( .quaternary ) )
 		.fixedSize()
 	}
 }

@@ -157,7 +157,7 @@ struct NewDeviceView: View {
 			content()
 		}
 		.padding( 20 )
-		.background( RoundedRectangle( cornerRadius: 14, style: .continuous ).fill( Color.secondary.opacity( 0.1 ) ) )
+		.background( RoundedRectangle( cornerRadius: 14 ).fill( .quaternary ) )
 	}
 
 	/// Stops pairing.

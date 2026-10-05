@@ -15,6 +15,7 @@ import SwiftUI
 enum TargetMode: String, CaseIterable, Identifiable {
 	/// One accessory (sleep triggers, which watch one).
 	case accessory = "Accessory"
+	/// Only what kind a scene is: there's no Scene tab, the Home tab lists scenes.
 	case scene     = "Scene"
 	/// Keys and commands: any mix of accessories and scenes, from a Home-style sheet.
 	case home      = "Home"
@@ -117,9 +118,8 @@ private extension TargetMode {
 	func searchPrompt( severalHomes: Bool ) -> String {
 		switch self {
 			case .accessory: severalHomes ? "Search accessories, rooms, Homes, or types" : "Search accessories, rooms, or types"
-			case .scene:     "Search scenes"
 			case .shortcut:  "Search shortcuts or folders"
-			case .page, .home: ""
+			case .page, .home, .scene: ""
 		}
 	}
 
@@ -129,8 +129,7 @@ private extension TargetMode {
 		if !status.contains( .determined ) { return "Waiting for HomeKit access…" }
 		if !status.contains( .authorized ) { return "ESPDeck Bridge doesn't have HomeKit access. Allow it in System Settings → Privacy & Security → HomeKit." }
 		if controller.home.homes.isEmpty    { return "No HomeKit homes found for this iCloud account." }
-		if controller.home.hasSeveralHomes { return self == .scene ? "No scenes in your Homes." : "No supported accessories in your Homes." }
-		return self == .scene ? "No scenes in this home." : "No supported accessories in this home."
+		return controller.home.hasSeveralHomes ? "No supported accessories in your Homes." : "No supported accessories in this home."
 	}
 }
 
@@ -368,12 +367,11 @@ private struct TargetChoiceRows: View {
 		}
 	}
 
-	/// Under a search result: its folder, Home, or Home, room and kind.
+	/// Under a search result: its folder, or its Home, room and kind.
 	private func detail( for target: HomeTarget ) -> String? {
 		let home = severalHomes ? target.home : nil
 		return switch target.kind {
 			case .shortcut: target.room
-			case .scene:    home
 			default:        [ home, target.room, target.kind.title ].compactMap { $0 }.joined( separator: " · " )
 		}
 	}
@@ -403,12 +401,6 @@ private struct TargetMenu: View {
 			Divider()
 
 			switch mode {
-				case .scene:
-					HomeMenus( targets: targets, severalHomes: severalHomes ) { targets in
-						ForEach( targets ) { target in
-							menuItem( target, title: target.name )
-						}
-					}
 				case .shortcut:
 					// Folders as submenus, unfiled shortcuts at the top level.
 					let filed = targets.filter { $0.room != nil }.grouped { $0.room ?? "" }
@@ -429,7 +421,7 @@ private struct TargetMenu: View {
 							menuItem( target, title: "\(target.name) (\(target.kind.title))" )
 						}
 					}
-				case .page, .home:
+				case .page, .home, .scene:
 					EmptyView()   // PageCommandRows and ChosenTargetRows, not this menu
 			}
 		} label: {
@@ -463,20 +455,18 @@ private struct TargetMenu: View {
 		guard let kind = assignment.kind, TargetMode( kind: kind ) == mode else { return "None" }
 		guard let target = targets.first( where: { $0.matches( assignment ) } ) else {
 			switch mode {
-				case .scene:     return "Missing Scene"
 				case .accessory: return "Missing Accessory"
 				case .shortcut:
 					// Before the list loads, show the remembered name rather than "missing".
 					return shortcutsLoaded ? "Missing Shortcut" : ( assignment.shortcutName ?? "Shortcut" )
 				case .page:
 					return assignment.action.title
-				case .home:
+				case .home, .scene:
 					return "Missing"
 			}
 		}
 		let home = severalHomes ? target.home.map { "\($0) › " } ?? "" : ""
 		if kind == .shortcut { return target.name }
-		if kind == .scene { return home + target.name }
 		let place = target.room.map { "\($0) › " } ?? ""
 		return "\(home)\(place)\(target.name) (\(kind.title))"
 	}

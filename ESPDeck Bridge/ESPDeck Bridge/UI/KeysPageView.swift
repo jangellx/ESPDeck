@@ -120,7 +120,7 @@ struct KeysPageView: View {
 					} label: {
 						Image( systemName: "plus" )
 							.frame( width: 22, height: 22 )
-							.background( Circle().strokeBorder( Color.secondary.opacity( 0.5 ), lineWidth: 1 ) )
+							.background( Circle().strokeBorder( .tertiary, lineWidth: 1 ) )
 							.contentShape( Circle() )
 					}
 					.buttonStyle( .plain )
@@ -175,7 +175,7 @@ struct KeysPageView: View {
 				.frame( minWidth: 22, minHeight: 22 )
 				.padding( .horizontal, pills ? 6 : 0 )
 				.background( Capsule().fill( selected ? Color.accentColor : Color.clear ) )
-				.overlay( Capsule().strokeBorder( selected ? Color.clear : Color.secondary.opacity( 0.5 ), lineWidth: 1 ) )
+				.overlay( Capsule().strokeBorder( selected ? AnyShapeStyle( .clear ) : AnyShapeStyle( .tertiary ), lineWidth: 1 ) )
 				.contentShape( Capsule() )
 		}
 		.buttonStyle( .plain )

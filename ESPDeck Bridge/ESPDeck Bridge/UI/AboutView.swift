@@ -167,7 +167,7 @@ struct AboutView: View {
 					Image( "AppIconArt" )
 						.resizable()
 						.frame( width: 64, height: 64 )
-						.clipShape( RoundedRectangle( cornerRadius: 64 * 0.2237, style: .continuous ) )
+						.clipShape( RoundedRectangle( cornerRadius: 64 * 0.2237 ) )
 						.accessibilityHidden( true )
 					VStack( alignment: .leading, spacing: 4 ) {
 						Text( "ESPDeck Bridge" )

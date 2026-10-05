@@ -201,8 +201,8 @@ extension View {
 		overlay( alignment: .bottom ) {
 			if let problem {
 				ProblemBar( title: problem.title, reveal: reveal )
-					.background( .regularMaterial, in: RoundedRectangle( cornerRadius: 10, style: .continuous ) )
-					.overlay( RoundedRectangle( cornerRadius: 10, style: .continuous ).strokeBorder( Color.orange.opacity( 0.4 ), lineWidth: 1 ) )
+					.background( .regularMaterial, in: RoundedRectangle( cornerRadius: 10 ) )
+					.overlay( RoundedRectangle( cornerRadius: 10 ).strokeBorder( Color.orange.opacity( 0.4 ), lineWidth: 1 ) )
 					.padding( 8 )
 					.transition( .move( edge: .bottom ).combined( with: .opacity ) )
 			}
@@ -282,10 +282,10 @@ struct HoverButtonStyle: ButtonStyle {
 			configuration.label
 				.padding( 4 )
 				.background {
-					RoundedRectangle( cornerRadius: 5, style: .continuous )
+					RoundedRectangle( cornerRadius: 5 )
 						.fill( Color.primary.opacity( !isEnabled ? 0 : configuration.isPressed ? 0.16 : hovering ? 0.08 : 0 ) )
 				}
-				.contentShape( RoundedRectangle( cornerRadius: 5, style: .continuous ) )
+				.contentShape( RoundedRectangle( cornerRadius: 5 ) )
 				.onHover { hovering = $0 }
 				.animation( .easeOut( duration: 0.12 ), value: hovering )
 		}

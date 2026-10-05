@@ -62,8 +62,8 @@ struct DeckGridView: View {
 			}
 		}
 		.padding( Self.padding )
-		.background( RoundedRectangle( cornerRadius: 26, style: .continuous ).fill( Color( white: 0.13 ) ) )
-		.overlay( RoundedRectangle( cornerRadius: 26, style: .continuous ).strokeBorder( Color( white: 0.25 ), lineWidth: 1 ) )
+		.background( RoundedRectangle( cornerRadius: 26 ).fill( Color( white: 0.13 ) ) )
+		.overlay( RoundedRectangle( cornerRadius: 26 ).strokeBorder( Color( white: 0.25 ), lineWidth: 1 ) )
 	}
 }
 
@@ -125,10 +125,10 @@ private struct DeckKeyView: View {
 			.animation( waiting ? nil : .easeOut( duration: 0.15 ), value: waiting )
 		}
 		.frame( width: size, height: size )
-		.clipShape( RoundedRectangle( cornerRadius: radius, style: .continuous ) )
+		.clipShape( RoundedRectangle( cornerRadius: radius ) )
 		.overlay {
 			// Held on the physical deck: flash it here too.
-			RoundedRectangle( cornerRadius: radius, style: .continuous )
+			RoundedRectangle( cornerRadius: radius )
 				.fill( Color.white.opacity( pressed ? 0.45 : 0 ) )
 		}
 		.keyOutline( cornerRadius: radius, pressed ? Color.white : isTargeted ? Color.accentColor : selected ? Color.accentColor.opacity( 0.9 ) : Color( white: 0.3 ),
@@ -159,7 +159,7 @@ private struct DeckKeyView: View {
 				Image( uiImage: current )
 					.resizable()
 					.frame( width: size, height: size )
-					.clipShape( RoundedRectangle( cornerRadius: radius, style: .continuous ) )
+					.clipShape( RoundedRectangle( cornerRadius: radius ) )
 			}
 		}
 		.dropDestination( for: DeckDrop.self ) { items, _ in
@@ -177,15 +177,11 @@ private struct DeckKeyView: View {
 			return true
 		} isTargeted: { isTargeted = $0 }
 		// Where it is in the window, for shift-click (ConfigurationHostingController).
-		.background {
-			GeometryReader { geometry in
-				let frame = geometry.frame( in: .global )
-				Color.clear
-					.onAppear { controller.previewKeyFrames[index] = frame; controller.previewDevice = deviceID }
-					.onChange( of: frame ) { controller.previewKeyFrames[index] = frame; controller.previewDevice = deviceID }
-					.onDisappear { controller.previewKeyFrames[index] = nil }
-			}
+		.onGeometryChange( for: CGRect.self ) { $0.frame( in: .global ) } action: { frame in
+			controller.previewKeyFrames[index] = frame
+			controller.previewDevice           = deviceID
 		}
+		.onDisappear { controller.previewKeyFrames[index] = nil }
 		.task( id: changedAt ) {
 			guard let at = changedAt else { return }
 			let due = at.addingTimeInterval( Double( index ) * DeckDevice.pagePopStep )
@@ -202,7 +198,7 @@ extension View {
 	/// A key's outline, drawn inside the edge of its rounded square; dashed with `dash`.
 	func keyOutline( cornerRadius: CGFloat, _ color: Color, lineWidth: CGFloat, dash: [CGFloat] = [] ) -> some View {
 		overlay {
-			RoundedRectangle( cornerRadius: cornerRadius, style: .continuous )
+			RoundedRectangle( cornerRadius: cornerRadius )
 				.strokeBorder( color, style: StrokeStyle( lineWidth: lineWidth, dash: dash ) )
 		}
 	}
