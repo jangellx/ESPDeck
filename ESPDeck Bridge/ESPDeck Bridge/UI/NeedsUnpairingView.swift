@@ -34,13 +34,17 @@ struct NeedsUnpairingView: View {
 					if let board, board.espDeck != nil {
 						usbUnpair( board, setup: setup )
 					} else {
-						Label {
-							// Markdown, for the links: they open USB Setup (ConfigurationView's openURL).
-							Text( LocalizedStringKey( setup.scanning
-								  ? "Plug the deck's board into this Mac with a USB cable, using its port labeled USB, to unpair it from the bridge. [Go to USB Setup ›](\(ConfigurationView.usbSetupLink))"
-								  : "To unpair this deck from the bridge, turn on “Look for boards plugged in over USB” in USB Setup, then plug it into this Mac. [Go to USB Setup ›](\(ConfigurationView.usbSetupLink))" ) )
-						} icon: {
-							icon( "cable.connector" )
+						// The button is here before the deck is plugged in, disabled: this is the place,
+						// once it is.
+						VStack( alignment: .leading, spacing: 8 ) {
+							Label {
+								Text( setup.scanning
+									  ? "Plug the deck's board into this Mac with a USB cable, using its port labeled USB, to unpair it from the bridge."
+									  : "To unpair this deck from the bridge, turn on “Look for boards plugged in over USB” in USB Setup, then plug it into this Mac." )
+							} icon: {
+								icon( "cable.connector" )
+							}
+							unpairButton( nil, setup: setup )
 						}
 					}
 					Label {
@@ -72,6 +76,24 @@ struct NeedsUnpairingView: View {
 			.frame( width: iconWidth )
 	}
 
+	/// Unpair Over USB, centered: for `board`, or disabled while the deck isn't plugged in.
+	private func unpairButton( _ board: USBSetup.Board?, setup: USBSetup ) -> some View {
+		// Blue, not red: it fixes the deck rather than risking anything, so it doesn't ask.
+		Button( "Unpair Over USB" ) { if let board { setup.unpair( board ) } }
+			.prominentButtonStyle()
+			.disabled( board == nil || setup.unpairing == .working )
+			// Centered, with the spinner beside it rather than pushing it over.
+			.overlay( alignment: .trailing ) {
+				if let board, setup.unpairing == .working && setup.unpairingPath == board.port.path {
+					ProgressView()
+						.controlSize( .small )
+						.offset( x: 28 )
+				}
+			}
+			.frame( maxWidth: .infinity )
+			.padding( .vertical, 4 )
+	}
+
 	/// Unpairing the board plugged in over USB, and how that went.
 	@ViewBuilder
 	private func usbUnpair( _ board: USBSetup.Board, setup: USBSetup ) -> some View {
@@ -81,20 +103,7 @@ struct NeedsUnpairingView: View {
 			} icon: {
 				icon( "cable.connector" )
 			}
-			// Blue, not red: it fixes the deck rather than risking anything, so it doesn't ask.
-			Button( "Unpair Over USB" ) { setup.unpair( board ) }
-				.prominentButtonStyle()
-				.disabled( setup.unpairing == .working )
-				// Centered, with the spinner beside it rather than pushing it over.
-				.overlay( alignment: .trailing ) {
-					if setup.unpairing == .working && setup.unpairingPath == board.port.path {
-						ProgressView()
-							.controlSize( .small )
-							.offset( x: 28 )
-					}
-				}
-				.frame( maxWidth: .infinity )
-				.padding( .vertical, 4 )
+			unpairButton( board, setup: setup )
 			switch setup.unpairingPath == board.port.path ? setup.unpairing : .idle {
 				case .done:
 					Text( "Unpaired. It will reconnect as a new device in a moment, ready to pair." )
