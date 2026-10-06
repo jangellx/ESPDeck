@@ -890,9 +890,9 @@ private struct NetworkNameRow: View {
 					.disabled( waiting || !settable || proposed == nil || proposed == current )
 					.help( "Name it after the device, as your router will list it" )
 					if waiting {
+						Spinner()
 						Text( "Restarting the deck…" )
 							.secondaryCaption()
-						Spinner()
 					}
 					Spacer()
 					Button( "Reset" ) { change( to: nil ) }
