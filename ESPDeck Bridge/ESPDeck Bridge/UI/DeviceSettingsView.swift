@@ -890,10 +890,10 @@ private struct NetworkNameRow: View {
 					.disabled( waiting || !settable || proposed == nil || proposed == current )
 					.help( "Name it after the device, as your router will list it" )
 					if waiting {
-						ProgressView()
-							.controlSize( .small )
 						Text( "Restarting the deck…" )
 							.secondaryCaption()
+						ProgressView()
+							.controlSize( .small )
 					}
 					Spacer()
 					Button( "Reset" ) { change( to: nil ) }
@@ -906,7 +906,7 @@ private struct NetworkNameRow: View {
 						.font( .caption )
 						.foregroundStyle( .orange )
 				}
-				Text( "The device will restart to use a new name. Depending on your router, the old name can stay in its list for a while, until the device's address is renewed. Uploads through PlatformIO use the new name too." )
+				Text( "The device will restart to use the new name. Depending on your router, the old name can stay in its list for some time, until the device's address is renewed. PlatformIO will use the new name." )
 					.secondaryCaption()
 			}
 		}
