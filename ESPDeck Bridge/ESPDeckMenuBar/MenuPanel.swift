@@ -311,6 +311,13 @@ private final class MenuPanelRowView: NSView {
 	/// The click that activates the app is also the one that chooses the row.
 	override func acceptsFirstMouse( for event: NSEvent? ) -> Bool { true }
 
+	/// The row itself takes every click inside it, not its labels or icon. AppKit asks the
+	/// view under the pointer whether it accepts the first click, and a label says no: a
+	/// first click that landed on the text only activated the app, and a second was needed.
+	override func hitTest( _ point: NSPoint ) -> NSView? {
+		super.hitTest( point ) == nil ? nil : self
+	}
+
 	/// Chosen on release inside, as a menu item is.
 	override func mouseDown( with event: NSEvent ) {}
 	override func mouseUp( with event: NSEvent ) {
