@@ -116,10 +116,24 @@ struct NewDeviceView: View {
 							Button( "The Deck Shows This Code" ) { controller.confirmCode( client ) }
 								.prominentButtonStyle()
 						}
-						Text( deckConfirmed ? "It was confirmed on the deck."
-											: "If it doesn't match, something else may be answering for the deck: don't pair." )
-							.secondaryCaption()
-							.multilineTextAlignment( .center )
+						// Both lines are always laid out, one of them invisible, so the box is the same
+						// size whichever shows.
+						ZStack {
+							Text( "If it doesn't match, something else may be answering for the deck: don't pair." )
+								.secondaryCaption()
+								.multilineTextAlignment( .center )
+								.opacity( deckConfirmed ? 0 : 1 )
+								.accessibilityHidden( deckConfirmed )
+							Label {
+								Text( "Code confirmed on deck." )
+									.secondaryCaption()
+							} icon: {
+								Image( systemName: "checkmark.circle.fill" )
+									.foregroundStyle( .green )
+							}
+							.opacity( deckConfirmed ? 1 : 0 )
+							.accessibilityHidden( !deckConfirmed )
+						}
 					}
 					cancelButton
 

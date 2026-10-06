@@ -948,7 +948,7 @@ private struct StatusLightSection: View {
 		Entry( color: Color( red: 0.3, green: 0.9, blue: 0.35 ), style: .pulsing, title: "Pulsing green", meaning: "On Wi-Fi, looking for ESPDeck Bridge or waiting on it (to be unpaired, say)" ),
 		Entry( color: .green, style: .solid, title: "Green", meaning: "Connected to ESPDeck Bridge; brighter while data moves" ),
 		Entry( color: .white, style: .solid, title: "White", meaning: "A key is pressed" ),
-		Entry( color: Color( red: 0.85, green: 0.2, blue: 0.85 ), style: .blinking, title: "Blinking magenta", meaning: "Pairing; steady once it's confirmed on the deck" ),
+		Entry( color: Color( red: 0.85, green: 0.2, blue: 0.85 ), style: .blinking, title: "Blinking magenta", meaning: "Pairing; steady once the code is confirmed on the deck" ),
 	]
 
 	var body: some View {
