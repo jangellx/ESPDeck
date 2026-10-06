@@ -208,6 +208,13 @@ private struct BoardRow: View {
 						.font( .callout )
 						.foregroundStyle( .primary )
 					}
+					// On the board's serial chip: it works once checked, but the USB port is the
+					// one the app knows the board by (its serial number there is the deck's ID).
+					if !board.port.isEspressif {
+						WarningLabel( "This is the board's COM (UART) port. Plug the cable into its port labeled USB instead: ESPDeck Bridge will recognize the board there on its own." )
+							.font( .callout )
+							.padding( .top, 2 )
+					}
 				}
 				.frame( maxWidth: .infinity, alignment: .leading )
 				switch board.answer {
