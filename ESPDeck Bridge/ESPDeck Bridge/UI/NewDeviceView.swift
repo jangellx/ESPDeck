@@ -152,6 +152,7 @@ struct NewDeviceView: View {
 					WarningLabel( message )
 						.multilineTextAlignment( .center )
 					Button( "Try Again" ) { startPairing( device ) }
+						.prominentButtonStyle()
 			}
 		}
 	}

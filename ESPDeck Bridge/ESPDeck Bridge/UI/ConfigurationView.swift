@@ -37,6 +37,13 @@ struct ConfigurationView: View {
 
 	/// Decks needing unpairing whose keys and settings were asked for anyway.
 	@State private var showingStuckDevice: Set<String> = []
+	/// Known decks whose unauthenticated connection just went away: they usually reconnect in
+	/// a moment (after unpairing, a rename, a Stream Deck plugged in), so their page waits for
+	/// that rather than showing their keys in between.
+	@State private var reconnecting: Set<String> = []
+
+	/// How long a deck's page waits for it to reconnect before showing its keys.
+	private static let reconnectGrace: Duration = .seconds( 10 )
 
 	private var window: WindowState { controller.window }
 
@@ -90,6 +97,10 @@ struct ConfigurationView: View {
 						DeviceDetailView( controller: controller, deviceID: id )
 					}
 					.id( id )
+				} else if reconnecting.contains( id ), controller.device( id )?.isOnline != true {
+					ProgressView( "Waiting for the deck to reconnect…" )
+						.frame( maxWidth: .infinity, maxHeight: .infinity )
+						.id( id )
 				} else {
 					DeviceDetailView( controller: controller, deviceID: id )
 						.id( id )
@@ -157,6 +168,18 @@ struct ConfigurationView: View {
 				  let again = controller.newDevices.first( where: { $0.hello.id == id } ) else { return }
 			// A known device it turned out to be shows on its own row.
 			window.selection = controller.listedNewDevices.contains( where: { $0.client == again.client } ) ? SidebarItem.newDevice( again.client ) : String( id )
+		}
+		.onChange( of: controller.newDevices.map( \.hello.id ) ) { old, new in
+			// A known deck that was waiting (to pair, or to be unpaired) and has dropped off:
+			// give it a moment to come back before its page falls back to its keys.
+			for id in Set( old ).subtracting( new ) where controller.device( id ).map( { !$0.isOnline } ) == true {
+				reconnecting.insert( id )
+				Task {
+					try? await Task.sleep( for: Self.reconnectGrace )
+					reconnecting.remove( id )
+				}
+			}
+			reconnecting.subtract( new )
 		}
 		.onChange( of: controller.devices.map( \.id ) ) { old, new in
 			// Follow a device that just finished pairing.
