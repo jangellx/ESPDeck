@@ -31,22 +31,23 @@ struct NeedsUnpairingView: View {
 						usbUnpair( board, setup: setup )
 					} else {
 						Label {
-							Text( setup.scanning
-								  ? "Plug the deck's board into this Mac with a USB cable, using its port labeled USB, to unpair it from the bridge."
-								  : "To unpair this deck from the bridge, turn on “Look for boards plugged in over USB” in USB Setup, then plug it into this Mac." )
+							// Markdown, for the links: they open USB Setup (ConfigurationView's openURL).
+							Text( LocalizedStringKey( setup.scanning
+								  ? "Plug the deck's board into this Mac with a USB cable, using its port labeled USB, to unpair it from the bridge. [Go to USB Setup ›](\(ConfigurationView.usbSetupLink))"
+								  : "To unpair this deck from the bridge, turn on “Look for boards plugged in over USB” in USB Setup, then plug it into this Mac. [Go to USB Setup ›](\(ConfigurationView.usbSetupLink))" ) )
 						} icon: {
-							Image( systemName: "cable.connector" )
+							Self.icon( "cable.connector" )
 						}
 					}
 					Label {
 						Text( "\( Text( "Or on the deck:" ).bold() ) hold its top-left and bottom-right keys for 5 seconds, scan the QR codes to open the setup page, and choose Unpair." )
 					} icon: {
-						Image( systemName: "qrcode" )
+						Self.icon( "qrcode" )
 					}
 					Label {
 						Text( "Once the deck is unpaired, it will show up under New Devices. Pair it, and it will pick up its old keys and settings. They can also be copied onto another deck with Copy From Deck from the Device page." )
 					} icon: {
-						Image( systemName: "square.on.square" )
+						Self.icon( "square.on.square" )
 					}
 				}
 				.frame( maxWidth: .infinity, alignment: .leading )
@@ -60,6 +61,13 @@ struct NeedsUnpairingView: View {
 		}
 	}
 
+	/// A step's symbol, in a slot of one width: the symbols differ in width, and their text
+	/// should start at the same place.
+	private static func icon( _ name: String ) -> some View {
+		Image( systemName: name )
+			.frame( width: 24 )
+	}
+
 	/// Unpairing the board plugged in over USB, and how that went.
 	@ViewBuilder
 	private func usbUnpair( _ board: USBSetup.Board, setup: USBSetup ) -> some View {
@@ -67,7 +75,7 @@ struct NeedsUnpairingView: View {
 			Label {
 				Text( "The deck is plugged into this Mac over USB." ).bold()
 			} icon: {
-				Image( systemName: "cable.connector" )
+				Self.icon( "cable.connector" )
 			}
 			// Blue, not red: it fixes the deck rather than risking anything, so it doesn't ask.
 			Button( "Unpair Over USB" ) { setup.unpair( board ) }

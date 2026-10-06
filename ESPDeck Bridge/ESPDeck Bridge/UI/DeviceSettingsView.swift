@@ -839,11 +839,30 @@ private struct CommandSection: View {
 }
 
 /// The device's name on the network, which routers list it by, and changing it to its own
-/// name or back. Firmware before 4.1.0 always uses the original.
+/// name or back. Firmware before 4.1.0 always uses the original. The deck restarts to change
+/// it, so the buttons wait (with a spinner) until it's back or `restartTimeout` has passed.
 private struct NetworkNameRow: View {
 	let controller : DeckController
 	let device     : DeckDevice
 	let settings   : DeviceSettings
+
+	/// The name asked for, while the deck restarts to take it.
+	@State private var changingTo  : String?
+	/// The deck has gone offline since the change was asked for: it's restarting.
+	@State private var wentOffline = false
+	/// It didn't come back in time.
+	@State private var timedOut    = false
+
+	/// How long a restart may take: back on Wi-Fi, found the bridge, authenticated.
+	private static let restartTimeout: Duration = .seconds( 45 )
+
+	/// Asks the deck for a name (nil: its original) and starts waiting for it to restart.
+	private func change( to hostname: String? ) {
+		timedOut    = false
+		wentOffline = false
+		changingTo  = hostname ?? settings.defaultHostname
+		controller.setHostname( device: device.id, hostname )
+	}
 
 	var body: some View {
 		// As it reports it, or as it last did while it isn't connected.
@@ -855,30 +874,58 @@ private struct NetworkNameRow: View {
 			LabeledContent( "Network Name", value: current )
 			Text( "The deck can be found on your network as \(current).local." )
 				.secondaryCaption()
-			if !device.isOnline {
+			// While it restarts for a change it's offline, and the buttons stay to show the wait.
+			if changingTo == nil && !device.isOnline {
 				Text( "The deck changes this itself, so it needs to be connected to change it." )
 					.secondaryCaption()
-			} else if device.status.hostname == nil {
+			} else if changingTo == nil && device.status.hostname == nil {
 				Text( "Changing it needs firmware 4.1.0 or later." )
 					.secondaryCaption()
 			} else {
+				let waiting = changingTo != nil
 				HStack {
 					Button( proposed.map { "Change to \u{201C}\($0)\u{201D}" } ?? "Change to Device Name" ) {
-						controller.setHostname( device: device.id, proposed )
+						change( to: proposed )
 					}
-					.disabled( !settable || proposed == nil || proposed == current )
+					.disabled( waiting || !settable || proposed == nil || proposed == current )
 					.help( "Name it after the device, as your router will list it" )
+					if waiting {
+						ProgressView()
+							.controlSize( .small )
+						Text( "Restarting the deck…" )
+							.secondaryCaption()
+					}
 					Spacer()
-					Button( "Reset" ) { controller.setHostname( device: device.id, nil ) }
-						.disabled( !settable || current == settings.defaultHostname )
+					Button( "Reset" ) { change( to: nil ) }
+						.disabled( waiting || !settable || current == settings.defaultHostname )
 						.help( "Back to \(settings.defaultHostname)" )
 				}
 				.buttonStyle( .borderless )
+				if timedOut {
+					Text( "The deck hasn't come back yet. It may still be restarting; if it doesn't reconnect, check that it has power." )
+						.font( .caption )
+						.foregroundStyle( .orange )
+				}
 				Text( "The device will restart to use a new name. Depending on your router, the old name can stay in its list for a while, until the device's address is renewed. Uploads through PlatformIO use the new name too." )
 					.secondaryCaption()
 			}
 		}
 		.padding( .vertical, 2 )
+		// Done once it reports the new name, or has been away and come back (it may spell
+		// the name its own way).
+		.onChange( of: current ) { if current == changingTo { changingTo = nil } }
+		.onChange( of: device.isOnline ) { _, online in
+			guard changingTo != nil else { return }
+			if !online { wentOffline = true } else if wentOffline { changingTo = nil }
+		}
+		// Or when it has taken too long.
+		.task( id: changingTo ) {
+			guard changingTo != nil else { return }
+			try? await Task.sleep( for: Self.restartTimeout )
+			guard !Task.isCancelled else { return }
+			changingTo = nil
+			timedOut   = true
+		}
 	}
 }
 
