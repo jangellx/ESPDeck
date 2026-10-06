@@ -42,7 +42,9 @@ struct NewDeviceView: View {
 		Grid( alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6 ) {
 			GridRow {
 				Text( "Stream Deck" ).foregroundStyle( .secondary )
+				// Orange when there's none: pairing needs one (see pairing(_:)).
 				Text( device.hello.deck.connected ? ( device.hello.deck.model ?? "Connected" ) : "Not connected" )
+					.foregroundStyle( device.hello.deck.connected ? AnyShapeStyle( .primary ) : AnyShapeStyle( .orange ) )
 			}
 			GridRow {
 				Text( "Firmware" ).foregroundStyle( .secondary )
@@ -78,18 +80,28 @@ struct NewDeviceView: View {
 		} else {
 			switch device.pairing {
 				case .idle:
+					// Pairing ends with holding Confirm on the deck, so it needs a Stream Deck.
+					let hasDeck = device.hello.deck.connected
 					Button( "Pair with This Mac" ) { startPairing( device ) }
 						.prominentButtonStyle()
 						.controlSize( .large )
+						.disabled( !hasDeck )
 						.confirmationDialog( "Replace the existing pairing for \(replacing ?? "")?",
 											 isPresented: Binding( presenting: $replacing ), titleVisibility: .visible ) {
 							Button( "Replace Pairing", role: .destructive ) { controller.pair( client, replacing: true ) }
 						} message: {
 							Text( replaceMessage( device ) )
 						}
-					Text( "The deck will show a code to compare with the one shown here. If they match, confirm here and hold Confirm on the deck." )
-						.secondaryCaption()
-						.multilineTextAlignment( .center )
+					if hasDeck {
+						Text( "The deck will show a code to compare with the one shown here. If they match, confirm here and hold Confirm on the deck." )
+							.secondaryCaption()
+							.multilineTextAlignment( .center )
+					} else {
+						Text( "Plug a Stream Deck into the dev kit to pair. Pairing shows a code on its keys and is confirmed by holding one of them, so it can't be done without one." )
+							.font( .caption )
+							.foregroundStyle( .orange )
+							.multilineTextAlignment( .center )
+					}
 
 				case .waitingForDevice:
 					ProgressView( "Waiting for the deck…" )

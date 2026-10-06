@@ -1124,6 +1124,19 @@ static void checkRenamed() {
 	}
 }
 
+// The Stream Deck was plugged in or unplugged. Inside a session the bridge is told. Before
+// one, all it has is the hello, which says whether there's a deck (it won't offer to pair
+// without one: pairing is confirmed by holding a key), so reconnect and send a new hello; a
+// pairing in progress finishes first.
+static void announceDeck() {
+	if( session.authenticated() ) {
+		sendDeck();
+	} else if( bridge.isConnected() && pairing.stage == PairingStage::None ) {
+		ESP_LOGI( TAG, "Stream Deck %s before authenticating; reconnecting with a new hello", deckConnected ? "plugged in" : "unplugged" );
+		dropBridge( true );
+	}
+}
+
 // MARK: - Setup mode
 
 // Starts the access point and setup page and shows the setup display, ending any update or
@@ -1717,14 +1730,14 @@ static void handleDeckEvent( const StreamDeck::Event &event ) {
 			wake( "deck" );
 			refreshScreen( true );   // also sets the brightness
 			showDeckScreen();
-			sendDeck();
+			announceDeck();
 			break;
 		case StreamDeck::EventType::Disconnected:
 			uploader.reset();
 			keysDown = 0;
 			releaseForwardedKeys();
 			deckConnected = false;
-			sendDeck();
+			announceDeck();
 			break;
 		case StreamDeck::EventType::KeyDown:
 			// A switch that bounces reports up and down again within a few milliseconds; a

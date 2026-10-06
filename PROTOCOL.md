@@ -268,6 +268,8 @@ The name is in `hello`, which the Mac shows. When the device is renamed over Imp
 - with an authenticated session, by resending `hello` inside it;
 - connected but not authenticated (unpaired and listed under New Devices, say), by closing the connection and reconnecting without the backoff, so the new connection's `hello` has the new name. A pairing in progress isn't interrupted: the device waits for it to end, and once it succeeds, resends `hello` inside the new session.
 
+The same goes for the Stream Deck (later 4.1.0 builds): inside a session, plugging one in or unplugging it sends `deck`; connected but not authenticated, the device reconnects so that its `hello` says whether a Stream Deck is attached. The Mac doesn't offer to pair a device without one, since pairing is confirmed by holding a key. A pairing in progress isn't interrupted. Earlier firmware only says so in the `hello` it connects with.
+
 ## Storage encryption
 
 Firmware 4.1.0 and later can encrypt NVS, where the device keeps the Wi-Fi password, the pairing key `K`, the devOTA password hash, the name and settings. Without it, anyone who takes the device can read them from its flash over USB. It uses ESP-IDF's HMAC-based NVS encryption (not flash encryption): the XTS-AES keys that encrypt NVS entries are the ESP32-S3's HMAC peripheral's HMAC-SHA256 of two fixed seeds with a 256-bit key in an eFuse key block whose purpose is `HMAC_UP`. That block is read- and write-protected, so no software can read the key back, and the peripheral only computes with it. Burning it is permanent, so it only happens at two moments: by default when a new device is first set up, and when the Mac asks a device that was set up with plain storage.
