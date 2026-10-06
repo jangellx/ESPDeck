@@ -50,7 +50,10 @@ struct USBSetupView: View {
 								 selection: $selection )
 				}
 			}
-			AssemblySection( window: controller.window, selection: $selection )
+			// Not for a board on its COM port either: its one instruction there is to move the cable.
+			if setup.selectedBoard == nil || setup.selectedBoard?.port.isEspressif == true {
+				AssemblySection( window: controller.window, selection: $selection )
+			}
 		}
 		.formStyle( .grouped )
 		.navigationTitle( "USB Setup" )
