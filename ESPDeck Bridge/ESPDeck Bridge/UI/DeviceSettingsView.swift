@@ -886,8 +886,8 @@ private struct NetworkNameRow: View {
 				// change to the device's name, or (once it has that name) a reset to the original.
 				HStack {
 					if changingTo != nil {
-						ProgressView()
-							.controlSize( .small )
+						SystemSpinner()
+							.fixedSize()
 						Text( "Changed; restarting deck…" )
 							.foregroundStyle( .secondary )
 					} else if let proposed, proposed != current {

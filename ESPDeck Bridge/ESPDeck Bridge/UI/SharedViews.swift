@@ -52,6 +52,31 @@ struct WarningLabel: View {
 	}
 }
 
+/// The system's small spinner, for rows of a Form. SwiftUI's ProgressView is this same UIKit
+/// view, but there it can stop and hide itself: a spinner stops animating whenever it leaves
+/// its window, which a Form does to a row's views as it lays the row out again, and nothing
+/// starts it again. This one starts itself each time it's put in a window, and stays visible.
+struct SystemSpinner: UIViewRepresentable {
+	/// A spinner that spins whenever it's on screen.
+	final class Indicator: UIActivityIndicatorView {
+		override func didMoveToWindow() {
+			super.didMoveToWindow()
+			if window != nil { startAnimating() }
+		}
+	}
+
+	func makeUIView( context: Context ) -> Indicator {
+		let view = Indicator( style: .medium )
+		view.hidesWhenStopped = false
+		view.startAnimating()
+		return view
+	}
+
+	func updateUIView( _ view: Indicator, context: Context ) {
+		if !view.isAnimating { view.startAnimating() }
+	}
+}
+
 extension Binding where Value == Bool {
 	/// True while `value` is set; dismissing (setting false) clears it. For dialogs and alerts
 	/// about a pending item.
