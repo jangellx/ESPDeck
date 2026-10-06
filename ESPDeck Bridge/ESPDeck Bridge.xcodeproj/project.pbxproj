@@ -44,8 +44,8 @@
 		000000000000000000000016 /* ESPDeck Bridge Catalyst.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ESPDeck Bridge Catalyst.entitlements"; sourceTree = "<group>"; };
 		000000000000000000000017 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Signing.xcconfig; path = Config/Signing.xcconfig; sourceTree = SOURCE_ROOT; };
 		000000000000000000000120 /* ESPDeck Bridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ESPDeck Bridge.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		000000000000000000000122 /* ESPDeck BridgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ESPDeck BridgeTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000121 /* ESPDeckMenuBar.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ESPDeckMenuBar.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000122 /* ESPDeck BridgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ESPDeck BridgeTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */

@@ -4,7 +4,8 @@
 //
 //  Pairing keys, one per device ID, in the Keychain; and KeychainItem, the Keychain access
 //  they share with the bridge ID: the data-protection keychain when the app's signing allows
-//  it (no prompts across rebuilds), else the login keychain.
+//  it (no prompts across rebuilds), else the login keychain. As a sandboxed Catalyst app,
+//  both turn out to be the same keychain here, so nothing may assume they're separate.
 //
 
 import Foundation
@@ -153,7 +154,8 @@ nonisolated struct KeychainItem: Sendable {
 	}
 
 	/// Replaces the item's data in place (or adds it), so the old data is never gone before the
-	/// new is stored. `label` names a new item; `logTag` is for the console.
+	/// new is stored, and checks it can be read back. `label` names a new item; `logTag` is for
+	/// the console.
 	@discardableResult
 	func store( _ data: Data, label: String, logTag: String ) -> Bool {
 		for dataProtection in [ true, false ] {
@@ -166,12 +168,13 @@ nonisolated struct KeychainItem: Sendable {
 				item[kSecAttrLabel as String]      = label
 				status = SecItemAdd( item as CFDictionary, nil )
 			}
+			// Read back before saying it's stored: a key that isn't really there would only be
+			// found out at the next launch, as a deck that needs unpairing. (Nothing is cleaned
+			// out of the other keychain here. In this app both flags reach the same keychain,
+			// and deleting "the login keychain's copy" deleted the key just stored.)
 			if status == errSecSuccess {
-				if dataProtection {
-					// An older copy in the login keychain would only be stale.
-					SecItemDelete( query( dataProtection: false ) as CFDictionary )
-				}
-				return true
+				if read() == data { return true }
+				status = errSecItemNotFound
 			}
 			// -34018: missing keychain entitlement for the data-protection keychain.
 			print( "[\(logTag)] Storing in the \(dataProtection ? "data-protection" : "login") keychain failed: \(status)" )
