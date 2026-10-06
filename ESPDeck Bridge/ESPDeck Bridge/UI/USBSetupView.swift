@@ -33,15 +33,19 @@ struct USBSetupView: View {
 				BoardsSection( setup: setup,
 							   latestVersion: controller.updates.latestFirmware?.version,
 							   bridgeID: controller.config.settings.bridgeID )
-				if setup.selectedBoard != nil {
+				// The steps are only for a board on its own USB port (which is also what it shows as
+				// in flashing mode). On its COM port there's just its row, saying to move the cable:
+				// the app can't tell which deck that is, and installing there was never the tested way.
+				let onUSBPort = setup.selectedBoard?.port.isEspressif == true
+				if onUSBPort {
 					FirmwareSection( setup: setup, updates: controller.updates, pickingFile: $pickingFile )
 				}
-				if let info = setup.selectedBoard?.espDeck {
+				if onUSBPort, let info = setup.selectedBoard?.espDeck {
 					WiFiSection( setup: setup, savedSSID: savedSSID, ssid: $ssid, otherSSID: $otherSSID,
 								 password: $password, encrypt: $encrypt )
 					NameSection( setup: setup, name: info.name, nameDraft: $nameDraft )
 				}
-				if case .joined( let network ) = setup.wifi, let joined = setup.joinedBoard {
+				if onUSBPort, case .joined( let network ) = setup.wifi, let joined = setup.joinedBoard {
 					NextSection( setup: setup, window: controller.window, network: network, joined: joined,
 								 selection: $selection )
 				}
@@ -208,10 +212,11 @@ private struct BoardRow: View {
 						.font( .callout )
 						.foregroundStyle( .primary )
 					}
-					// On the board's serial chip: it works once checked, but the USB port is the
-					// one the app knows the board by (its serial number there is the deck's ID).
+					// On the board's serial chip, Check still says what it runs, but setup is done on
+					// the USB port, the one the app knows the board by (its serial number there is
+					// the deck's ID).
 					if !board.port.isEspressif {
-						WarningLabel( "This is the board's COM (UART) port. Plug the cable into its port labeled USB instead: ESPDeck Bridge will recognize the board there on its own." )
+						WarningLabel( "This is the board's COM (UART) port. Plug the cable into its port labeled USB instead: ESPDeck Bridge will recognize the board there on its own, and the setup steps will appear." )
 							.font( .callout )
 							.padding( .top, 2 )
 					}

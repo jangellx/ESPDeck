@@ -590,7 +590,8 @@ final class USBSetup {
 
 	/// Installs the chosen firmware on the selected board, through its ROM bootloader.
 	func installFirmware() {
-		guard let bridge, let board = selectedBoard, !install.isBusy else { return }
+		// Only on the board's own USB port; USB Setup doesn't offer it on a serial chip.
+		guard let bridge, let board = selectedBoard, board.port.isEspressif, !install.isBusy else { return }
 		let source         = self.source
 		let location       = board.port.location
 		installingLocation = location
