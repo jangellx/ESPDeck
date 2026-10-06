@@ -395,7 +395,7 @@ private struct SecuritySection: View {
 				recommendation
 			} else if storage != "encrypted" && controller.storageEncryption[device.id] != .encrypting {
 				HStack {
-					Button( "Encrypt Stored Secrets…" ) { confirming = true }
+					Button( "Encrypt Stored Secrets Now…" ) { confirming = true }
 						.disabled( !controller.canEncryptStorage( device ) )
 					if let note = unavailableNote( storage ) {
 						Spacer()
@@ -436,7 +436,7 @@ private struct SecuritySection: View {
 				Text( "Wi-Fi password and bridge pairing are currently stored unencrypted, meaning anyone can read them off the dev kit over USB. Encrypting adds a permanent key that makes it impossible to read them from the device." )
 					.font( .callout )
 				HStack {
-					Button( "Encrypt Stored Secrets…" ) { confirming = true }
+					Button( "Encrypt Stored Secrets Now…" ) { confirming = true }
 						.foregroundStyle( .tint )
 						.disabled( !controller.canEncryptStorage( device ) )
 					if let note = unavailableNote( device.status.storage ) {

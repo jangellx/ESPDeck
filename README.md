@@ -82,7 +82,7 @@ The dev kit keeps its Wi-Fi password, pairing key and developer password in its 
 
 The device remembers that choice (until a factory reset), so it doesn't ask again. Board Info in USB Setup and the device's **Device** page (under **Security**) show which way it stores its secrets. The web installer's Wi-Fi step always uses the default, encrypted.
 
-**Devices set up before, or set up as Standard,** keep their settings unencrypted until you choose otherwise: their **Device** page, under **Security**, recommends encrypting and has **Encrypt Stored Secrets…**, which moves every setting across (Wi-Fi, name, pairing: nothing needs setting up again) and restarts the deck. Keep it powered for the few seconds that takes; a power cut in the middle can reset its settings, and it then starts in setup mode. ESPDeck Bridge never does this by itself.
+**Devices set up before, or set up as Standard,** keep their settings unencrypted until you choose otherwise: their **Device** page, under **Security**, recommends encrypting and has **Encrypt Stored Secrets Now…**, which moves every setting across (Wi-Fi, name, pairing: nothing needs setting up again) and restarts the deck. Keep it powered for the few seconds that takes; a power cut in the middle can reset its settings, and it then starts in setup mode. ESPDeck Bridge never does this by itself.
 
 Either way it's one-way: the eFuse key is permanent, so that dev kit always encrypts what it stores. Only the encryption is permanent, not the settings: the Wi-Fi network, name and pairing can still be changed as usual. The deck works as before, updates still work, and a factory reset or the web installer start over with empty storage that's still encrypted.
 
