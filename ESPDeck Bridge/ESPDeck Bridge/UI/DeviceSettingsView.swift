@@ -892,8 +892,7 @@ private struct NetworkNameRow: View {
 					if waiting {
 						Text( "Restarting the deck…" )
 							.secondaryCaption()
-						ProgressView()
-							.controlSize( .small )
+						Spinner()
 					}
 					Spacer()
 					Button( "Reset" ) { change( to: nil ) }
