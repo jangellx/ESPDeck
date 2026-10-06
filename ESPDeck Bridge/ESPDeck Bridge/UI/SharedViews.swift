@@ -52,27 +52,6 @@ struct WarningLabel: View {
 	}
 }
 
-/// A small arc that turns, for "busy". Drawn here rather than a ProgressView for rows of a
-/// Form: there the system's spinner is a UIKit view, which stops and hides itself when its
-/// row is laid out again, and so may never show. Driven by the clock (TimelineView), it
-/// has no state to lose.
-struct Spinner: View {
-	/// Its diameter.
-	var size: CGFloat = 14
-
-	var body: some View {
-		TimelineView( .animation ) { context in
-			let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder( dividingBy: 1 )
-			Circle()
-				.trim( from: 0.1, to: 0.8 )
-				.stroke( .secondary, style: StrokeStyle( lineWidth: 2, lineCap: .round ) )
-				.rotationEffect( .degrees( turn * 360 ) )
-		}
-		.frame( width: size, height: size )
-		.accessibilityLabel( "Busy" )
-	}
-}
-
 extension Binding where Value == Bool {
 	/// True while `value` is set; dismissing (setting false) clears it. For dialogs and alerts
 	/// about a pending item.

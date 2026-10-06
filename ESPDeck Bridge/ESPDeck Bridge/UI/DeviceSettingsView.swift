@@ -882,22 +882,28 @@ private struct NetworkNameRow: View {
 				Text( "Changing it needs firmware 4.1.0 or later." )
 					.secondaryCaption()
 			} else {
-				let waiting = changingTo != nil
+				// One control, which is whatever applies now: the change waiting on a restart, a
+				// change to the device's name, or (once it has that name) a reset to the original.
 				HStack {
-					Button( proposed.map { "Change to \u{201C}\($0)\u{201D}" } ?? "Change to Device Name" ) {
-						change( to: proposed )
-					}
-					.disabled( waiting || !settable || proposed == nil || proposed == current )
-					.help( "Name it after the device, as your router will list it" )
-					if waiting {
-						Spinner()
-						Text( "Restarting the deck…" )
-							.secondaryCaption()
+					if changingTo != nil {
+						ProgressView()
+							.controlSize( .small )
+						Text( "Changed; restarting deck…" )
+							.foregroundStyle( .secondary )
+					} else if let proposed, proposed != current {
+						Button( "Change to \u{201C}\(proposed)\u{201D}" ) { change( to: proposed ) }
+							.disabled( !settable )
+							.help( "Name it after the device, as your router will list it" )
+					} else if current != settings.defaultHostname {
+						Button( "Reset to \u{201C}\(settings.defaultHostname)\u{201D}" ) { change( to: nil ) }
+							.disabled( !settable )
+							.help( "Back to its original name" )
+					} else {
+						// Already the original, and the device's name gives nothing else to use.
+						Button( "Change to Device Name" ) {}
+							.disabled( true )
 					}
 					Spacer()
-					Button( "Reset" ) { change( to: nil ) }
-						.disabled( waiting || !settable || current == settings.defaultHostname )
-						.help( "Back to \(settings.defaultHostname)" )
 				}
 				.buttonStyle( .borderless )
 				if timedOut {
