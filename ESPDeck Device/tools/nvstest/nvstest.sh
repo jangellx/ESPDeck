@@ -43,7 +43,9 @@ print("\n".join(p.device for p in list_ports.comports() if p.vid == 0x1A86 and p
 esptool()  { "$PY" "$TOOLS/esptool.py" --chip esp32s3 --port "$(port)" "$@"; }
 espefuse() { "$PY" "$TOOLS/espefuse.py" --chip esp32s3 --port "$(port)" "$@"; }
 
-mac() { esptool read-mac 2>&1 | awk '/^MAC:/ { print $2; exit }'; }
+# The first MAC line. awk reads to the end rather than exiting at it: leaving early breaks the
+# pipe esptool is still writing to, which (with pipefail) stopped the whole script.
+mac() { esptool read-mac 2>&1 | awk '/^MAC:/ && !found { print $2; found = 1 }'; }
 
 # Refuses to go on with a board other than the one backed up.
 same_board() {
@@ -78,7 +80,26 @@ case "$command" in
 		echo "Board $(cat "$BACKUP/mac.txt") on $(port)"
 		espefuse summary > "$BACKUP/efuse-summary-before.txt"
 		grep -E "KEY_PURPOSE_[0-5] " "$BACKUP/efuse-summary-before.txt" || true
-		esptool --baud 921600 read-flash 0 0x1000000 "$BACKUP/flash-16MB.bin"
+		# A megabyte at a time, each tried up to four times: read in one go, the stream stopped
+		# partway (at a different place each time). esptool checks each read against the chip's
+		# own digest of that range, so a part that comes back is a part that's right.
+		rm -f "$BACKUP"/part-*.bin
+		for index in $(seq 0 15); do
+			part="$BACKUP/part-$(printf %02d "$index").bin"
+			for attempt in 1 2 3 4; do
+				if esptool --baud "${NVSTEST_BAUD:-921600}" read-flash $(( index * 0x100000 )) 0x100000 "$part" > "$BACKUP/read.log" 2>&1 \
+					&& [[ $(stat -f %z "$part") -eq 1048576 ]]; then
+					echo "  ${index} MB: read"
+					continue 2
+				fi
+				echo "  ${index} MB: attempt $attempt failed ($(tr '\r' '\n' < "$BACKUP/read.log" | grep -i "error" | tail -1))"
+				rm -f "$part"
+			done
+			die "couldn't read flash at ${index} MB"
+		done
+		cat "$BACKUP"/part-*.bin > "$BACKUP/flash-16MB.bin"
+		[[ $(stat -f %z "$BACKUP/flash-16MB.bin") -eq 16777216 ]] || { rm -f "$BACKUP/flash-16MB.bin"; die "the backup isn't 16 MB"; }
+		rm -f "$BACKUP"/part-*.bin "$BACKUP/read.log"
 		(cd "$BACKUP" && shasum -a 256 flash-16MB.bin > flash-16MB.bin.sha256)
 		echo "Backed up to $BACKUP"
 		;;
@@ -98,7 +119,7 @@ case "$command" in
 		esptool --after no-reset erase-region 0xE000 0x2000
 		esptool --after no-reset erase-region 0x9000 0x5000
 		esptool --after no-reset erase-region 0xFF0000 0x2000
-		esptool --baud 921600 write-flash 0x0 "$OUT/bootloader.bin" 0x8000 "$OUT/partitions.bin" 0x10000 "$OUT/firmware.bin"
+		esptool --baud "${NVSTEST_BAUD:-921600}" write-flash 0x0 "$OUT/bootloader.bin" 0x8000 "$OUT/partitions.bin" 0x10000 "$OUT/firmware.bin"
 		"$PY" "$KIT/nvstest.py" --port "$(port)" check
 		;;
 
@@ -114,7 +135,7 @@ case "$command" in
 	restore)
 		same_board
 		(cd "$BACKUP" && shasum -a 256 -c flash-16MB.bin.sha256) || die "the backup doesn't match its checksum"
-		esptool --baud 921600 write-flash 0x0 "$BACKUP/flash-16MB.bin"
+		esptool --baud "${NVSTEST_BAUD:-921600}" write-flash 0x0 "$BACKUP/flash-16MB.bin"
 		espefuse summary > "$BACKUP/efuse-summary-after.txt"
 		if diff <(grep -v "^espefuse\|^Connecting\|^Detecting\|Serial port" "$BACKUP/efuse-summary-before.txt") \
 		        <(grep -v "^espefuse\|^Connecting\|^Detecting\|Serial port" "$BACKUP/efuse-summary-after.txt"); then
