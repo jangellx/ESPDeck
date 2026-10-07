@@ -609,20 +609,9 @@ private struct EncryptStorageSheet: View {
 		// As tall as its content, and the sheet with it: a sheet is otherwise a standard size,
 		// which left space above and below.
 		.fixedSize( horizontal: false, vertical: true )
-		.modifier( FittedSheet() )
+		.fittedSheet()
 		// Not dismissed by Esc or a click outside while the deck is in the middle of it.
 		.interactiveDismissDisabled( { if case .working = phase { true } else { false } }() )
-	}
-}
-
-/// Sizes a sheet to its content (iOS 18 and later; before that a sheet keeps its standard size).
-private struct FittedSheet: ViewModifier {
-	func body( content: Content ) -> some View {
-		if #available( iOS 18.0, * ) {
-			content.presentationSizing( .fitted )
-		} else {
-			content
-		}
 	}
 }
 

@@ -90,13 +90,21 @@ struct FactoryResetSheet: View {
 		let settings = controller.settings( deviceID )
 		let name     = settings?.name ?? "the device"
 
-		NavigationStack {
-			Form {
-				Section {
-					Text( "\(name) will erase its Wi-Fi settings, name, pairing, and stored key images, and restart in setup mode as if new. Set it up over USB or on its setup page, then pair it again here." )
-				}
-				Section {
-					Picker( "Then Restore", selection: $restore ) {
+		// A plain stack, sized to what's in it: nothing here needs to scroll.
+		VStack( alignment: .leading, spacing: 12 ) {
+			Text( "Factory Reset \(name)" )
+				.font( .headline )
+				.frame( maxWidth: .infinity )
+
+			Text( "\(name) will erase its Wi-Fi settings, name, pairing, and stored key images, and restart in setup mode as if new. Set it up over USB or on its setup page, then pair it again here." )
+				.fixedSize( horizontal: false, vertical: true )
+				.padding( 14 )
+				.frame( maxWidth: .infinity, alignment: .leading )
+				.background( .quaternary, in: RoundedRectangle( cornerRadius: 10 ) )
+
+			VStack( alignment: .leading, spacing: 8 ) {
+				LabeledContent( "After resetting, restore to" ) {
+					Picker( "After resetting, restore to", selection: $restore ) {
 						Text( "Its Own Settings" ).tag( Optional( "" ) )
 						Text( "Nothing" ).tag( String?.none )
 						let others = controller.copySources( for: deviceID ).filter { !$0.isDemo }
@@ -107,7 +115,9 @@ struct FactoryResetSheet: View {
 							}
 						}
 					}
-				} footer: {
+					.labelsHidden()
+				}
+				Group {
 					switch restore {
 						case "":
 							Text( "Its keys stay in ESPDeck Bridge either way. Once it's paired again, it will get back its name, network name, display and sleep settings." )
@@ -117,23 +127,29 @@ struct FactoryResetSheet: View {
 							Text( "Its keys, display, sleep and key press settings will become that deck's now; its display and sleep timer will go to it once it's paired again. Its own name and network name are kept here for it." )
 					}
 				}
+				.secondaryCaption()
+				.fixedSize( horizontal: false, vertical: true )
 			}
-			.formStyle( .grouped )
-			.navigationTitle( "Factory Reset \(name)" )
-			.navigationBarTitleDisplayMode( .inline )
-			.toolbar {
-				ToolbarItem( placement: .cancellationAction ) {
-					Button( "Cancel" ) { dismiss() }
+			.padding( 14 )
+			.frame( maxWidth: .infinity, alignment: .leading )
+			.background( .quaternary, in: RoundedRectangle( cornerRadius: 10 ) )
+
+			HStack {
+				Button( "Cancel", role: .cancel ) { dismiss() }
+				Spacer()
+				Button( "Factory Reset", role: .destructive ) {
+					reset( settings )
+					dismiss()
 				}
-				ToolbarItem( placement: .confirmationAction ) {
-					Button( "Factory Reset", role: .destructive ) {
-						reset( settings )
-						dismiss()
-					}
-				}
+				.prominentButtonStyle()
+				.tint( .red )
 			}
+			.padding( .top, 4 )
 		}
-		.frame( minWidth: 440, idealWidth: 480, minHeight: 340, idealHeight: 380 )
+		.padding( 20 )
+		.frame( width: 480 )
+		.fixedSize( horizontal: false, vertical: true )
+		.fittedSheet()
 	}
 
 	/// Resets the device, then sets up what it gets back once it's paired again.

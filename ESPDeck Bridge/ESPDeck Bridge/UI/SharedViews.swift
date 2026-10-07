@@ -77,6 +77,25 @@ struct SystemSpinner: UIViewRepresentable {
 	}
 }
 
+/// Sizes a sheet to its content (iOS 18 and later; before that a sheet keeps its standard size).
+private struct FittedSheet: ViewModifier {
+	func body( content: Content ) -> some View {
+		if #available( iOS 18.0, * ) {
+			content.presentationSizing( .fitted )
+		} else {
+			content
+		}
+	}
+}
+
+extension View {
+	/// On a sheet's content: the sheet is as big as the content, with no space around it.
+	/// Give the content its size first (a width, and fixedSize vertically).
+	func fittedSheet() -> some View {
+		modifier( FittedSheet() )
+	}
+}
+
 extension Binding where Value == Bool {
 	/// True while `value` is set; dismissing (setting false) clears it. For dialogs and alerts
 	/// about a pending item.
