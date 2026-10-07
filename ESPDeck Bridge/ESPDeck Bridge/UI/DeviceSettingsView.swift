@@ -260,7 +260,7 @@ struct DeviceSettingsView: View {
 							FactoryResetSheet( controller: controller, deviceID: deviceID )
 						}
 					InfoButton( help: "About Factory Reset",
-								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It will restart in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again, it will get back its own settings, or another deck's." )
+								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It will restart in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again, it will get back its own settings, or it can be restored to another deck's settings." )
 				}
 				HStack {
 					Button( "Copy From Deck…" ) { copyingDeck = true }
