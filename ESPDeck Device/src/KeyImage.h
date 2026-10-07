@@ -41,7 +41,8 @@ public:
 	void drawText( const char *const *lines, size_t count, uint32_t background = 0x000000, TextStyle style = TextStyle::Label );
 
 	// A square RGB888 icon (iconSize × iconSize) and one line of white text beside it, the
-	// pair centered on black.
+	// pair centered on black. The text may be any UTF-8: what the font lacks shows as '?',
+	// and what doesn't fit is cut off with "...".
 	void drawIconAndText( const uint8_t *icon, int iconSize, const char *text );
 
 	// A filled, anti-aliased circle (0xRRGGBB) centered on black, diameter a fraction of the key.

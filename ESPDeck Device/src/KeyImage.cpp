@@ -224,10 +224,33 @@ void KeyImage::drawText( const char *const *lines, size_t count, uint32_t backgr
 		drawLine( *font, lines[i], ( width_ - lineWidth( *font, lines[i] ) ) / 2, top + font->capHeight + (int)i * font->lineHeight );
 }
 
-void KeyImage::drawIconAndText( const uint8_t *icon, int iconSize, const char *text ) {
+void KeyImage::drawIconAndText( const uint8_t *icon, int iconSize, const char *name ) {
 	fill( 0, 0, 0 );
 	const Font &font  = iconSize >= 64 ? kLabelLargeFont : kLabelFont;
 	int         gap   = iconSize / 4;
+
+	// The text as the font can draw it: ASCII, with one '?' for each other character (a
+	// UTF-8 lead byte; its continuation bytes are skipped), cut short with "..." to fit
+	// beside the icon with a margin at each end.
+	char   text[64];
+	size_t length = 0;
+	for( const char *c = name; *c && length < sizeof( text ) - 1; c++ ) {
+		unsigned char byte = (unsigned char)*c;
+		if( byte >= 0x80 && byte < 0xC0 )
+			continue;
+		text[length++] = glyphFor( font, *c ) ? *c : '?';
+	}
+	text[length] = 0;
+	const int room = width_ - iconSize - gap - 2 * gap;
+	if( lineWidth( font, text ) > room ) {
+		const int dots = lineWidth( font, "..." );
+		while( length > 0 && lineWidth( font, text ) + dots > room )
+			text[--length] = 0;
+		while( length > 0 && text[length - 1] == ' ' )
+			text[--length] = 0;
+		strlcpy( text + length, "...", sizeof( text ) - length );
+	}
+
 	int         x     = ( width_ - ( iconSize + gap + lineWidth( font, text ) ) ) / 2;
 	int         top   = ( height_ - iconSize ) / 2;
 	for( int y = 0; y < iconSize; y++ ) {

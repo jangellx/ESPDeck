@@ -868,14 +868,19 @@ static void refreshScreen( bool redraw ) {
 	applyBrightness();
 }
 
-// The app icon and "ESPDeck" on the Neo's info bar or the +'s touch strip, instead of
-// whatever the deck showed at power-up. Drawn once per connection; brightness and sleep
-// apply to it too.
+// The name on the deck's screen, so it's drawn again when the device is renamed.
+static char screenName[Settings::kMaxName + 1] = {};
+
+// The app icon and the device's name on the Neo's info bar or the +'s touch strip, instead
+// of whatever the deck showed at power-up. Drawn when a deck is plugged in and when the name
+// changes; brightness and sleep apply to it too.
 static void showDeckScreen() {
+	strlcpy( screenName, settings.name(), sizeof( screenName ) );
 	if( deckInfo.screenWidth == 0 || !screenImage.begin( deckInfo.screenWidth, deckInfo.screenHeight ) )
 		return;
 	bool large = deckInfo.screenHeight >= kAppIconLargeSize + 10;
-	screenImage.drawIconAndText( large ? kAppIconLarge : kAppIconSmall, large ? kAppIconLargeSize : kAppIconSmallSize, "ESPDeck" );
+	screenImage.drawIconAndText( large ? kAppIconLarge : kAppIconSmall, large ? kAppIconLargeSize : kAppIconSmallSize,
+								 screenName[0] ? screenName : "ESPDeck" );
 	size_t         length = 0;
 	const uint8_t *image  = screenImage.encode( StreamDeck::Format::JPEG, deckInfo.screenTransform, length );
 	if( image )
@@ -2038,6 +2043,9 @@ void loop() {
 	}
 
 	checkRenamed();
+	// Renamed (by the bridge, over USB, or on the setup page): the deck's screen shows the name.
+	if( deckConnected && strcmp( settings.name(), screenName ) != 0 )
+		showDeckScreen();
 	checkSetupChord();
 	checkPairingHold();
 	checkSleepTimer();
