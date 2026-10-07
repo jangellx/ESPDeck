@@ -581,8 +581,9 @@ private struct NetworkPicker: View {
 		.labelsHidden()
 		.fixedSize()
 		// A new popup whenever what it lists changes: on the Mac the button otherwise keeps the
-		// title it had ("Looking for networks…") until it's clicked.
-		.id( PickerContents( networks: setup.networks.map( \.ssid ), finding: setup.findingNetworks, saved: savedSSID ) )
+		// title it had ("Looking for networks…") until it's clicked. Searching only counts while
+		// the list is empty (it's the title then), so searching again doesn't close an open menu.
+		.id( PickerContents( networks: setup.networks.map( \.ssid ), finding: setup.findingNetworks && setup.networks.isEmpty, saved: savedSSID ) )
 	}
 }
 
