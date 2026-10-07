@@ -77,7 +77,8 @@ struct CopyDeckSheet: View {
 	}
 }
 
-/// Factory Reset, and what to give the deck once it's set up and paired again.
+/// Factory Reset, and what to give the deck once it's set up and paired again; then the wait
+/// while the deck is told, and a confirmation with a button to close.
 struct FactoryResetSheet: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -90,6 +91,20 @@ struct FactoryResetSheet: View {
 		let settings = controller.settings( deviceID )
 		let name     = settings?.name ?? "the device"
 
+		Group {
+			if controller.factoryResets[deviceID] == .done {
+				done( name )
+			} else {
+				asking( name, settings: settings, working: controller.factoryResets[deviceID] == .resetting )
+			}
+		}
+		// The reset is only followed while this sheet is showing.
+		.onDisappear { controller.factoryResets[deviceID] = nil }
+	}
+
+	/// What a reset does and what comes back afterwards, with Cancel and Factory Reset; the
+	/// same while the deck is told (`working`), with a spinner in the button's place.
+	private func asking( _ name: String, settings: DeviceSettings?, working: Bool ) -> some View {
 		// A plain stack, sized to what's in it: nothing here needs to scroll.
 		VStack( alignment: .leading, spacing: 12 ) {
 			Text( "Factory Reset \(name)" )
@@ -116,6 +131,7 @@ struct FactoryResetSheet: View {
 						}
 					}
 					.labelsHidden()
+					.disabled( working )
 				}
 				Group {
 					switch restore {
@@ -136,13 +152,19 @@ struct FactoryResetSheet: View {
 
 			HStack {
 				Button( "Cancel", role: .cancel ) { dismiss() }
+					.disabled( working )
 				Spacer()
-				Button( "Factory Reset", role: .destructive ) {
-					reset( settings )
-					dismiss()
+				// One place for both: the button, then what it set going.
+				if working {
+					SystemSpinner()
+						.fixedSize()
+					Text( "Resetting…" )
+						.foregroundStyle( .secondary )
+				} else {
+					Button( "Factory Reset", role: .destructive ) { reset( settings ) }
+						.prominentButtonStyle()
+						.tint( .red )
 				}
-				.prominentButtonStyle()
-				.tint( .red )
 			}
 			.padding( .top, 4 )
 		}
@@ -150,7 +172,34 @@ struct FactoryResetSheet: View {
 		.frame( width: 480 )
 		.fixedSize( horizontal: false, vertical: true )
 		.fittedSheet()
+		// Not dismissed by Esc or a click outside while the deck is being told.
+		.interactiveDismissDisabled( working )
 	}
+
+	/// The deck has started erasing: what happens next, and Done.
+	private func done( _ name: String ) -> some View {
+		VStack( spacing: 16 ) {
+			Image( systemName: "checkmark.circle.fill" )
+				.font( .system( size: 40 ) )
+				.foregroundStyle( .green )
+				.accessibilityHidden( true )
+			Text( "\(name) Was Reset" )
+				.font( .headline )
+				.multilineTextAlignment( .center )
+			Text( "\(name) is erasing its storage and will restart in setup mode in a few seconds. Set up the deck over USB or on its setup page, then pair the deck again here." )
+				.font( .callout )
+				.multilineTextAlignment( .center )
+				.fixedSize( horizontal: false, vertical: true )
+			Button( "Done" ) { dismiss() }
+				.prominentButtonStyle()
+				.padding( .top, 4 )
+		}
+		.padding( 24 )
+		.frame( width: 480 )
+		.fixedSize( horizontal: false, vertical: true )
+		.fittedSheet()
+	}
+
 
 	/// Resets the device, then sets up what it gets back once it's paired again.
 	private func reset( _ settings: DeviceSettings? ) {

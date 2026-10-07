@@ -374,7 +374,11 @@ void Improv::trackScan() {
 	int16_t count = WiFi.scanComplete();
 	if( count == WIFI_SCAN_RUNNING )
 		return;
-	scanning_   = false;
+	scanning_ = false;
+	// No results: the scan failed, or the setup page's collected them (and deleted them) before
+	// this did. Scan again rather than answer with no networks, while there's time.
+	if( count < 0 && !Timing::reached( scanDeadline_, millis() ) )
+		return;
 	scanWanted_ = false;
 
 	// One result per network name, strongest first, then an empty one.

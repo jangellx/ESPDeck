@@ -47,6 +47,13 @@ final class DeckController {
 	/// The connection encryptStorage went to, and the wait for the device to come back.
 	@ObservationIgnored var storageEncryptionRequests: [String: ( client: ClientID, timeout: Task<Void, Never> )] = [:]
 
+	/// Factory resets their sheet is still showing: under way, or done.
+	var factoryResets        : [String: FactoryReset] = [:]
+	/// The connection factoryReset went to, and the wait for the device to close it.
+	@ObservationIgnored private var factoryResetRequests: [String: ( client: ClientID, timeout: Task<Void, Never> )] = [:]
+	/// How long a device may take to close its connection once it's told to reset.
+	private static let factoryResetTimeout: Duration = .seconds( 10 )
+
 	/// Launch at Login, as the AppKit bundle reports it.
 	private(set) var launchAtLogin = LaunchAtLogin.off
 
@@ -487,10 +494,41 @@ final class DeckController {
 	/// Erases the device (Wi-Fi, name, pairing, settings, image cache) and restarts it in
 	/// setup mode. Its pairing key is useless afterwards, but its key layout is kept here,
 	/// so it comes back once the device is set up and paired again.
+	///
+	/// The device is offline here from this moment, though it keeps its connection for a few
+	/// seconds more (it shows "Resetting" on the deck first). Its closing the connection is
+	/// what says the reset has begun; `factoryResets` follows that for the sheet.
 	func factoryReset( device id: String ) {
-		guard let client = device( id )?.client, server.isAuthenticated( client ) else { return }
+		guard let device = device( id ), let client = device.client, server.isAuthenticated( client ) else { return }
 		server.send( .factoryReset, to: client )
 		PairingKeyStore.delete( id )
+
+		clientDevices[client] = nil
+		stopSliders( device: id )
+		firmwareDisconnected( device )
+		device.disconnected()
+
+		factoryResets[id] = .resetting
+		factoryResetRequests[id]?.timeout.cancel()
+		let timeout = Task { [weak self] in
+			try? await Task.sleep( for: Self.factoryResetTimeout )
+			guard !Task.isCancelled, let self else { return }
+			// It was told over a session that was working, so it's taken as done.
+			server.drop( client )
+			factoryResetClosed( client )
+		}
+		factoryResetRequests[id] = ( client, timeout )
+	}
+
+	/// The connection a factory reset went to has closed: the device has started erasing.
+	/// False when the connection wasn't one of those.
+	@discardableResult
+	private func factoryResetClosed( _ client: ClientID ) -> Bool {
+		guard let id = factoryResetRequests.first( where: { $0.value.client == client } )?.key else { return false }
+		factoryResetRequests.removeValue( forKey: id )?.timeout.cancel()
+		// Only while its sheet is still waiting to hear.
+		if factoryResets[id] == .resetting { factoryResets[id] = .done }
+		return true
 	}
 
 	/// Removes a device's settings and unpairs it. If it's connected, it comes back as a
@@ -502,6 +540,7 @@ final class DeckController {
 		}
 		PairingKeyStore.delete( id )
 		storageEncryption[id] = nil
+		factoryResets[id]     = nil
 		config.settings.devices.removeAll { $0.id == id }
 		devices.removeAll { $0.id == id }
 		config.removeUnusedIcons()
@@ -523,8 +562,13 @@ final class DeckController {
 			device.pushTask?.cancel()
 			device.clearPending()
 		}
+		for request in factoryResetRequests.values {
+			request.timeout.cancel()
+		}
 		storageEncryptionRequests = [:]
 		storageEncryption         = [:]
+		factoryResetRequests      = [:]
+		factoryResets             = [:]
 		handshakes                = [:]
 		clientDevices             = [:]
 		newDevices                = []
@@ -1004,6 +1048,7 @@ final class DeckController {
 	/// A connection closed: ends its handshake, or takes its device offline.
 	private func clientDisconnected( _ client: ClientID ) {
 		handshakeEnded( client )
+		if factoryResetClosed( client ) { return }
 		guard let id = clientDevices.removeValue( forKey: client ), let device = device( id ), device.client == client else { return }
 		stopSliders( device: id )
 		firmwareDisconnected( device )

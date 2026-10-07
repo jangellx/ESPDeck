@@ -19,6 +19,13 @@ enum StorageEncryption: Equatable {
 	case failed( String )
 }
 
+/// A factory reset, as its sheet shows it.
+enum FactoryReset: Equatable {
+	/// factoryReset was sent; the device closes its connection as it starts erasing.
+	case resetting
+	case done
+}
+
 extension DeckController {
 	/// The first firmware that can read encrypted storage. An encrypted device must never get
 	/// an older one: it would erase its settings and pairing (see sendFirmware).

@@ -727,8 +727,10 @@ private struct RefreshButton: View {
 	var body: some View {
 		ZStack {
 			if busy {
-				ProgressView()
-					.controlSize( .small )
+				// Not ProgressView, which hides itself in a Form row (see SystemSpinner).
+				SystemSpinner()
+					.fixedSize()
+					.scaleEffect( 0.8 )
 			} else {
 				Button( action: action ) {
 					Image( systemName: "arrow.clockwise" )

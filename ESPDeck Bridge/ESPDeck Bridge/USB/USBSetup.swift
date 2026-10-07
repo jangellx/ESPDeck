@@ -728,6 +728,9 @@ final class USBSetup {
 		findNetworks()
 	}
 
+	/// How many times a board is asked before "No networks found" is believed.
+	private static let scanAttempts = 3
+
 	/// Asks the selected board for the networks it can see.
 	func findNetworks() {
 		guard selectedBoard?.espDeck != nil, !findingNetworks else { return }
@@ -735,15 +738,26 @@ final class USBSetup {
 		withSelectedBoard { [weak self] path in
 			guard let self else { return }
 			defer { findingNetworks = false }
-			guard openPort( path ), send( Improv.scan ) else { return }
-			var found: [Network] = []
-			let finished = await wait( .seconds( 20 ) ) { packet -> Bool? in
-				guard packet.type == Improv.typeResult, packet.value == Improv.scan else { return nil }
-				guard packet.strings.count >= 3 else { return true }   // the empty result ends the list
-				found.append( Network( ssid: packet.strings[0], rssi: Int( packet.strings[1] ) ?? -100, secure: packet.strings[2] == "YES" ) )
-				return nil
+			guard openPort( path ) else { return }
+			// A board in setup mode scans for its setup page too, and firmware up to 4.1.0 can
+			// answer with an empty list when that scan took the results; so an empty answer is
+			// asked for again before it's believed.
+			for attempt in 1 ... Self.scanAttempts {
+				guard send( Improv.scan ) else { return }
+				var found: [Network] = []
+				let finished = await wait( .seconds( 20 ) ) { packet -> Bool? in
+					guard packet.type == Improv.typeResult, packet.value == Improv.scan else { return nil }
+					guard packet.strings.count >= 3 else { return true }   // the empty result ends the list
+					found.append( Network( ssid: packet.strings[0], rssi: Int( packet.strings[1] ) ?? -100, secure: packet.strings[2] == "YES" ) )
+					return nil
+				}
+				guard finished != nil else { return }
+				if !found.isEmpty || attempt == Self.scanAttempts {
+					networks = found
+					return
+				}
+				try? await Task.sleep( for: .seconds( 1 ) )
 			}
-			if finished != nil { networks = found }
 		}
 	}
 
