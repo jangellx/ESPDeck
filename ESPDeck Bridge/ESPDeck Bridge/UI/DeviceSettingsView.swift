@@ -18,6 +18,7 @@ struct DeviceSettingsView: View {
 	@State private var nameDraft        = ""
 	@State private var brightness       = 80.0
 	@State private var confirmingReset  = false
+	@State private var confirmingClearAll = false
 	@State private var copyingDeck      = false
 	@FocusState private var nameFocused: Bool
 
@@ -259,6 +260,25 @@ struct DeviceSettingsView: View {
 					InfoButton( help: "About Copy From Deck",
 								text: "Copies another deck's keys and settings onto this one: choose which (keys and pages, name, network name, display, sleep, key presses). Any deck ESPDeck Bridge knows can be copied, including ones that aren't connected. Pairing keys and Wi-Fi passwords are never copied." )
 				}
+			} header: {
+				SectionHeader( "Setup" )
+			}
+
+			// The ones that take something away, apart from the rest.
+			Section {
+				HStack {
+					Button( "Clear All Keys…", role: .destructive ) { confirmingClearAll = true }
+						.disabled( settings.pages.count == 1 && settings.pages[0].allSatisfy( \.isEmpty ) )
+						.confirmationDialog( "Clear all keys on \(settings.name)?", isPresented: $confirmingClearAll, titleVisibility: .visible ) {
+							Button( "Clear All Keys", role: .destructive ) { controller.clearAllKeys( device: deviceID ) }
+						} message: {
+							Text( settings.pages.count > 1
+								  ? "This will clear every key on all \(settings.pages.count) pages and leave one empty page. Edit ▸ Undo brings them back."
+								  : "This will clear every key. Edit ▸ Undo brings them back." )
+						}
+					InfoButton( help: "About Clear All Keys",
+								text: "Clear All Keys empties every key on every page of this deck and leaves one blank page. Its name, Wi-Fi network, pairing and other settings stay as they are, and Edit ▸ Undo brings the keys back." )
+				}
 				HStack {
 					Button( "Factory Reset Device…", role: .destructive ) { confirmingReset = true }
 						.disabled( !online )
@@ -278,8 +298,6 @@ struct DeviceSettingsView: View {
 					InfoButton( help: "About Forget Device",
 								text: "Forget Device removes it from ESPDeck Bridge, with its key assignments and settings, and unpairs it, but leaves its Wi-Fi settings alone. If it connects again, it will appear as a new device." )
 				}
-			} header: {
-				SectionHeader( "Setup" )
 			}
 
 			SecuritySection( controller: controller, device: device, name: settings.name )

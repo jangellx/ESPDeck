@@ -112,6 +112,18 @@ extension DeckController {
 		assignmentsChanged( device: id )
 	}
 
+	/// Clears every key on every page, leaving one empty page. Its other settings stay, and it
+	/// can be undone.
+	func clearAllKeys( device id: String ) {
+		guard let index = config.settings.deviceIndex( id ) else { return }
+		recordUndo( device: id, "Clear All Keys" )
+		stopSliders( device: id )
+		config.settings.devices[index].pages       = [ [] ]
+		config.settings.devices[index].currentPage = 0
+		config.removeUnusedIcons()
+		assignmentsChanged( device: id )
+	}
+
 	/// Clears a page's keys that run `action` (Next or Previous Page with nowhere to go).
 	private static func removePageKeys( _ action: KeyAction, from page: inout [KeyAssignment] ) {
 		for key in page.indices where page[key].kind == .page && page[key].action == action {
