@@ -61,10 +61,11 @@ struct USBSetupView: View {
 		.onChange( of: setup.selectedBoard?.espDeck?.name ) { nameDraft = setup.selectedBoard?.espDeck?.name ?? "" }
 		// A board that can be asked for networks, once it's showing.
 		.onChange( of: setup.selectedBoard?.espDeck != nil ? setup.selectedBoard?.id : nil ) { setup.findNetworksOnce() }
-		// The network the board is set up for, or else the strongest one.
+		// The network the board is set up for; otherwise none until one is chosen (the strongest
+		// could be a neighbor's).
 		.onChange( of: savedSSID ) { if let savedSSID { ssid = savedSSID } }
 		.onChange( of: setup.networks ) {
-			if ssid.isEmpty, let first = savedSSID ?? setup.networks.first?.ssid { ssid = first }
+			if ssid.isEmpty, let savedSSID { ssid = savedSSID }
 		}
 		// On unless Standard was chosen for this board before.
 		.onChange( of: setup.selectedBoard?.espDeck?.storage?.setup, initial: true ) { _, choice in
@@ -548,6 +549,8 @@ private struct NetworkPicker: View {
 		let networks : [String]
 		let finding  : Bool
 		let saved    : String?
+		/// The choice too: one made for the user (the board's own network) has to show.
+		let chosen   : String
 	}
 
 	let setup         : USBSetup
@@ -583,7 +586,7 @@ private struct NetworkPicker: View {
 		// A new popup whenever what it lists changes: on the Mac the button otherwise keeps the
 		// title it had ("Looking for networks…") until it's clicked. Searching only counts while
 		// the list is empty (it's the title then), so searching again doesn't close an open menu.
-		.id( PickerContents( networks: setup.networks.map( \.ssid ), finding: setup.findingNetworks && setup.networks.isEmpty, saved: savedSSID ) )
+		.id( PickerContents( networks: setup.networks.map( \.ssid ), finding: setup.findingNetworks && setup.networks.isEmpty, saved: savedSSID, chosen: ssid ) )
 	}
 }
 
