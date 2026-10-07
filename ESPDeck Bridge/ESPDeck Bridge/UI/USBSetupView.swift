@@ -63,7 +63,13 @@ struct USBSetupView: View {
 		.onChange( of: setup.selectedBoard?.espDeck != nil ? setup.selectedBoard?.id : nil ) { setup.findNetworksOnce() }
 		// The network the board is set up for; otherwise none until one is chosen (the strongest
 		// could be a neighbor's).
-		.onChange( of: savedSSID ) { if let savedSSID { ssid = savedSSID } }
+		.onChange( of: savedSSID ) { old, new in
+			if let new {
+				ssid = new
+			} else if ssid == old {
+				ssid = ""   // the board has forgotten it (a factory reset): nothing is chosen again
+			}
+		}
 		.onChange( of: setup.networks ) {
 			if ssid.isEmpty, let savedSSID { ssid = savedSSID }
 		}

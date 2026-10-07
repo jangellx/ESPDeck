@@ -224,7 +224,10 @@ final class USBSetup {
 	@ObservationIgnored private weak var controller: DeckController?
 
 	private(set) var boards          : [Board] = [] {
-		didSet { noteRestartedBoard() }
+		didSet {
+			noteRestartedBoard()
+			noteForgottenNetwork()
+		}
 	}
 	/// After an install: the board's USB location, until it answers from its new firmware.
 	@ObservationIgnored private var awaitingRestart: Int??
@@ -388,6 +391,20 @@ final class USBSetup {
 			awaitingRestart = nil
 			install = .finished( "ESPDeck \(info.version) is installed and running. You can unplug the board safely, or carry on setting it up below." )
 			return
+		}
+	}
+
+	/// The board that joined a network now says it has none (it was factory reset since): it
+	/// isn't the board that joined any more, so step 2's result and the pairing step go.
+	private func noteForgottenNetwork() {
+		guard let joined = joinedBoard, case .joined = wifi else { return }
+		let forgot = boards.contains { board in
+			( board.port.path == joined.path || ( joined.deviceID != nil && board.port.deviceID == joined.deviceID ) )
+				&& board.espDeck?.network?.ssid.isEmpty == true
+		}
+		if forgot {
+			joinedBoard = nil
+			wifi        = .idle
 		}
 	}
 
