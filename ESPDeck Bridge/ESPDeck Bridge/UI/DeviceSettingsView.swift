@@ -254,6 +254,12 @@ struct DeviceSettingsView: View {
 								text: "Setup mode shows QR codes on the deck for joining the device's own Wi-Fi network and opening its setup page, where you can change its Wi-Fi network and name. You can also enter it by holding the top-left and bottom-right keys for 5 seconds." )
 				}
 				HStack {
+					Button( "Copy From Deck…" ) { copyingDeck = true }
+						.disabled( controller.copySources( for: deviceID ).isEmpty )
+					InfoButton( help: "About Copy From Deck",
+								text: "Copies another deck's keys and settings onto this one: choose which (keys and pages, name, network name, display, sleep, key presses). Any deck ESPDeck Bridge knows can be copied, including ones that aren't connected. Pairing keys and Wi-Fi passwords are never copied." )
+				}
+				HStack {
 					Button( "Factory Reset Device…", role: .destructive ) { confirmingReset = true }
 						.disabled( !online )
 						.sheet( isPresented: $confirmingReset ) {
@@ -261,12 +267,6 @@ struct DeviceSettingsView: View {
 						}
 					InfoButton( help: "About Factory Reset",
 								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It will restart in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again, it will get back its own settings, or it can be restored to another deck's settings." )
-				}
-				HStack {
-					Button( "Copy From Deck…" ) { copyingDeck = true }
-						.disabled( controller.copySources( for: deviceID ).isEmpty )
-					InfoButton( help: "About Copy From Deck",
-								text: "Copies another deck's keys and settings onto this one: choose which (keys and pages, name, network name, display, sleep, key presses). Any deck ESPDeck Bridge knows can be copied, including ones that aren't connected. Pairing keys and Wi-Fi passwords are never copied." )
 				}
 				HStack {
 					Button( "Forget Device…", role: .destructive ) { controller.window.confirmingForget = true }
