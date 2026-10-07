@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import os
 import UniformTypeIdentifiers
 
 /// The Device page: a demo deck's few settings, or a real device's.
@@ -23,25 +22,6 @@ struct DeviceSettingsView: View {
 	@State private var confirmingClearAll = false
 	@State private var copyingDeck      = false
 	@FocusState private var nameFocused: Bool
-
-	/// TEMPORARY: why the Encrypt sheet closes the first time it's opened.
-	fileprivate static let sheetLog = Logger( subsystem: "com.tmproductions.espdeck", category: "sheet" )
-
-	/// Opens one of the page's sheets. The Name field gives up the keyboard first, and the
-	/// sheet waits a moment for that: a sheet opened while the field was still being edited
-	/// closed again at once.
-	private func open( _ sheet: Binding<Bool>, _ what: String ) {
-		Self.sheetLog.notice( "Open \(what, privacy: .public): name field focused \(nameFocused)" )
-		guard nameFocused else {
-			sheet.wrappedValue = true
-			return
-		}
-		nameFocused = false
-		Task {
-			try? await Task.sleep( for: .milliseconds( 100 ) )
-			sheet.wrappedValue = true
-		}
-	}
 
 	/// Sleep After's choices.
 	private static let sleepChoices: [( title: String, seconds: Int )] = [
@@ -58,13 +38,7 @@ struct DeviceSettingsView: View {
 					form( settings, device )
 				}
 			}
-			.onAppear {
-				Self.sheetLog.notice( "Device page appeared" )
-				syncDrafts( settings )
-			}
-			.onDisappear { Self.sheetLog.notice( "Device page disappeared" ) }
-			.onChange( of: nameFocused ) { Self.sheetLog.notice( "Name field focused: \(nameFocused)" ) }
-			.onChange( of: confirmingEncrypt ) { Self.sheetLog.notice( "confirmingEncrypt: \(confirmingEncrypt)" ) }
+			.onAppear { syncDrafts( settings ) }
 			.onChange( of: deviceID ) { syncDrafts( controller.settings( deviceID ) ) }
 			.onChange( of: settings.name ) { nameDraft = settings.name }
 			.onChange( of: settings.brightness ) { brightness = Double( settings.brightness ) }
@@ -147,7 +121,7 @@ struct DeviceSettingsView: View {
 					HStack {
 						Label( "Start from another deck's keys and settings?", systemImage: "square.on.square" )
 						Spacer()
-						Button( "Copy From Deck…" ) { open( $copyingDeck, "Copy From Deck" ) }
+						Button( "Copy From Deck…" ) { copyingDeck = true }
 					}
 				}
 			}
@@ -282,7 +256,7 @@ struct DeviceSettingsView: View {
 								text: "Setup mode shows QR codes on the deck for joining the device's own Wi-Fi network and opening its setup page, where you can change its Wi-Fi network and name. You can also enter it by holding the top-left and bottom-right keys for 5 seconds." )
 				}
 				HStack {
-					Button( "Copy From Deck…" ) { open( $copyingDeck, "Copy From Deck" ) }
+					Button( "Copy From Deck…" ) { copyingDeck = true }
 						.disabled( controller.copySources( for: deviceID ).isEmpty )
 					InfoButton( help: "About Copy From Deck",
 								text: "Copies another deck's keys and settings onto this one: choose which (keys and pages, name, network name, display, sleep, key presses). Any deck ESPDeck Bridge knows can be copied, including ones that aren't connected. Pairing keys and Wi-Fi passwords are never copied." )
@@ -307,7 +281,7 @@ struct DeviceSettingsView: View {
 								text: "Clear All Keys empties every key on every page of this deck and leaves one blank page. Its name, Wi-Fi network, pairing and other settings stay as they are, and Edit ▸ Undo brings the keys back." )
 				}
 				HStack {
-					Button( "Factory Reset Device…", role: .destructive ) { open( $confirmingReset, "Factory Reset" ) }
+					Button( "Factory Reset Device…", role: .destructive ) { confirmingReset = true }
 						.disabled( !online )
 					InfoButton( help: "About Factory Reset",
 								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It will restart in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again, it will get back its own settings, or it can be restored to another deck's settings." )
@@ -324,7 +298,7 @@ struct DeviceSettingsView: View {
 				}
 			}
 
-			SecuritySection( controller: controller, device: device ) { open( $confirmingEncrypt, "Encrypt" ) }
+			SecuritySection( controller: controller, device: device, confirming: $confirmingEncrypt )
 
 			DeveloperSection( controller: controller, device: device )
 
@@ -343,8 +317,6 @@ struct DeviceSettingsView: View {
 		}
 		.sheet( isPresented: $confirmingEncrypt ) {
 			EncryptStorageSheet( controller: controller, device: device, name: settings.name )
-				.onAppear { Self.sheetLog.notice( "Encrypt sheet appeared" ) }
-				.onDisappear { Self.sheetLog.notice( "Encrypt sheet disappeared; online \(device.isOnline), storage \(device.status.storage ?? "nil", privacy: .public)" ) }
 		}
 	}
 
@@ -436,7 +408,7 @@ private struct SecuritySection: View {
 	let controller : DeckController
 	let device     : DeckDevice
 	/// Opens the Encrypt sheet, which the form presents (see there).
-	let confirm    : () -> Void
+	@Binding var confirming : Bool
 
 	@State private var learningMore = false
 
@@ -449,7 +421,7 @@ private struct SecuritySection: View {
 				recommendation
 			} else if storage != "encrypted" && controller.storageEncryption[device.id] != .encrypting {
 				HStack {
-					Button( "Encrypt Stored Secrets Now…" ) { confirm() }
+					Button( "Encrypt Stored Secrets Now…" ) { confirming = true }
 						.disabled( !controller.canEncryptStorage( device ) )
 					if let note = unavailableNote( storage ) {
 						Spacer()
@@ -485,7 +457,7 @@ private struct SecuritySection: View {
 				Text( "Wi-Fi password and bridge pairing are currently stored unencrypted, meaning anyone can read them off the dev kit over USB. Encrypting adds a permanent key that makes it impossible to read them from the device." )
 					.font( .callout )
 				HStack {
-					Button( "Encrypt Stored Secrets Now…" ) { confirm() }
+					Button( "Encrypt Stored Secrets Now…" ) { confirming = true }
 						.foregroundStyle( .tint )
 						.disabled( !controller.canEncryptStorage( device ) )
 					if let note = unavailableNote( device.status.storage ) {
