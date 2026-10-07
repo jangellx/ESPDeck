@@ -223,6 +223,14 @@ private struct Sidebar: View {
 		}
 	}
 
+	/// Clears the selection, which (with no decks) shows the first-run page: what to plug in,
+	/// Add Demo Deck and Import Bridge. With decks there's nothing to go back to, so the rows
+	/// that call this aren't buttons then.
+	private func showGettingStarted() {
+		guard controller.devices.isEmpty else { return }
+		selection = nil
+	}
+
 	/// The problem row's id, to scroll to it.
 	fileprivate static let problemRowID = "status-problem"
 
@@ -274,8 +282,14 @@ private struct Sidebar: View {
 			}
 
 			Section {
-				if connectedDevices.isEmpty {
-					Text( controller.devices.isEmpty ? "No devices yet" : "None connected" )
+				if controller.devices.isEmpty {
+					// With no decks at all, this leads back to the first-run page.
+					Button( "No devices yet", action: showGettingStarted )
+						.buttonStyle( .plain )
+						.foregroundStyle( .secondary )
+						.help( "Show how to add a device" )
+				} else if connectedDevices.isEmpty {
+					Text( "None connected" )
 						.foregroundStyle( .secondary )
 				}
 				ForEach( connectedDevices ) { device in
@@ -369,10 +383,18 @@ private struct Sidebar: View {
 
 			Section {
 				ForEach( [ controller.serverStatus, controller.homeStatus ].compactMap { $0 }, id: \.self ) { item in
-					Label {
+					let row = Label {
 						Text( item.text )
 					} icon: {
 						StatusIndicator( level: item.level )
+					}
+					// "Waiting for an ESP32-S3…" with no decks at all: back to the first-run page.
+					if item.level == .waiting && controller.devices.isEmpty {
+						Button( action: showGettingStarted ) { row }
+							.buttonStyle( .plain )
+							.help( "Show how to add a device" )
+					} else {
+						row
 					}
 				}
 				if controller.macBridge != nil {
