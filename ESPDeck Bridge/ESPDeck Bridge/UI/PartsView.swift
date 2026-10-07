@@ -490,21 +490,31 @@ private struct FindDevicesSheet: View {
 			SheetHeading( title: "Find Your Device",
 						  detail: "Once the dev kit is on your Wi-Fi, it will find ESPDeck Bridge and show up here to be paired. A new dev kit needs Wi-Fi first: plug it into this Mac and set it up over USB, or scan the setup codes on the deck." )
 
-			HStack( spacing: 10 ) {
-				ProgressView()
-					.controlSize( .small )
-				Text( "Looking for ESPDeck devices…" )
-					.foregroundStyle( .secondary )
+			// Decks on the network that aren't working with this Mac yet: new ones, and ones it
+			// knows that are waiting to be paired again (after a factory reset, say) or can't be.
+			let waiting = controller.newDevices
+
+			// Only while there's nothing to show: once a deck is found, it's the answer.
+			if waiting.isEmpty && usbBoards.isEmpty {
+				HStack( spacing: 10 ) {
+					ProgressView()
+						.controlSize( .small )
+					Text( "Looking for ESPDeck devices…" )
+						.foregroundStyle( .secondary )
+				}
 			}
 
-			if !controller.listedNewDevices.isEmpty {
+			if !waiting.isEmpty {
 				VStack( alignment: .leading, spacing: 10 ) {
 					Text( "On Your Network" )
 						.font( .headline )
-					ForEach( controller.listedNewDevices ) { device in
-						FoundDeviceRow( icon: "lock.shield", title: device.hello.name,
+					ForEach( waiting ) { device in
+						// A deck this Mac knows goes on from its own row in the sidebar.
+						let known = controller.device( device.hello.id ) != nil
+						FoundDeviceRow( icon: "lock.shield",
+										title: ( known ? controller.settings( device.hello.id )?.name : nil ) ?? device.hello.name,
 										detail: device.reason.detail, action: device.reason.action,
-										destination: SidebarItem.newDevice( device.client ), selection: $selection )
+										destination: known ? device.hello.id : SidebarItem.newDevice( device.client ), selection: $selection )
 					}
 				}
 			}
@@ -521,7 +531,7 @@ private struct FindDevicesSheet: View {
 				}
 			}
 
-			if controller.listedNewDevices.isEmpty && usbBoards.isEmpty {
+			if waiting.isEmpty && usbBoards.isEmpty {
 				VStack( alignment: .leading, spacing: 10 ) {
 					Text( "Nothing yet. Make sure the dev kit is powered, and on the same Wi-Fi network as this Mac." )
 						.foregroundStyle( .secondary )
