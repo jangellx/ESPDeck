@@ -509,6 +509,24 @@ private struct DeviceDetailView: View {
 	private var pageBinding: Binding<WindowState.Page> { Bindable( controller.window ).page }
 	private var keyBinding: Binding<Int> { Bindable( controller.window ).selectedKey }
 
+	/// The pages opened for this device; see body.
+	@State private var opened: Set<WindowState.Page> = []
+
+	/// One page's view.
+	@ViewBuilder
+	private func content( of tab: WindowState.Page ) -> some View {
+		switch tab {
+			case .keys:
+				KeysPageView( controller: controller, deviceID: deviceID, selection: keyBinding )
+			case .device:
+				DeviceSettingsView( controller: controller, deviceID: deviceID )
+			case .log:
+				if let device = controller.device( deviceID ) {
+					TrafficLogView( device: device, window: controller.window )
+				}
+		}
+	}
+
 	var body: some View {
 		VStack( spacing: 0 ) {
 			Picker( "Page", selection: pageBinding ) {
@@ -523,21 +541,28 @@ private struct DeviceDetailView: View {
 
 			Divider()
 
-			switch page {
-				case .keys:
-					KeysPageView( controller: controller, deviceID: deviceID, selection: keyBinding )
-				case .device:
-					DeviceSettingsView( controller: controller, deviceID: deviceID )
-				case .log:
-					if let device = controller.device( deviceID ) {
-						TrafficLogView( device: device, window: controller.window )
+			// Every page opened so far stays in place, invisible while another shows, so that
+			// coming back to it finds it scrolled where it was left.
+			ZStack {
+				ForEach( WindowState.Page.allCases ) { tab in
+					if tab == page || opened.contains( tab ) {
+						content( of: tab )
+							.opacity( tab == page ? 1 : 0 )
+							.allowsHitTesting( tab == page )
+							.accessibilityHidden( tab != page )
 					}
+				}
 			}
 		}
 		.navigationTitle( controller.settings( deviceID )?.name ?? "ESPDeck" )
 		.onAppear { updateFocus() }
 		.onChange( of: selectedKey ) { updateFocus() }
-		.onChange( of: page ) { updateFocus() }
+		.onChange( of: page, initial: true ) {
+			opened.insert( page )
+			// A text field on the page being left would otherwise keep the keyboard, unseen.
+			ConfigurationHostingController.takeKeyboardFocus()
+			updateFocus()
+		}
 		.onDisappear {
 			if controller.focusedKey?.device == deviceID { controller.focusedKey = nil }
 		}
