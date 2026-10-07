@@ -8,6 +8,7 @@
 
 import HomeKit
 import Observation
+import os
 import SwiftUI
 
 /// The app's hub: owns the settings, HomeKit and the server, and ties them to the devices.
@@ -898,6 +899,7 @@ final class DeckController {
 				}
 
 			case .keyDown( let key ):
+				DeckServer.latencyLog.notice( "Key \(key + 1) down arrived" )
 				device.lastKeyActivity = Date()
 				if !device.pressed.isEmpty {
 					device.chord = true
@@ -922,6 +924,7 @@ final class DeckController {
 				}
 
 			case .keyUp( let key ):
+				DeckServer.latencyLog.notice( "Key \(key + 1) up arrived" )
 				// Act on release, and only for a lone press: holding two keys (the setup
 				// chord) shouldn't open the garage.
 				let wasPressed = device.pressed.remove( key ) != nil
@@ -1075,6 +1078,11 @@ final class DeckController {
 
 		Task {
 			defer { if let inFlight { keysInFlight.remove( inFlight ) } }
+			let started = ContinuousClock.now
+			defer {
+				let took = ContinuousClock.now - started
+				DeckServer.latencyLog.notice( "\(context, privacy: .public): the HomeKit command took \(took.formatted( .units( allowed: [ .milliseconds ] ) ), privacy: .public)" )
+			}
 			do {
 				let summary = try await home.perform( assignment )
 				lastError = nil

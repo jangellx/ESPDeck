@@ -16,6 +16,7 @@
 import Foundation
 import Network
 import Observation
+import os
 
 /// One connection, for as long as it's open.
 typealias ClientID = UUID
@@ -281,12 +282,25 @@ final class DeckServer {
 		}
 	}
 
+	/// Timings, for finding where key presses back up: `log show --predicate 'category == "latency"'`.
+	nonisolated static let latencyLog = Logger( subsystem: "com.tmproductions.espdeck", category: "latency" )
+	/// A frame that waits longer than this for the main thread is logged.
+	nonisolated private static let slowDelivery: Duration = .milliseconds( 50 )
+
 	/// Waits for the client's next message.
 	private func receive( from id: ClientID ) {
 		guard let connection = clients[id]?.connection else { return }
 		connection.receiveMessage { [weak self] data, context, _, error in
+			// When it came off the network, to see how long it then waits for the main thread.
+			let arrived = ContinuousClock.now
 			DispatchQueue.main.async {
-				MainActor.assumeIsolated { self?.received( data, context: context, error: error, from: id ) }
+				MainActor.assumeIsolated {
+					let waited = ContinuousClock.now - arrived
+					if waited > Self.slowDelivery {
+						Self.latencyLog.notice( "A frame waited \(waited.formatted( .units( allowed: [ .milliseconds ] ) ), privacy: .public) for the main thread" )
+					}
+					self?.received( data, context: context, error: error, from: id )
+				}
 			}
 		}
 	}
