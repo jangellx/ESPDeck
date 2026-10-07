@@ -270,6 +270,9 @@ struct FirmwareSourceMenu: View {
 			Text( isFile ? fileTitle ?? releaseTitle : releaseTitle )
 		}
 		.fixedSize()
+		// A new menu whenever its choices change, so the button can't keep an old title (as
+		// USB Setup's network popup did).
+		.id( "\(releaseTitle)|\(fileTitle ?? "")|\(isFile)" )
 	}
 }
 
