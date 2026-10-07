@@ -498,7 +498,7 @@ private struct WiFiSection: View {
 			}
 			// Where the button was pressed, not only in step 4 further down.
 			if case .joined( let network ) = setup.wifi {
-				Label( "Joined \u{201C}\(network)\u{201D}. The board keeps this network from now on.", systemImage: "checkmark.circle.fill" )
+				Label( "Joined \u{201C}\(network)\u{201D}. The board remembers this network until it is changed.", systemImage: "checkmark.circle.fill" )
 					.foregroundStyle( .green )
 			}
 		} header: {
