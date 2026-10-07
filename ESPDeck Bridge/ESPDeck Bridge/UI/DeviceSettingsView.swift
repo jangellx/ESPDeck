@@ -371,7 +371,9 @@ private enum StorageText {
 	/// The confirmation's title, naming the device.
 	static func confirmTitle( _ name: String ) -> String { "Encrypt the secrets stored on \(name)?" }
 
-	static let confirmMessage = "This will encrypt the Wi-Fi password, pairing key and developer password stored on the dev kit, so someone who takes it and reads its flash can't recover them. Its settings and pairing will move across, so it will keep working as it does now.\n\nTurning encryption on is permanent: it burns a one-time key into the chip, so this dev kit will always encrypt what it stores from now on. What it stores isn't locked in: you can still change its Wi-Fi network, rename it, pair it again or reset it, and it will keep working and updating as before.\n\nKeep the deck powered for the few seconds it takes. It will restart when it's done."
+	/// What encrypting does, and that it can't be undone: the sheet's two paragraphs.
+	static let confirmWhat      = "This will generate an encryption key, and use it to encrypt the Wi-Fi password, pairing key, and developer password stored on the dev kit, so that they can no longer be extracted from the flash if the device is stolen."
+	static let confirmPermanent = "Turning on encryption is permanent. It works by burning the key into the chip's eFuse, and this dev kit will always encrypt what it stores going forward. The encrypted data can still be replaced, but cannot be read from the device's flash directly. The dev kit can still be re-flashed (including to be used for something besides ESPDeck), reset, paired again, renamed and will otherwise continue to work normally."
 
 	static let learnMore = "The dev kit keeps your Wi-Fi password, its pairing key and the developer password in its flash. Unencrypted (Standard), anyone who takes it can read them over USB, and the pairing key could let them trigger this deck's actions from your network. Encrypted stores them with a key burned into the chip that no software can read, so the flash alone gives nothing away. New devices are encrypted when they're first set up, over USB or on their setup page, unless Standard is chosen there.\n\nEnabling encryption is permanent: the key can't be removed, so this dev kit always encrypts what it stores. The settings themselves can still be changed any time (Wi-Fi network, name, pairing), and updates, factory reset and the web installer work as before (a reset starts over with empty storage, still encrypted). ESPDeck Bridge won't install firmware older than 4.1.0 on it, since that can't read encrypted storage."
 }
@@ -416,10 +418,8 @@ private struct SecuritySection: View {
 		} header: {
 			SectionHeader( "Security" )
 		}
-		.confirmationDialog( StorageText.confirmTitle( name ), isPresented: $confirming, titleVisibility: .visible ) {
-			Button( "Encrypt" ) { controller.encryptStorage( device: device.id ) }
-		} message: {
-			Text( StorageText.confirmMessage )
+		.sheet( isPresented: $confirming ) {
+			EncryptStorageSheet( controller: controller, device: device, name: name )
 		}
 	}
 
@@ -489,6 +489,107 @@ private struct SecuritySection: View {
 			case "unsupported": return "This chip has no free eFuse key block to encrypt with."
 			default:            return device.status.setupMode ? "Leave setup mode first." : nil
 		}
+	}
+}
+
+/// Encrypt Stored Secrets: what it does and that it's permanent, with Cancel and Encrypt; then
+/// the wait while the deck encrypts and restarts; then how it went, with a button to close.
+private struct EncryptStorageSheet: View {
+	let controller : DeckController
+	let device     : DeckDevice
+	let name       : String
+
+	@Environment( \.dismiss ) private var dismiss
+	/// Encrypt was clicked: from then on the sheet shows the wait, and then the outcome.
+	@State private var started = false
+
+	/// Where the sheet has got to.
+	private enum Phase: Equatable {
+		case asking
+		/// The deck is encrypting (still connected) or restarting (gone for the moment).
+		case working( restarting: Bool )
+		case done
+		case failed( String )
+	}
+
+	private var phase: Phase {
+		guard started else { return .asking }
+		switch controller.storageEncryption[device.id] {
+			case .encrypting:           return .working( restarting: !device.isOnline )
+			case .failed( let message ): return .failed( message )
+			// Finished without a failure; the deck saying so is what makes it done.
+			case nil:
+				return device.status.storage == "encrypted" ? .done : .failed( "The deck didn't start encrypting. Close this and try again." )
+		}
+	}
+
+	var body: some View {
+		let phase = phase
+		VStack( spacing: 16 ) {
+			Image( systemName: phase == .done ? "checkmark.shield.fill" : "lock.shield.fill" )
+				.font( .system( size: 40 ) )
+				.foregroundStyle( phase == .done ? AnyShapeStyle( .green ) : AnyShapeStyle( .tint ) )
+				.accessibilityHidden( true )
+
+			switch phase {
+				case .asking, .working:
+					Text( StorageText.confirmTitle( name ) )
+						.font( .headline )
+						.multilineTextAlignment( .center )
+					VStack( alignment: .leading, spacing: 10 ) {
+						Text( StorageText.confirmWhat )
+						Text( StorageText.confirmPermanent )
+					}
+					.font( .callout )
+					.fixedSize( horizontal: false, vertical: true )
+
+					HStack {
+						Button( "Cancel", role: .cancel ) { dismiss() }
+							.disabled( phase != .asking )
+						Spacer()
+						// One place for both: the button, then what it set going.
+						if case .working( let restarting ) = phase {
+							SystemSpinner()
+								.fixedSize()
+							Text( restarting ? "Restarting…" : "Encrypting…" )
+								.foregroundStyle( .secondary )
+						} else {
+							Button( "Encrypt" ) {
+								started = true
+								controller.encryptStorage( device: device.id )
+							}
+							.prominentButtonStyle()
+							.disabled( !controller.canEncryptStorage( device ) )
+						}
+					}
+					.padding( .top, 4 )
+
+				case .done:
+					Text( "Encryption Enabled" )
+						.font( .headline )
+					Text( "The Wi-Fi password, pairing key and developer password on \(name) are now stored encrypted." )
+						.font( .callout )
+						.multilineTextAlignment( .center )
+						.fixedSize( horizontal: false, vertical: true )
+					Button( "Done" ) { dismiss() }
+						.prominentButtonStyle()
+						.padding( .top, 4 )
+
+				case .failed( let message ):
+					Text( "Encryption Wasn't Confirmed" )
+						.font( .headline )
+					WarningLabel( message )
+						.font( .callout )
+						.fixedSize( horizontal: false, vertical: true )
+					Button( "Close" ) { dismiss() }
+						.prominentButtonStyle()
+						.padding( .top, 4 )
+			}
+		}
+		.padding( 24 )
+		.frame( width: 480 )
+		// Not dismissed by Esc or a click outside while the deck is in the middle of it.
+		.interactiveDismissDisabled( { if case .working = phase { true } else { false } }() )
 	}
 }
 
