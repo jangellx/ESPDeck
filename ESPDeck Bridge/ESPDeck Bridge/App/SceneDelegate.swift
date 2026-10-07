@@ -15,7 +15,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 	private static let windowMinimumSize = CGSize( width: 1040, height: 640 )
 	/// How tall the configuration window opens, where the screen has room: Getting Started's
 	/// first sheet fits without scrolling.
-	private static let windowOpeningHeight: CGFloat = 1080
+	private static let windowOpeningHeight: CGFloat = 1135
 	/// Left free above and below it for the menu bar, its title bar and the Dock.
 	private static let screenMargin: CGFloat = 140
 
