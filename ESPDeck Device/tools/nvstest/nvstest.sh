@@ -3,7 +3,7 @@
 #
 #   ./nvstest.sh ports             list serial ports (the board's COM port is the WCH one)
 #   ./nvstest.sh backup            real eFuse summary + the whole 16 MB flash, to $BACKUP
-#   ./nvstest.sh build             test project in ./work, built into ./build (no board needed)
+#   ./nvstest.sh build             test project and its build, in ~/.platformio/build/ESPDeck-nvstest (no board needed)
 #   ./nvstest.sh flash             the test build onto the board, then `check`
 #   ./nvstest.sh check             boots it and confirms virtual eFuses
 #   ./nvstest.sh run SCENARIO...   first-setup, opt-out, migrate, cut-migrate-1..3,
@@ -17,8 +17,11 @@ set -euo pipefail
 KIT="$(cd "$(dirname "$0")" && pwd)"
 PROJECT="${ESPDECK_DEVICE:-$( cd "$KIT/../.." && pwd )}"   # this kit lives in ESPDeck Device/tools/nvstest
 BACKUP="${NVSTEST_BACKUP:-$HOME/ESPDeck-nvstest-backup}"
-WORK="$KIT/work"
-BUILD="$KIT/build"
+# Outside the project: ESP-IDF won't build in a path with spaces (the project's own is
+# "…/Mobile Documents/…"), and a copy made inside the project would be copied into itself.
+SCRATCH="${NVSTEST_SCRATCH:-$HOME/.platformio/build/ESPDeck-nvstest}"
+WORK="$SCRATCH/work"
+BUILD="$SCRATCH/build"
 OUT="$BUILD/nvstest"
 PY="$HOME/.platformio/penv/bin/python"
 PIO="$HOME/.platformio/penv/bin/pio"

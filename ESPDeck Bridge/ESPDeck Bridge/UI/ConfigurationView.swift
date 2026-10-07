@@ -138,7 +138,8 @@ struct ConfigurationView: View {
 		}
 		.onAppear {
 			window.isShowing = true
-			if window.selection == nil { window.selection = controller.devices.first?.id }
+			// With no decks at all, Getting Started is the place to begin.
+			if window.selection == nil { window.selection = controller.devices.first?.id ?? SidebarItem.parts }
 		}
 		.onDisappear { window.isShowing = false }
 		// In-app links in explanations, like [USB Setup](espdeck:usb-setup).
@@ -187,7 +188,7 @@ struct ConfigurationView: View {
 			if let added = new.first( where: { !old.contains( $0 ) } ), current?.hasPrefix( SidebarItem.newPrefix ) == true {
 				window.selection = added
 			} else if current == nil || ( controller.device( current ?? "" ) == nil && !( current ?? "" ).contains( ":" ) ) {
-				window.selection = controller.devices.first?.id
+				window.selection = controller.devices.first?.id ?? SidebarItem.parts   // the last deck is gone
 			}
 		}
 	}
@@ -223,12 +224,11 @@ private struct Sidebar: View {
 		}
 	}
 
-	/// Clears the selection, which (with no decks) shows the first-run page: what to plug in,
-	/// Add Demo Deck and Import Bridge. With decks there's nothing to go back to, so the rows
-	/// that call this aren't buttons then.
+	/// Shows Getting Started, where a first deck begins. Only with no decks: with any, the rows
+	/// that call this aren't buttons.
 	private func showGettingStarted() {
 		guard controller.devices.isEmpty else { return }
-		selection = nil
+		selection = SidebarItem.parts
 	}
 
 	/// The problem row's id, to scroll to it.

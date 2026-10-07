@@ -41,8 +41,9 @@ def main():
     os.makedirs(work)
     for name in ("CMakeLists.txt", "dependencies.lock", "partitions.csv", "platformio.ini", "sdkconfig.defaults", "sdkconfig.espdeck"):
         shutil.copy2(os.path.join(project, name), work)
+    # Without this kit's own folder: `work` is inside it, and copying it into itself never ends.
     for name in ("src", "tools"):
-        shutil.copytree(os.path.join(project, name), os.path.join(work, name))
+        shutil.copytree(os.path.join(project, name), os.path.join(work, name), ignore=shutil.ignore_patterns("nvstest"))
     shutil.copytree(os.path.realpath(os.path.join(project, "managed_components")), os.path.join(work, "managed_components"), symlinks=True)
     shutil.copy2(os.path.join(KIT, "partitions_nvstest.csv"), work)
 

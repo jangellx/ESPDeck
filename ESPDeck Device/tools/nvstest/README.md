@@ -28,7 +28,7 @@ the network is stored encrypted. Every scenario starts from a new, keyless devic
 in RTC memory), so flash is left exactly as a cut between two flash operations would leave it;
 a cut in the middle of a single flash write isn't simulated (NVS itself handles those).
 
-Test hooks exist only in `./work`, a copy of `ESPDeck Device` made by `prepare.py` (anchored
+Test hooks exist only in `~/.platformio/build/ESPDeck-nvstest/work`, a copy of `ESPDeck Device` made by `prepare.py` (anchored
 edits that stop the build if the source moved on). The real project isn't changed.
 
 ## Before you start
