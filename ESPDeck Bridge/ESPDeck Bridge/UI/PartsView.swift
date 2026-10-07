@@ -225,6 +225,7 @@ private struct ConnectSheet: View {
 			} label: {
 				ForwardLabel( title: "Open USB Setup" )
 			}
+			.prominentButtonStyle()
 			.frame( maxWidth: .infinity )
 
 			GuideSteps( steps: [ PartsView.unplugStep ], first: Self.connectSteps.count + 1 )
@@ -532,20 +533,8 @@ private struct FindDevicesSheet: View {
 			}
 
 			if waiting.isEmpty && usbBoards.isEmpty {
-				VStack( alignment: .leading, spacing: 10 ) {
-					Text( "Nothing yet. Make sure the dev kit is powered, and on the same Wi-Fi network as this Mac." )
-						.foregroundStyle( .secondary )
-					if controller.usbSetup.isAvailable {
-						Button {
-							selection = SidebarItem.usbSetup
-						} label: {
-							ForwardLabel( title: "Open USB Setup" )
-						}
-						.prominentButtonStyle()
-						.frame( maxWidth: .infinity )
-						.padding( .top, 4 )
-					}
-				}
+				Text( "Nothing yet. Make sure the dev kit is powered, and on the same Wi-Fi network as this Mac." )
+					.foregroundStyle( .secondary )
 			}
 		}
 	}
