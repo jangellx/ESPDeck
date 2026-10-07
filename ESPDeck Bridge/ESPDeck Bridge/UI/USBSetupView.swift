@@ -543,6 +543,13 @@ private struct WiFiSection: View {
 
 /// The networks the board can see, its current one, and Other Network….
 private struct NetworkPicker: View {
+	/// What the popup lists, as its identity.
+	private struct PickerContents: Hashable {
+		let networks : [String]
+		let finding  : Bool
+		let saved    : String?
+	}
+
 	let setup         : USBSetup
 	/// The network the selected board is set up for, when its firmware says.
 	let savedSSID     : String?
@@ -573,6 +580,9 @@ private struct NetworkPicker: View {
 		}
 		.labelsHidden()
 		.fixedSize()
+		// A new popup whenever what it lists changes: on the Mac the button otherwise keeps the
+		// title it had ("Looking for networks…") until it's clicked.
+		.id( PickerContents( networks: setup.networks.map( \.ssid ), finding: setup.findingNetworks, saved: savedSSID ) )
 	}
 }
 
