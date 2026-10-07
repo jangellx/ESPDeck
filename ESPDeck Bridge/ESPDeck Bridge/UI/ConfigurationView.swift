@@ -544,7 +544,7 @@ private struct DeviceDetailView: View {
 				DeviceSettingsView( controller: controller, deviceID: deviceID )
 			case .log:
 				if let device = controller.device( deviceID ) {
-					TrafficLogView( device: device, window: controller.window )
+					TrafficLogView( device: device, window: controller.window, isShowing: page == .log )
 				}
 		}
 	}

@@ -13,22 +13,24 @@ import SwiftUI
 /// button, or a right-click. The selection is kept here rather than by the List, whose own
 /// selection ignores Cmd and Shift on Catalyst.
 struct TrafficLogView: View {
-	let device : DeckDevice
-	let window : WindowState
+	let device    : DeckDevice
+	let window    : WindowState
+	/// The Log page is the one showing. It stays alive behind the others (to keep its scroll
+	/// position), and doesn't follow the log while it's hidden.
+	let isShowing : Bool
 
 	@State private var filter = ""
-	/// The entries that pass the filter, newest first. Kept, and only worked out again when the
-	/// log or the filter changes (see Source), not each time a selection redraws the page.
+	/// The entries that pass the filter, newest first. Kept, and worked out again a few times
+	/// a second at most while entries arrive: laying out the list for every single entry held
+	/// up the main thread, and with it the key presses still coming in.
 	@State private var shown: [TrafficEntry] = []
+	/// A refresh is on its way.
+	@State private var refreshPending = false
+
+	/// How long new entries wait to be shown together.
+	private static let refreshInterval: Duration = .milliseconds( 250 )
 	/// The row last clicked without Shift, which a Shift-click selects from.
 	@State private var anchor: TrafficEntry.ID?
-
-	/// What `shown` was made from.
-	private struct Source: Equatable {
-		let filter : String
-		let newest : TrafficEntry.ID?
-		let count  : Int
-	}
 
 	var body: some View {
 		let selected = window.logSelection.count
@@ -39,12 +41,10 @@ struct TrafficLogView: View {
 					.textFieldStyle( .roundedBorder )
 					.frame( maxWidth: 320 )
 				Spacer()
-				Text( selected == 0 ? "\(device.log.count) entries" : "\(selected) of \(device.log.count) selected" )
-					.secondaryCaption()
+				LogCount( device: device, selected: selected )
 				Button( selected == 0 ? "Copy All" : "Copy Selected" ) { copy( selected == 0 ? nil : window.logSelection ) }
 					.disabled( shown.isEmpty )
-				Button( "Clear" ) { device.log.removeAll() }
-					.disabled( device.log.isEmpty )
+				ClearLogButton( device: device )
 			}
 			.padding( 12 )
 
@@ -76,7 +76,23 @@ struct TrafficLogView: View {
 			// While the deck is catching up on key images: how far it's got.
 			TransferProgressFooter( device: device )
 		}
-		.onChange( of: Source( filter: filter, newest: device.log.last?.id, count: device.log.count ), initial: true ) { refresh() }
+		// The page itself doesn't read the log (LogFollower, LogCount and ClearLogButton do),
+		// so an entry arriving doesn't run this whole body.
+		.modifier( LogFollower( device: device, changed: refreshSoon ) )
+		.onChange( of: filter ) { refresh() }
+		.onChange( of: isShowing, initial: true ) { if isShowing { refresh() } }
+	}
+
+	/// Shows the entries that have arrived, together, after refreshInterval; nothing while
+	/// the page is hidden (it catches up when it's shown).
+	private func refreshSoon() {
+		guard isShowing, !refreshPending else { return }
+		refreshPending = true
+		Task {
+			try? await Task.sleep( for: Self.refreshInterval )
+			refreshPending = false
+			if isShowing { refresh() }
+		}
 	}
 
 	/// Filters the log again, and drops entries that are no longer shown from the selection.
@@ -109,6 +125,40 @@ struct TrafficLogView: View {
 	/// Copies the shown entries with these IDs (all of them for nil) as text, oldest first.
 	private func copy( _ ids: Set<TrafficEntry.ID>? ) {
 		UIPasteboard.general.string = TrafficEntry.plainText( shown.reversed().filter { ids?.contains( $0.id ) ?? true } )
+	}
+}
+
+/// Calls `changed` when the device's log gains an entry or is cleared. On its own, so that
+/// only this (and not the page it's on) is run again for each entry.
+private struct LogFollower: ViewModifier {
+	let device  : DeckDevice
+	let changed : () -> Void
+
+	func body( content: Content ) -> some View {
+		content
+			.onChange( of: device.log.last?.id ) { changed() }
+			.onChange( of: device.log.count ) { changed() }   // Clear leaves no newest entry to change
+	}
+}
+
+/// "N entries", or how many of them are selected.
+private struct LogCount: View {
+	let device   : DeckDevice
+	let selected : Int
+
+	var body: some View {
+		Text( selected == 0 ? "\(device.log.count) entries" : "\(selected) of \(device.log.count) selected" )
+			.secondaryCaption()
+	}
+}
+
+/// Clear, which empties the device's log.
+private struct ClearLogButton: View {
+	let device: DeckDevice
+
+	var body: some View {
+		Button( "Clear" ) { device.log.removeAll() }
+			.disabled( device.log.isEmpty )
 	}
 }
 
