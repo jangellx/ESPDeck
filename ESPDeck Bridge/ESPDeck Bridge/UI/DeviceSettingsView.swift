@@ -18,6 +18,7 @@ struct DeviceSettingsView: View {
 	@State private var nameDraft        = ""
 	@State private var brightness       = 80.0
 	@State private var confirmingReset  = false
+	@State private var confirmingEncrypt = false
 	@State private var confirmingClearAll = false
 	@State private var copyingDeck      = false
 	@FocusState private var nameFocused: Bool
@@ -282,9 +283,6 @@ struct DeviceSettingsView: View {
 				HStack {
 					Button( "Factory Reset Device…", role: .destructive ) { confirmingReset = true }
 						.disabled( !online )
-						.sheet( isPresented: $confirmingReset ) {
-							FactoryResetSheet( controller: controller, deviceID: deviceID )
-						}
 					InfoButton( help: "About Factory Reset",
 								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It will restart in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again, it will get back its own settings, or it can be restored to another deck's settings." )
 				}
@@ -300,7 +298,7 @@ struct DeviceSettingsView: View {
 				}
 			}
 
-			SecuritySection( controller: controller, device: device, name: settings.name )
+			SecuritySection( controller: controller, device: device, confirming: $confirmingEncrypt )
 
 			DeveloperSection( controller: controller, device: device )
 
@@ -311,6 +309,14 @@ struct DeviceSettingsView: View {
 		// at the top opens it too.
 		.sheet( isPresented: $copyingDeck ) {
 			CopyDeckSheet( controller: controller, deviceID: deviceID )
+		}
+		// These two here as well: a row is built again when what it shows changes (the deck's
+		// status arriving, say), and a sheet on the row closed with it, just after opening.
+		.sheet( isPresented: $confirmingReset ) {
+			FactoryResetSheet( controller: controller, deviceID: deviceID )
+		}
+		.sheet( isPresented: $confirmingEncrypt ) {
+			EncryptStorageSheet( controller: controller, device: device, name: settings.name )
 		}
 	}
 
@@ -401,9 +407,9 @@ private enum StorageText {
 private struct SecuritySection: View {
 	let controller : DeckController
 	let device     : DeckDevice
-	let name       : String
+	/// Opens the Encrypt sheet, which the form presents (see there).
+	@Binding var confirming : Bool
 
-	@State private var confirming   = false
 	@State private var learningMore = false
 
 	var body: some View {
@@ -435,9 +441,6 @@ private struct SecuritySection: View {
 			}
 		} header: {
 			SectionHeader( "Security" )
-		}
-		.sheet( isPresented: $confirming ) {
-			EncryptStorageSheet( controller: controller, device: device, name: name )
 		}
 	}
 
