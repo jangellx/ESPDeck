@@ -15,7 +15,7 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 - **Tap, double tap and hold.** Each can do something different on the same key.
 - **Brightness and fan speed.** A pair of keys steps a light's brightness or a fan's speed up and down; holding repeats.
 - **Pages.** A deck has as many pages of keys as you like.
-- **Supports every Stream Deck with keys.** Mini, Original, MK.2, XL, Neo, +, Pedal and the modules, each in its own layout; several decks can share one Mac.
+- **Supports every Stream Deck with keys.** Mini, Original, MK.2, XL, Neo, +, Pedal and the modules, each in its own layout; several decks can share one Mac. Only the keys are used, not dials, touch strips or second screens.
 - **Sleep and wake.** The deck's screen sleeps on a timer or when a HomeKit accessory changes (a door locks, a light goes off), and can run a scene or a shortcut as it sleeps and wakes.
 - **Set up from the Mac.** The app installs the firmware over USB, joins the dev kit to Wi-Fi and names it; firmware updates then arrive over Wi-Fi.
 - **Paired and private.** A deck only obeys the Mac it's paired with, over an authenticated connection on your own network. There's no account and no cloud service; the secrets a deck stores can be encrypted on its chip.

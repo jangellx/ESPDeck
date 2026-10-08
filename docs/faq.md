@@ -6,7 +6,9 @@
 
 ### Which Stream Decks are supported?
 
-Every [Elgato Stream Deck](https://www.elgato.com/stream-deck) with keys. The firmware knows each of these and reports its layout to the Mac:
+Every [Elgato Stream Deck](https://www.elgato.com/stream-deck) with keys. **Only the keys are supported.** Dials, touch strips, touch keys and second screens aren't: ESPDeck doesn't read or control them.
+
+The firmware knows each of these models and reports its layout to the Mac:
 
 | Model | Keys |
 |---|---|
@@ -22,7 +24,7 @@ Every [Elgato Stream Deck](https://www.elgato.com/stream-deck) with keys. The fi
 ![The same Mini's six keys in ESPDeck Bridge.](images/mini.png)
 
 - **Tested on real hardware:** the Mini and the MK.2 Scissor. The others follow the same USB protocols (taken from [python-elgato-streamdeck](https://github.com/abcminiuser/python-elgato-streamdeck)) but haven't been tried. If the pictures come out sideways or mirrored on yours, change **Image Orientation** on the deck's Device page.
-- **Only the keys are used.** The +'s dials and touch strip and the Neo's two touch keys do nothing. The Neo's info bar and the +'s strip show the deck's name.
+- **What isn't supported on particular models:** the Stream Deck +'s four dials and its touch strip, and the Neo's two touch keys, do nothing. The Neo's info bar and the +'s strip show the deck's name and nothing else.
 - **The Pedal** has no screen: its pedals work as three keys, and the dev kit's status light stands in for the display while pairing.
 
 ### Does the Mac have to stay on?

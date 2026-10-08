@@ -41,6 +41,15 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		// real decks and Home while the tests run.
 		guard !Self.isHostingTests else { return true }
 
+		#if DEBUG
+		// For the documentation: write the guide's illustrations as PNGs and quit, before the
+		// server, HomeKit or the menu bar item start (see GuideIllustrationExport).
+		if UserDefaults.standard.bool( forKey: "ESPDeckExportIllustrations" ) {
+			print( "Illustrations: \( GuideIllustrationExport.export()?.path ?? "failed" )" )
+			exit( 0 )
+		}
+		#endif
+
 		// App Nap would throttle HomeKit notifications and the server while no window is open.
 		activity = ProcessInfo.processInfo.beginActivity( options: [ .userInitiatedAllowingIdleSystemSleep ], reason: "Bridging HomeKit to the Stream Deck" )
 
