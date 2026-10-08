@@ -181,10 +181,16 @@ private struct DeckKeyView: View {
 		} isTargeted: { isTargeted = $0 }
 		// Where it is in the window, for shift-click (ConfigurationHostingController).
 		.onGeometryChange( for: CGRect.self ) { $0.frame( in: .global ) } action: { frame in
+			// Another deck's keys were here before: its frames go, all at once.
+			if controller.previewDevice != deviceID {
+				controller.previewKeyFrames = [:]
+				controller.previewDevice    = deviceID
+			}
 			controller.previewKeyFrames[index] = frame
-			controller.previewDevice           = deviceID
 		}
-		.onDisappear { controller.previewKeyFrames[index] = nil }
+		// Only its own: when another deck is chosen, that deck's keys appear before this
+		// one's disappear, and removing by index took the new deck's frames with it.
+		.onDisappear { if controller.previewDevice == deviceID { controller.previewKeyFrames[index] = nil } }
 		.task( id: changedAt ) {
 			guard let at = changedAt else { return }
 			let due = at.addingTimeInterval( Double( index ) * DeckDevice.pagePopStep )
