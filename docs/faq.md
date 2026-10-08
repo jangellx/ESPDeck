@@ -6,7 +6,7 @@
 
 ### Which Stream Decks are supported?
 
-Every Stream Deck with keys. The firmware knows each of these and reports its layout to the Mac:
+Every [Elgato Stream Deck](https://www.elgato.com/stream-deck) with keys. The firmware knows each of these and reports its layout to the Mac:
 
 | Model | Keys |
 |---|---|
@@ -17,7 +17,7 @@ Every Stream Deck with keys. The firmware knows each of these and reports its la
 | Stream Deck + | 2 × 4 |
 | Stream Deck Pedal | 3 pedals, no screen |
 
-- **Tested on real hardware:** the Mini and the MK.2 Scissor. The others follow the same USB protocols (taken from python-elgato-streamdeck) but haven't been tried. If the pictures come out sideways or mirrored on yours, change **Image Orientation** on the deck's Device page.
+- **Tested on real hardware:** the Mini and the MK.2 Scissor. The others follow the same USB protocols (taken from [python-elgato-streamdeck](https://github.com/abcminiuser/python-elgato-streamdeck)) but haven't been tried. If the pictures come out sideways or mirrored on yours, change **Image Orientation** on the deck's Device page.
 - **Only the keys are used.** The +'s dials and touch strip and the Neo's two touch keys do nothing. The Neo's info bar and the +'s strip show the deck's name.
 - **The Pedal** has no screen: its pedals work as three keys, and the dev kit's status light stands in for the display while pairing.
 
@@ -57,7 +57,22 @@ Pairing. A deck and its Mac share a key, agreed when you confirm the code on the
 
 ### Should I encrypt the deck's stored secrets?
 
-Yes, unless you plan to read the board's flash yourself. Without it, anyone who takes the dev kit can read your Wi-Fi password and the pairing key over USB. New devices encrypt by default at first setup. It's permanent for that board (the key is burned into the chip), but everything stays changeable and the board can still be reflashed for other uses. See [Encrypting stored secrets](setup.md#encrypting-stored-secrets).
+The dev kit keeps three secrets in its flash memory: your Wi-Fi password, the pairing key it shares with your Mac, and the developer password if you use one. Stored plainly, anyone who takes the dev kit can read them off it over USB. Encrypting stores them under a key that's burned into the chip itself, where no software can read it, so the flash alone gives nothing away.
+
+It's permanent for that board: the key can't be removed, so the board always encrypts what it stores from then on. Everything else stays as it was. The Wi-Fi network, name and pairing can still be changed, updates and factory reset still work, and the board can still be reflashed for something other than ESPDeck.
+
+So: yes, unless you have a reason to read the board's flash yourself. New devices encrypt by default at first setup, and a deck set up earlier can be switched from its Device page. See [Encrypting stored secrets](setup.md#encrypting-stored-secrets).
+
+### Why can't I just download a .dmg from here?
+
+Because of HomeKit again. Apple only lets an app use HomeKit when it comes from the App Store, or when you build it yourself with your own Apple developer account. An app signed for direct download (a .dmg from a website) can't be given that permission, so it couldn't see your Home at all.
+
+That leaves two ways to get ESPDeck Bridge:
+
+- **The Mac App Store.** ESPDeck Bridge is on its way there; the link will be here once it's available.
+- **Build it yourself.** With Xcode and an Apple developer account, see [Building and running](mac-app.md#building-and-running).
+
+The firmware is different: it's a plain download. Releases are on this repository's Releases page, and the [web installer](https://jangellx.github.io/ESPDeck/) installs the latest one from a browser.
 
 ## When something doesn't work
 

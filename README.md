@@ -1,15 +1,12 @@
 # ESPDeck
 
-Turn an Elgato Stream Deck into a HomeKit control panel you can put anywhere in the house, away from your computer. An ESP32-S3 dev kit plugs into the Stream Deck in a computer's place and connects it over Wi-Fi to **ESPDeck Bridge**, an app on a Mac elsewhere on your network.
+Turn an [Elgato Stream Deck](https://www.elgato.com/stream-deck) into a HomeKit control panel you can put anywhere in the house, away from your computer. An ESP32-S3 dev kit plugs into the Stream Deck in a computer's place and connects over Wi-Fi to **ESPDeck Bridge**, an app on a Mac elsewhere on your network.
 
-You still need that Mac: it stays on, watches your Home, and does what the keys ask. The dev kit only carries key presses and pictures between the Stream Deck and the Mac.
+You still need that Mac: it stays on, watches your Home, and triggers actions when keys are pressed. The dev kit only carries key presses and pictures between the Stream Deck and the Mac.
 
 - **Keys that show what's happening.** A key shows its accessory's state (on or off, open, opening, closed, locked) with the icon, label and color you choose for each state, and follows changes made anywhere else.
 - **Accessories, scenes and Shortcuts.** A key toggles an accessory or a group of them, runs a scene, or runs one of your Shortcuts.
-- **Three presses per key**, each with its own action:
-  - **Tap**
-  - **Double tap**
-  - **Hold**
+- **Tap, double tap and hold.** Each can do something different on the same key.
 - **Brightness and fan speed.** A pair of keys steps a light's brightness or a fan's speed up and down; holding repeats.
 - **Pages.** A deck has as many pages of keys as you like.
 - **Supports every Stream Deck with keys.** Mini, Original, MK.2, XL, Neo, +, Pedal and the modules, each in its own layout; several decks can share one Mac.
