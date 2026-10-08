@@ -93,8 +93,13 @@ struct KeysPageView: View {
 	}
 
 	/// How long the inspector takes to slide away, and to slide back, in seconds.
-	private static let slideAway = 0.2
-	private static let slideBack = 0.26
+	private static let slideAway = 0.3
+	private static let slideBack = 0.38
+	/// Away: slow to start, fastest as it leaves. Back: fast as it arrives, slowing to a stop.
+	/// Cubic curves, since SwiftUI's own easeIn and easeOut are gentle enough to look even
+	/// over so short a move.
+	private static let awayCurve = Animation.timingCurve( 0.32, 0, 0.67, 0, duration: slideAway )
+	private static let backCurve = Animation.timingCurve( 0.33, 1, 0.68, 1, duration: slideBack )
 
 	/// Another layout was chosen: the inspector slides off its edge in the old one, the panes
 	/// are rearranged while only the deck shows, and it slides back in from its new edge.
@@ -106,11 +111,11 @@ struct KeysPageView: View {
 		}
 		// Midway through an earlier change, the layout on screen is the one to leave.
 		shownLayout = shownLayout ?? old
-		withAnimation( .easeIn( duration: Self.slideAway ) ) { inspectorAway = true }
+		withAnimation( Self.awayCurve ) { inspectorAway = true }
 		Task {
 			try? await Task.sleep( for: .seconds( Self.slideAway ) )
 			shownLayout = nil
-			withAnimation( .easeOut( duration: Self.slideBack ) ) { inspectorAway = false }
+			withAnimation( Self.backCurve ) { inspectorAway = false }
 		}
 	}
 
