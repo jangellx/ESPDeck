@@ -3,7 +3,7 @@
 //  ESPDeck Bridge
 //
 //  Firmware releases are signed with an Ed25519 key that only GitHub Actions has (the
-//  FIRMWARE_SIGNING_KEY secret; see README, Release signing). Each release file has a
+//  FIRMWARE_SIGNING_KEY secret; see docs/development.md, Release signing). Each release file has a
 //  `<file>.sig` next to it: the raw 64-byte signature over the file's exact bytes. Every
 //  image downloaded from GitHub Releases must carry a valid one before it's installed, over
 //  Wi-Fi or over USB. Files the user picks (Install Firmware from File…, Choose File…) aren't

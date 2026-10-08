@@ -4,7 +4,7 @@
 # to GitHub Pages.
 #
 # One-time setup: Settings → Pages → Source: GitHub Actions, and the repository secret
-# FIRMWARE_SIGNING_KEY (the Ed25519 private key, PEM; see README, Release signing). Without
+# FIRMWARE_SIGNING_KEY (the Ed25519 private key, PEM; see docs/development.md, Release signing). Without
 # the secret the job fails before anything is published.
 name: Firmware release
 

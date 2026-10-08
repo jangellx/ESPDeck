@@ -245,7 +245,7 @@ The Mac downloads firmware from GitHub Releases:
 - tags `firmware-vX.Y.Z`;
 - asset `espdeck-firmware-X.Y.Z.bin` is the OTA app image;
 - asset `espdeck-firmware-X.Y.Z-merged.bin` is the full flash image for USB installs;
-- each has a `.sha256` (`<hash>  <file>`) and a `.sig`: the raw 64-byte Ed25519 signature over the file's exact bytes, made with the release signing key (README, Release signing).
+- each has a `.sha256` (`<hash>  <file>`) and a `.sig`: the raw 64-byte Ed25519 signature over the file's exact bytes, made with the release signing key (docs/development.md, Release signing).
 
 The Mac checks the image against the asset's published SHA-256 and its signature before sending it or writing it over USB. It doesn't offer releases without a `.sig` (everything before 4.1.0), and refuses a download whose signature is missing or doesn't verify.
 
