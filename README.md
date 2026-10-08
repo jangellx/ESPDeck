@@ -1,6 +1,6 @@
 # ESPDeck
 
-Turn an Elgato Stream Deck into a HomeKit control panel that sits anywhere in the house, with no computer attached to it. An ESP32-S3 dev kit plugs into the Stream Deck and connects it over Wi-Fi to **ESPDeck Bridge**, a Mac app that watches your Home and runs what the keys do.
+Turn an Elgato Stream Deck into a HomeKit control deck that sits anywhere in the house, with no computer attached to it. An ESP32-S3 dev kit plugs into the Stream Deck and connects it over Wi-Fi to **ESPDeck Bridge**, a Mac app that watches your Home and runs what the keys do.
 
 - **Keys that show what's happening.** A key shows its accessory's state (on or off, open, opening, closed, locked) with the icon, label and color you choose for each state, and follows changes made anywhere else.
 - **Accessories, scenes and Shortcuts.** A key toggles an accessory or a group of them, runs a scene, or runs one of your Shortcuts. A tap, a double tap and a hold can each do something different.
@@ -21,7 +21,7 @@ The Mac app does all the work; the ESP32 only bridges Wi-Fi to USB HID and cache
 
 ## Requirements
 
-- A Mac on **macOS 14 (Sonoma) or later**, signed in to an iCloud account that's a **member of the Home**. It has to **stay on and logged in**; for an always-on panel, turn on automatic login and the app's **Launch at Login**.
+- A Mac on **macOS 14 (Sonoma) or later**, signed in to an iCloud account that's a **member of the Home**. It has to **stay on and logged in**; for an always-on deck, turn on automatic login and the app's **Launch at Login**.
 - An **ESP32-S3 dev kit with 16 MB flash and 8 MB PSRAM** (ESP32-S3-DevKitC-1 **N16R8**) running ESPDeck firmware.
 - An **Elgato Stream Deck** (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module).
 - A **5 V USB-C power supply rated 2 A or more**. Through the OTG adapter, it powers both the ESP32-S3 and the Stream Deck.
