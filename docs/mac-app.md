@@ -80,7 +80,7 @@ The Keys page has the deck preview and, for the selected key, its settings.
 **Size and arrangement**
 - The slider and **Size to Fit** under the page bar zoom the preview; so do pinching on a trackpad and View ▸ Zoom In and Zoom Out.
 - The control at the far right of the page bar puts the preview **beside** the key's settings or **above** them, which suits a wide deck. Drag the divider between the two to resize them.
-- **Key Labels** under the preview puts every key's label at the top or the bottom.
+- **Labels** under the preview puts every key's label at the top or the bottom.
 
 ## Setting up a key
 
