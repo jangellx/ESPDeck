@@ -8,33 +8,43 @@
 
 ## Installing
 
-**The board's two USB ports.** The ESP32-S3 dev kit has two USB-C ports:
+### The board's two USB ports
+
+The ESP32-S3 dev kit has two USB-C ports:
 - **USB**: the chip's own USB. ESPDeck uses it for the Stream Deck (through the OTG adapter), and it's also the easiest port to install through.
 - **UART**, or **COM** on many clone boards (the "YD-ESP32-S3" style of N16R8 board is common): a USB-to-serial chip, for logs.
 
-**Clone boards.** On some clones, the COM port doesn't power the board. Use the USB port for setup in any case: ESPDeck Bridge's USB Setup works there. Otherwise they work the same as Espressif's board.
+### Clone boards
 
-**Steps:**
+On some clones, the COM port doesn't power the board. Use the USB port for setup in any case: ESPDeck Bridge's USB Setup works there. Otherwise they work the same as Espressif's board.
+
+### Steps
+
 1. Connect the board's **USB** port to the computer with a data cable.
 2. **Put the board in flashing mode** if it's running other firmware; a new board's demo firmware usually is. Hold **BOOT** (also labeled B0 or IO0), press and release **RST** (also labeled EN or RESET), then release BOOT. A new serial port appears (`/dev/cu.usbmodem…` on a Mac).
-3. Install with ESPDeck Bridge (next paragraph), the web installer, or `pio run -t upload --upload-port /dev/cu.usbmodem…`.
+3. Install with ESPDeck Bridge (see [Installing with ESPDeck Bridge](#installing-with-espdeck-bridge)), the web installer, or `pio run -t upload --upload-port /dev/cu.usbmodem…`.
 4. If the board doesn't start ESPDeck afterward (its serial port is still there), press **RST** or unplug and replug it.
 5. With ESPDeck Bridge or the web installer, stay there: once ESPDeck starts, you can **connect it to Wi-Fi** over the same cable (with the [Improv](https://www.improv-wifi.com/serial/) protocol). Pick your network and enter its password. If you skip this, set up Wi-Fi later with the QR codes on the deck (setup mode, below).
 
-**With ESPDeck Bridge (Mac):** open **USB Setup** in the configuration window's sidebar, or choose **Set Up a Device over USB…** in the menu bar menu.
+### Installing with ESPDeck Bridge
 
-*Finding the board*
+Open **USB Setup** in the configuration window's sidebar, or choose **Set Up a Device over USB…** in the menu bar menu.
+
+#### Finding the board
+
 - With **Look for boards plugged in over USB** on (the default; turn it off if you use this Mac for other ESP32 work), the page lists the boards plugged in, and the sidebar entry shows how many. With several boards, click the one to set up.
 - When an ESP32 appears on its own USB port, the app opens that port once and asks what it's running (Improv device information), which Wi-Fi network it's set up for (firmware 4.1.0 and later; the name only, never the password) and whether its stored secrets are encrypted. Then it closes the port again. Opening it doesn't restart the board.
 - A board on a USB serial chip (a COM or UART port) is asked only when you click **Check**, since opening such a port can restart the board.
 - Setup itself is done on the board's **USB** port. On a COM port the page only shows the board, with a note to move the cable; the steps (installing firmware, Wi-Fi, the name) appear once it's on the USB port.
 
-*What Board Info shows for an ESPDeck board*
+#### What Board Info shows for an ESPDeck board
+
 - Its version against the latest release: up to date, an update available, or newer (a development build).
 - Its Wi-Fi network: "Wi-Fi: <name>", marked "not connected" when it isn't on it, or "No Wi-Fi set up".
 - Whether its stored secrets are encrypted: "Stored secrets: encrypted" or "not encrypted".
 
-*1. Install Firmware*
+#### 1. Install Firmware
+
 - Choose the firmware in the Firmware menu: the latest release from GitHub (checked against its SHA-256 and signature), or a file from **Choose File…** at the end of the menu. The refresh button next to it looks for new releases.
 - Click **Install Firmware**. Installing an older version than the board runs asks first.
 - The app puts the board into flashing mode itself: through the reset lines of the USB-Serial/JTAG port, or, for firmware with its own USB serial port, the 1200 bps signal that Arduino sketches honor. Other firmware (ESP-IDF's USB examples, say) ignores that, and then the page asks you to hold BOOT and press RST. The board comes back as a new port in the same USB socket, which the page follows.
@@ -42,22 +52,28 @@
 - It writes the bootloader, partition table and app, but not the data partitions, so a reinstall keeps the Wi-Fi settings, name and pairing. (The web installer erases everything.)
 - After the board restarts, the page asks it again what it runs.
 
-*2. Set Up Wi-Fi, and the name*
+#### 2. Set Up Wi-Fi, and the name
+
 - The page looks for Wi-Fi networks the first time it shows an ESPDeck board; the refresh button next to the Network menu looks again.
 - The Network menu starts on the network the board is already set up for (listed as the current setting when the board can't see it); otherwise on **Choose…**, and **Join Network** waits until you pick one or type one under **Other Network…**.
 - A new board has **Encrypt stored secrets (recommended)** checked; see [Encrypting stored secrets](#encrypting-stored-secrets).
 - Looking for networks, **Join Network** and **Rename** each open the port for that one action.
 
-*Afterward*
+#### Afterward
+
 - Once on Wi-Fi the board finds the bridge by itself, and appears under **New Devices** for pairing, which needs the Stream Deck attached to hold Confirm.
 - The page recognizes it there by its ID (the MAC address, which is the USB serial number of the ESP32-S3's own USB port), so a board renamed after it first connected is still found.
 - The end of the page says what comes next: unplugging the board and putting the deck together.
 
 The app writes the flash through the ESP32-S3's ROM bootloader protocol itself (no esptool), so it works in the App Sandbox with only the `com.apple.security.device.serial` entitlement.
 
-**Computer or Stream Deck.** At startup ESPDeck looks at its USB port for about 1.5 seconds. If a computer is on the other end, the port stays a serial port: it shows up on the computer, logs appear there, Improv works, and reinstalling needs no BOOT/RST. Wi-Fi, setup mode and the bridge connection work as usual, but there's no Stream Deck. Only when there's no computer, as with the OTG adapter and a Stream Deck, does the port become the deck's USB host. The decision is made once per boot, so after switching cables, press **RST** or power-cycle the board.
+### Computer or Stream Deck
 
-**After installing:** updates normally come over Wi-Fi from ESPDeck Bridge (see [Firmware updates and releases](development.md#firmware-updates-and-releases)). For logs while a deck is attached, connect the UART/COM port to the computer at 115200 baud (`pio device monitor`); it also accepts Improv and uploads with automatic reset.
+At startup ESPDeck looks at its USB port for about 1.5 seconds. If a computer is on the other end, the port stays a serial port: it shows up on the computer, logs appear there, Improv works, and reinstalling needs no BOOT/RST. Wi-Fi, setup mode and the bridge connection work as usual, but there's no Stream Deck. Only when there's no computer, as with the OTG adapter and a Stream Deck, does the port become the deck's USB host. The decision is made once per boot, so after switching cables, press **RST** or power-cycle the board.
+
+### After installing
+
+Updates normally come over Wi-Fi from ESPDeck Bridge (see [Firmware updates and releases](development.md#firmware-updates-and-releases)). For logs while a deck is attached, connect the UART/COM port to the computer at 115200 baud (`pio device monitor`); it also accepts Improv and uploads with automatic reset.
 
 ## Setup mode
 
@@ -67,7 +83,8 @@ The device starts in setup mode when it has no Wi-Fi credentials. To enter it la
 - top center: the network's name, `ESPDeck-XXXX`;
 - bottom center: **Exit setup**, once the device has credentials that work.
 
-**Joining its network:**
+### Joining its network
+
 1. Scan the left QR code with your phone's camera and join the network it offers.
 2. If the phone doesn't stay connected (it may drop back to your usual Wi-Fi, because this network has no internet), open the phone's Wi-Fi settings and choose the name shown on the top-center key. Scanning the QR code already saved its password.
 3. Joining from Settings usually opens the setup page by itself. If it doesn't, scan the right QR code.
