@@ -1,6 +1,6 @@
 # ESPDeck
 
-Turn an Elgato Stream Deck into a HomeKit control deck that sits anywhere in the house, with no computer attached to it. An ESP32-S3 dev kit plugs into the Stream Deck and connects it over Wi-Fi to **ESPDeck Bridge**, a Mac app that watches your Home and runs what the keys do.
+Turn an Elgato Stream Deck into a HomeKit control panel that sits anywhere in the house, with no computer attached to it. An ESP32-S3 dev kit plugs into the Stream Deck and connects it over Wi-Fi to **ESPDeck Bridge**, a Mac app that watches your Home and runs what the keys do.
 
 - **Keys that show what's happening.** A key shows its accessory's state (on or off, open, opening, closed, locked) with the icon, label and color you choose for each state, and follows changes made anywhere else.
 - **Accessories, scenes and Shortcuts.** A key toggles an accessory or a group of them, runs a scene, or runs one of your Shortcuts. A tap, a double tap and a hold can each do something different.

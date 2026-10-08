@@ -202,7 +202,7 @@ struct AboutView: View {
 					}
 				}
 
-				Text( "Turns an [Elgato Stream Deck](https://www.elgato.com/stream-deck) plugged into an ESP32-S3 into a HomeKit control deck. This macOS bridge watches your HomeKit accessories and runs the actions; the ESPDeck firmware connects the Stream Deck to it over Wi-Fi." )
+				Text( "Turns an [Elgato Stream Deck](https://www.elgato.com/stream-deck) plugged into an ESP32-S3 into a HomeKit control panel. This macOS bridge watches your HomeKit accessories and runs the actions; the ESPDeck firmware connects the Stream Deck to it over Wi-Fi." )
 
 				if let repository = controller.updates.repository, let url = URL( string: "https://github.com/\(repository)" ) {
 					Link( "Source code and releases on GitHub", destination: url )
