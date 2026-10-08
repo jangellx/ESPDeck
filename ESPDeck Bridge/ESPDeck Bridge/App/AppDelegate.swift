@@ -148,7 +148,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 	func menuBarColorDropped( red: Double, green: Double, blue: Double, x: Double, y: Double ) -> Bool {
 		controller.window.colorDropKey = nil
 		guard let target = previewKey( x: x, y: y ) else { return false }
-		controller.window.selectedKey = target.key
+		// The selection stays where it is: a color can be dropped on key after key.
 		controller.update( device: target.device, key: target.key ) {
 			$0.backgroundColor = Color( .sRGB, red: red, green: green, blue: blue ).hex
 		}
