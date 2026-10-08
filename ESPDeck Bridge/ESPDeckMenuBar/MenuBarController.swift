@@ -321,6 +321,14 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		app.activate( from: .current, options: [] )
 	}
 
+	/// A dragged color as sRGB components; see DeckMenuBarPlugin.
+	func draggedColor( archived: Data? ) -> [Double]? {
+		let color = archived.flatMap { try? NSKeyedUnarchiver.unarchivedObject( ofClass: NSColor.self, from: $0 ) }
+					?? NSColor( from: NSPasteboard( name: .drag ) )
+		guard let rgb = color?.usingColorSpace( .sRGB ) else { return nil }
+		return [ Double( rgb.redComponent ), Double( rgb.greenComponent ), Double( rgb.blueComponent ) ]
+	}
+
 	/// Registers or unregisters the app as a login item, opening System Settings if macOS
 	/// wants approval, and tells the host.
 	func setLaunchAtLogin( _ enabled: Bool ) {

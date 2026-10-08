@@ -49,6 +49,12 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// Turns it on or off, opening System Settings if macOS wants approval.
 	func setLaunchAtLogin( _ enabled: Bool )
 
+	/// A color dragged from the Colors panel or a color well, as sRGB red, green and blue
+	/// (0 … 1): from `archived`, the drag's com.apple.cocoa.pasteboard.color data (an archived
+	/// NSColor, which Catalyst can't read), or from the drag pasteboard when that's nil. nil if
+	/// there's no color in it.
+	func draggedColor( archived: Data? ) -> [Double]?
+
 	/// The configuration window is about to open: activates the app, and makes the window key
 	/// when it appears (Catalyst doesn't for an LSUIElement app).
 	func activateApp()

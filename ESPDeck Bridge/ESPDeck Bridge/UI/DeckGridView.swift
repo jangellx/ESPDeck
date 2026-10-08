@@ -168,6 +168,12 @@ private struct DeckKeyView: View {
 					guard source != index else { return false }
 					controller.moveKey( device: deviceID, from: source, to: index )
 					selection = index   // the selection follows the dragged key
+				case .appKitColor( let data ):
+					guard let rgb = controller.macBridge?.draggedColor( archived: data ), rgb.count == 3 else { return false }
+					selection = index
+					controller.update( device: deviceID, key: index ) {
+						$0.backgroundColor = Color( .sRGB, red: rgb[0], green: rgb[1], blue: rgb[2] ).hex
+					}
 				case .color( let color ):
 					selection = index
 					// A Level key's partner takes the color too (syncSliderPartner).
