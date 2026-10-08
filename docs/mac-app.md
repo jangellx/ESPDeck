@@ -29,155 +29,188 @@
 
 ## The menu bar
 
-ESPDeck Bridge has no Dock icon while its window is closed. It lives in the menu bar, under the grid icon:
+ESPDeck Bridge has no Dock icon while its window is closed. It lives in the menu bar, under the grid icon, and that menu is how you open everything else.
 
-- **Status lines** at the top: whether the bridge is waiting for a deck, HomeKit is connected, and anything that needs attention.
-- **Decks**: each deck with its state. Choose one to open its Keys page.
+- The status lines at the top say whether the bridge is waiting for a deck, whether HomeKit is connected, and whether anything needs attention.
+- Each deck is listed with its state. Choosing one opens its Keys page.
 - **Configure…** opens the configuration window.
 - **Set Up a Device over USB…** opens the window on USB Setup.
-- **Launch at Login**, and **Quit ESPDeck Bridge**.
+- **Launch at Login** and **Quit ESPDeck Bridge** are at the bottom.
 
 The arrow keys move through the menu while the app is in front.
 
 ## The sidebar
 
-The configuration window's sidebar has three parts.
+The configuration window's sidebar has three sections: your decks, the app's own pages, and the bridge's status. Choosing a deck shows its three pages, **Keys**, **Device** and **Log**, which are picked at the top of the window (⌘1 to ⌘3).
 
-**Devices**
-- Every deck this Mac knows, keyed by its MAC address, with its state under its name (connected, asleep, waiting to be paired, and so on).
-- **Not Connected**: the decks that aren't connected now, which can be hidden.
-- **New Devices**: decks on the network that haven't been paired yet. Choose one to pair it (see [Pairing](setup.md#pairing)).
-- **Add Demo Deck**: a deck with no hardware, in the model you pick. Lay out its keys, test their actions, and copy them to a real deck later.
+### Devices
 
-**ESPDeck Bridge**
-- **Getting Started**: the parts list and the setup steps. The window opens here while there are no decks.
-- **USB Setup**: installs firmware on a board plugged into the Mac; the badge counts the boards it has found.
-- **Updates**: firmware releases.
-- **About**: the version, requirements, exporting and importing the bridge, the license and acknowledgments.
+This section lists every deck this Mac knows about, and the ones waiting to be added. It's where you choose which deck to work on.
 
-**Status**
-- What the bridge is waiting for or connected to, **HomeKit**'s state, and **Launch at Login**.
-- A problem that needs attention shows here too, with a notification.
+- Each deck is listed by name, with its state under it (connected, asleep, waiting to be paired, and so on). Decks are told apart by their MAC address, so renaming one doesn't confuse them.
+- **Not Connected** lists the decks that aren't connected now. That list can be hidden.
+- **New Devices** lists the decks on the network that haven't been paired yet. Choose one to pair it (see [Pairing](setup.md#pairing)).
+- **Add Demo Deck** makes a deck with no hardware, in the model you pick. You can lay out its keys, test their actions, and copy them to a real deck later.
 
-Choosing a deck shows its three pages, **Keys**, **Device** and **Log**, picked at the top of the window (⌘1 to ⌘3).
+### ESPDeck Bridge
+
+This section holds the pages that belong to the app and not to any one deck. They cover getting a deck built, set up and kept up to date.
+
+- **Getting Started** has the parts list and the setup steps. The window opens here while there are no decks.
+- **USB Setup** installs firmware on a board plugged into the Mac. Its badge counts the boards it has found.
+- **Updates** shows firmware releases and installs them.
+- **About** has the version, the requirements, exporting and importing the bridge, the license and the acknowledgments.
+
+### Status
+
+This section shows how the bridge itself is doing, at a glance. It's the first place to look when a deck isn't responding.
+
+- The first line says what the bridge is waiting for or connected to.
+- The **HomeKit** line says whether the app can reach your Home.
+- **Launch at Login** shows whether the app starts when you log in, and turns that on or off.
+- A problem that needs attention is shown here too, and comes with a notification.
 
 ## The Keys page
 
-The Keys page has the deck preview and, for the selected key, its settings.
+The Keys page is where a deck's keys are laid out. It shows a preview of the deck and, for the key you select, everything that key shows and does.
 
-**The preview**
-- A simulated deck in the device's own layout, showing what each key shows now.
+### The preview
+
+The preview is a simulated deck in the device's own layout. It shows what each key shows right now, and it's where you select, move and try out keys.
+
 - Click a key to select it. The arrow keys move the selection after a click in the preview.
-- **Shift-click** a key to press it as on the deck: shift-double-click for its Double Tap, shift-hold for its Hold.
+- Shift-click a key to press it as on the deck. Shift-double-click does its Double Tap, and holding with Shift does its Hold.
 - Drag a key onto another to swap them.
-- Drop an image on a key to make it the key's icon, or a color (from the Colors panel or a color well) to make it the key's background.
+- Drop an image on a key to make it the key's icon.
+- Drop a color on a key, from the Colors panel or a color well, to make it the key's background.
 - Right-click a key for Copy, Paste and Clear.
 
-**Pages**
-- **Page ① ② ③ +** above the preview shows the deck's pages of keys; click one to edit it, and **+** to add one. Right-click a page to delete it.
-- The deck itself shows whichever page it's on. Keys with a Page action move between them.
+### Pages
 
-**Size and arrangement**
-- The slider and **Size to Fit** under the page bar zoom the preview; so do pinching on a trackpad and View ▸ Zoom In and Zoom Out.
-- The control at the far right of the page bar puts the preview **beside** the key's settings or **above** them, which suits a wide deck. Drag the divider between the two to resize them.
-- **Labels** under the preview puts every key's label at the top or the bottom.
+A deck can have several pages of keys, and the page bar above the preview moves between them. The deck itself shows whichever page it's on.
+
+- Click a page number to edit that page, and **+** to add a page.
+- Right-click a page number to delete that page.
+- Keys with a Page action move the deck from one page to another.
+
+### Size and arrangement
+
+These controls change how the Keys page is laid out, not the deck. They're remembered between launches.
+
+- The slider and **Size to Fit** under the page bar zoom the preview. Pinching on a trackpad does the same, and so do View ▸ Zoom In and Zoom Out.
+- The control at the far right of the page bar puts the preview beside the key's settings or above them. Above suits a wide deck.
+- Dragging the divider between the preview and the settings resizes them.
+- **Labels** under the preview puts every key's label at the top or at the bottom.
 
 ## Setting up a key
 
-Select a key, then work down its settings.
+A key's settings appear when you select it. Work down them in order: which press, what it controls, what the press does, and how the key looks.
 
-**1. Which press**
+### 1. Presses: Tap, Double Tap and Hold
 
-A key can do three different things. **Tap**, **Double Tap** and **Hold**, at the top, choose which one you're setting up. The key's look (icon, label, color) belongs to its tap.
+A key can do three different things, one for each kind of press. **Tap**, **Double Tap** and **Hold**, at the top of the settings, choose which one you're setting up. The key's look (its icon, label and color) belongs to its tap.
 
-**2. What it controls**
+### 2. What it controls
 
-Under **Controlling**, three tabs:
+The **Controlling** section chooses what the press acts on. It has three tabs.
 
-- **Home**: accessories and scenes, in a sheet arranged like the Home app, by room, with a search field.
-  - Pick one accessory, or several to control together. The starred one is the key accessory: the key shows its state.
-  - Scenes can be mixed in with accessories. **Scenes Run** then says when: every press, only when turning on, or only when turning off.
+- The **Home** tab has your accessories and scenes, in a sheet arranged by room like the Home app, with a search field.
+  - You can pick one accessory, or several to control together. The starred one is the key accessory, and the key shows its state.
+  - Scenes can be mixed in with accessories. **Scenes Run** then says when they run: on every press, only when turning on, or only when turning off.
   - With more than one Home, accessories and scenes are grouped by Home, and one key can use several Homes.
-- **Shortcut**: one of your Shortcuts. See [Shortcuts](#shortcuts), below.
-- **Page**: Next Page, Previous Page, First Page, Last Page, Go to Page, or Show Page Number.
+- The **Shortcut** tab has your Shortcuts. See [Shortcuts](#shortcuts), below.
+- The **Page** tab has the commands that move between pages: Next Page, Previous Page, First Page, Last Page, Go to Page, and Show Page Number.
 
-**3. What the press does**
+### 3. What the press does
 
-- **On Press** lists the actions that fit: Toggle, Turn On, Turn Off, Open, Close, Lock, Unlock, Run Scene, or Nothing (the key only shows state).
-- A light with brightness or a fan with speeds can be **Toggle** or **Level**. Level makes a pair of keys that step the level up and down:
-  - **Other Key** is the second key of the pair; **Swap** exchanges which one raises.
-  - **Step** is how far each press goes, and holding a key keeps stepping.
-  - **Double-Tap Goes All the Way** jumps to full or to off.
+Once a key has something to control, this section chooses the action. The choices depend on what was picked.
+
+- **On Press** lists the actions that fit: Toggle, Turn On, Turn Off, Open, Close, Lock, Unlock, Run Scene, or Nothing. With Nothing, the key only shows state.
+- A light with brightness, or a fan with speeds, can be set to **Toggle** or **Level**. Level makes a pair of keys that step the level up and down.
+  - **Other Key** chooses the second key of the pair, and **Swap** exchanges which of the two raises the level.
+  - **Step** sets how far each press goes. Holding a key keeps stepping.
+  - **Double-Tap Goes All the Way** makes a double tap jump to full, or to off.
   - The two keys share their background color.
-- **Test Action** (⌘T) does it now, without the deck.
+- **Test Action** (⌘T) performs the action now, without the deck.
 
-**4. How it looks**
+### 4. How it looks
 
-- **Label**, **Show Label** and **Background** under Appearance.
-- **Icons**: one for each state the key can show (Default, plus On and Off, or Open, Opening, Closed and so on). Drop an image on a state, or choose an SF Symbol. A state without its own icon uses Default.
+The Appearance and Icons sections set what the key shows. A key can look different in each state of its accessory.
 
-**Copy Key**, **Paste Key** and **Clear Key** are at the bottom, and in the Edit menu.
+- **Label** sets the key's text, and **Show Label** hides or shows it.
+- **Background** sets the key's color.
+- **Icons** has one icon for each state the key can show: Default, plus On and Off, or Open, Opening and Closed, and so on. Drop an image on a state, or choose an SF Symbol for it. A state without its own icon uses Default.
 
-When keys run: a key acts when it's released, and not when it was part of pressing several keys at once, so the two-corner hold for setup mode doesn't set anything off.
+**Copy Key**, **Paste Key** and **Clear Key** are at the bottom of the settings, and in the Edit menu.
+
+A key acts when it's released, not when it goes down. A press that's part of pressing several keys at once is ignored, so the two-corner hold for setup mode doesn't set anything off.
 
 ## Shortcuts
 
-A key on the **Shortcut** tab runs one of your Shortcuts on the Mac.
+A key on the **Shortcut** tab runs one of your Shortcuts on the Mac. A shortcut key can be a plain button or a switch with two states.
 
-- **One-Shot** runs it once per press.
-- **On/Off** makes a key with two states. Each press runs the shortcut with "on" or "off" as its Shortcut Input: the state the key is switching to. If the shortcut ends with Stop and Output of "on" or "off", the key shows that state instead.
-- **Reload Shortcuts** rereads the list after you add or rename one.
+- **One-Shot** runs the shortcut once per press.
+- **On/Off** makes a key with two states. Each press runs the shortcut with "on" or "off" as its Shortcut Input, which is the state the key is switching to. If the shortcut ends with Stop and Output of "on" or "off", the key shows that state instead.
+- **Reload Shortcuts** rereads the list after you add or rename a shortcut.
 
-How they run:
+How shortcuts run:
 
-- Through Shortcuts Events, in the background. The app sends Apple Events itself (it launches no helper tools) and starts Shortcuts Events when it isn't running.
-- One at a time. Pressing a key again while its shortcut is still running doesn't start it again.
-- The first time the app lists or runs one, macOS asks to let it control Shortcuts Events. If you declined, turn it on in System Settings → Privacy & Security → Automation, or reset the decision with `tccutil reset AppleEvents com.tmproductions.ESPDeck-Bridge` and ask again.
+- Shortcuts run through Shortcuts Events, in the background. The app sends the Apple Events itself, without launching any helper tool, and starts Shortcuts Events when it isn't running.
+- Shortcuts run one at a time. Pressing a key again while its shortcut is still running doesn't start it again.
+- macOS asks to let the app control Shortcuts Events the first time it lists or runs a shortcut. If you declined, turn it on in System Settings → Privacy & Security → Automation, or reset the decision with `tccutil reset AppleEvents com.tmproductions.ESPDeck-Bridge` and ask again.
 
-When one fails, the key shows a warning triangle and the Log page says why. See [Why do my Shortcuts fail?](faq.md#why-do-my-shortcuts-fail) in the FAQ.
+When a shortcut fails, the key shows a warning triangle and the Log page says why. See [Why do my Shortcuts fail?](faq.md#why-do-my-shortcuts-fail) in the FAQ.
 
 ## The Device page
 
-- **Device**: the deck's name and its **Network Name** (its name on the network, for `ping` and PlatformIO), with its status, Stream Deck model, MAC and IP addresses, and the Wi-Fi network it's set up for (firmware 4.1.0 and later).
-- **ESPDeck Firmware**: the version it runs, and installing an update or a file.
-- **Display**: **Brightness** and **Image Orientation**.
-- **Sleep**: **Sleep After** (a timer), **Sleep Now** and **Wake Now**, and a command to run as it sleeps and as it wakes (an accessory, a scene or a shortcut).
-- **Triggers**: sleep or wake the deck when a HomeKit accessory changes, like a door locking or a light going off.
-- **Key Presses**: **Double-Tap Speed** and **Hold Time** (how long counts as each), and **Repeat Delay** and **Repeat Speed** for keys that repeat while held.
-- **Setup**:
-  - **Enter Setup Mode**, to change its Wi-Fi from a phone.
-  - **Copy From Deck…**: another deck's keys and settings.
-  - **Clear All Keys…**
-  - **Factory Reset Device…**: erases the device. It can get its own settings, or another deck's, back once it's paired again.
-  - **Forget Device…**: removes it from this Mac and unpairs it.
-- **Security**: whether its stored secrets are encrypted, and **Encrypt Stored Secrets Now…** (see [Encrypting stored secrets](setup.md#encrypting-stored-secrets)).
-- **Developer**: **Allow uploads through PlatformIO** and the developer password (see [Development](development.md#firmware-updates-and-releases)).
-- **Status Light**: what the colors of the dev kit's light mean.
+The Device page has everything about the deck itself, as opposed to its keys: its name, its screen, when it sleeps, and its firmware. The destructive and one-time actions are here too.
+
+- The **Device** section has the deck's name and its **Network Name**, which is its name on the network for `ping` and PlatformIO. It also shows the deck's status, Stream Deck model, MAC and IP addresses, and the Wi-Fi network it's set up for (firmware 4.1.0 and later).
+- The **ESPDeck Firmware** section shows the version the deck runs, and installs an update or a file.
+- The **Display** section has **Brightness** and **Image Orientation**.
+- The **Sleep** section has **Sleep After** (a timer), **Sleep Now** and **Wake Now**. It also sets a command to run as the deck sleeps and as it wakes: an accessory, a scene or a shortcut.
+- The **Triggers** section sleeps or wakes the deck when a HomeKit accessory changes, like a door locking or a light going off.
+- The **Key Presses** section sets **Double-Tap Speed** and **Hold Time**, which are how long counts as each. **Repeat Delay** and **Repeat Speed** are for keys that repeat while held.
+- The **Setup** section has the actions that change the deck as a whole.
+  - **Enter Setup Mode** puts the deck in setup mode, to change its Wi-Fi from a phone.
+  - **Copy From Deck…** copies another deck's keys and settings to this one.
+  - **Clear All Keys…** empties every key on every page.
+  - **Factory Reset Device…** erases the device. It can get its own settings, or another deck's, back once it's paired again.
+  - **Forget Device…** removes the deck from this Mac and unpairs it.
+- The **Security** section says whether the deck's stored secrets are encrypted, and has **Encrypt Stored Secrets Now…** (see [Encrypting stored secrets](setup.md#encrypting-stored-secrets)).
+- The **Developer** section has **Allow uploads through PlatformIO** and the developer password (see [Development](development.md#firmware-updates-and-releases)).
+- The **Status Light** section explains what the colors of the dev kit's light mean.
 
 A demo deck's Device page has only its name and model.
 
 ## The Log page
 
-- Every message to and from the deck as it happens, newest first: key presses, images sent, state changes, and why something failed.
-- **Filter** narrows it to entries containing some text (pressed, image, keyDown).
-- Click to select entries, with ⌘ and Shift for several. **Copy Selected** or ⌘C copies them; **Copy All** copies everything shown.
-- **Clear** empties it.
+The Log page shows the messages passing between the Mac and the deck as they happen. It's the place to look when a key doesn't do what you expected.
+
+- The newest entry is at the top. Entries cover key presses, images sent, state changes, and the reason when something failed.
+- **Filter** narrows the list to entries containing some text, such as "pressed", "image" or "keyDown".
+- Click an entry to select it, and use ⌘ or Shift to select several. **Copy Selected** or ⌘C copies them, and **Copy All** copies everything shown.
+- **Clear** empties the log.
 
 ## Getting Started and USB Setup
 
-**Getting Started** lists the parts for one ESPDeck (What You Need), then follows the way you choose to set up the dev kit:
+These two pages take a new deck from a box of parts to a paired device. Getting Started is the guide, and USB Setup does the work on the board.
 
-- **Over USB from the Mac:** Connect to This Mac, USB Setup, Putting It Together, then Find Your Device.
-- **Over Wi-Fi with the setup codes on the deck:** Putting It Together, Set Up over Wi-Fi, then Find Your Device. Set Up over Wi-Fi shows a deck in setup mode, the steps for a phone or tablet, and what to do when the phone leaves the deck's network or the deck isn't in setup mode.
+**Getting Started** lists the parts for one ESPDeck under What You Need, then follows the way you choose to set up the dev kit.
 
-**Find Your Device** lists the decks on the network that aren't working with this Mac yet (new ones, and ones it knows that are waiting to be paired again or need attention), and boards plugged in over USB that still need setting up.
+- Over USB from the Mac, the steps are Connect to This Mac, USB Setup, Putting It Together, then Find Your Device.
+- Over Wi-Fi with the setup codes on the deck, the steps are Putting It Together, Set Up over Wi-Fi, then Find Your Device. Set Up over Wi-Fi shows a deck in setup mode and the steps for a phone or tablet. It also says what to do when the phone leaves the deck's network, or the deck isn't in setup mode.
+
+**Find Your Device** lists the decks on the network that aren't working with this Mac yet: new ones, and ones it knows that are waiting to be paired again or need attention. It also lists boards plugged in over USB that still need setting up.
 
 **USB Setup** installs firmware on a board plugged into the Mac and sets up its Wi-Fi and name; see [Installing](setup.md#installing). The end of the page says what comes next, with a button for Putting It Together.
 
 ## Updates
 
-- **Updates** checks GitHub Releases for firmware (tags `firmware-vX.Y.Z`).
-- It can **Install Automatically**, **Check Automatically, Ask to Install**, or **Check Manually** (only when you click **Check Now**).
+The Updates page keeps the decks' firmware current. It finds releases on GitHub and sends them to the decks over Wi-Fi.
+
+- The page checks GitHub Releases for firmware (tags `firmware-vX.Y.Z`).
+- It can be set to **Install Automatically**, to **Check Automatically, Ask to Install**, or to **Check Manually**, which only checks when you click **Check Now**.
 - It offers only signed releases (see [Release signing](development.md#release-signing)).
 - The repository must be public for update checks to work.
 - The app itself is distributed and updated through the Mac App Store.
