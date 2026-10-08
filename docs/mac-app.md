@@ -217,65 +217,36 @@ The Updates page keeps the decks' firmware current. It finds releases on GitHub 
 
 ## Menus and keyboard shortcuts
 
-**ESPDeck Bridge**
+Every command in the menu bar, with its keyboard shortcut where it has one.
 
-| Command | Keys | |
-|---|---|---|
-| Check for Updates… | | Looks for firmware releases |
-| Launch at Login | | |
-
-**File**
-
-| Command | Keys | |
-|---|---|---|
-| New Demo Deck | ⌘N | A submenu of models; ⌘N makes the first |
-| Find Your Device | ⇧⌘F | |
-| Set Up Device over USB… | ⇧⌘U | |
-| Export Bridge…, Import Bridge… | | See [Moving to another Mac](#moving-to-another-mac) |
-| Reset Bridge… | | Forgets every device and starts over as a new bridge |
-
-**Edit**
-
-| Command | Keys | |
-|---|---|---|
-| Cut, Copy, Paste | ⌘X, ⌘C, ⌘V | The selected key. Copy also copies selected Log entries. In a text field they act on the text |
-| Clear Key… | Delete | After the same confirmation as the button |
-| Undo, Redo | ⌘Z, ⇧⌘Z | Changes to keys |
-
-**View**
-
-| Command | Keys | |
-|---|---|---|
-| Keys, Device, Log | ⌘1, ⌘2, ⌘3 | The selected deck's pages |
-| Getting Started, USB Setup, Updates, About | | The sidebar's pages |
-| Zoom In, Zoom Out | ⌘=, ⌘- | The deck preview |
-| Size to Fit | ⌘0 | |
-
-**Device**
-
-| Command | Keys | |
-|---|---|---|
-| Next Device, Previous Device | ⌘], ⌘[ | |
-| A device by name | ⌃⌘1 to ⌃⌘9 | |
-| Sleep Now or Wake Now | | |
-| Enter or Exit Setup Mode | | |
-| Install Firmware Update | | |
-| Forget Device… | | |
-
-**Key**
-
-| Command | Keys | |
-|---|---|---|
-| Select Key to the Left, Right, Above, Below | ⌥ and an arrow | Plain arrows too, after a click in the deck preview |
-| Test Action | ⌘T | |
-| Assign Home…, Shortcut…, Page… | ⌥⌘1, ⌥⌘2, ⌥⌘3 | Opens the key's picker on that tab |
-
-**Help**
-
-| Command | Keys | |
-|---|---|---|
-| ESPDeck Help | | Opens this documentation |
-| Getting Started | | A submenu with each of its sheets |
+| Menu | Command | Keys | What it does |
+|---|---|---|---|
+| **ESPDeck Bridge** | Check for Updates… | | Looks for firmware releases. |
+| | Launch at Login | | Starts the app when you log in. |
+| **File** | New Demo Deck | ⌘N | Adds a demo deck. The submenu lists the models, and ⌘N makes the first. |
+| | Find Your Device | ⇧⌘F | Opens Getting Started's list of decks waiting to be set up or paired. |
+| | Set Up Device over USB… | ⇧⌘U | Opens USB Setup. |
+| | Export Bridge… | | Saves the bridge to a file. See [Moving to another Mac](#moving-to-another-mac). |
+| | Import Bridge… | | Loads a bridge from a file. |
+| | Reset Bridge… | | Forgets every device and starts over as a new bridge. |
+| **Edit** | Undo, Redo | ⌘Z, ⇧⌘Z | Undoes or redoes a change to a key. |
+| | Cut, Copy, Paste | ⌘X, ⌘C, ⌘V | Acts on the selected key, or on the text in a text field. Copy also copies selected Log entries. |
+| | Clear Key… | Delete | Empties the selected key, after the same confirmation as the button. |
+| **View** | Keys, Device, Log | ⌘1, ⌘2, ⌘3 | Shows that page of the selected deck. |
+| | Getting Started, USB Setup, Updates, About | | Shows that page of the sidebar. |
+| | Zoom In, Zoom Out | ⌘=, ⌘- | Makes the deck preview larger or smaller. |
+| | Size to Fit | ⌘0 | Fits the deck preview to its pane. |
+| **Device** | Next Device, Previous Device | ⌘], ⌘[ | Steps through the decks in the sidebar. |
+| | A device by name | ⌃⌘1 to ⌃⌘9 | Shows that deck. |
+| | Sleep Now, Wake Now | | Turns the deck's screen off or on. |
+| | Enter Setup Mode, Exit Setup Mode | | Puts the deck in setup mode, or takes it out. |
+| | Install Firmware Update | | Installs the latest release on the deck. |
+| | Forget Device… | | Removes the deck from this Mac and unpairs it. |
+| **Key** | Select Key to the Left, Right, Above, Below | ⌥ and an arrow | Moves the selection. Plain arrows work too, after a click in the deck preview. |
+| | Test Action | ⌘T | Performs the selected key's action now. |
+| | Assign Home…, Shortcut…, Page… | ⌥⌘1, ⌥⌘2, ⌥⌘3 | Opens the key's picker on that tab. |
+| **Help** | ESPDeck Help | | Opens this documentation. |
+| | Getting Started | | Opens one of Getting Started's sheets, from a submenu. |
 
 ## Moving to another Mac
 
