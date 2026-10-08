@@ -14,4 +14,11 @@ BUNDLE_ID_PREFIX = com.tmproductions
 // updates. Empty turns update checks off.
 ESPDECK_GITHUB_REPOSITORY = jangellx/ESPDeck
 
+// Enhanced Security, for every target (this file is the project's base configuration):
+// pointer authentication (an arm64e slice beside arm64), and the compiler's side of the
+// hardened-process entitlements in ESPDeck Bridge Catalyst.entitlements. The menu bar
+// bundle has to be built the same way as the app that loads it. See
+// xcode-security-settings.md.
+ENABLE_ENHANCED_SECURITY = YES
+
 #include? "Signing.local.xcconfig"
