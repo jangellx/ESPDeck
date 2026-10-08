@@ -70,9 +70,33 @@ Because of HomeKit again. Apple only lets an app use HomeKit when it comes from 
 That leaves two ways to get ESPDeck Bridge:
 
 - **The Mac App Store.** ESPDeck Bridge is on its way there; the link will be here once it's available.
-- **Build it yourself.** With Xcode and an Apple developer account, see [Building and running](mac-app.md#building-and-running).
+- **Build it yourself.** With Xcode and an Apple developer account; see the next question.
 
 The firmware is different: it's a plain download. Releases are on this repository's Releases page, and the [web installer](https://jangellx.github.io/ESPDeck/) installs the latest one from a browser.
+
+### Can I build it myself and never go near the App Store?
+
+Yes. Nothing has to be submitted to Apple or reviewed: a build you make in Xcode runs on your own Mac, signed with your own developer account. Plenty of people would rather build a thing than download it, and the whole project is here for that.
+
+For the app:
+
+1. Install Xcode and sign in to it with your Apple account (Xcode ▸ Settings ▸ Accounts).
+2. Clone this repository.
+3. Create `ESPDeck Bridge/Config/Signing.local.xcconfig` with your own team and a bundle ID prefix of your own:
+   ```
+   DEVELOPMENT_TEAM = ABCDE12345
+   BUNDLE_ID_PREFIX = com.example
+   ```
+   The file is git-ignored, so pulling updates won't touch it.
+4. Open `ESPDeck Bridge/ESPDeck Bridge.xcodeproj`, choose the **My Mac (Mac Catalyst)** destination, and run. Xcode registers the app ID and its HomeKit capability for you.
+
+Things to know:
+
+- **HomeKit needs Apple's say-so even for your own build**, which is why step 3 matters: the app has to be signed by a developer account that Apple has allowed to use HomeKit for that bundle ID. If Xcode can't add the capability for your account, it says so when signing; a paid Apple Developer Program membership has it.
+- **A development build stops working when its signing expires** (about a week with a free account, a year with a paid one). Build and run again to renew it; your decks, keys and pairings are kept.
+- **Updating is `git pull` and run again.**
+
+The firmware is yours to build too: `pio run -t upload` in `ESPDeck Device`, with PlatformIO. One thing differs from the app's own installer: ESPDeck Bridge's **Updates** page only installs releases signed by this project, so put your own builds on with **Install Firmware from File…**, USB Setup's **Choose File…**, or PlatformIO. See [Development](development.md).
 
 ## When something doesn't work
 
