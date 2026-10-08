@@ -50,6 +50,14 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		item.button?.sendAction( on: [ .leftMouseDown, .rightMouseDown ] )
 		statusItem = item
 		rebuild()
+
+		// Colors dragged onto the app's windows; see ColorDropView. A window gets its view when
+		// it becomes key, which the configuration window does as it opens. Not panels: this
+		// bundle's menu, and the Colors panel itself.
+		NotificationCenter.default.addObserver( forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main ) { [weak self] note in
+			guard let window = note.object as? NSWindow, !( window is NSPanel ) else { return }
+			MainActor.assumeIsolated { ColorDropView.install( in: window, host: self?.host ) }
+		}
 	}
 
 	/// New status lines and connected state; rebuilds the menu and icon.
@@ -319,14 +327,6 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		appBeforePanel = nil
 		NSApp.yieldActivation( to: app )
 		app.activate( from: .current, options: [] )
-	}
-
-	/// A dragged color as sRGB components; see DeckMenuBarPlugin.
-	func draggedColor( archived: Data? ) -> [Double]? {
-		let color = archived.flatMap { try? NSKeyedUnarchiver.unarchivedObject( ofClass: NSColor.self, from: $0 ) }
-					?? NSColor( from: NSPasteboard( name: .drag ) )
-		guard let rgb = color?.usingColorSpace( .sRGB ) else { return nil }
-		return [ Double( rgb.redComponent ), Double( rgb.greenComponent ), Double( rgb.blueComponent ) ]
 	}
 
 	/// Registers or unregisters the app as a login item, opening System Settings if macOS

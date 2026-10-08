@@ -6,6 +6,7 @@
 //  decks are set up yet. The configuration window opens from the menu bar item.
 //
 
+import SwiftUI
 import UIKit
 
 /// Owns the controller and the menu bar plugin, and opens the configuration window.
@@ -121,6 +122,37 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 
 	func menuBarLaunchAtLoginChanged() {
 		controller.refreshLaunchAtLogin()
+	}
+
+	/// The key of the deck preview at a point from the top left of the window's content,
+	/// which is where SwiftUI's global frames are measured from too.
+	private func previewKey( x: Double, y: Double ) -> ( device: String, key: Int )? {
+		guard controller.window.isShowing, controller.window.page == .keys, let device = controller.previewDevice,
+			  let key = controller.previewKeyFrames.first( where: { $0.value.contains( CGPoint( x: x, y: y ) ) } )?.key else { return nil }
+		return ( device, key )
+	}
+
+	/// A color dragged over the window: the key under it is outlined, and can take it.
+	func menuBarColorDragged( x: Double, y: Double ) -> Bool {
+		let key = previewKey( x: x, y: y )?.key
+		if controller.window.colorDropKey != key { controller.window.colorDropKey = key }
+		return key != nil
+	}
+
+	func menuBarColorDragEnded() {
+		controller.window.colorDropKey = nil
+	}
+
+	/// A color dropped on a key becomes its background. A Level key's partner takes it too
+	/// (syncSliderPartner).
+	func menuBarColorDropped( red: Double, green: Double, blue: Double, x: Double, y: Double ) -> Bool {
+		controller.window.colorDropKey = nil
+		guard let target = previewKey( x: x, y: y ) else { return false }
+		controller.window.selectedKey = target.key
+		controller.update( device: target.device, key: target.key ) {
+			$0.backgroundColor = Color( .sRGB, red: red, green: green, blue: blue ).hex
+		}
+		return true
 	}
 
 	/// Opens the window on USB Setup.

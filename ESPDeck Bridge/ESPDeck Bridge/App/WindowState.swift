@@ -32,6 +32,8 @@ final class WindowState {
 	}
 	var page        = Page.keys
 	var selectedKey = 0
+	/// The key of the deck preview a color is being dragged over (AppDelegate), which it outlines.
+	var colorDropKey: Int?
 	/// The Log page's selected entries, which Copy acts on.
 	var logSelection: Set<TrafficEntry.ID> = []
 	/// The modifier keys held when the latest click in the window began (noted by

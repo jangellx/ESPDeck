@@ -86,6 +86,9 @@ private struct DeckKeyView: View {
 	/// Only written here (a click selects the key); `selected` says whether it is.
 	@Binding var selection : Int
 	@State private var isTargeted = false
+	/// Something it takes is being dragged over it. A color from the Colors panel isn't
+	/// SwiftUI's drop (see AppDelegate), so that comes from the window's state.
+	private var targeted: Bool { isTargeted || controller.window.colorDropKey == index }
 	/// The page change this key has already swapped for.
 	@State private var swappedFor: Date?
 
@@ -131,8 +134,8 @@ private struct DeckKeyView: View {
 			RoundedRectangle( cornerRadius: radius )
 				.fill( Color.white.opacity( pressed ? 0.45 : 0 ) )
 		}
-		.keyOutline( cornerRadius: radius, pressed ? Color.white : isTargeted ? Color.accentColor : selected ? Color.accentColor.opacity( 0.9 ) : Color( white: 0.3 ),
-					 lineWidth: pressed || isTargeted || selected ? 3 : 1 )
+		.keyOutline( cornerRadius: radius, pressed ? Color.white : targeted ? Color.accentColor : selected ? Color.accentColor.opacity( 0.9 ) : Color( white: 0.3 ),
+					 lineWidth: pressed || targeted || selected ? 3 : 1 )
 		.scaleEffect( pressed ? 0.94 : 1 )
 		.animation( .easeOut( duration: 0.08 ), value: pressed )
 		.contentShape( Rectangle() )
@@ -168,16 +171,6 @@ private struct DeckKeyView: View {
 					guard source != index else { return false }
 					controller.moveKey( device: deviceID, from: source, to: index )
 					selection = index   // the selection follows the dragged key
-				case .appKitColor( let data ):
-					guard let rgb = controller.macBridge?.draggedColor( archived: data ), rgb.count == 3 else { return false }
-					selection = index
-					controller.update( device: deviceID, key: index ) {
-						$0.backgroundColor = Color( .sRGB, red: rgb[0], green: rgb[1], blue: rgb[2] ).hex
-					}
-				case .color( let color ):
-					selection = index
-					// A Level key's partner takes the color too (syncSliderPartner).
-					controller.update( device: deviceID, key: index ) { $0.backgroundColor = color.hex }
 				case .image( let image ):
 					selection = index
 					controller.setIcon( dropped: image, device: deviceID, key: index, state: .standard )
