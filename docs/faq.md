@@ -92,7 +92,7 @@ For the app:
 
 Things to know:
 
-- **HomeKit needs Apple's say-so even for your own build**, which is why step 3 matters: the app has to be signed by a developer account that Apple has allowed to use HomeKit for that bundle ID. If Xcode can't add the capability for your account, it says so when signing; a paid Apple Developer Program membership has it.
+- **Step 3 is what lets your build use HomeKit.** The app has to be signed by your own account, under a bundle ID of your own, for Xcode to add the HomeKit capability to it. It does that by itself when it signs the app; if something is missing, the signing error says what.
 - **A development build stops working when its signing expires** (about a week with a free account, a year with a paid one). Build and run again to renew it; your decks, keys and pairings are kept.
 - **Updating is `git pull` and run again.**
 

@@ -56,6 +56,7 @@ extension DeckController {
 		other.slider     = SliderKey( level: level, raises: partnerRaises, partner: key, step: step, style: style,
 									  labelsFacing: facing, doubleTapToEnd: toEnd )
 		copyTarget( from: keys[key], to: &other )
+		other.backgroundColor = keys[key].backgroundColor   // the pair starts out in one color
 		keys[partner]    = other
 
 		config.settings.devices[index].keys = keys
@@ -122,6 +123,11 @@ extension DeckController {
 		if let slider = keys[key].slider, slider.partner < keys.count, slider.partner != key {
 			var other = keys[slider.partner]
 			copyTarget( from: keys[key], to: &other )
+			// A new color is the pair's, so the two keys read as one control. Only when it
+			// changed here: other edits leave a partner colored differently as it is.
+			if keys[key].backgroundColor != before.backgroundColor {
+				other.backgroundColor = keys[key].backgroundColor
+			}
 			other.slider = SliderKey( level: slider.level, raises: other.slider.map { $0.partner == key ? $0.raises : !slider.raises } ?? !slider.raises,
 									  partner: key, step: slider.step, style: slider.style, labelsFacing: slider.labelsFacing,
 									  doubleTapToEnd: slider.doubleTapToEnd )
