@@ -61,7 +61,15 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 				// The configuration window keeps its size and place between launches: AppKit
 				// restores the frame saved under this name, and saves it again as it changes.
 				if window.title == DeckConfigurationWindow.title, window.frameAutosaveName.isEmpty {
-					window.setFrameUsingName( DeckConfigurationWindow.frameName )
+					// The first time there's no frame saved: it opens at its minimum size, and is
+					// made as tall as it should start out, top edge where it was.
+					if !window.setFrameUsingName( DeckConfigurationWindow.frameName ) {
+						let top     = window.frame.maxY
+						let content = window.contentRect( forFrameRect: window.frame ).size
+						let room    = ( window.screen?.visibleFrame.height ?? CGFloat( DeckConfigurationWindow.openingHeight ) ) - 40
+						window.setContentSize( NSSize( width: content.width, height: max( content.height, min( CGFloat( DeckConfigurationWindow.openingHeight ), room ) ) ) )
+						window.setFrameTopLeftPoint( NSPoint( x: window.frame.minX, y: min( top, window.screen?.visibleFrame.maxY ?? top ) ) )
+					}
 					window.setFrameAutosaveName( DeckConfigurationWindow.frameName )
 				}
 			}

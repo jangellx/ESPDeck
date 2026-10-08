@@ -14,7 +14,10 @@ import Foundation
 public enum DeckConfigurationWindow {
 	public static let title         = "ESPDeck Bridge"
 	public static let frameName     = "ESPDeckConfiguration"
-	public static let frameDefault  = "NSWindow Frame " + frameName
+	/// How tall its content is the first time it opens, where the screen has room: Getting
+	/// Started's first sheet fits without scrolling. Only where it starts; it can be made
+	/// shorter, down to the scene's minimum size.
+	public static let openingHeight = 1135.0
 }
 
 /// Implemented by the Catalyst app; called by the menu bar bundle.
