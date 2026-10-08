@@ -102,6 +102,17 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		}
 	}
 
+	/// The same for a divider between panes one above the other.
+	func setRowResizeCursor( _ active: Bool ) {
+		if !active {
+			NSCursor.arrow.set()
+		} else if #available( macOS 15, * ) {
+			NSCursor.rowResize.set()
+		} else {
+			NSCursor.resizeUpDown.set()
+		}
+	}
+
 	/// Closes every window titled `title`.
 	func closeWindows( titled title: String ) {
 		for window in NSApp.windows where window.title == title {

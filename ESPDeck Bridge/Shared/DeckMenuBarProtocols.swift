@@ -42,6 +42,8 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// The column-resize pointer (over the Keys page's divider), or the arrow again. SwiftUI's
 	/// pointer styles aren't available to Catalyst.
 	func setResizeCursor( _ active: Bool )
+	/// The row-resize pointer, for the same divider when the panes are one above the other.
+	func setRowResizeCursor( _ active: Bool )
 
 	/// Replaces the informational lines at the top of the menu and the icon's connected state.
 	/// `levels` has one entry per line: 0 waiting (yellow), 1 OK (green check), 2 problem (red).

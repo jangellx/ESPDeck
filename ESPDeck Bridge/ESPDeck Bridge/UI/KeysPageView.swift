@@ -2,8 +2,8 @@
 //  KeysPageView.swift
 //  ESPDeck Bridge
 //
-//  The Keys page: the simulated deck beside the selected key's inspector, with a divider
-//  to drag between them. The deck is sized to fit its pane unless zoomed, with the bar under
+//  The Keys page: the simulated deck beside the selected key's inspector, or above it
+//  (WindowState.keysLayout), with a divider to drag between them. The deck is sized to fit its pane unless zoomed, with the bar under
 //  it, by pinching on a trackpad, or with View ▸ Zoom In / Zoom Out / Size to Fit.
 //
 
@@ -15,16 +15,29 @@ struct KeysPageView: View {
 	let deviceID           : String
 	@Binding var selection : Int
 
-	/// The deck pane's width, set by dragging the divider.
+	/// The deck pane's width beside the inspector, set by dragging the divider.
 	@AppStorage( "keysPreviewWidth" ) private var previewWidth: Double = 580
+	/// Its height above the inspector.
+	@AppStorage( "keysPreviewHeight" ) private var previewHeight: Double = 420
 
-	@State private var dragStartWidth : Double?
+	/// The pane's width or height when a drag of the divider began.
+	@State private var dragStartExtent : Double?
+	/// The layout on screen, while it differs from the one chosen: the inspector slides away
+	/// in the old one before it slides back in the new one. nil otherwise.
+	@State private var shownLayout     : WindowState.KeysLayout?
+	/// The inspector is off the edge it slides to (the right, or the bottom), and the deck
+	/// has the whole page.
+	@State private var inspectorAway   = false
+	@Environment( \.accessibilityReduceMotion ) private var reduceMotion
 	@State private var pinchStartSize : CGFloat?
 	/// A page with keys on it, waiting for Delete Page.
 	@State private var deletingPage   : Int?
 
-	private static let minPreviewWidth   : CGFloat = 300
-	private static let minInspectorWidth : CGFloat = 380
+	private static let minPreviewWidth    : CGFloat = 300
+	private static let minInspectorWidth  : CGFloat = 380
+	/// Above the inspector: room for the bars, a small deck and the controls under it.
+	private static let minPreviewHeight   : CGFloat = 320
+	private static let minInspectorHeight : CGFloat = 200
 	/// Around the deck and the controls under it, inside the scroll view.
 	private static let contentPadding    : CGFloat = 24
 	/// The divider's grab area, centered on its line.
@@ -33,32 +46,71 @@ struct KeysPageView: View {
 
 	private var window: WindowState { controller.window }
 
+	/// The preview above the inspector, rather than beside it.
+	private var stacked: Bool { ( shownLayout ?? window.keysLayout ) == .stacked }
+
 	var body: some View {
 		GeometryReader { geometry in
-			let width = previewPaneWidth( total: geometry.size.width )
-			HStack( spacing: 0 ) {
+			// Along the way the panes are laid out: across, or down.
+			let total     = stacked ? geometry.size.height : geometry.size.width
+			let extent    = previewExtent( total: total )
+			// The inspector keeps its size as it slides off; the deck grows into its place.
+			let inspector = max( total - extent - 1, 0 )
+			// One layout or the other around the same two panes, so switching keeps their state.
+			let layout    = stacked ? AnyLayout( VStackLayout( spacing: 0 ) ) : AnyLayout( HStackLayout( spacing: 0 ) )
+			layout {
 				previewPane
-					.frame( width: width )
+					.frame( width: stacked ? nil : ( inspectorAway ? total : extent ), height: stacked ? ( inspectorAway ? total : extent ) : nil )
 				Divider()
 				KeyInspectorView( controller: controller, deviceID: deviceID, key: selection )
+					.frame( width: stacked ? nil : inspector, height: stacked ? inspector : nil )
 					.frame( maxWidth: .infinity, maxHeight: .infinity )
 			}
+			// Pinned to the page's corner and cut off at its edges, which is where the
+			// inspector goes while it's away.
+			.frame( width: geometry.size.width, height: geometry.size.height, alignment: .topLeading )
+			.clipped()
 			// Above both panes, so neither takes the clicks meant for it.
 			.overlay( alignment: .topLeading ) {
-				Color.clear
-					.frame( width: Self.handleWidth )
-					.frame( maxHeight: .infinity )
-					.contentShape( Rectangle() )
-					.offset( x: width - Self.handleWidth / 2 )
-					.onContinuousHover { phase in
-						switch phase {
-							case .active: controller.macBridge?.setResizeCursor( true )
-							case .ended:  if dragStartWidth == nil { controller.macBridge?.setResizeCursor( false ) }
+				if !inspectorAway {
+					Color.clear
+						.frame( width: stacked ? nil : Self.handleWidth, height: stacked ? Self.handleWidth : nil )
+						.frame( maxWidth: stacked ? .infinity : nil, maxHeight: stacked ? nil : .infinity )
+						.contentShape( Rectangle() )
+						.offset( x: stacked ? 0 : extent - Self.handleWidth / 2, y: stacked ? extent - Self.handleWidth / 2 : 0 )
+						.onContinuousHover { phase in
+							switch phase {
+								case .active: setResizeCursor( true )
+								case .ended:  if dragStartExtent == nil { setResizeCursor( false ) }
+							}
 						}
-					}
-					.gesture( resizeGesture( current: width, total: geometry.size.width ) )
-					.accessibilityLabel( "Resize the deck preview" )
+						.gesture( resizeGesture( current: extent, total: total ) )
+						.accessibilityLabel( "Resize the deck preview" )
+				}
 			}
+		}
+		.onChange( of: window.keysLayout ) { old, _ in changeLayout( from: old ) }
+	}
+
+	/// How long the inspector takes to slide away, and to slide back, in seconds.
+	private static let slideAway = 0.2
+	private static let slideBack = 0.26
+
+	/// Another layout was chosen: the inspector slides off its edge in the old one, the panes
+	/// are rearranged while only the deck shows, and it slides back in from its new edge.
+	private func changeLayout( from old: WindowState.KeysLayout ) {
+		guard !reduceMotion else {
+			shownLayout   = nil
+			inspectorAway = false
+			return
+		}
+		// Midway through an earlier change, the layout on screen is the one to leave.
+		shownLayout = shownLayout ?? old
+		withAnimation( .easeIn( duration: Self.slideAway ) ) { inspectorAway = true }
+		Task {
+			try? await Task.sleep( for: .seconds( Self.slideAway ) )
+			shownLayout = nil
+			withAnimation( .easeOut( duration: Self.slideBack ) ) { inspectorAway = false }
 		}
 	}
 
@@ -278,29 +330,46 @@ struct KeysPageView: View {
 
 	// MARK: - Divider
 
-	/// The dragged width, leaving the inspector its minimum.
-	private func previewPaneWidth( total: CGFloat ) -> CGFloat {
-		clampedPreviewWidth( CGFloat( previewWidth ), total: total )
+	/// The pointer for dragging the divider the way it moves in this layout.
+	private func setResizeCursor( _ active: Bool ) {
+		if stacked {
+			controller.macBridge?.setRowResizeCursor( active )
+		} else {
+			controller.macBridge?.setResizeCursor( active )
+		}
 	}
 
-	/// `width` within the deck pane's minimum and what leaves the inspector its own.
-	private func clampedPreviewWidth( _ width: CGFloat, total: CGFloat ) -> CGFloat {
-		let maxWidth = max( Self.minPreviewWidth, total - Self.minInspectorWidth )
-		return min( max( width, Self.minPreviewWidth ), maxWidth )
+	/// The deck pane's width (beside the inspector) or height (above it), as dragged, leaving
+	/// the inspector its minimum.
+	private func previewExtent( total: CGFloat ) -> CGFloat {
+		clampedExtent( CGFloat( stacked ? previewHeight : previewWidth ), total: total )
 	}
 
-	/// Dragging the divider, from the width at the start of the drag, with the resize cursor.
+	/// `extent` within the deck pane's minimum and what leaves the inspector its own.
+	private func clampedExtent( _ extent: CGFloat, total: CGFloat ) -> CGFloat {
+		let minPreview   = stacked ? Self.minPreviewHeight : Self.minPreviewWidth
+		let minInspector = stacked ? Self.minInspectorHeight : Self.minInspectorWidth
+		return min( max( extent, minPreview ), max( minPreview, total - minInspector ) )
+	}
+
+	/// Dragging the divider, from the pane's size at the start of the drag, with the resize cursor.
 	private func resizeGesture( current: CGFloat, total: CGFloat ) -> some Gesture {
 		DragGesture( minimumDistance: 1, coordinateSpace: .global )
 			.onChanged { value in
-				let start = dragStartWidth ?? Double( current )
-				dragStartWidth = start
-				controller.macBridge?.setResizeCursor( true )
-				previewWidth = Double( clampedPreviewWidth( CGFloat( start ) + value.translation.width, total: total ) )
+				let start = dragStartExtent ?? Double( current )
+				dragStartExtent = start
+				setResizeCursor( true )
+				let moved  = stacked ? value.translation.height : value.translation.width
+				let extent = Double( clampedExtent( CGFloat( start ) + moved, total: total ) )
+				if stacked {
+					previewHeight = extent
+				} else {
+					previewWidth = extent
+				}
 			}
 			.onEnded { _ in
-				dragStartWidth = nil
-				controller.macBridge?.setResizeCursor( false )
+				dragStartExtent = nil
+				setResizeCursor( false )
 			}
 	}
 }

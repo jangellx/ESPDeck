@@ -559,6 +559,24 @@ private struct DeviceDetailView: View {
 			.pickerStyle( .segmented )
 			.labelsHidden()
 			.frame( maxWidth: 260 )
+			.frame( maxWidth: .infinity )   // centered in the bar, whatever else is in it
+			// At the far right, for the Keys page: the preview beside the inspector, or above it.
+			.overlay( alignment: .trailing ) {
+				if page == .keys {
+					Picker( "Layout", selection: Bindable( controller.window ).keysLayout ) {
+						ForEach( WindowState.KeysLayout.allCases ) { layout in
+							Image( systemName: layout.symbol )
+								.accessibilityLabel( layout.title )
+								.tag( layout )
+						}
+					}
+					.pickerStyle( .segmented )
+					.labelsHidden()
+					.fixedSize()
+					.help( "Show the deck preview beside the key's settings, or above them" )
+					.padding( .trailing, 12 )
+				}
+			}
 			.padding( .vertical, 10 )
 
 			Divider()

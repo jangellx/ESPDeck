@@ -31,6 +31,37 @@ final class WindowState {
 		}
 	}
 	var page        = Page.keys
+
+	/// How the Keys page arranges the deck preview and the key's inspector.
+	enum KeysLayout: String, CaseIterable, Identifiable {
+		/// The preview on the left, the inspector on the right.
+		case sideBySide
+		/// The preview on top, the inspector under it: more room for a wide deck.
+		case stacked
+
+		var id: String { rawValue }
+
+		var title: String {
+			switch self {
+				case .sideBySide: "Side by Side"
+				case .stacked:    "Top and Bottom"
+			}
+		}
+
+		var symbol: String {
+			switch self {
+				case .sideBySide: "rectangle.split.2x1"
+				case .stacked:    "rectangle.split.1x2"
+			}
+		}
+	}
+
+	/// Kept between launches.
+	var keysLayout = KeysLayout( rawValue: UserDefaults.standard.string( forKey: WindowState.keysLayoutDefault ) ?? "" ) ?? .sideBySide {
+		didSet { UserDefaults.standard.set( keysLayout.rawValue, forKey: Self.keysLayoutDefault ) }
+	}
+	private static let keysLayoutDefault = "keysLayout"
+
 	var selectedKey = 0
 	/// The key of the deck preview a color is being dragged over (AppDelegate), which it outlines.
 	var colorDropKey: Int?
