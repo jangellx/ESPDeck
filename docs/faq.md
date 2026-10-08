@@ -18,6 +18,7 @@ Every [Elgato Stream Deck](https://www.elgato.com/stream-deck) with keys. The fi
 | Stream Deck Pedal | 3 pedals, no screen |
 
 <img src="images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys.">
+<br><sub>A Stream Deck Mini under a garage shelf, in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>.</sub>
 
 ![The same Mini's six keys in ESPDeck Bridge.](images/mini.png)
 

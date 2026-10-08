@@ -1,12 +1,14 @@
 # ESPDeck
 
 ![A 15-key Stream Deck showing HomeKit keys, plugged into an ESP32-S3 dev kit through an OTG adapter.](docs/images/deck-and-dev-kit.jpg)
+<br><sub>A Stream Deck MK.2 running from an ESP32-S3 dev kit. The green light means it's connected to ESPDeck Bridge.</sub>
 
 Turn an [Elgato Stream Deck](https://www.elgato.com/stream-deck) into a HomeKit control panel you can put anywhere in the house, away from your computer. An ESP32-S3 dev kit plugs into the Stream Deck in a computer's place and connects over Wi-Fi to **ESPDeck Bridge**, an app on a Mac elsewhere on your network.
 
 You still need that Mac: it stays on, watches your Home, and triggers actions when keys are pressed. The dev kit only carries key presses and pictures between the Stream Deck and the Mac.
 
 <img src="docs/images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys.">
+<br><sub>A Stream Deck Mini under a garage shelf, in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>.</sub>
 
 ![ESPDeck Bridge's Keys page: a 15-key deck with the garage door key selected, and that key's settings beside it.](docs/images/keys.png)
 
@@ -46,6 +48,9 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 - **web/**: the browser installer (ESP Web Tools), published with GitHub Pages; see `web/README.md`.
 
 ## Requirements
+
+![A Stream Deck Mini, a USB-C OTG adapter with a power cable and a USB-A adapter plugged into it, and an ESP32-S3 dev kit, all connected.](docs/images/mini-assembly.jpg)
+<br><sub>Everything for one ESPDeck: the Stream Deck, the OTG adapter with its power cable and the USB-A adapter for the deck's cable, and the dev kit.</sub>
 
 - A Mac on **macOS 14 (Sonoma) or later**, signed in to an iCloud account that's a **member of the Home**. It has to **stay on and logged in**; for an always-on deck, turn on automatic login and the app's **Launch at Login**.
 - An **ESP32-S3 dev kit with 16 MB flash and 8 MB PSRAM** (ESP32-S3-DevKitC-1 **N16R8**) running ESPDeck firmware.

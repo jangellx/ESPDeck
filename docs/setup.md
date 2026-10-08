@@ -2,7 +2,8 @@
 
 [Overview](../README.md) · [Setting up a deck](setup.md) · [The Mac app](mac-app.md) · [FAQ](faq.md) · [Development](development.md)
 
-![A Stream Deck plugged into an ESP32-S3 dev kit through an OTG adapter, with the dev kit's status light green.](images/deck-and-dev-kit.jpg)
+![A Stream Deck Mini, a USB-C OTG adapter with a power cable and a USB-A adapter plugged into it, and an ESP32-S3 dev kit, all connected.](images/mini-assembly.jpg)
+<br><sub>A deck put together: the dev kit's USB port goes to the OTG adapter, which takes the power cable and, through a USB-A adapter, the Stream Deck's own cable.</sub>
 
 1. Install the firmware (below): from ESPDeck Bridge's **USB Setup** page, with the web installer, or with `pio run -t upload`.
 2. Plug in a Stream Deck. Every model with keys works (Mini, Original, MK.2, XL, Neo, +, Pedal, and the modules); the firmware reports its layout and image format to the Mac.
