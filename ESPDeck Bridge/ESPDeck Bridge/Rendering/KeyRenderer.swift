@@ -35,7 +35,10 @@ struct KeyFace: Equatable {
 	var pageNumber  : Int?
 }
 
-/// A key image ready to send in the deck's format, plus an upright preview for the UI.
+/// A key image ready to send in the deck's format, plus an upright preview for the UI. The
+/// preview is the same face drawn again with more pixels than the deck has (previewScale):
+/// the Keys page shows keys much larger than a deck's 72 to 120 pixels, and the deck's own
+/// image looked blurred there.
 struct RenderedKey: Equatable {
 	let hash    : String
 	let data    : Data
@@ -203,6 +206,10 @@ private struct DoorArrow: View {
 
 /// Turns key faces into the images the deck is sent.
 enum KeyRenderer {
+	/// Pixels per point of a key's preview: 4 gives 320 pixels square, enough for the largest
+	/// the Keys page draws a key on a Retina display.
+	private static let previewScale: CGFloat = 4
+
 	/// A face drawn at the deck's key size and encoded in its format; nil if drawing fails.
 	static func render( _ face: KeyFace, icon: UIImage?, layout: DeckLayout ) -> RenderedKey? {
 		let renderer = ImageRenderer( content: KeyFaceView( face: face, icon: icon ) )
@@ -219,7 +226,9 @@ enum KeyRenderer {
 		}
 		guard let data else { return nil }
 
-		return RenderedKey( hash: hash( of: data ), data: data, preview: UIImage( cgImage: image ) )
+		// The same face again for the UI, sharper than the deck's own.
+		renderer.scale = Self.previewScale
+		return RenderedKey( hash: hash( of: data ), data: data, preview: UIImage( cgImage: renderer.cgImage ?? image ) )
 	}
 
 	/// First 16 bytes of the SHA-256, as lowercase hex. See PROTOCOL.md.
