@@ -180,7 +180,7 @@ struct FactoryResetSheet: View {
 	private func done( _ name: String ) -> some View {
 		VStack( spacing: 16 ) {
 			Image( systemName: "checkmark.circle.fill" )
-				.font( .system( size: 40 ) )
+				.scaledSystemFont( size: 40 )
 				.foregroundStyle( .green )
 				.accessibilityHidden( true )
 			Text( "\(name) Was Reset" )

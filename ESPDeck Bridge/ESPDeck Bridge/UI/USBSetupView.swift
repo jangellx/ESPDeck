@@ -760,6 +760,6 @@ private struct RefreshButton: View {
 				.accessibilityLabel( help )
 			}
 		}
-		.frame( width: 18, height: 18 )
+		.scaledFrame( width: 18, height: 18 )
 	}
 }

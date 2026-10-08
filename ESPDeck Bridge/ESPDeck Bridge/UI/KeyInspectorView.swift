@@ -178,7 +178,7 @@ struct KeyInspectorView: View {
 						Button( "Copy Key" ) { controller.copyKey( device: deviceID, key: key ) }
 							.help( "Copy this key (⌘C)" )
 						Divider()
-							.frame( height: 18 )
+							.scaledFrame( height: 18 )
 						Button( "Paste Key" ) { controller.pasteKey( device: deviceID, key: key ) }
 							.disabled( !controller.clipboardHasKey )
 							.help( "Replace this key with the copied one (⌘V)" )

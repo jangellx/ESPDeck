@@ -335,3 +335,60 @@ struct HoverButtonStyle: ButtonStyle {
 		}
 	}
 }
+
+// MARK: - Text size
+
+/// A fixed frame that follows the text size: the size given is its size at the default text
+/// size, and it grows and shrinks with `style` (Dynamic Type), like the text or symbol in it.
+private struct ScaledFrame: ViewModifier {
+	@ScaledMetric private var width  : CGFloat
+	@ScaledMetric private var height : CGFloat
+	private let hasWidth  : Bool
+	private let hasHeight : Bool
+	private let alignment : Alignment
+
+	init( width: CGFloat?, height: CGFloat?, relativeTo style: Font.TextStyle, alignment: Alignment ) {
+		_width    = ScaledMetric( wrappedValue: width ?? 0, relativeTo: style )
+		_height   = ScaledMetric( wrappedValue: height ?? 0, relativeTo: style )
+		hasWidth  = width != nil
+		hasHeight = height != nil
+		self.alignment = alignment
+	}
+
+	func body( content: Content ) -> some View {
+		content.frame( width: hasWidth ? width : nil, height: hasHeight ? height : nil, alignment: alignment )
+	}
+}
+
+/// A system font of a size that isn't one of the text styles', which still follows the text
+/// size: `size` is its size at the default.
+private struct ScaledSystemFont: ViewModifier {
+	@ScaledMetric private var size : CGFloat
+	private let weight : Font.Weight
+	private let design : Font.Design
+
+	init( size: CGFloat, weight: Font.Weight, design: Font.Design, relativeTo style: Font.TextStyle ) {
+		_size       = ScaledMetric( wrappedValue: size, relativeTo: style )
+		self.weight = weight
+		self.design = design
+	}
+
+	func body( content: Content ) -> some View {
+		content.font( .system( size: size, weight: weight, design: design ) )
+	}
+}
+
+extension View {
+	/// `frame( width:height:alignment: )` for a column or box sized to text or a symbol:
+	/// see ScaledFrame.
+	func scaledFrame( width: CGFloat? = nil, height: CGFloat? = nil, relativeTo style: Font.TextStyle = .body,
+					  alignment: Alignment = .center ) -> some View {
+		modifier( ScaledFrame( width: width, height: height, relativeTo: style, alignment: alignment ) )
+	}
+
+	/// `font( .system( size: ) )` for display-sized symbols and text: see ScaledSystemFont.
+	func scaledSystemFont( size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default,
+						   relativeTo style: Font.TextStyle = .largeTitle ) -> some View {
+		modifier( ScaledSystemFont( size: size, weight: weight, design: design, relativeTo: style ) )
+	}
+}

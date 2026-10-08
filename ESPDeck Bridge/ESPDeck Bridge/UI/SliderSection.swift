@@ -245,7 +245,7 @@ private struct StylePicker: View {
 				Image( systemName: style.symbol( raises: !horizontal, horizontal: horizontal ) )
 				Image( systemName: style.symbol( raises: horizontal, horizontal: horizontal ) )
 			}
-			.frame( width: 58, height: 32 )
+			.scaledFrame( width: 58, height: 32 )
 			.background( RoundedRectangle( cornerRadius: 6 ).fill( style == selection ? Color.accentColor.opacity( 0.2 ) : Color( uiColor: .tertiarySystemFill ) ) )
 			.overlay( RoundedRectangle( cornerRadius: 6 ).strokeBorder( style == selection ? Color.accentColor : Color.clear, lineWidth: 2 ) )
 			.contentShape( Rectangle() )

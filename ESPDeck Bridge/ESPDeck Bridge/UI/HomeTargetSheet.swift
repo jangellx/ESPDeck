@@ -90,7 +90,7 @@ struct HomeTargetSheet: View {
 						dismiss()
 					} label: {
 						Image( systemName: "xmark" )
-							.font( .system( size: 12, weight: .semibold ) )   // Catalyst's default is iPad-sized
+							.font( .callout.weight( .semibold ) )   // 12 points on the Mac; the default header is iPad-sized
 					}
 					.accessibilityLabel( "Cancel" )
 				}
@@ -100,7 +100,7 @@ struct HomeTargetSheet: View {
 						dismiss()
 					} label: {
 						Image( systemName: "checkmark" )
-							.font( .system( size: 12, weight: .semibold ) )   // Catalyst's default is iPad-sized
+							.font( .callout.weight( .semibold ) )   // 12 points on the Mac; the default header is iPad-sized
 					}
 					.accessibilityLabel( "Done" )
 				}
@@ -240,7 +240,7 @@ private struct HomeTargetRow: View {
 		Button( action: toggle ) {
 			HStack( spacing: 12 ) {
 				icon
-					.frame( width: 28, height: 28 )
+					.scaledFrame( width: 28, height: 28 )
 				VStack( alignment: .leading, spacing: 1 ) {
 					Text( target.name )
 						.foregroundStyle( Color.primary )

@@ -179,7 +179,7 @@ struct NewDeviceView: View {
 	private func codeBox<Content: View>( _ code: String, @ViewBuilder content: () -> Content ) -> some View {
 		VStack( spacing: 12 ) {
 			Text( code.prefix( 3 ) + " " + code.suffix( 3 ) )
-				.font( .system( size: 44, weight: .semibold, design: .monospaced ) )
+				.scaledSystemFont( size: 44, weight: .semibold, design: .monospaced )
 				.textSelection( .enabled )
 			content()
 		}
@@ -200,7 +200,7 @@ struct UnpairedDeviceHeader: View {
 
 	var body: some View {
 		Image( systemName: "lock.shield" )
-			.font( .system( size: 52 ) )
+			.scaledSystemFont( size: 52 )
 			.foregroundStyle( .tint )
 
 		VStack( spacing: 6 ) {

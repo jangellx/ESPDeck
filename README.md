@@ -187,12 +187,16 @@ The app's About page lists the same credits and shows the full license text wher
 
 Elgato and Stream Deck are trademarks of Corsair Memory, Inc. HomeKit and Mac are trademarks of Apple Inc. ESPDeck isn't affiliated with, endorsed by, or sponsored by Elgato, Corsair, Apple, or Espressif.
 
+## License
+
+ESPDeck is released under the [MIT License](LICENSE). The firmware and the web installer include other people's work under their own licenses; see Credits above and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
 ## Before the first public release
 
-- [ ] Choose a license for ESPDeck itself and add `LICENSE`.
-- [ ] Check the Credits above against what's actually in the release, and that the About page matches.
+- [x] Choose a license for ESPDeck itself and add `LICENSE` (MIT).
+- [x] Check the Credits above against what's actually in the release, and that the About page matches (checked for firmware 4.1.0, against the build's fetched components and the firmware's includes).
 - [ ] SF Symbols: Apple's license allows them in apps for Apple platforms. Here they're also rendered onto the Stream Deck's own screen; check that's acceptable, or limit the symbol picker to your own artwork.
 - [ ] The Arduino core is LGPL 2.1. Publishing the full firmware source (this repository) satisfies it; keep the source available for every firmware release.
-- [ ] Make the repository public, so update checks and the release downloads work, and turn on GitHub Pages (Settings → Pages → Source: GitHub Actions) for the web installer.
-- [ ] Test on hardware: pairing, image uploads and orientation per model, firmware update and rollback, and the web installer.
+- [x] Make the repository public, so update checks and the release downloads work, and turn on GitHub Pages (Settings → Pages → Source: GitHub Actions) for the web installer.
+- [x] Test on hardware (4.1.0; the Neo's and the +'s screens are untested, for want of one): pairing, image uploads and orientation per model, firmware update and rollback, and the web installer.
 

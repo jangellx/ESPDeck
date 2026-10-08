@@ -437,7 +437,6 @@
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "ESPDeck Bridge shows your HomeKit accessories on a Stream Deck and controls them when you press its keys.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "ESPDeck Bridge talks to the ESP32 that drives your Stream Deck over the local network.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 1.0.0;
@@ -479,7 +478,6 @@
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "ESPDeck Bridge shows your HomeKit accessories on a Stream Deck and controls them when you press its keys.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "ESPDeck Bridge talks to the ESP32 that drives your Stream Deck over the local network.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 1.0.0;

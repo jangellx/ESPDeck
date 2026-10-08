@@ -119,7 +119,7 @@ struct KeysPageView: View {
 						controller.addPage( device: deviceID )
 					} label: {
 						Image( systemName: "plus" )
-							.frame( width: 22, height: 22 )
+							.scaledFrame( width: 22, height: 22 )
 							.background( Circle().strokeBorder( .tertiary, lineWidth: 1 ) )
 							.contentShape( Circle() )
 					}

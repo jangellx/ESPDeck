@@ -144,6 +144,31 @@ enum Credits {
 		OTHER DEALINGS IN THE FONT SOFTWARE.
 		"""
 
+	/// ESPDeck's own license: the repository's LICENSE file.
+	static let espDeck = Credit( name: "ESPDeck", use: "This app, the firmware and the web installer", license: "MIT License", url: nil, text: espDeckLicense )
+
+	static let espDeckLicense = """
+		Copyright (c) 2026 jangellx
+
+		Permission is hereby granted, free of charge, to any person obtaining a copy
+		of this software and associated documentation files (the "Software"), to deal
+		in the Software without restriction, including without limitation the rights
+		to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+		copies of the Software, and to permit persons to whom the Software is
+		furnished to do so, subject to the following conditions:
+
+		The above copyright notice and this permission notice shall be included in all
+		copies or substantial portions of the Software.
+
+		THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+		IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+		FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+		AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+		LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+		OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+		SOFTWARE.
+		"""
+
 	static let pythonElgatoStreamDeckLicense = """
 		Copyright (c) Dean Camera
 
@@ -210,6 +235,16 @@ struct AboutView: View {
 					HStack {
 						Button( "Export Bridge…" ) { controller.window.bridgeTransfer = .export }
 						Button( "Import Bridge…" ) { controller.window.bridgeTransfer = .import }
+					}
+				}
+
+				section( "License" ) {
+					HStack( alignment: .firstTextBaseline ) {
+						Text( "ESPDeck is open source, released under the MIT License." )
+							.font( .callout )
+						Button( "License" ) { shownLicense = Credits.espDeck }
+							.buttonStyle( .borderless )
+							.font( .caption )
 					}
 				}
 

@@ -611,7 +611,7 @@ struct LabelPositionControl: View {
 			HStack( spacing: 10 ) {
 				labels
 				Divider()
-					.frame( height: 18 )
+					.scaledFrame( height: 18 )
 				copyKeys
 			}
 			VStack( spacing: 8 ) {

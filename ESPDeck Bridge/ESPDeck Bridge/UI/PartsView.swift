@@ -323,7 +323,7 @@ private struct GuideTip: View {
 			Image( systemName: icon )
 				.font( .title2 )
 				.foregroundStyle( PartIllustration.accent )
-				.frame( width: 30 )
+				.scaledFrame( width: 30, relativeTo: .title2 )
 			VStack( alignment: .leading, spacing: 4 ) {
 				Text( title )
 					.font( .headline )
@@ -439,7 +439,7 @@ private struct PathCard: View {
 				Image( systemName: icon )
 					.font( .title2 )
 					.foregroundStyle( .tint )
-					.frame( width: 30 )
+					.scaledFrame( width: 30, relativeTo: .title2 )
 				VStack( alignment: .leading, spacing: 4 ) {
 					Text( title )
 						.font( .headline )
@@ -556,7 +556,7 @@ private struct FoundDeviceRow: View {
 			Image( systemName: icon )
 				.font( .title2 )
 				.foregroundStyle( .tint )
-				.frame( width: 30 )
+				.scaledFrame( width: 30, relativeTo: .title2 )
 			VStack( alignment: .leading, spacing: 2 ) {
 				Text( title )
 					.font( .headline )

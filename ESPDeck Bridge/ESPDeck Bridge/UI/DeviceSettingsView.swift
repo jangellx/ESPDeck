@@ -384,7 +384,7 @@ private struct SettingSlider: View {
 					.frame( maxWidth: 200 )
 				Text( text )
 					.monospacedDigit()
-					.frame( width: 44, alignment: .trailing )
+					.scaledFrame( width: 44, alignment: .trailing )
 			}
 		}
 	}
@@ -548,7 +548,7 @@ private struct EncryptStorageSheet: View {
 		let phase = phase
 		VStack( spacing: 16 ) {
 			Image( systemName: phase == .done ? "checkmark.shield.fill" : "lock.shield.fill" )
-				.font( .system( size: 40 ) )
+				.scaledSystemFont( size: 40 )
 				.foregroundStyle( phase == .done ? AnyShapeStyle( .green ) : AnyShapeStyle( .tint ) )
 				.accessibilityHidden( true )
 
@@ -1103,13 +1103,13 @@ private struct StatusLightSection: View {
 		Circle()
 			.fill( entry.color )
 			.overlay( Circle().strokeBorder( .tertiary, lineWidth: 1 ) )   // white on white
-			.frame( width: 14, height: 14 )
+			.scaledFrame( width: 14, height: 14 )
 			.phaseAnimator( entry.style == .solid ? [ 1.0 ] : [ 1.0, 0.2 ] ) { view, opacity in
 				view.opacity( opacity )
 			} animation: { _ in
 				entry.style == .blinking ? .linear( duration: 0.01 ).delay( 0.25 ) : .easeInOut( duration: 1 )
 			}
-			.frame( width: 28 )
+			.scaledFrame( width: 28 )
 			.accessibilityHidden( true )
 	}
 }
