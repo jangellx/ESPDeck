@@ -168,6 +168,10 @@ private struct DeckKeyView: View {
 					guard source != index else { return false }
 					controller.moveKey( device: deviceID, from: source, to: index )
 					selection = index   // the selection follows the dragged key
+				case .color( let color ):
+					selection = index
+					// A Level key's partner takes the color too (syncSliderPartner).
+					controller.update( device: deviceID, key: index ) { $0.backgroundColor = color.hex }
 				case .image( let image ):
 					selection = index
 					controller.setIcon( dropped: image, device: deviceID, key: index, state: .standard )

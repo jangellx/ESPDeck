@@ -12,7 +12,7 @@
 ## The window
 
 Every ESPDeck that connects appears in the window's sidebar, keyed by its MAC address. Each has:
-- **Keys**: a simulated deck in the device's own layout and its pages of keys. For the selected key: its accessory (or several), scene or shortcut; what a tap, a double tap and a hold do; its label, background color, and per-state icons (dropped images or SF Symbols). A pair of keys can step a light's brightness or a fan's speed, and keys can move between pages. Drag keys onto each other to swap them; copy and paste work on keys.
+- **Keys**: a simulated deck in the device's own layout and its pages of keys. For the selected key: its accessory (or several), scene or shortcut; what a tap, a double tap and a hold do; its label, background color, and per-state icons (dropped images or SF Symbols). A pair of keys can step a light's brightness or a fan's speed, and keys can move between pages. Drag keys onto each other to swap them, and drop a color or an image on a key to set its background or icon; copy and paste work on keys.
 - **Device**: name, network name, the Wi-Fi network it's set up for (firmware 4.1.0 and later), brightness, image orientation, sleep timer, sleep/wake triggers from HomeKit accessories, commands to run on sleep and wake, and firmware. Under Setup: **Setup Mode**, **Copy From Deck…** (another deck's keys and settings), **Clear All Keys…**, **Factory Reset Device…** (erases the device; it can get its own settings or another deck's back once it's paired again) and **Forget Device…**. Then Security (encrypting stored secrets), Developer (uploads through PlatformIO), and what the board's status light means.
 - **Log**: the messages to and from the device as they happen, with a filter; select entries to copy them.
 
