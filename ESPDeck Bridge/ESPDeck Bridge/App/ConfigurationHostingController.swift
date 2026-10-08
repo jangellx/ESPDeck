@@ -8,6 +8,8 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
+import os
 
 /// The configuration window's root: ConfigurationView, plus key copying, pasting and shift-clicks.
 final class ConfigurationHostingController: UIHostingController<ConfigurationView> {
@@ -55,6 +57,8 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		shiftPress.minimumPressDuration = 0
 		shiftPress.delegate             = self
 		view.addGestureRecognizer( shiftPress )
+		// Colors dropped on a key of the deck preview; see the drop interaction below.
+		view.addInteraction( UIDropInteraction( delegate: self ) )
 	}
 
 	/// The key under a shift-press, while it's held.
@@ -142,5 +146,54 @@ extension ConfigurationHostingController: UIGestureRecognizerDelegate {
 	func gestureRecognizerShouldBegin( _ recognizer: UIGestureRecognizer ) -> Bool {
 		controller.window.page == .keys && controller.window.selection == controller.previewDevice
 			&& recognizer.modifierFlags.contains( .shift ) && previewKey( at: recognizer.location( in: nil ) ) != nil
+	}
+}
+
+// MARK: - Dropped colors
+
+/// A color dragged from the Mac's Colors panel or a color well, dropped on a key of the deck
+/// preview, becomes the key's background. It's handled here rather than by the key's own
+/// SwiftUI drop target, which never sees such a drag: what's dragged is AppKit's archived
+/// color, which SwiftUI's drop types don't match.
+extension ConfigurationHostingController: UIDropInteractionDelegate {
+	/// TEMPORARY: what a drag over the window carries, while color drops are being sorted out.
+	private static let dropLog = Logger( subsystem: "com.tmproductions.espdeck", category: "drop" )
+
+	/// The key of the deck preview under the drag, if any.
+	private func key( under session: UIDropSession ) -> ( device: String, key: Int )? {
+		guard let device = controller.previewDevice,
+			  let key = previewKey( at: view.convert( session.location( in: view ), to: nil ) ) else { return nil }
+		return ( device, key )
+	}
+
+	func dropInteraction( _ interaction: UIDropInteraction, canHandle session: UIDropSession ) -> Bool {
+		let types    = session.items.flatMap { $0.itemProvider.registeredTypeIdentifiers }
+		let uiColor  = session.canLoadObjects( ofClass: UIColor.self )
+		let appKit   = session.hasItemsConforming( toTypeIdentifiers: [ UTType.appKitColor.identifier ] )
+		Self.dropLog.notice( "Drag: \(session.items.count) items, types \(types.joined( separator: ", " ), privacy: .public); UIColor \(uiColor), AppKit color \(appKit)" )
+		return uiColor || appKit
+	}
+
+	func dropInteraction( _ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession ) -> UIDropProposal {
+		UIDropProposal( operation: key( under: session ) == nil ? .cancel : .copy )
+	}
+
+	func dropInteraction( _ interaction: UIDropInteraction, performDrop session: UIDropSession ) {
+		guard let target = key( under: session ) else { return }
+		let controller = controller
+		let apply: ( UIColor ) -> Void = { color in
+			controller.window.selectedKey = target.key
+			// A Level key's partner takes the color too (syncSliderPartner).
+			controller.update( device: target.device, key: target.key ) { $0.backgroundColor = Color( uiColor: color ).hex }
+		}
+		Self.dropLog.notice( "Drop on key \(target.key)" )
+		if session.canLoadObjects( ofClass: UIColor.self ) {
+			_ = session.loadObjects( ofClass: UIColor.self ) { colors in
+				if let color = colors.first as? UIColor { apply( color ) }
+			}
+		} else if let rgb = controller.macBridge?.draggedColor( archived: nil ), rgb.count == 3 {
+			// Read by the AppKit bundle, straight from the drag.
+			apply( UIColor( red: rgb[0], green: rgb[1], blue: rgb[2], alpha: 1 ) )
+		}
 	}
 }
