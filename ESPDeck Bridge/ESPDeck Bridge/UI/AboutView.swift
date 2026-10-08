@@ -148,7 +148,7 @@ enum Credits {
 	static let espDeck = Credit( name: "ESPDeck", use: "This app, the firmware and the web installer", license: "MIT License", url: nil, text: espDeckLicense )
 
 	static let espDeckLicense = """
-		Copyright (c) 2026 jangellx
+		Copyright (c) 2026 Joe Angell
 
 		Permission is hereby granted, free of charge, to any person obtaining a copy
 		of this software and associated documentation files (the "Software"), to deal
