@@ -195,7 +195,7 @@ ESPDeck is released under the [MIT License](LICENSE). The firmware and the web i
 
 - [x] Choose a license for ESPDeck itself and add `LICENSE` (MIT).
 - [x] Check the Credits above against what's actually in the release, and that the About page matches (checked for firmware 4.1.0, against the build's fetched components and the firmware's includes).
-- [ ] SF Symbols: Apple's license allows them in apps for Apple platforms. Here they're also rendered onto the Stream Deck's own screen; check that's acceptable, or limit the symbol picker to your own artwork.
+- [x] SF Symbols: Apple's license (Xcode and Apple SDKs Agreement, 2.10) allows them for developing apps for Apple products. Here the Mac app also renders them into the key images it sends to the Stream Deck. Decided 2026-10-08 to ship with them: the deck shows nothing but "Connecting" without the app, so the symbols are only ever the app's output. If Apple objects, replace the symbol picker's and the accessory icons' artwork with an openly licensed set.
 - [ ] The Arduino core is LGPL 2.1. Publishing the full firmware source (this repository) satisfies it; keep the source available for every firmware release.
 - [x] Make the repository public, so update checks and the release downloads work, and turn on GitHub Pages (Settings → Pages → Source: GitHub Actions) for the web installer.
 - [x] Test on hardware (4.1.0; the Neo's and the +'s screens are untested, for want of one): pairing, image uploads and orientation per model, firmware update and rollback, and the web installer.
