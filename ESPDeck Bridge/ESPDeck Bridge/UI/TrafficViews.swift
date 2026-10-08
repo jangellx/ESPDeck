@@ -53,6 +53,9 @@ struct TrafficLogView: View {
 			if shown.isEmpty {
 				ContentUnavailableView( "No Traffic", systemImage: "arrow.up.arrow.down",
 										description: Text( device.isOnline ? "Messages to and from this device appear here." : "The device is offline." ) )
+					// Fills the page as the list does, so the filter bar stays at the top and the
+					// footer at the bottom.
+					.frame( maxWidth: .infinity, maxHeight: .infinity )
 			} else {
 				List( shown ) { entry in
 					let selected = window.logSelection.contains( entry.id )
