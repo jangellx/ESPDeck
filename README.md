@@ -1,8 +1,12 @@
 # ESPDeck
 
+![A 15-key Stream Deck showing HomeKit keys, plugged into an ESP32-S3 dev kit through an OTG adapter.](docs/images/deck-and-dev-kit.jpg)
+
 Turn an [Elgato Stream Deck](https://www.elgato.com/stream-deck) into a HomeKit control panel you can put anywhere in the house, away from your computer. An ESP32-S3 dev kit plugs into the Stream Deck in a computer's place and connects over Wi-Fi to **ESPDeck Bridge**, an app on a Mac elsewhere on your network.
 
 You still need that Mac: it stays on, watches your Home, and triggers actions when keys are pressed. The dev kit only carries key presses and pictures between the Stream Deck and the Mac.
+
+<img src="docs/images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys.">
 
 ![ESPDeck Bridge's Keys page: a 15-key deck with the garage door key selected, and that key's settings beside it.](docs/images/keys.png)
 

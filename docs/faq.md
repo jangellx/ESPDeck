@@ -17,7 +17,9 @@ Every [Elgato Stream Deck](https://www.elgato.com/stream-deck) with keys. The fi
 | Stream Deck + | 2 × 4 |
 | Stream Deck Pedal | 3 pedals, no screen |
 
-![A Stream Deck Mini's six keys in ESPDeck Bridge.](images/mini.png)
+<img src="images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys.">
+
+![The same Mini's six keys in ESPDeck Bridge.](images/mini.png)
 
 - **Tested on real hardware:** the Mini and the MK.2 Scissor. The others follow the same USB protocols (taken from [python-elgato-streamdeck](https://github.com/abcminiuser/python-elgato-streamdeck)) but haven't been tried. If the pictures come out sideways or mirrored on yours, change **Image Orientation** on the deck's Device page.
 - **Only the keys are used.** The +'s dials and touch strip and the Neo's two touch keys do nothing. The Neo's info bar and the +'s strip show the deck's name.
