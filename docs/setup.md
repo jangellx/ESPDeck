@@ -30,6 +30,8 @@ On some clones, the COM port doesn't power the board. Use the USB port for setup
 
 Open **USB Setup** in the configuration window's sidebar, or choose **Set Up a Device over USB…** in the menu bar menu.
 
+![USB Setup with no board plugged in: a drawing of the Mac connected to the dev kit's USB port.](images/usb-setup.png)
+
 #### Finding the board
 
 - With **Look for boards plugged in over USB** on (the default; turn it off if you use this Mac for other ESP32 work), the page lists the boards plugged in, and the sidebar entry shows how many. With several boards, click the one to set up.

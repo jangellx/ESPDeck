@@ -31,6 +31,8 @@
 
 ESPDeck Bridge has no Dock icon while its window is closed. It lives in the menu bar, under the grid icon, and that menu is how you open everything else.
 
+<img src="images/menu-bar.png" width="290" alt="The menu bar menu, listing two decks as connected, HomeKit as connected, and the Configure, Set Up a Device over USB, Launch at Login and Quit commands.">
+
 - The status lines at the top say whether the bridge is waiting for a deck, whether HomeKit is connected, and whether anything needs attention.
 - Each deck is listed with its state. Choosing one opens its Keys page.
 - **Configure…** opens the configuration window.
@@ -74,6 +76,8 @@ This section shows how the bridge itself is doing, at a glance. It's the first p
 
 The Keys page is where a deck's keys are laid out. It shows a preview of the deck and, for the key you select, everything that key shows and does.
 
+![The Keys page with the preview beside the selected key's settings.](images/keys.png)
+
 ### The preview
 
 The preview is a simulated deck in the device's own layout. It shows what each key shows right now, and it's where you select, move and try out keys.
@@ -97,6 +101,8 @@ A deck can have several pages of keys, and the page bar above the preview moves 
 
 These controls change how the Keys page is laid out, not the deck. They're remembered between launches.
 
+![The Keys page with the preview above the key's settings.](images/keys-stacked.png)
+
 - The slider and **Size to Fit** under the page bar zoom the preview. Pinching on a trackpad does the same, and so do View ▸ Zoom In and Zoom Out.
 - The control at the far right of the page bar puts the preview beside the key's settings or above them. Above suits a wide deck.
 - Dragging the divider between the preview and the settings resizes them.
@@ -108,11 +114,15 @@ A key's settings appear when you select it. Work down them in order: which press
 
 ### 1. Presses: Tap, Double Tap and Hold
 
+![A key's settings with the Hold tab chosen, and its icons for each state of a garage door.](images/hold.png)
+
 A key can do three different things, one for each kind of press. **Tap**, **Double Tap** and **Hold**, at the top of the settings, choose which one you're setting up. The key's look (its icon, label and color) belongs to its tap.
 
 ### 2. What it controls
 
 The **Controlling** section chooses what the press acts on. It has three tabs.
+
+![The Home sheet, with a search field and a list of scenes to choose from.](images/home-sheet.png)
 
 - The **Home** tab has your accessories and scenes, in a sheet arranged by room like the Home app, with a search field.
   - You can pick one accessory, or several to control together. The starred one is the key accessory, and the key shows its state.
@@ -124,6 +134,8 @@ The **Controlling** section chooses what the press acts on. It has three tabs.
 ### 3. What the press does
 
 Once a key has something to control, this section chooses the action. The choices depend on what was picked.
+
+![A Level key's settings: the pair's other key, the step, and the choice of arrow styles.](images/level-keys.png)
 
 - **On Press** lists the actions that fit: Toggle, Turn On, Turn Off, Open, Close, Lock, Unlock, Run Scene, or Nothing. With Nothing, the key only shows state.
 - A light with brightness, or a fan with speeds, can be set to **Toggle** or **Level**. Level makes a pair of keys that step the level up and down.
@@ -165,11 +177,15 @@ When a shortcut fails, the key shows a warning triangle and the Log page says wh
 
 The Device page has everything about the deck itself, as opposed to its keys: its name, its screen, when it sleeps, and its firmware. The destructive and one-time actions are here too.
 
+![The top of the Device page: the deck's name, status, firmware, network details, brightness and sleep timer.](images/device.png)
+
 - The **Device** section has the deck's name and its **Network Name**, which is its name on the network for `ping` and PlatformIO. It also shows the deck's status, Stream Deck model, MAC and IP addresses, and the Wi-Fi network it's set up for (firmware 4.1.0 and later).
 - The **ESPDeck Firmware** section shows the version the deck runs, and installs an update or a file.
 - The **Display** section has **Brightness** and **Image Orientation**.
 - The **Sleep** section has **Sleep After** (a timer), **Sleep Now** and **Wake Now**. It also sets a command to run as the deck sleeps and as it wakes: an accessory, a scene or a shortcut.
 - The **Triggers** section sleeps or wakes the deck when a HomeKit accessory changes, like a door locking or a light going off.
+![The Device page's Key Presses and Trigger sections.](images/device-triggers.png)
+
 - The **Key Presses** section sets **Double-Tap Speed** and **Hold Time**, which are how long counts as each. **Repeat Delay** and **Repeat Speed** are for keys that repeat while held.
 - The **Setup** section has the actions that change the deck as a whole.
   - **Enter Setup Mode** puts the deck in setup mode, to change its Wi-Fi from a phone.
@@ -177,6 +193,8 @@ The Device page has everything about the deck itself, as opposed to its keys: it
   - **Clear All Keys…** empties every key on every page.
   - **Factory Reset Device…** erases the device. It can get its own settings, or another deck's, back once it's paired again.
   - **Forget Device…** removes the deck from this Mac and unpairs it.
+![The Device page's Setup, Security, Developer and Status Light sections.](images/device-setup.png)
+
 - The **Security** section says whether the deck's stored secrets are encrypted, and has **Encrypt Stored Secrets Now…** (see [Encrypting stored secrets](setup.md#encrypting-stored-secrets)).
 - The **Developer** section has **Allow uploads through PlatformIO** and the developer password (see [Development](development.md#firmware-updates-and-releases)).
 - The **Status Light** section explains what the colors of the dev kit's light mean.
@@ -187,6 +205,8 @@ A demo deck's Device page has only its name and model.
 
 The Log page shows the messages passing between the Mac and the deck as they happen. It's the place to look when a key doesn't do what you expected.
 
+![The Log page, listing the messages that sent each key's image to the deck.](images/log.png)
+
 - The newest entry is at the top. Entries cover key presses, images sent, state changes, and the reason when something failed.
 - **Filter** narrows the list to entries containing some text, such as "pressed", "image" or "keyDown".
 - Click an entry to select it, and use ⌘ or Shift to select several. **Copy Selected** or ⌘C copies them, and **Copy All** copies everything shown.
@@ -195,6 +215,8 @@ The Log page shows the messages passing between the Mac and the deck as they hap
 ## Getting Started and USB Setup
 
 These two pages take a new deck from a box of parts to a paired device. Getting Started is the guide, and USB Setup does the work on the board.
+
+![Getting Started's What You Need sheet, with a drawing of each part.](images/getting-started.png)
 
 **Getting Started** lists the parts for one ESPDeck under What You Need, then follows the way you choose to set up the dev kit.
 
@@ -208,6 +230,8 @@ These two pages take a new deck from a box of parts to a paired device. Getting 
 ## Updates
 
 The Updates page keeps the decks' firmware current. It finds releases on GitHub and sends them to the decks over Wi-Fi.
+
+![The Updates page, showing the latest firmware and each deck as up to date.](images/updates.png)
 
 - The page checks GitHub Releases for firmware (tags `firmware-vX.Y.Z`).
 - It can be set to **Install Automatically**, to **Check Automatically, Ask to Install**, or to **Check Manually**, which only checks when you click **Check Now**.

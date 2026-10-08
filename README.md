@@ -4,6 +4,8 @@ Turn an [Elgato Stream Deck](https://www.elgato.com/stream-deck) into a HomeKit 
 
 You still need that Mac: it stays on, watches your Home, and triggers actions when keys are pressed. The dev kit only carries key presses and pictures between the Stream Deck and the Mac.
 
+![ESPDeck Bridge's Keys page: a 15-key deck with the garage door key selected, and that key's settings beside it.](docs/images/keys.png)
+
 - **Keys that show what's happening.** A key shows its accessory's state (on or off, open, opening, closed, locked) with the icon, label and color you choose for each state, and follows changes made anywhere else.
 - **Accessories, scenes and Shortcuts.** A key toggles an accessory or a group of them, runs a scene, or runs one of your Shortcuts.
 - **Tap, double tap and hold.** Each can do something different on the same key.
