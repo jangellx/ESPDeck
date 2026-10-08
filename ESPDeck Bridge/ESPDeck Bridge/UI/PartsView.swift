@@ -1123,36 +1123,29 @@ fileprivate nonisolated struct Sketch {
 #if DEBUG
 // MARK: - Exporting the illustrations
 
-/// The guide's illustrations as PNG files, for the documentation (docs/images), so the pages
-/// show the same drawings as the app. Run the debug build with
-/// `-ESPDeckExportIllustrations YES`: AppDelegate calls this before anything else starts,
-/// prints the folder, and quits.
+/// The guide's illustrations as PNGs, for the documentation (docs/images), so the pages show
+/// the same drawings as the app. Run the debug build with `-ESPDeckExportIllustrations YES`
+/// and its output sent to a file (`open --stdout`): AppDelegate prints each one as a line of
+/// "ILLUSTRATION name base64" before anything else starts, and quits. Printed rather than
+/// saved, because the sandbox keeps the app's own folders from other programs.
 enum GuideIllustrationExport {
-	@MainActor static func export() -> URL? {
-		let folder = FileManager.default.temporaryDirectory.appendingPathComponent( "illustrations", isDirectory: true )
-		do {
-			try FileManager.default.createDirectory( at: folder, withIntermediateDirectories: true )
-		} catch {
-			return nil
-		}
-		var pictures: [( name: String, space: CGSize, draw: ( inout Sketch ) -> Void )] =
+	@MainActor static func pictures() -> [( name: String, png: Data )] {
+		var sketches: [( name: String, space: CGSize, draw: ( inout Sketch ) -> Void )] =
 			Part.all.map { ( "part-\($0.number)", CGSize( width: 200, height: 140 ), $0.draw ) }
-		pictures += [ ( "usb-connection", USBConnectionIllustration.space, Sketch.usbConnection ),
+		sketches += [ ( "usb-connection", USBConnectionIllustration.space, Sketch.usbConnection ),
 					  ( "assembly", Sketch.assemblySpace, Sketch.assembly ),
 					  ( "wifi-setup", Sketch.wifiSetupSpace, Sketch.wifiSetup ) ]
-		for picture in pictures {
+		return sketches.compactMap { sketch in
 			// On white, as in the app's light appearance, with a margin around the drawing.
-			let view = PartIllustration( space: picture.space, draw: picture.draw )
-				.frame( width: picture.space.width, height: picture.space.height )
+			let view = PartIllustration( space: sketch.space, draw: sketch.draw )
+				.frame( width: sketch.space.width, height: sketch.space.height )
 				.padding( 20 )
 				.background( Color.white )
 				.environment( \.colorScheme, .light )
 			let renderer   = ImageRenderer( content: view )
 			renderer.scale = 3
-			guard let data = renderer.uiImage?.pngData() else { return nil }
-			try? data.write( to: folder.appendingPathComponent( picture.name + ".png" ) )
+			return renderer.uiImage?.pngData().map { ( sketch.name, $0 ) }
 		}
-		return folder
 	}
 }
 #endif

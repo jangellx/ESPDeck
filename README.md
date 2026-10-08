@@ -31,6 +31,8 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 
 ## Getting started
 
+<p><img src="docs/images/diagram-assembly.png" alt="A diagram: the Stream Deck and a power supply plug into an OTG adapter, which plugs into the dev kit's USB port; the dev kit reaches ESPDeck Bridge on a Mac over Wi-Fi."><br><sup>How the parts connect. The same drawings are in the app's Getting Started page.</sup></p>
+
 1. Gather the parts under Requirements, below. ESPDeck Bridge's **Getting Started** page lists them too and walks through each step.
 2. Build and run ESPDeck Bridge on the Mac ([The Mac app](docs/mac-app.md)).
 3. Plug the dev kit's **USB** port into the Mac and open **USB Setup**: it installs the firmware, joins the dev kit to Wi-Fi and names it ([Setting up a deck](docs/setup.md)). Without the Mac app, the [web installer](https://jangellx.github.io/ESPDeck/) does the same from a browser.
@@ -48,6 +50,11 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 ## Requirements
 
 <p><img src="docs/images/mini-assembly.jpg" alt="A Stream Deck Mini, a USB-C OTG adapter with a power cable and a USB-A adapter plugged into it, and an ESP32-S3 dev kit, all connected."><br><sup>Everything for one ESPDeck: the Stream Deck, the OTG adapter with its power cable and the USB-A adapter for the deck's cable, and the dev kit.</sup></p>
+
+<table>
+<tr><td align="center"><img src="docs/images/part-stream-deck.png" width="200" alt="A drawing of the part: Stream Deck."><br><sup>1. Stream Deck</sup></td><td align="center"><img src="docs/images/part-dev-kit.png" width="200" alt="A drawing of the part: ESP32-S3 dev kit."><br><sup>2. ESP32-S3 dev kit</sup></td><td align="center"><img src="docs/images/part-otg-adapter.png" width="200" alt="A drawing of the part: USB-C OTG adapter."><br><sup>3. USB-C OTG adapter</sup></td></tr>
+<tr><td align="center"><img src="docs/images/part-a-to-c-adapter.png" width="200" alt="A drawing of the part: USB-A to USB-C adapter."><br><sup>4. USB-A to USB-C adapter</sup></td><td align="center"><img src="docs/images/part-power-supply.png" width="200" alt="A drawing of the part: 5 V power supply."><br><sup>5. 5 V power supply</sup></td><td align="center"><img src="docs/images/part-cable.png" width="200" alt="A drawing of the part: USB-C cable."><br><sup>6. USB-C cable</sup></td></tr>
+</table>
 
 - A Mac on **macOS 14 (Sonoma) or later**, signed in to an iCloud account that's a **member of the Home**. It has to **stay on and logged in**; for an always-on deck, turn on automatic login and the app's **Launch at Login**.
 - An **ESP32-S3 dev kit with 16 MB flash and 8 MB PSRAM** (ESP32-S3-DevKitC-1 **N16R8**) running ESPDeck firmware.

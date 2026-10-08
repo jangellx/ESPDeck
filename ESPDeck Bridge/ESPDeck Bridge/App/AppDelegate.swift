@@ -42,10 +42,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		guard !Self.isHostingTests else { return true }
 
 		#if DEBUG
-		// For the documentation: write the guide's illustrations as PNGs and quit, before the
+		// For the documentation: print the guide's illustrations as PNGs and quit, before the
 		// server, HomeKit or the menu bar item start (see GuideIllustrationExport).
 		if UserDefaults.standard.bool( forKey: "ESPDeckExportIllustrations" ) {
-			print( "Illustrations: \( GuideIllustrationExport.export()?.path ?? "failed" )" )
+			for picture in GuideIllustrationExport.pictures() {
+				print( "ILLUSTRATION \(picture.name) \(picture.png.base64EncodedString())" )
+			}
+			fflush( stdout )
 			exit( 0 )
 		}
 		#endif

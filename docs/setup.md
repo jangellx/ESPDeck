@@ -4,6 +4,8 @@
 
 <p><img src="images/mini-assembly.jpg" alt="A Stream Deck Mini, a USB-C OTG adapter with a power cable and a USB-A adapter plugged into it, and an ESP32-S3 dev kit, all connected."><br><sup>A deck put together: the dev kit's USB port goes to the OTG adapter, which takes the power cable and, through a USB-A adapter, the Stream Deck's own cable.</sup></p>
 
+<p><img src="images/diagram-assembly.png" alt="A diagram: the Stream Deck and a power supply plug into an OTG adapter, which plugs into the dev kit's USB port; the dev kit reaches ESPDeck Bridge on a Mac over Wi-Fi."><br><sup>How the parts connect once the dev kit is set up.</sup></p>
+
 1. Install the firmware (below): from ESPDeck Bridge's **USB Setup** page, with the web installer, or with `pio run -t upload`.
 2. Plug in a Stream Deck. Every model with keys works (Mini, Original, MK.2, XL, Neo, +, Pedal, and the modules); the firmware reports its layout and image format to the Mac.
 3. Set up Wi-Fi in setup mode (below). There's nothing to configure at build time.
@@ -21,6 +23,8 @@ The ESP32-S3 dev kit has two USB-C ports:
 On some clones, the COM port doesn't power the board. Use the USB port for setup in any case: ESPDeck Bridge's USB Setup works there. Otherwise they work the same as Espressif's board.
 
 ### Steps
+
+<p><img src="images/diagram-usb-connection.png" alt="A diagram: a Mac connected by a USB-C data cable to the dev kit's port labeled USB."><br><sup>For setup, the dev kit's USB port goes to the Mac with a cable that carries data.</sup></p>
 
 1. Connect the board's **USB** port to the computer with a data cable.
 2. **Put the board in flashing mode** if it's running other firmware; a new board's demo firmware usually is. Hold **BOOT** (also labeled B0 or IO0), press and release **RST** (also labeled EN or RESET), then release BOOT. A new serial port appears (`/dev/cu.usbmodem…` on a Mac).
@@ -80,6 +84,8 @@ At startup ESPDeck looks at its USB port for about 1.5 seconds. If a computer is
 Updates normally come over Wi-Fi from ESPDeck Bridge (see [Firmware updates and releases](development.md#firmware-updates-and-releases)). For logs while a deck is attached, connect the UART/COM port to the computer at 115200 baud (`pio device monitor`); it also accepts Improv and uploads with automatic reset.
 
 ## Setup mode
+
+<p><img src="images/diagram-wifi-setup.png" alt="A diagram: a Stream Deck Mini in setup mode showing two QR codes, and a phone scanning the first to join the network ESPDeck-XXXX."><br><sup>Setup mode: scan the first code to join the deck's network, and the second to open its setup page.</sup></p>
 
 The device starts in setup mode when it has no Wi-Fi credentials. To enter it later, hold the top-left and bottom-right keys for 5 seconds, or turn it on from the Mac. After 2 seconds of holding, the other keys go dark and the middle column counts down (3, 2, 1) under "Entering Setup In"; letting go of either key cancels and the keys go back to normal. The deck then shows:
 - top-left: a QR code that joins the device's access point, `ESPDeck-XXXX` (last four hex digits of its MAC address), with "1. Scan to join Wi-Fi" on the key below;
