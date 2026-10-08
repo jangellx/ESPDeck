@@ -56,7 +56,15 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		// bundle's menu, and the Colors panel itself.
 		NotificationCenter.default.addObserver( forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main ) { [weak self] note in
 			guard let window = note.object as? NSWindow, !( window is NSPanel ) else { return }
-			MainActor.assumeIsolated { ColorDropView.install( in: window, host: self?.host ) }
+			MainActor.assumeIsolated {
+				ColorDropView.install( in: window, host: self?.host )
+				// The configuration window keeps its size and place between launches: AppKit
+				// restores the frame saved under this name, and saves it again as it changes.
+				if window.title == DeckConfigurationWindow.title, window.frameAutosaveName.isEmpty {
+					window.setFrameUsingName( DeckConfigurationWindow.frameName )
+					window.setFrameAutosaveName( DeckConfigurationWindow.frameName )
+				}
+			}
 		}
 	}
 

@@ -9,6 +9,14 @@
 
 import Foundation
 
+/// The configuration window, as both sides know it: its title, and the name AppKit saves its
+/// frame under (in the defaults key "NSWindow Frame " + the name).
+public enum DeckConfigurationWindow {
+	public static let title         = "ESPDeck Bridge"
+	public static let frameName     = "ESPDeckConfiguration"
+	public static let frameDefault  = "NSWindow Frame " + frameName
+}
+
 /// Implemented by the Catalyst app; called by the menu bar bundle.
 @objc( DeckMenuBarHost )
 public protocol DeckMenuBarHost: NSObjectProtocol {

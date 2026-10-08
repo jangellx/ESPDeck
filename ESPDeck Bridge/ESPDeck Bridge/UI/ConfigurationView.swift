@@ -47,6 +47,14 @@ struct ConfigurationView: View {
 
 	private var window: WindowState { controller.window }
 
+	private static let sidebarWidths       : ClosedRange<CGFloat> = 220...320
+	private static let sidebarWidthDefault = "sidebarWidth"
+	/// The sidebar's width when the window was last open, which it opens at again.
+	@State private var openingSidebarWidth: CGFloat = {
+		let saved = CGFloat( UserDefaults.standard.double( forKey: ConfigurationView.sidebarWidthDefault ) )
+		return ConfigurationView.sidebarWidths.contains( saved ) ? saved : 250
+	}()
+
 	/// The window's sidebar selection, which the menus change too.
 	private var selection: Binding<String?> {
 		Bindable( controller.window ).selection
@@ -55,7 +63,11 @@ struct ConfigurationView: View {
 	var body: some View {
 		NavigationSplitView {
 			Sidebar( controller: controller, selection: selection )
-				.navigationSplitViewColumnWidth( min: 220, ideal: 250, max: 320 )
+				.navigationSplitViewColumnWidth( min: Self.sidebarWidths.lowerBound, ideal: openingSidebarWidth, max: Self.sidebarWidths.upperBound )
+				// Kept for next time; the width it opens at stays put while it's dragged.
+				.onGeometryChange( for: CGFloat.self ) { $0.size.width } action: { width in
+					if Self.sidebarWidths.contains( width ) { UserDefaults.standard.set( Double( width ), forKey: Self.sidebarWidthDefault ) }
+				}
 		} detail: {
 			if window.selection == SidebarItem.usbSetup {
 				USBSetupView( controller: controller, selection: selection )
