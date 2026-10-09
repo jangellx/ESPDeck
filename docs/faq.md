@@ -59,7 +59,7 @@ That window is a splash screen, and it's there because of Catalyst too. A Mac Ca
 
 The splash screen doubles as a reminder of where the app went, which helps the first few times, since the app has no Dock icon while its window is closed.
 
-There are two cases where the splash screen doesn't appear. With no decks set up yet, the configuration window opens instead, on Getting Started. And when you open the app from its menu bar menu, you get the configuration window you asked for.
+There are two cases where the splash screen doesn't appear. Until a real deck is set up (demo decks don't count), the configuration window opens instead, since there's nothing to do but set one up. And when you open the app from its menu bar menu, you get the configuration window you asked for.
 
 ### Does anything leave my network?
 
