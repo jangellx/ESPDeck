@@ -25,7 +25,7 @@ The firmware knows each of these models and reports its layout to the Mac:
 
 - **Tested on real hardware:** the Mini and the MK.2 Scissor. The others follow the same USB protocols (taken from [python-elgato-streamdeck](https://github.com/abcminiuser/python-elgato-streamdeck)) but haven't been tried. If the pictures come out sideways or mirrored on yours, change **Image Orientation** on the deck's Device page.
 - **What isn't supported on particular models:** the Stream Deck +'s four dials and its touch strip, and the Neo's two touch keys, do nothing. The Neo's info bar and the +'s strip show the deck's name and nothing else.
-- **The Pedal** has no screen: its pedals work as three keys, and the dev kit's status light stands in for the display while pairing.
+- **The Pedal** has no screen: its pedals work as three keys, and the dev kit's [status light](setup.md#the-status-light) stands in for the display while pairing.
 
 ### Does the Mac have to stay on?
 

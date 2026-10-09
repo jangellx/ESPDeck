@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" role="img" aria-label="Pulsing green">
+  <!-- The dev kit's status light, as ESPDeck Bridge's Status Light legend draws it. -->
+  <circle cx="14" cy="14" r="8" fill="#4DE659" stroke="#8E8E93" stroke-opacity="0.6" stroke-width="1"><animate attributeName="opacity" values="1;0.2;1" keyTimes="0;0.5;1" dur="2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1"/></circle>
+</svg>

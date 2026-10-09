@@ -197,7 +197,7 @@ The Device page has everything about the deck itself, as opposed to its keys: it
 
 - The **Security** section says whether the deck's stored secrets are encrypted, and has **Encrypt Stored Secrets Now…** (see [Encrypting stored secrets](setup.md#encrypting-stored-secrets)).
 - The **Developer** section has **Allow uploads through PlatformIO** and the developer password (see [Development](development.md#firmware-updates-and-releases)).
-- The **Status Light** section explains what the colors of the dev kit's light mean.
+- The **Status Light** section explains what the colors of the dev kit's light mean. The same list is in [The status light](setup.md#the-status-light).
 
 A demo deck's Device page has only its name and model.
 

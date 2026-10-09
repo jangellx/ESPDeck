@@ -109,6 +109,21 @@ A paired device refuses pairing and only connects to its own bridge. To move it 
 
 Renaming a device over USB or on its setup page updates its name under New Devices right away (firmware 4.1.0 and later).
 
+## The status light
+
+The dev kit has a small colored light that shows what the deck is doing. It's the quickest way to tell where a deck has got to when its keys are dark, and it's the only display a Stream Deck Pedal has.
+
+| | Light | What it means |
+|---|---|---|
+| <img src="images/led-pulsing-blue.svg" width="28" height="28" alt=""> | **Pulsing blue** | The deck is in setup mode. |
+| <img src="images/led-pulsing-yellow.svg" width="28" height="28" alt=""> | **Pulsing yellow** | The dev kit is looking for its Wi-Fi network. |
+| <img src="images/led-pulsing-green.svg" width="28" height="28" alt=""> | **Pulsing green** | The dev kit is on Wi-Fi and looking for ESPDeck Bridge, or waiting on it (to be unpaired, say). |
+| <img src="images/led-green.svg" width="28" height="28" alt=""> | **Green** | The deck is connected to ESPDeck Bridge. The light is brighter while data moves. |
+| <img src="images/led-white.svg" width="28" height="28" alt=""> | **White** | A key is pressed. |
+| <img src="images/led-blinking-magenta.svg" width="28" height="28" alt=""> | **Blinking magenta** | A pairing is waiting. The light turns steady once the code is confirmed on the deck. |
+
+While the deck is asleep, green is off and the other colors are very dim. ESPDeck Bridge shows the same list on each deck's Device page, under Status Light.
+
 ## Encrypting stored secrets
 
 The dev kit keeps its Wi-Fi password, pairing key and developer password in its flash, where anyone who takes it can read them over USB. Firmware 4.1.0 and later can encrypt them with a key burned into the ESP32-S3's eFuses that no software can read (ESP-IDF's HMAC-based NVS encryption; no flash encryption needed).
