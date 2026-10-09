@@ -143,6 +143,9 @@ private struct PartsSheet: View {
 	let offersPathChoice  : Bool
 	let window            : WindowState
 
+	/// The parts section of the project's site.
+	private static let partsURL = URL( string: "https://espdeck.tmproductions.com/#parts" )
+
 	var body: some View {
 		VStack( alignment: .leading, spacing: 28 ) {
 			SheetHeading( title: "What You Need",
@@ -151,6 +154,19 @@ private struct PartsSheet: View {
 			LazyVGrid( columns: [ GridItem( .adaptive( minimum: 230 ), spacing: 22, alignment: .top ) ], alignment: .leading, spacing: 30 ) {
 				ForEach( Part.all ) { part in
 					PartCard( part: part )
+				}
+			}
+
+			// Parts known to work, on the project's site: adapters in particular vary, and the
+			// wrong kind never powers the deck. The site, not the app, links to the shops.
+			if let url = Self.partsURL {
+				VStack( alignment: .leading, spacing: 4 ) {
+					Link( destination: url ) {
+						Label( "Find Parts Known to Work", systemImage: "arrow.up.right.square" )
+							.font( .headline )
+					}
+					Text( "Opens the parts list at espdeck.tmproductions.com, with an example of each part that has been tested with ESPDeck." )
+						.secondaryCaption()
 				}
 			}
 
