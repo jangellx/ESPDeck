@@ -33,8 +33,9 @@ struct TrafficEntry: Identifiable, Equatable {
 		self.bytes     = bytes
 	}
 
-	/// How the Log shows an entry's time: to the millisecond, without AM or PM.
-	static let timeFormat: Date.FormatStyle = .dateTime.hour( .twoDigits( amPM: .omitted ) ).minute( .twoDigits ).second( .twoDigits ).secondFraction( .fractional( 3 ) )
+	/// How the Log shows when an entry happened: the day, then the time to the millisecond,
+	/// without AM or PM. The day too, because a log kept open runs across several.
+	static let timeFormat: Date.FormatStyle = .dateTime.month( .abbreviated ).day().hour( .twoDigits( amPM: .omitted ) ).minute( .twoDigits ).second( .twoDigits ).secondFraction( .fractional( 3 ) )
 
 	/// Entries as plain text in the order given, for copying: the time, an arrow for the
 	/// direction and the summary, with the frame and its size on a second line.
@@ -42,7 +43,10 @@ struct TrafficEntry: Identifiable, Equatable {
 		entries.map { entry in
 			let arrow  = entry.direction == .sent ? "→" : entry.direction == .received ? "←" : "•"
 			let detail = [ entry.detail, entry.bytes > 0 ? "(\(entry.bytes) B)" : "" ].filter { !$0.isEmpty }.joined( separator: "  " )
-			return "\(entry.date.formatted( timeFormat ))  \(arrow)  \(entry.summary)" + ( detail.isEmpty ? "" : "\n                 \(detail)" )
+			let time   = entry.date.formatted( timeFormat )
+			// The second line starts under the summary, whatever the date's length.
+			let indent = String( repeating: " ", count: time.count + 5 )
+			return "\(time)  \(arrow)  \(entry.summary)" + ( detail.isEmpty ? "" : "\n\(indent)\(detail)" )
 		}.joined( separator: "\n" )
 	}
 
