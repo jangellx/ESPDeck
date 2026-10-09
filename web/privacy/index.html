@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ESPDeck: Privacy</title>
+<meta name="description" content="What ESPDeck Bridge, the ESPDeck firmware and this site do with your information.">
+<link rel="icon" href="../images/app-icon.png">
+<style>
+:root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2e2e7;--accent:#0a7cff;--accent-text:#fff;--warn-bg:#fff6e5;--warn:#8a5a00}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989f;--line:#2c2c2e;--accent:#3d9bff;--warn-bg:#2b2112;--warn:#f5c16c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:720px;margin:0 auto;padding:56px 20px 64px}
+header{text-align:center;margin-bottom:40px}
+h1{font-size:44px;letter-spacing:-.03em;margin:0 0 8px}
+.back{margin:0 0 18px;font-size:15px}
+.back a{text-decoration:none}
+.lead{font-size:20px;color:var(--muted);margin:0 auto;max-width:560px}
+h2{font-size:22px;letter-spacing:-.01em;margin:0 0 12px}
+section{background:var(--card);border-radius:18px;padding:24px 26px;margin-bottom:20px;border:1px solid var(--line)}
+ul,ol{margin:0;padding-left:22px}
+.steps{text-align:left;margin:16px auto 20px;max-width:560px}
+li+li{margin-top:6px}
+.install{text-align:center;padding:36px 26px}
+.install button{font:inherit;font-size:19px;font-weight:600;color:var(--accent-text);background:var(--accent);border:0;border-radius:14px;padding:15px 36px;cursor:pointer}
+.install button:hover{filter:brightness(1.08)}
+.note{color:var(--muted);font-size:15px;margin:14px 0 0}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:12px 14px;font-size:15px;margin-top:18px;text-align:left}
+.muted{color:var(--muted)}
+footer{text-align:center;color:var(--muted);font-size:14px;margin-top:32px}
+a{color:var(--accent)}
+code{font:15px ui-monospace,SFMono-Regular,Menlo,monospace}
+img{max-width:100%;height:auto;display:block}
+/* The app's drawings are black on white: they keep a white sheet in the dark too. */
+.paper{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin:16px 0}
+.paper img{margin:0 auto}
+.parts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:4px 0 18px}
+.parts a{text-decoration:none;display:flex;border-radius:14px;transition:transform .15s,box-shadow .15s}
+.parts a:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.14)}
+.parts figure{flex:1;margin:0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px 8px 10px;text-align:center}
+.parts figcaption{color:#1d1d1f;font-weight:600;font-size:15px;line-height:1.3;min-height:2.6em}
+.parts figcaption::after{content:"\00a0\2197";color:#6e6e73;font-weight:400}
+/* Browser or Mac App: two radio buttons drawn as one control, each showing its own steps. */
+.tabs>input{position:absolute;opacity:0;pointer-events:none}
+.tabs>label{display:inline-block;font-weight:600;font-size:16px;padding:8px 22px;cursor:pointer;color:var(--muted);background:var(--bg);border:1px solid var(--line)}
+.tabs>label:first-of-type{border-radius:10px 0 0 10px;border-right:0}
+.tabs>label:last-of-type{border-radius:0 10px 10px 0}
+.tabs>input:checked+label{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.tabs>input:focus-visible+label{outline:2px solid var(--accent);outline-offset:2px}
+.tabs>.panel{display:none;margin-top:22px}
+#how-browser:checked~#panel-browser,#how-mac:checked~#panel-mac{display:block}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="back"><a href="../">&larr; ESPDeck</a></p>
+<h1>Privacy</h1>
+<p class="lead">ESPDeck doesn't collect your information. Here is what each part does.</p>
+</header>
+
+<section>
+<h2>ESPDeck Bridge, the Mac app</h2>
+<ul>
+<li>The app collects no personal information, has no account, and contains no analytics, advertising or tracking.</li>
+<li>Your key layouts, device names and settings are stored on your Mac. The keys that pair your decks with the app are stored in your Mac's Keychain.</li>
+<li>The app reads your HomeKit accessories and scenes, and the names of your Shortcuts, so that it can show and control them. That information stays on your Mac and is sent only to your own decks, as the pictures on their keys.</li>
+<li>The app and your decks talk to each other directly over your own Wi-Fi network. Nothing passes through a server of ours, because there isn't one.</li>
+<li>The app contacts GitHub to look for new firmware and to download it. GitHub receives what any website receives from a visitor, such as your IP address, under <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>. Under Updates, you can set the app to look only when you ask.</li>
+<li>A bridge export file, if you make one, contains your settings and pairing keys, encrypted with the passphrase you choose. It goes only where you save it.</li>
+</ul>
+</section>
+
+<section>
+<h2>The ESPDeck firmware</h2>
+<ul>
+<li>The firmware on the dev kit stores your Wi-Fi network's name and password, the deck's name, and its pairing key. They stay on the dev kit, and can be stored encrypted on its chip.</li>
+<li>The dev kit talks only to the Mac it is paired with, on your own network. It doesn't contact the internet.</li>
+</ul>
+</section>
+
+<section>
+<h2>This site</h2>
+<ul>
+<li>This site sets no cookies and runs no analytics. It is hosted by GitHub Pages, and GitHub may log visits, including IP addresses, under its privacy statement.</li>
+<li>The web installer loads its installer component from the unpkg content delivery network, and talks to the dev kit over USB from your browser. Your Wi-Fi password, if you enter it there, goes from your browser to the dev kit over the cable and nowhere else.</li>
+<li>Links to parts on Amazon are affiliate links. If you follow one, Amazon learns that you came from this site, and handles your visit under its own privacy notice. As an Amazon Associate I earn from qualifying purchases.</li>
+</ul>
+</section>
+
+<section>
+<h2>Questions</h2>
+<p>ESPDeck is open source, so everything above can be checked in the <a href="https://github.com/jangellx/ESPDeck">source code</a>. Questions and reports are welcome as <a href="https://github.com/jangellx/ESPDeck/issues">issues on GitHub</a>.</p>
+<p class="note">Last updated October 9, 2026.</p>
+</section>
+
+<footer><a href="../">ESPDeck</a> &middot; <a href="https://github.com/jangellx/ESPDeck">GitHub</a></footer>
+</main>
+</body>
+</html>
