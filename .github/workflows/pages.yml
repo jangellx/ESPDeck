@@ -29,11 +29,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  # Two jobs, as in firmware.yml: deploying in the same job as the upload sometimes ran
+  # before the uploaded files could be found ("No artifacts named github-pages").
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -52,5 +51,12 @@ jobs:
         with:
           path: web
 
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
