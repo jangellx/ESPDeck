@@ -160,14 +160,20 @@ private struct PartsSheet: View {
 			// Parts known to work, on the project's site: adapters in particular vary, and the
 			// wrong kind never powers the deck. The site, not the app, links to the shops.
 			if let url = Self.partsURL {
-				VStack( alignment: .leading, spacing: 4 ) {
+				VStack( spacing: 6 ) {
+					// A blue button like the sheets' own, with the arrow that says it leaves the app.
 					Link( destination: url ) {
-						Label( "Find Parts Known to Work", systemImage: "arrow.up.right.square" )
-							.font( .headline )
+						HStack( spacing: 6 ) {
+							Text( "Find Parts Known to Work" )
+							Image( systemName: "arrow.up.right" )
+						}
 					}
+					.prominentButtonStyle()
 					Text( "Opens the parts list at espdeck.tmproductions.com, with an example of each part that has been tested with ESPDeck." )
 						.secondaryCaption()
+						.multilineTextAlignment( .center )
 				}
+				.frame( maxWidth: .infinity )
 			}
 
 			VStack( alignment: .leading, spacing: 8 ) {
