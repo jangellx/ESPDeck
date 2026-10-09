@@ -4,91 +4,181 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Install ESPDeck</title>
-<meta name="description" content="Install the ESPDeck firmware on an ESP32-S3 from your browser.">
-<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<title>ESPDeck: a HomeKit control panel on a Stream Deck</title>
+<meta name="description" content="Turn an Elgato Stream Deck into a HomeKit control panel you can put anywhere in the house, with an ESP32-S3 dev kit and a Mac.">
+<meta property="og:title" content="ESPDeck">
+<meta property="og:description" content="Turn an Elgato Stream Deck into a HomeKit control panel you can put anywhere in the house.">
+<meta property="og:image" content="images/deck-and-dev-kit.jpg">
+<link rel="icon" href="images/app-icon.png">
 <style>
-:root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2e2e7;--accent:#0a7cff;--accent-text:#fff;--warn-bg:#fff6e5;--warn:#8a5a00}
-@media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989f;--line:#2c2c2e;--accent:#3d9bff;--warn-bg:#2b2112;--warn:#f5c16c}}
+/* The app's look: system type, white cards on pale gray, and the amber of its diagrams. */
+:root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2e2e7;--link:#0a7cff;--amber:#ff9e0a;--amber-text:#1d1d1f;--paper:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989f;--line:#2c2c2e;--link:#3d9bff}}
 *{box-sizing:border-box}
+html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--text);font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
-main{max-width:720px;margin:0 auto;padding:56px 20px 64px}
-header{text-align:center;margin-bottom:40px}
-h1{font-size:44px;letter-spacing:-.03em;margin:0 0 8px}
-.lead{font-size:20px;color:var(--muted);margin:0 auto;max-width:560px}
-h2{font-size:22px;letter-spacing:-.01em;margin:0 0 12px}
-section{background:var(--card);border-radius:18px;padding:24px 26px;margin-bottom:20px;border:1px solid var(--line)}
-ul,ol{margin:0;padding-left:22px}
-.steps{text-align:left;margin:16px auto 20px;max-width:560px}
-li+li{margin-top:6px}
-.install{text-align:center;padding:36px 26px}
-.install button{font:inherit;font-size:19px;font-weight:600;color:var(--accent-text);background:var(--accent);border:0;border-radius:14px;padding:15px 36px;cursor:pointer}
-.install button:hover{filter:brightness(1.08)}
-.note{color:var(--muted);font-size:15px;margin:14px 0 0}
-.warn{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:12px 14px;font-size:15px;margin-top:18px;text-align:left}
-.muted{color:var(--muted)}
-footer{text-align:center;color:var(--muted);font-size:14px;margin-top:32px}
-a{color:var(--accent)}
-code{font:15px ui-monospace,SFMono-Regular,Menlo,monospace}
+a{color:var(--link)}
+img{max-width:100%;height:auto;display:block}
+main{max-width:1040px;margin:0 auto;padding:0 20px 64px}
+h1{font-size:clamp(40px,7vw,64px);line-height:1.05;letter-spacing:-.035em;margin:0 0 14px}
+h2{font-size:clamp(26px,4vw,34px);letter-spacing:-.02em;line-height:1.15;margin:0 0 10px;text-align:center}
+h3{font-size:18px;margin:0 0 4px}
+p{margin:0 0 12px}
+.lead{font-size:clamp(18px,2.4vw,22px);color:var(--muted);max-width:640px;margin:0 auto 26px}
+.sub{color:var(--muted);text-align:center;max-width:620px;margin:0 auto 28px}
+section{padding:56px 0 0}
+
+/* Top */
+.hero{text-align:center;padding:64px 0 0}
+.hero .icon{width:84px;height:84px;border-radius:19px;margin:0 auto 20px;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:10px}
+.button{display:inline-block;font-size:17px;font-weight:600;text-decoration:none;border-radius:12px;padding:12px 22px;border:1px solid transparent}
+.button.primary{background:var(--amber);color:var(--amber-text)}
+.button.primary:hover{filter:brightness(1.06)}
+.button.plain{background:var(--card);color:var(--text);border-color:var(--line)}
+.button.soon{background:transparent;color:var(--muted);border-color:var(--line);cursor:default}
+.fine{font-size:14px;color:var(--muted);margin:0}
+.photo{border-radius:22px;margin:36px auto 0;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+figcaption{font-size:14px;color:var(--muted);text-align:center;margin-top:10px}
+figure{margin:0}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px 24px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.card p{color:var(--muted);margin:0;font-size:16px}
+.card h3::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);margin-right:9px;vertical-align:2px}
+
+/* The app's drawings are black on white: they keep a white sheet in the dark too. */
+.paper{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;overflow:hidden}
+.paper img{margin:0 auto}
+.steps{counter-reset:step;list-style:none;padding:0;margin:22px 0 0;display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.steps li{counter-increment:step;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 22px;color:var(--muted);font-size:16px}
+.steps li::before{content:counter(step);display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--amber);color:var(--amber-text);font-weight:700;font-size:15px;margin-bottom:10px}
+.steps strong{color:var(--text)}
+
+/* Screenshots */
+.shot{border-radius:14px;border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.16)}
+.pair{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:20px}
+
+/* Parts */
+.parts{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.parts figure{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:10px 10px 12px}
+.parts figcaption{color:#1d1d1f;font-weight:600;margin-top:2px}
+.also{color:var(--muted);text-align:center;max-width:680px;margin:22px auto 0;font-size:16px}
+
+.split{display:grid;gap:28px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:center}
+.split img{border-radius:18px}
+.split h2{text-align:left}
+.split p{color:var(--muted)}
+
+footer{text-align:center;color:var(--muted);font-size:14px;margin-top:64px;padding-top:28px;border-top:1px solid var(--line)}
+footer p{margin:0 0 8px}
+footer nav a{margin:0 8px;white-space:nowrap}
 </style>
 </head>
 <body>
 <main>
-<header>
+
+<header class="hero">
+<img class="icon" src="images/app-icon.png" alt="">
 <h1>ESPDeck</h1>
-<p class="lead">Turn an Elgato Stream Deck into a wireless HomeKit control panel, with an ESP32-S3 and a Mac.</p>
+<p class="lead">Turn an Elgato Stream Deck into a HomeKit control panel you can put anywhere in the house.</p>
+<div class="buttons">
+<span class="button soon">Mac App Store: coming soon</span>
+<a class="button primary" href="install/">Install the Firmware</a>
+<a class="button plain" href="https://github.com/jangellx/ESPDeck">View on GitHub</a>
+</div>
+<p class="fine">A build-it-yourself project. Open source, with no account and no cloud service.</p>
+<figure>
+<img class="photo" src="images/deck-and-dev-kit.jpg" width="1600" height="1200" alt="A 15-key Stream Deck showing HomeKit keys, plugged into an ESP32-S3 dev kit through an OTG adapter.">
+<figcaption>A Stream Deck MK.2 running from an ESP32-S3 dev kit. The green light means it's connected to the Mac.</figcaption>
+</figure>
 </header>
 
-<section>
+<section id="how">
 <h2>How it works</h2>
-<p>The Stream Deck plugs into a small ESP32-S3 board instead of a computer. The board joins your Wi-Fi and talks to <strong>ESPDeck Bridge</strong>, a Mac app that controls your HomeKit accessories and draws the keys. Press a key, and the Mac does the rest.</p>
-</section>
-
-<section>
-<h2>What you need</h2>
-<ul>
-<li>An <strong>ESP32-S3 board</strong> with 16 MB flash and 8 MB PSRAM, such as the ESP32-S3-DevKitC-1 N16R8.</li>
-<li>An <strong>Elgato Stream Deck</strong>: Mini, MK.2, XL, Neo, +, Pedal, or one of the modules.</li>
-<li>A <strong>5 V USB power supply rated 2 A or more</strong>, and its cable. It powers both the board and the Stream Deck.</li>
-<li>A passive <strong>USB-C OTG adapter with a power input</strong>: a USB-C plug for the board's native <strong>USB</strong> port, a USB-A port for the Stream Deck, and a USB-C port for the power supply. Adapters that need USB-PD negotiation may never switch on power to the Stream Deck.</li>
-<li>If the Stream Deck's cable ends in USB-C: a <strong>USB-A (male) to USB-C (female) adapter</strong> that includes the CC pull-up resistor. Choose one labeled for <strong>charging and sync</strong> (data), not charge-only; one that mentions a 56&nbsp;kΩ resistor is the surest bet. Not needed if the cable ends in USB-A.</li>
-<li>A USB <strong>data</strong> cable (not a charge-only one) from your computer to the board's <strong>USB</strong> port, for installing.</li>
-<li>A <strong>Mac</strong> running ESPDeck Bridge, on the same network.</li>
-<li>A <strong>2.4 GHz Wi-Fi</strong> network.</li>
-</ul>
-</section>
-
-<section class="install">
-<h2>Install the firmware</h2>
-<p class="muted">Connect the board, put it in flashing mode, click Install, and pick its serial port.</p>
+<p class="sub">The Stream Deck plugs into a small Wi-Fi board in a computer's place. A Mac elsewhere on your network does the thinking.</p>
+<div class="paper"><img src="images/diagram-assembly.png" width="2040" height="1170" alt="A diagram: the Stream Deck and a power supply plug into an OTG adapter, which plugs into the dev kit's USB port. The dev kit reaches ESPDeck Bridge on a Mac over Wi-Fi."></div>
 <ol class="steps">
-<li><strong>Use the board's USB port.</strong> The dev kit has two USB-C ports: <strong>USB</strong> (the chip's own) and <strong>UART</strong>, which many clone boards label <strong>COM</strong>. Install through <strong>USB</strong>. On some clones the COM port doesn't even power the board.</li>
-<li><strong>Put it in flashing mode</strong> if it's new or runs other firmware. Hold <strong>BOOT</strong> (also B0 or IO0), press and release <strong>RST</strong> (also EN or RESET), then let go of BOOT. A board already running ESPDeck doesn't need this: plugged into a computer, its USB port stays a serial port.</li>
-<li>Click <strong>Install ESPDeck</strong> and choose the port that appears (on a Mac, <code>cu.usbmodem…</code>; the names &ldquo;USB JTAG/serial debug unit&rdquo; or &ldquo;Espressif&rdquo;).</li>
-<li>When it's done, press <strong>RST</strong> (or unplug and replug the board) if it doesn't restart on its own.</li>
-<li>Stay on this page: once ESPDeck starts, the installer offers to <strong>connect it to Wi-Fi</strong>. Choose your network and enter its password. If you skip this, the deck's QR codes set up Wi-Fi later.</li>
+<li><strong>The dev kit drives the deck.</strong> An ESP32-S3 dev kit plugs into the Stream Deck and powers it. It carries key presses and pictures, and nothing more.</li>
+<li><strong>ESPDeck Bridge runs on your Mac.</strong> The app watches your Home, draws every key, and triggers actions when keys are pressed. The Mac stays on.</li>
+<li><strong>The deck goes wherever you want it.</strong> By the door, on a nightstand, in the garage: anywhere your Wi-Fi reaches and there's a power outlet.</li>
 </ol>
-<esp-web-install-button manifest="manifest.json">
-<button slot="activate">Install ESPDeck</button>
-<span slot="unsupported"><p class="warn">Your browser can't talk to USB devices. Open this page in <strong>Chrome</strong>, <strong>Edge</strong>, or <strong>Firefox 151</strong> or later on a Mac, Windows or Linux computer.</p></span>
-<span slot="not-allowed"><p class="warn">Installing needs a secure page. Open this page over <code>https://</code>.</p></span>
-</esp-web-install-button>
-<p class="note">Needs Chrome or Edge on a desktop computer; Firefox 151 and later support Web Serial too, but installing with Firefox is untested. Installing erases the board. ESPDeck's USB port only becomes the Stream Deck's host when a deck is attached instead of a computer, so reinstalling needs no buttons.</p>
 </section>
 
-<section>
-<h2>After installing</h2>
-<ol>
-<li>Plug the OTG adapter into the board's native <strong>USB</strong> port, the Stream Deck into the adapter's USB-A port, and the 2 A power supply into the adapter's power port. If you set up Wi-Fi in the installer, skip to the last step. Otherwise the deck shows two QR codes.</li>
-<li>Scan the <strong>left</strong> QR code with your phone's camera and join the board's own Wi-Fi network. Its name, <code>ESPDeck-XXXX</code>, is also shown on the top-center key.</li>
-<li>If your phone doesn't stay connected (an iPhone may switch back to your usual Wi-Fi, since this network has no internet), open <strong>Settings → Wi-Fi</strong> on the phone and choose that <code>ESPDeck-XXXX</code> network directly. Scanning the QR code already saved its password.</li>
-<li>The setup page usually opens by itself once you're connected. If it doesn't, scan the <strong>right</strong> QR code. Name the deck and choose your Wi-Fi network there.</li>
-<li>Open ESPDeck Bridge on your Mac and click <strong>Pair</strong>. Check that the 6-digit code on the Mac matches the deck, then press <strong>Confirm</strong> on the deck.</li>
-</ol>
-<p class="note">Later updates come from ESPDeck Bridge over Wi-Fi; you only need this page once. To get back to setup, hold the top-left and bottom-right keys for 5 seconds.</p>
+<section id="features">
+<h2>What it does</h2>
+<p class="sub">Real buttons for the things you do in your Home every day.</p>
+<div class="grid">
+<div class="card"><h3>Keys that show what's happening</h3><p>A key shows its accessory's state: on or off, open, opening, closed, locked. You choose the icon, label and color for each state.</p></div>
+<div class="card"><h3>Accessories, scenes and Shortcuts</h3><p>A key toggles one accessory or several together, runs a scene, or runs one of your Shortcuts.</p></div>
+<div class="card"><h3>Tap, double tap and hold</h3><p>Each kind of press can do something different on the same key.</p></div>
+<div class="card"><h3>Brightness and fan speed</h3><p>A pair of keys steps a light's brightness or a fan's speed up and down. Holding a key keeps stepping.</p></div>
+<div class="card"><h3>Pages of keys</h3><p>A deck has as many pages as you like, and several decks can share one Mac.</p></div>
+<div class="card"><h3>Sleeps when you do</h3><p>The deck's screen sleeps on a timer, or when something in your Home changes, like a door locking.</p></div>
+<div class="card"><h3>Set up from your Mac</h3><p>The app installs the dev kit's firmware over USB, joins it to Wi-Fi and names it. Updates then arrive over Wi-Fi.</p></div>
+<div class="card"><h3>Paired and private</h3><p>A deck only obeys the Mac it's paired with, and everything stays on your network. Its stored secrets can be encrypted on its chip.</p></div>
+<div class="card"><h3>Try it without hardware</h3><p>A demo deck lets you lay out keys and test their actions before you build anything.</p></div>
+</div>
 </section>
 
-<footer>Installer by <a href="https://github.com/esphome/esp-web-tools">ESP Web Tools</a>.</footer>
+<section id="app">
+<h2>ESPDeck Bridge</h2>
+<p class="sub">The Mac app is where a deck's keys are laid out. It shows the deck as it looks right now, and everything about the key you select.</p>
+<img class="shot" src="images/keys.png" width="1440" height="900" alt="ESPDeck Bridge's Keys page: a 15-key deck with the garage door key selected, and that key's settings beside it.">
+<div class="pair">
+<img class="shot" src="images/keys-stacked.png" width="1440" height="900" alt="The Keys page with the deck preview above the selected key's settings.">
+<img class="shot" src="images/level-keys.png" width="1440" height="900" alt="A pair of Level keys selected, with their step and arrow style settings.">
+</div>
+</section>
+
+<section id="anywhere">
+<div class="split">
+<img src="images/mini-mounted.jpg" width="1600" height="1200" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys.">
+<div>
+<h2>Put it where the buttons belong</h2>
+<p>Every Stream Deck with keys works: Mini, Original, MK.2, XL, Neo, +, Pedal and the modules. Only the keys are used, not dials, touch strips or second screens.</p>
+<p>This Mini lives under a garage shelf in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>, with the garage doors and lights a press away.</p>
+</div>
+</div>
+</section>
+
+<section id="parts">
+<h2>What you need</h2>
+<p class="sub">A Stream Deck, a dev kit and a few cables. There's no soldering, and the app installs the dev kit's firmware for you.</p>
+<div class="parts">
+<figure><img src="images/part-stream-deck.png" width="720" height="540" alt=""><figcaption>Stream Deck</figcaption></figure>
+<figure><img src="images/part-dev-kit.png" width="720" height="540" alt=""><figcaption>ESP32-S3 dev kit</figcaption></figure>
+<figure><img src="images/part-otg-adapter.png" width="720" height="540" alt=""><figcaption>USB-C OTG adapter</figcaption></figure>
+<figure><img src="images/part-a-to-c-adapter.png" width="720" height="540" alt=""><figcaption>USB-A to USB-C adapter</figcaption></figure>
+<figure><img src="images/part-power-supply.png" width="720" height="540" alt=""><figcaption>5 V power supply</figcaption></figure>
+<figure><img src="images/part-cable.png" width="720" height="540" alt=""><figcaption>USB-C data cable</figcaption></figure>
+</div>
+<p class="also">You also need a Mac on macOS 14 or later that stays on and is signed in to an iCloud account in your Home, and a 2.4&nbsp;GHz Wi-Fi network. The dev kit is an ESP32-S3 with 16&nbsp;MB flash and 8&nbsp;MB PSRAM, sold as N16R8. The <a href="https://github.com/jangellx/ESPDeck#requirements">full parts list</a> has the details that matter when you buy the adapters.</p>
+</section>
+
+<section id="start">
+<h2>Get started</h2>
+<p class="sub">Three steps take a box of parts to a working deck.</p>
+<ol class="steps">
+<li><strong>Get the Mac app.</strong> ESPDeck Bridge is on its way to the Mac App Store. Until then, you can <a href="https://github.com/jangellx/ESPDeck/blob/main/docs/faq.md#can-i-build-it-myself-and-never-go-near-the-app-store">build it yourself</a> with Xcode.</li>
+<li><strong>Install the firmware.</strong> ESPDeck Bridge installs it over USB, or the <a href="install/">web installer</a> does the same from Chrome or Edge.</li>
+<li><strong>Pair the deck and set up its keys.</strong> The <a href="https://github.com/jangellx/ESPDeck/blob/main/docs/setup.md">setup guide</a> covers each step, and the <a href="https://github.com/jangellx/ESPDeck/blob/main/docs/faq.md">FAQ</a> covers what goes wrong.</li>
+</ol>
+</section>
+
+<footer>
+<nav>
+<a href="https://github.com/jangellx/ESPDeck/blob/main/docs/setup.md">Setting up a deck</a>
+<a href="https://github.com/jangellx/ESPDeck/blob/main/docs/mac-app.md">The Mac app</a>
+<a href="https://github.com/jangellx/ESPDeck/blob/main/docs/faq.md">FAQ</a>
+<a href="install/">Web installer</a>
+<a href="https://github.com/jangellx/ESPDeck">GitHub</a>
+</nav>
+<p>ESPDeck is open source, released under the MIT License.</p>
+<p>Elgato and Stream Deck are trademarks of Corsair Memory, Inc. HomeKit and Mac are trademarks of Apple Inc. ESPDeck isn't affiliated with, endorsed by, or sponsored by Elgato, Corsair, Apple, or Espressif.</p>
+</footer>
+
 </main>
 </body>
 </html>

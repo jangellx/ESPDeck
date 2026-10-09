@@ -78,7 +78,7 @@ That leaves two ways to get ESPDeck Bridge:
 - **The Mac App Store.** ESPDeck Bridge is on its way there; the link will be here once it's available.
 - **Build it yourself.** With Xcode and an Apple developer account; see the next question.
 
-The firmware is different: it's a plain download. Releases are on this repository's Releases page, and the [web installer](https://jangellx.github.io/ESPDeck/) installs the latest one from a browser.
+The firmware is different: it's a plain download. Releases are on this repository's Releases page, and the [web installer](https://jangellx.github.io/ESPDeck/install/) installs the latest one from a browser.
 
 ### Can I build it myself and never go near the App Store?
 

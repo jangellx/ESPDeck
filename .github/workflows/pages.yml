@@ -1,0 +1,56 @@
+# Publishes web/ (the ESPDeck site and its browser installer) to GitHub Pages whenever
+# something in it changes on main, so an edit to a page doesn't wait for the next firmware
+# release. The firmware release workflow (firmware.yml) publishes the same folder when a
+# release is tagged.
+#
+# The installer needs the firmware's full image on the same site, and that file isn't kept
+# in git (web/firmware/*.bin is ignored): it's fetched from the release that
+# web/manifest.json names.
+name: Site
+
+# Actions are pinned to commit SHAs (the version in each comment), as in firmware.yml.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "web/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, shared with nothing else; a newer one waits for the one running.
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fetch the firmware image the installer offers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$( python3 -c 'import json; print( json.load( open( "web/manifest.json" ) )["version"] )' )"
+          mkdir -p web/firmware
+          gh release download "firmware-v$VERSION" --pattern "espdeck-firmware-$VERSION-merged.bin" --dir web/firmware --clobber
+          ls -l web/firmware
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: web
+
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

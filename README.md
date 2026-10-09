@@ -35,7 +35,7 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 
 1. Gather the parts under Requirements, below. ESPDeck Bridge's **Getting Started** page lists them too and walks through each step.
 2. Build and run ESPDeck Bridge on the Mac ([The Mac app](docs/mac-app.md)).
-3. Plug the dev kit's **USB** port into the Mac and open **USB Setup**: it installs the firmware, joins the dev kit to Wi-Fi and names it ([Setting up a deck](docs/setup.md)). Without the Mac app, the [web installer](https://jangellx.github.io/ESPDeck/) does the same from a browser.
+3. Plug the dev kit's **USB** port into the Mac and open **USB Setup**: it installs the firmware, joins the dev kit to Wi-Fi and names it ([Setting up a deck](docs/setup.md)). Without the Mac app, the [web installer](https://jangellx.github.io/ESPDeck/install/) does the same from a browser.
 4. Unplug the dev kit, and connect it to the Stream Deck and power through the OTG adapter.
 5. Pair it when it appears under **New Devices**, then give its keys something to do.
 

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Install ESPDeck</title>
+<meta name="description" content="Install the ESPDeck firmware on an ESP32-S3 from your browser.">
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+:root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2e2e7;--accent:#0a7cff;--accent-text:#fff;--warn-bg:#fff6e5;--warn:#8a5a00}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989f;--line:#2c2c2e;--accent:#3d9bff;--warn-bg:#2b2112;--warn:#f5c16c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:720px;margin:0 auto;padding:56px 20px 64px}
+header{text-align:center;margin-bottom:40px}
+h1{font-size:44px;letter-spacing:-.03em;margin:0 0 8px}
+.back{margin:0 0 18px;font-size:15px}
+.back a{text-decoration:none}
+.lead{font-size:20px;color:var(--muted);margin:0 auto;max-width:560px}
+h2{font-size:22px;letter-spacing:-.01em;margin:0 0 12px}
+section{background:var(--card);border-radius:18px;padding:24px 26px;margin-bottom:20px;border:1px solid var(--line)}
+ul,ol{margin:0;padding-left:22px}
+.steps{text-align:left;margin:16px auto 20px;max-width:560px}
+li+li{margin-top:6px}
+.install{text-align:center;padding:36px 26px}
+.install button{font:inherit;font-size:19px;font-weight:600;color:var(--accent-text);background:var(--accent);border:0;border-radius:14px;padding:15px 36px;cursor:pointer}
+.install button:hover{filter:brightness(1.08)}
+.note{color:var(--muted);font-size:15px;margin:14px 0 0}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:12px 14px;font-size:15px;margin-top:18px;text-align:left}
+.muted{color:var(--muted)}
+footer{text-align:center;color:var(--muted);font-size:14px;margin-top:32px}
+a{color:var(--accent)}
+code{font:15px ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="back"><a href="../">&larr; ESPDeck</a></p>
+<h1>Install ESPDeck</h1>
+<p class="lead">Put the ESPDeck firmware on an ESP32-S3 dev kit, straight from your browser.</p>
+</header>
+
+<section>
+<h2>How it works</h2>
+<p>The Stream Deck plugs into a small ESP32-S3 board instead of a computer. The board joins your Wi-Fi and talks to <strong>ESPDeck Bridge</strong>, a Mac app that controls your HomeKit accessories and draws the keys. Press a key, and the Mac does the rest.</p>
+</section>
+
+<section>
+<h2>What you need</h2>
+<ul>
+<li>An <strong>ESP32-S3 board</strong> with 16 MB flash and 8 MB PSRAM, such as the ESP32-S3-DevKitC-1 N16R8.</li>
+<li>An <strong>Elgato Stream Deck</strong>: Mini, MK.2, XL, Neo, +, Pedal, or one of the modules.</li>
+<li>A <strong>5 V USB power supply rated 2 A or more</strong>, and its cable. It powers both the board and the Stream Deck.</li>
+<li>A passive <strong>USB-C OTG adapter with a power input</strong>: a USB-C plug for the board's native <strong>USB</strong> port, a USB-A port for the Stream Deck, and a USB-C port for the power supply. Adapters that need USB-PD negotiation may never switch on power to the Stream Deck.</li>
+<li>If the Stream Deck's cable ends in USB-C: a <strong>USB-A (male) to USB-C (female) adapter</strong> that includes the CC pull-up resistor. Choose one labeled for <strong>charging and sync</strong> (data), not charge-only; one that mentions a 56&nbsp;kΩ resistor is the surest bet. Not needed if the cable ends in USB-A.</li>
+<li>A USB <strong>data</strong> cable (not a charge-only one) from your computer to the board's <strong>USB</strong> port, for installing.</li>
+<li>A <strong>Mac</strong> running ESPDeck Bridge, on the same network.</li>
+<li>A <strong>2.4 GHz Wi-Fi</strong> network.</li>
+</ul>
+</section>
+
+<section class="install">
+<h2>Install the firmware</h2>
+<p class="muted">Connect the board, put it in flashing mode, click Install, and pick its serial port.</p>
+<ol class="steps">
+<li><strong>Use the board's USB port.</strong> The dev kit has two USB-C ports: <strong>USB</strong> (the chip's own) and <strong>UART</strong>, which many clone boards label <strong>COM</strong>. Install through <strong>USB</strong>. On some clones the COM port doesn't even power the board.</li>
+<li><strong>Put it in flashing mode</strong> if it's new or runs other firmware. Hold <strong>BOOT</strong> (also B0 or IO0), press and release <strong>RST</strong> (also EN or RESET), then let go of BOOT. A board already running ESPDeck doesn't need this: plugged into a computer, its USB port stays a serial port.</li>
+<li>Click <strong>Install ESPDeck</strong> and choose the port that appears (on a Mac, <code>cu.usbmodem…</code>; the names &ldquo;USB JTAG/serial debug unit&rdquo; or &ldquo;Espressif&rdquo;).</li>
+<li>When it's done, press <strong>RST</strong> (or unplug and replug the board) if it doesn't restart on its own.</li>
+<li>Stay on this page: once ESPDeck starts, the installer offers to <strong>connect it to Wi-Fi</strong>. Choose your network and enter its password. If you skip this, the deck's QR codes set up Wi-Fi later.</li>
+</ol>
+<esp-web-install-button manifest="../manifest.json">
+<button slot="activate">Install ESPDeck</button>
+<span slot="unsupported"><p class="warn">Your browser can't talk to USB devices. Open this page in <strong>Chrome</strong>, <strong>Edge</strong>, or <strong>Firefox 151</strong> or later on a Mac, Windows or Linux computer.</p></span>
+<span slot="not-allowed"><p class="warn">Installing needs a secure page. Open this page over <code>https://</code>.</p></span>
+</esp-web-install-button>
+<p class="note">Needs Chrome or Edge on a desktop computer; Firefox 151 and later support Web Serial too, but installing with Firefox is untested. Installing erases the board. ESPDeck's USB port only becomes the Stream Deck's host when a deck is attached instead of a computer, so reinstalling needs no buttons.</p>
+</section>
+
+<section>
+<h2>After installing</h2>
+<ol>
+<li>Plug the OTG adapter into the board's native <strong>USB</strong> port, the Stream Deck into the adapter's USB-A port, and the 2 A power supply into the adapter's power port. If you set up Wi-Fi in the installer, skip to the last step. Otherwise the deck shows two QR codes.</li>
+<li>Scan the <strong>left</strong> QR code with your phone's camera and join the board's own Wi-Fi network. Its name, <code>ESPDeck-XXXX</code>, is also shown on the top-center key.</li>
+<li>If your phone doesn't stay connected (an iPhone may switch back to your usual Wi-Fi, since this network has no internet), open <strong>Settings → Wi-Fi</strong> on the phone and choose that <code>ESPDeck-XXXX</code> network directly. Scanning the QR code already saved its password.</li>
+<li>The setup page usually opens by itself once you're connected. If it doesn't, scan the <strong>right</strong> QR code. Name the deck and choose your Wi-Fi network there.</li>
+<li>Open ESPDeck Bridge on your Mac and click <strong>Pair</strong>. Check that the 6-digit code on the Mac matches the deck, then press <strong>Confirm</strong> on the deck.</li>
+</ol>
+<p class="note">Later updates come from ESPDeck Bridge over Wi-Fi; you only need this page once. To get back to setup, hold the top-left and bottom-right keys for 5 seconds.</p>
+</section>
+
+<footer><a href="../">ESPDeck</a> &middot; <a href="https://github.com/jangellx/ESPDeck">GitHub</a> &middot; Installer by <a href="https://github.com/esphome/esp-web-tools">ESP Web Tools</a>.</footer>
+</main>
+</body>
+</html>
