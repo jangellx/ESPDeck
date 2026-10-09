@@ -53,6 +53,14 @@ It doesn't use it. The Stream Deck is plugged into the dev kit instead of a comp
 
 Because of HomeKit. Apple's HomeKit framework isn't available to ordinary (AppKit) Mac apps; on the Mac, only a Mac Catalyst app can use it. So the app is Catalyst, and the things Catalyst can't do live in a small AppKit bundle inside it: the menu bar item, running Shortcuts, and the serial port work in USB Setup.
 
+### Why does a small window appear for a moment when the app starts?
+
+That window is a splash screen, and it's there because of Catalyst too. A Mac Catalyst app is always given a window when it starts, whether it wants one or not, and ESPDeck Bridge has nothing to show in it: once it's running, it lives in the menu bar. So the window says "ESPDeck Bridge: Running in the menu bar" for two seconds and then closes by itself.
+
+The splash screen doubles as a reminder of where the app went, which helps the first few times, since the app has no Dock icon while its window is closed.
+
+There are two cases where the splash screen doesn't appear. With no decks set up yet, the configuration window opens instead, on Getting Started. And when you open the app from its menu bar menu, you get the configuration window you asked for.
+
 ### Does anything leave my network?
 
 No. The deck and the Mac talk to each other directly over your Wi-Fi, and the Mac talks to HomeKit. There's no account and no ESPDeck server. The only internet use is the app looking on GitHub for firmware releases and downloading them; under **Updates** you can have it look only when you click Check Now.
