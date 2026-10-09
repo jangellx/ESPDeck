@@ -59,8 +59,21 @@ figure{margin:0}
 .steps strong{color:var(--text)}
 
 /* Screenshots */
-.shot{border-radius:14px;border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.16)}
-.pair{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:20px}
+/* A row to scroll sideways: each stops in the middle, with the next one peeking in. It runs
+   to the window's edges, past the page's own margins. */
+.gallery{display:flex;gap:22px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;
+	margin:0 calc(50% - 50vw);padding:6px max(20px,calc(50vw - 440px)) 22px;scrollbar-width:thin}
+.gallery figure{flex:0 0 min(880px,86vw);scroll-snap-align:center}
+.gallery .frame{aspect-ratio:16/10;border-radius:14px;border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.14);overflow:hidden;background:var(--card);display:flex;align-items:center;justify-content:center}
+.gallery .frame img{width:100%;height:100%;object-fit:cover}
+/* The menu is small: shown at its own size on a desk-colored backdrop, not stretched. */
+.gallery .frame.menu{background:linear-gradient(160deg,#5a6b7d,#2c3540)}
+.gallery .frame.menu img{width:auto;height:78%;object-fit:contain;border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.4)}
+.gallery figcaption{text-align:left;font-size:15px;margin-top:12px;padding:0 4px}
+.gallery figcaption strong{color:var(--text);display:block;font-size:17px;margin-bottom:2px}
+.arrows{display:flex;gap:10px;justify-content:center;margin-top:2px}
+.arrows button{font:inherit;font-size:20px;line-height:1;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer}
+.arrows button:hover{border-color:var(--muted)}
 
 /* Parts */
 .parts{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
@@ -126,11 +139,21 @@ footer nav a{margin:0 8px;white-space:nowrap}
 
 <section id="app">
 <h2>ESPDeck Bridge</h2>
-<p class="sub">The Mac app is where a deck's keys are laid out. It shows the deck as it looks right now, and everything about the key you select.</p>
-<img class="shot" src="images/keys.png" width="1440" height="900" alt="ESPDeck Bridge's Keys page: a 15-key deck with the garage door key selected, and that key's settings beside it.">
-<div class="pair">
-<img class="shot" src="images/keys-stacked.png" width="1440" height="900" alt="The Keys page with the deck preview above the selected key's settings.">
-<img class="shot" src="images/level-keys.png" width="1440" height="900" alt="A pair of Level keys selected, with their step and arrow style settings.">
+<p class="sub">The Mac app is where a deck's keys are laid out, and where the work happens once they're pressed. Scroll sideways for a tour.</p>
+<div class="gallery" id="gallery" tabindex="0" aria-label="Screenshots of ESPDeck Bridge">
+<figure><div class="frame"><img src="images/keys.png" alt="ESPDeck Bridge's Keys page: a 15-key deck with the garage door key selected, and that key's settings beside it." loading="lazy"></div><figcaption><strong>The Keys page</strong>A preview of the deck as it looks right now, beside everything the selected key shows and does.</figcaption></figure>
+<figure><div class="frame menu"><img src="images/menu-bar.png" alt="The menu bar menu, listing two decks as connected, HomeKit as connected, and the Configure, Set Up a Device over USB, Launch at Login and Quit commands." loading="lazy"></div><figcaption><strong>Lives in the menu bar</strong>The app stays out of the way. Its menu shows each deck's state and opens the window when you need it.</figcaption></figure>
+<figure><div class="frame"><img src="images/hold.png" alt="A key's settings with the Hold tab chosen, and its icons for each state of a garage door." loading="lazy"></div><figcaption><strong>An icon for every state</strong>A garage door key can look different when the door is open, opening, closed, closing or stopped.</figcaption></figure>
+<figure><div class="frame"><img src="images/home-sheet.png" alt="The Home sheet, with a search field and a list of scenes to choose from." loading="lazy"></div><figcaption><strong>Pick from your Home</strong>Accessories and scenes are arranged by room, with a search field. One key can control several together.</figcaption></figure>
+<figure><div class="frame"><img src="images/level-keys.png" alt="A pair of Level keys selected, with their step and arrow style settings." loading="lazy"></div><figcaption><strong>Brightness and fan speed</strong>Two keys step a level up and down. You choose the step, the arrows, and whether a double tap goes all the way.</figcaption></figure>
+<figure><div class="frame"><img src="images/keys-stacked.png" alt="The Keys page with the deck preview above the selected key's settings." loading="lazy"></div><figcaption><strong>Room for a wide deck</strong>The preview can sit above the settings instead of beside them, which suits a 32-key deck.</figcaption></figure>
+<figure><div class="frame"><img src="images/mini.png" alt="A Stream Deck Mini's six keys in ESPDeck Bridge." loading="lazy"></div><figcaption><strong>Every size of deck</strong>Each deck appears in its own layout, from the six keys of a Mini to the 32 of an XL.</figcaption></figure>
+<figure><div class="frame"><img src="images/device-triggers.png" alt="The Device page's Key Presses and Trigger sections." loading="lazy"></div><figcaption><strong>Sleep and wake on cue</strong>A deck can sleep or wake when an accessory changes, and you set how long a double tap and a hold take.</figcaption></figure>
+<figure><div class="frame"><img src="images/getting-started.png" alt="Getting Started's What You Need sheet, with a drawing of each part." loading="lazy"></div><figcaption><strong>Guided from the first part</strong>Getting Started lists what to buy and walks through putting it together and setting it up.</figcaption></figure>
+</div>
+<div class="arrows">
+<button type="button" aria-label="Previous screenshot" onclick="document.getElementById('gallery').scrollBy({left:-600,behavior:'smooth'})">&#8249;</button>
+<button type="button" aria-label="Next screenshot" onclick="document.getElementById('gallery').scrollBy({left:600,behavior:'smooth'})">&#8250;</button>
 </div>
 </section>
 
