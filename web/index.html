@@ -84,6 +84,10 @@ figure{margin:0}
 .parts{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .parts figure{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:10px 10px 12px}
 .parts figcaption{color:#1d1d1f;font-weight:600;margin-top:2px}
+.parts a.part{text-decoration:none;display:block;border-radius:16px;transition:transform .15s,box-shadow .15s}
+.parts a.part:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.14)}
+.parts a.part figcaption::after{content:" \2197";color:#6e6e73;font-weight:400}
+.disclosure{font-size:14px;color:var(--muted);text-align:center;max-width:680px;margin:14px auto 0}
 .also{color:var(--muted);text-align:center;max-width:680px;margin:22px auto 0;font-size:16px}
 
 .split{display:grid;gap:28px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:center}
@@ -120,7 +124,7 @@ footer nav a{margin:0 8px;white-space:nowrap}
 <p class="sub">The Stream Deck plugs into a small Wi-Fi board in a computer's place. A Mac elsewhere on your network does the thinking.</p>
 <div class="paper"><img src="images/diagram-assembly.png" width="2040" height="1170" alt="A diagram: the Stream Deck and a power supply plug into an OTG adapter, which plugs into the dev kit's USB port. The dev kit reaches ESPDeck Bridge on a Mac over Wi-Fi."></div>
 <ol class="steps">
-<li><strong>The dev kit drives the deck.</strong> An ESP32-S3 dev kit plugs into the Stream Deck and powers it. It carries key presses and pictures, and nothing more.</li>
+<li><strong>The dev kit drives the deck.</strong> An <a href="https://amzn.to/4du2Uc3" rel="sponsored noopener" target="_blank">ESP32-S3 dev kit</a> plugs into the Stream Deck and powers it. It carries key presses and pictures, and nothing more.</li>
 <li><strong>ESPDeck Bridge runs on your Mac.</strong> The app watches your Home, draws every key, and triggers actions when keys are pressed. The Mac stays on.</li>
 <li><strong>The deck goes wherever you want it.</strong> By the door, on a nightstand, in the garage: anywhere your Wi-Fi reaches and there's a power outlet.</li>
 </ol>
@@ -218,7 +222,7 @@ footer nav a{margin:0 8px;white-space:nowrap}
 <img src="images/mini-mounted.jpg" width="1600" height="1200" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys.">
 <div>
 <h2>Put it where the buttons belong</h2>
-<p>Every Stream Deck with keys works: Mini, Original, MK.2, XL, Neo, +, Pedal and the modules. Only the keys are used, not dials, touch strips or second screens.</p>
+<p>Every <a href="https://amzn.to/4yBxZmp" rel="sponsored noopener" target="_blank">Stream Deck</a> with keys works: Mini, Original, MK.2, XL, Neo, +, Pedal and the modules. Only the keys are used, not dials, touch strips or second screens.</p>
 <p>This Mini lives under a garage shelf in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>, with the garage doors and lights a press away.</p>
 </div>
 </div>
@@ -228,14 +232,15 @@ footer nav a{margin:0 8px;white-space:nowrap}
 <h2>What you need</h2>
 <p class="sub">A Stream Deck, a dev kit and a few cables. There's no soldering, and the app installs the dev kit's firmware for you.</p>
 <div class="parts">
-<figure><img src="images/part-stream-deck.png" width="720" height="540" alt=""><figcaption>Stream Deck</figcaption></figure>
-<figure><img src="images/part-dev-kit.png" width="720" height="540" alt=""><figcaption>ESP32-S3 dev kit</figcaption></figure>
-<figure><img src="images/part-otg-adapter.png" width="720" height="540" alt=""><figcaption>USB-C OTG adapter</figcaption></figure>
-<figure><img src="images/part-a-to-c-adapter.png" width="720" height="540" alt=""><figcaption>USB-A to USB-C adapter</figcaption></figure>
-<figure><img src="images/part-power-supply.png" width="720" height="540" alt=""><figcaption>5 V power supply</figcaption></figure>
-<figure><img src="images/part-cable.png" width="720" height="540" alt=""><figcaption>USB-C data cable</figcaption></figure>
+<a class="part" href="https://amzn.to/4yBxZmp" rel="sponsored noopener" target="_blank"><figure><img src="images/part-stream-deck.png" width="720" height="540" alt=""><figcaption>Stream Deck</figcaption></figure></a>
+<a class="part" href="https://amzn.to/4du2Uc3" rel="sponsored noopener" target="_blank"><figure><img src="images/part-dev-kit.png" width="720" height="540" alt=""><figcaption>ESP32-S3 dev kit</figcaption></figure></a>
+<a class="part" href="https://amzn.to/4hLgsRC" rel="sponsored noopener" target="_blank"><figure><img src="images/part-otg-adapter.png" width="720" height="540" alt=""><figcaption>USB-C OTG adapter</figcaption></figure></a>
+<a class="part" href="https://amzn.to/47JT16u" rel="sponsored noopener" target="_blank"><figure><img src="images/part-a-to-c-adapter.png" width="720" height="540" alt=""><figcaption>USB-A to USB-C adapter</figcaption></figure></a>
+<a class="part" href="https://amzn.to/3TzgT9M" rel="sponsored noopener" target="_blank"><figure><img src="images/part-power-supply.png" width="720" height="540" alt=""><figcaption>5 V power supply</figcaption></figure></a>
+<a class="part" href="https://amzn.to/4zh1gmu" rel="sponsored noopener" target="_blank"><figure><img src="images/part-cable.png" width="720" height="540" alt=""><figcaption>USB-C data cable</figcaption></figure></a>
 </div>
-<p class="also">You also need a Mac on macOS 14 or later that stays on and is signed in to an iCloud account in your Home, and a 2.4&nbsp;GHz Wi-Fi network. The dev kit is an ESP32-S3 with 16&nbsp;MB flash and 8&nbsp;MB PSRAM, sold as N16R8. The <a href="https://github.com/jangellx/ESPDeck#requirements">full parts list</a> has the details that matter when you buy the adapters.</p>
+<p class="also">You also need a Mac on macOS 14 or later that stays on and is signed in to an iCloud account in your Home, and a 2.4&nbsp;GHz Wi-Fi network. The dev kit is an <a href="https://amzn.to/4du2Uc3" rel="sponsored noopener" target="_blank">ESP32-S3 with 16&nbsp;MB flash and 8&nbsp;MB PSRAM</a>, sold as N16R8. The <a href="https://github.com/jangellx/ESPDeck#requirements">full parts list</a> has the details that matter when you buy the adapters.</p>
+<p class="disclosure">Each part links to an example of it on Amazon. Those are affiliate links: as an Amazon Associate I earn from qualifying purchases, at no extra cost to you.</p>
 </section>
 
 <section id="start">
@@ -257,6 +262,7 @@ footer nav a{margin:0 8px;white-space:nowrap}
 <a href="https://github.com/jangellx/ESPDeck">GitHub</a>
 </nav>
 <p>ESPDeck is open source, released under the MIT License.</p>
+<p>As an Amazon Associate I earn from qualifying purchases. Links to parts on Amazon are affiliate links.</p>
 <p>Elgato and Stream Deck are trademarks of Corsair Memory, Inc. HomeKit and Mac are trademarks of Apple Inc. ESPDeck isn't affiliated with, endorsed by, or sponsored by Elgato, Corsair, Apple, or Espressif.</p>
 </footer>
 
