@@ -83,10 +83,12 @@ figure{margin:0}
 /* Parts */
 .parts{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .parts figure{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:10px 10px 12px}
-.parts figcaption{color:#1d1d1f;font-weight:600;margin-top:2px}
-.parts a.part{text-decoration:none;display:block;border-radius:16px;transition:transform .15s,box-shadow .15s}
+/* Every card as tall as the tallest in its row, with room for a name on two lines. */
+.parts figure{flex:1;display:flex;flex-direction:column}
+.parts figcaption{color:#1d1d1f;font-weight:600;margin-top:2px;font-size:15px;line-height:1.3;min-height:2.6em}
+.parts a.part{text-decoration:none;display:flex;border-radius:16px;transition:transform .15s,box-shadow .15s}
 .parts a.part:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.14)}
-.parts a.part figcaption::after{content:" \2197";color:#6e6e73;font-weight:400}
+.parts a.part figcaption::after{content:"\00a0\2197";color:#6e6e73;font-weight:400}
 .disclosure{font-size:14px;color:var(--muted);text-align:center;max-width:680px;margin:14px auto 0}
 .also{color:var(--muted);text-align:center;max-width:680px;margin:22px auto 0;font-size:16px}
 
