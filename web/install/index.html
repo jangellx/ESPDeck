@@ -32,6 +32,25 @@ li+li{margin-top:6px}
 footer{text-align:center;color:var(--muted);font-size:14px;margin-top:32px}
 a{color:var(--accent)}
 code{font:15px ui-monospace,SFMono-Regular,Menlo,monospace}
+img{max-width:100%;height:auto;display:block}
+/* The app's drawings are black on white: they keep a white sheet in the dark too. */
+.paper{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin:16px 0}
+.paper img{margin:0 auto}
+.parts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:4px 0 18px}
+.parts a{text-decoration:none;display:flex;border-radius:14px;transition:transform .15s,box-shadow .15s}
+.parts a:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.14)}
+.parts figure{flex:1;margin:0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px 8px 10px;text-align:center}
+.parts figcaption{color:#1d1d1f;font-weight:600;font-size:15px;line-height:1.3;min-height:2.6em}
+.parts figcaption::after{content:"\00a0\2197";color:#6e6e73;font-weight:400}
+/* Browser or Mac App: two radio buttons drawn as one control, each showing its own steps. */
+.tabs>input{position:absolute;opacity:0;pointer-events:none}
+.tabs>label{display:inline-block;font-weight:600;font-size:16px;padding:8px 22px;cursor:pointer;color:var(--muted);background:var(--bg);border:1px solid var(--line)}
+.tabs>label:first-of-type{border-radius:10px 0 0 10px;border-right:0}
+.tabs>label:last-of-type{border-radius:0 10px 10px 0}
+.tabs>input:checked+label{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.tabs>input:focus-visible+label{outline:2px solid var(--accent);outline-offset:2px}
+.tabs>.panel{display:none;margin-top:22px}
+#how-browser:checked~#panel-browser,#how-mac:checked~#panel-mac{display:block}
 </style>
 </head>
 <body>
@@ -49,6 +68,14 @@ code{font:15px ui-monospace,SFMono-Regular,Menlo,monospace}
 
 <section>
 <h2>What you need</h2>
+<div class="parts">
+<a href="https://amzn.to/4yBxZmp" rel="sponsored noopener" target="_blank"><figure><img src="../images/part-stream-deck.png" width="720" height="540" alt=""><figcaption>Stream Deck</figcaption></figure></a>
+<a href="https://amzn.to/4du2Uc3" rel="sponsored noopener" target="_blank"><figure><img src="../images/part-dev-kit.png" width="720" height="540" alt=""><figcaption>ESP32-S3 dev kit</figcaption></figure></a>
+<a href="https://amzn.to/4hLgsRC" rel="sponsored noopener" target="_blank"><figure><img src="../images/part-otg-adapter.png" width="720" height="540" alt=""><figcaption>USB-C OTG adapter</figcaption></figure></a>
+<a href="https://amzn.to/47JT16u" rel="sponsored noopener" target="_blank"><figure><img src="../images/part-a-to-c-adapter.png" width="720" height="540" alt=""><figcaption>USB-A to USB-C adapter</figcaption></figure></a>
+<a href="https://amzn.to/3TzgT9M" rel="sponsored noopener" target="_blank"><figure><img src="../images/part-power-supply.png" width="720" height="540" alt=""><figcaption>5 V power supply</figcaption></figure></a>
+<a href="https://amzn.to/4zh1gmu" rel="sponsored noopener" target="_blank"><figure><img src="../images/part-cable.png" width="720" height="540" alt=""><figcaption>USB-C data cable</figcaption></figure></a>
+</div>
 <ul>
 <li>An <a href="https://amzn.to/4du2Uc3" rel="sponsored noopener" target="_blank"><strong>ESP32-S3 board</strong></a> with 16 MB flash and 8 MB PSRAM, such as the ESP32-S3-DevKitC-1 N16R8.</li>
 <li>An <a href="https://amzn.to/4yBxZmp" rel="sponsored noopener" target="_blank"><strong>Elgato Stream Deck</strong></a>: Mini, MK.2, XL, Neo, +, Pedal, or one of the modules.</li>
@@ -64,7 +91,14 @@ code{font:15px ui-monospace,SFMono-Regular,Menlo,monospace}
 
 <section class="install">
 <h2>Install the firmware</h2>
-<p class="muted">Connect the board, put it in flashing mode, click Install, and pick its serial port.</p>
+<p class="muted">Either way starts the same: connect the dev kit's <strong>USB</strong> port to the computer with a cable that carries data.</p>
+<div class="paper"><img src="../images/diagram-usb-connection.png" width="1800" height="678" alt="A diagram: a computer connected by a USB-C data cable to the dev kit's port labeled USB, not the one labeled UART or COM."></div>
+<div class="tabs">
+<input type="radio" name="how" id="how-browser" checked><label for="how-browser">Browser</label>
+<input type="radio" name="how" id="how-mac"><label for="how-mac">Mac App</label>
+
+<div class="panel" id="panel-browser">
+<p class="muted">From this page, in Chrome or Edge on any desktop computer. Put the board in flashing mode, click Install, and pick its serial port.</p>
 <ol class="steps">
 <li><strong>Use the board's USB port.</strong> The dev kit has two USB-C ports: <strong>USB</strong> (the chip's own) and <strong>UART</strong>, which many clone boards label <strong>COM</strong>. Install through <strong>USB</strong>. On some clones the COM port doesn't even power the board.</li>
 <li><strong>Put it in flashing mode</strong> if it's new or runs other firmware. Hold <strong>BOOT</strong> (also B0 or IO0), press and release <strong>RST</strong> (also EN or RESET), then let go of BOOT. A board already running ESPDeck doesn't need this: plugged into a computer, its USB port stays a serial port.</li>
@@ -78,17 +112,33 @@ code{font:15px ui-monospace,SFMono-Regular,Menlo,monospace}
 <span slot="not-allowed"><p class="warn">Installing needs a secure page. Open this page over <code>https://</code>.</p></span>
 </esp-web-install-button>
 <p class="note">Needs Chrome or Edge on a desktop computer; Firefox 151 and later support Web Serial too, but installing with Firefox is untested. Installing erases the board. ESPDeck's USB port only becomes the Stream Deck's host when a deck is attached instead of a computer, so reinstalling needs no buttons.</p>
+</div>
+
+<div class="panel" id="panel-mac">
+<p class="muted">From ESPDeck Bridge on the Mac that will run your decks. The app finds the board, installs the firmware and sets up Wi-Fi in one place.</p>
+<ol class="steps">
+<li><strong>Open USB Setup.</strong> In ESPDeck Bridge, choose <strong>USB Setup</strong> in the window's sidebar, or <strong>Set Up a Device over USB…</strong> in the menu bar menu.</li>
+<li><strong>Plug in the dev kit</strong> by its <strong>USB</strong> port. The board appears under Board Info, with what it found: the chip, its flash and its memory. A board on the UART or COM port is shown with a note to move the cable.</li>
+<li><strong>Click Install Firmware.</strong> The Firmware menu starts on the latest release, which the app checks against its signature before installing. The app puts the board in flashing mode itself. If the board runs firmware that ignores that, the page asks you to hold <strong>BOOT</strong> and press <strong>RST</strong>.</li>
+<li><strong>Set up Wi-Fi.</strong> Choose your network, enter its password and click <strong>Join Network</strong>. A new board has <strong>Encrypt stored secrets</strong> checked, which keeps the password safe on the chip.</li>
+<li><strong>Name the deck</strong> if you like, then unplug the board. The end of the page shows how to put the deck together.</li>
+</ol>
+<p class="note">Installing from the app keeps a board's Wi-Fi settings, name and pairing, so it's also the way to reinstall. ESPDeck Bridge is on its way to the Mac App Store; until then you can <a href="https://github.com/jangellx/ESPDeck/blob/main/docs/faq.md#can-i-build-it-myself-and-never-go-near-the-app-store">build it yourself</a>. The <a href="https://github.com/jangellx/ESPDeck/blob/main/docs/setup.md#installing-with-espdeck-bridge">setup guide</a> has every detail.</p>
+</div>
+</div>
 </section>
 
 <section>
 <h2>After installing</h2>
+<div class="paper"><img src="../images/diagram-assembly.png" width="2040" height="1170" alt="A diagram: the Stream Deck and a power supply plug into an OTG adapter, which plugs into the dev kit's USB port. The dev kit reaches ESPDeck Bridge on a Mac over Wi-Fi."></div>
 <ol>
 <li>Plug the OTG adapter into the board's native <strong>USB</strong> port, the Stream Deck into the adapter's USB-A port, and the 2 A power supply into the adapter's power port. If you set up Wi-Fi in the installer, skip to the last step. Otherwise the deck shows two QR codes.</li>
 <li>Scan the <strong>left</strong> QR code with your phone's camera and join the board's own Wi-Fi network. Its name, <code>ESPDeck-XXXX</code>, is also shown on the top-center key.</li>
 <li>If your phone doesn't stay connected (an iPhone may switch back to your usual Wi-Fi, since this network has no internet), open <strong>Settings → Wi-Fi</strong> on the phone and choose that <code>ESPDeck-XXXX</code> network directly. Scanning the QR code already saved its password.</li>
 <li>The setup page usually opens by itself once you're connected. If it doesn't, scan the <strong>right</strong> QR code. Name the deck and choose your Wi-Fi network there.</li>
-<li>Open ESPDeck Bridge on your Mac and click <strong>Pair</strong>. Check that the 6-digit code on the Mac matches the deck, then press <strong>Confirm</strong> on the deck.</li>
+<li>Open ESPDeck Bridge on your Mac and click <strong>Pair with This Mac</strong>. Check that the 6-digit code on the Mac matches the deck, click <strong>The Deck Shows This Code</strong>, and hold <strong>Confirm</strong> on the deck.</li>
 </ol>
+<div class="paper"><img src="../images/diagram-wifi-setup.png" width="1920" height="906" alt="A diagram: a Stream Deck in setup mode showing two QR codes, and a phone scanning the first to join the network ESPDeck-XXXX."></div>
 <p class="note">Later updates come from ESPDeck Bridge over Wi-Fi; you only need this page once. To get back to setup, hold the top-left and bottom-right keys for 5 seconds.</p>
 </section>
 
