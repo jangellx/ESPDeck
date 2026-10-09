@@ -1,14 +1,14 @@
 # ESPDeck
 
-<p><img src="docs/images/deck-and-dev-kit.jpg" alt="A 15-key Stream Deck showing HomeKit keys, plugged into an ESP32-S3 dev kit through an OTG adapter."><br><sup>A Stream Deck MK.2 running from an ESP32-S3 dev kit. The green light means it's connected to ESPDeck Bridge.</sup></p>
+<p align="center"><img src="docs/images/deck-and-dev-kit.jpg" alt="A 15-key Stream Deck showing HomeKit keys, plugged into an ESP32-S3 dev kit through an OTG adapter."><br><sup>A Stream Deck MK.2 running from an ESP32-S3 dev kit. The green light means it's connected to ESPDeck Bridge.</sup></p>
 
 Turn an [Elgato Stream Deck](https://www.elgato.com/stream-deck) into a HomeKit control panel you can put anywhere in the house, away from your computer. An ESP32-S3 dev kit plugs into the Stream Deck in a computer's place and connects over Wi-Fi to **ESPDeck Bridge**, an app on a Mac elsewhere on your network.
 
 You still need that Mac: it stays on, watches your Home, and triggers actions when keys are pressed. The dev kit only carries key presses and pictures between the Stream Deck and the Mac.
 
-<p><img src="docs/images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys."><br><sup>A Stream Deck Mini under a garage shelf, in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>.</sup></p>
+<p align="center"><img src="docs/images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys."><br><sup>A Stream Deck Mini under a garage shelf, in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>.</sup></p>
 
-![ESPDeck Bridge's Keys page: a 15-key deck with the garage door key selected, and that key's settings beside it.](docs/images/keys.png)
+<p align="center"><img src="docs/images/keys.png" alt="ESPDeck Bridge&#x27;s Keys page: a 15-key deck with the garage door key selected, and that key&#x27;s settings beside it."></p>
 
 - **Keys that show what's happening.** A key shows its accessory's state (on or off, open, opening, closed, locked) with the icon, label and color you choose for each state, and follows changes made anywhere else.
 - **Accessories, scenes and Shortcuts.** A key toggles an accessory or a group of them, runs a scene, or runs one of your Shortcuts.
@@ -31,7 +31,7 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 
 ## Getting started
 
-<p><img src="docs/images/diagram-assembly.png" alt="A diagram: the Stream Deck and a power supply plug into an OTG adapter, which plugs into the dev kit's USB port; the dev kit reaches ESPDeck Bridge on a Mac over Wi-Fi."><br><sup>How the parts connect. The same drawings are in the app's Getting Started page.</sup></p>
+<p align="center"><img src="docs/images/diagram-assembly.png" alt="A diagram: the Stream Deck and a power supply plug into an OTG adapter, which plugs into the dev kit's USB port; the dev kit reaches ESPDeck Bridge on a Mac over Wi-Fi."><br><sup>How the parts connect. The same drawings are in the app's Getting Started page.</sup></p>
 
 1. Gather the parts under Requirements, below. ESPDeck Bridge's **Getting Started** page lists them too and walks through each step.
 2. Build and run ESPDeck Bridge on the Mac ([The Mac app](docs/mac-app.md)).
@@ -49,7 +49,7 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 
 ## Requirements
 
-<p><img src="docs/images/mini-assembly.jpg" alt="A Stream Deck Mini, a USB-C OTG adapter with a power cable and a USB-A adapter plugged into it, and an ESP32-S3 dev kit, all connected."><br><sup>Everything for one ESPDeck: the Stream Deck, the OTG adapter with its power cable and the USB-A adapter for the deck's cable, and the dev kit.</sup></p>
+<p align="center"><img src="docs/images/mini-assembly.jpg" alt="A Stream Deck Mini, a USB-C OTG adapter with a power cable and a USB-A adapter plugged into it, and an ESP32-S3 dev kit, all connected."><br><sup>Everything for one ESPDeck: the Stream Deck, the OTG adapter with its power cable and the USB-A adapter for the deck's cable, and the dev kit.</sup></p>
 
 <table>
 <tr><td align="center"><img src="docs/images/part-stream-deck.png" width="200" alt="A drawing of the part: Stream Deck."><br><sup>1. Stream Deck</sup></td><td align="center"><img src="docs/images/part-dev-kit.png" width="200" alt="A drawing of the part: ESP32-S3 dev kit."><br><sup>2. ESP32-S3 dev kit</sup></td><td align="center"><img src="docs/images/part-otg-adapter.png" width="200" alt="A drawing of the part: USB-C OTG adapter."><br><sup>3. USB-C OTG adapter</sup></td></tr>

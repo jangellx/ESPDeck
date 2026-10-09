@@ -19,9 +19,9 @@ The firmware knows each of these models and reports its layout to the Mac:
 | Stream Deck + | 2 × 4 |
 | Stream Deck Pedal | 3 pedals, no screen |
 
-<p><img src="images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys."><br><sup>A Stream Deck Mini under a garage shelf, in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>.</sup></p>
+<p align="center"><img src="images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys."><br><sup>A Stream Deck Mini under a garage shelf, in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>.</sup></p>
 
-![The same Mini's six keys in ESPDeck Bridge.](images/mini.png)
+<p align="center"><img src="images/mini.png" alt="The same Mini&#x27;s six keys in ESPDeck Bridge."></p>
 
 - **Tested on real hardware:** the Mini and the MK.2 Scissor. The others follow the same USB protocols (taken from [python-elgato-streamdeck](https://github.com/abcminiuser/python-elgato-streamdeck)) but haven't been tried. If the pictures come out sideways or mirrored on yours, change **Image Orientation** on the deck's Device page.
 - **What isn't supported on particular models:** the Stream Deck +'s four dials and its touch strip, and the Neo's two touch keys, do nothing. The Neo's info bar and the +'s strip show the deck's name and nothing else.
