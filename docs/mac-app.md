@@ -99,15 +99,16 @@ A deck can have several pages of keys, and the page bar above the preview moves 
 
 ### Menus
 
-A menu is another set of keys that takes the place of the page while the menu is open, like a folder. A key opens the menu, and the menu closes again on its own or with its Close key.
+A menu is another set of keys that takes the place of the page while the menu is open, like a folder. A key opens the menu, and the menu's Close key goes back to the page.
 
 - A key becomes a Menu key on the **Menu** tab of its settings. The menu can open on the key's tap, double tap or hold.
 - **Edit Menu**, in the Menu key's settings, shows the menu in the preview and on the deck. The menu's keys are then set up like the keys of a page.
 - While a menu is open, the page bar reads **Editing** with the menu's name, which is the label of the key that opens it. **Close Menu**, at the right of the bar, goes back to the page.
-- While a menu is open, the settings beside the preview have two tabs. **Menu** has the menu's own settings: how the menu closes, and its Close key. **Key** has the settings of the selected key. The ‹ beside the tabs closes the menu, and selecting a key shows the Key tab.
+- While a menu is open, the settings beside the preview have two tabs. **Menu** has the menu's own settings: Dismiss on Action, and the Close key. **Key** has the settings of the selected key. The ‹ beside the tabs closes the menu, and selecting a key shows the Key tab.
 - Double-clicking a Menu key in the preview also opens its menu, and shift-clicking a key presses the key as the deck would.
-- A menu that closes **On Action** runs the key that is pressed and then closes. Level keys keep the menu open, since they step while held.
-- A menu that closes **Manually** stays open until its Close key is pressed. The Close key is either a back key at the top left or a close key at the top right, with a choice of icons for each. The Close key can't be edited, and the key stored in its corner comes back when the Close key moves.
+- Every menu has a Close key, which leaves the menu without doing anything else. The Close key is either a back key at the top left or a close key at the top right, with a choice of icons for each. The Close key can't be edited.
+- Moving the Close key to the other corner moves the key that was in that corner to the corner the Close key left.
+- **Dismiss on Action** also closes the menu after one of its keys is pressed. Level keys keep the menu open, since they step while held. With Dismiss on Action off, the menu stays open until its Close key is pressed.
 - A menu's keys can do everything a page's keys can, except open another menu.
 - Copying a Menu key, or its action, copies the menu with it.
 - Clearing the key that opens a menu removes the menu too. **Edit ▸ Undo** brings both back.
@@ -145,7 +146,7 @@ The **Controlling** section chooses what the press acts on. It has four tabs.
   - With more than one Home, accessories and scenes are grouped by Home, and one key can use several Homes.
 - The **Shortcut** tab has your Shortcuts. See [Shortcuts](#shortcuts), below.
 - The **Page** tab has the commands that move between pages: Next Page, Previous Page, First Page, Last Page, Go to Page, and Show Page Number.
-- The **Menu** tab makes the press open a menu of more keys, and says how the menu closes. See [Menus](#menus), above.
+- The **Menu** tab makes the press open a menu of more keys, and has the menu's settings. See [Menus](#menus), above.
 
 ### 3. What the press does
 

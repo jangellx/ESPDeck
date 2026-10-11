@@ -4,30 +4,13 @@
 //
 //  A menu: a set of keys that takes the place of the page while it's open, like a folder in
 //  Elgato's software. A key opens it with its tap, double tap or hold (KeyKind.menu), and
-//  names it by ID; the device keeps the menus (DeviceSettings.menus). It closes after one
-//  of its keys is pressed, or with its own Close key.
+//  names it by ID; the device keeps the menus (DeviceSettings.menus). Its Close key, in a
+//  corner, goes back to the page; it can also close by itself after one of its keys is pressed.
 //
 
 import Foundation
 
-/// How a menu goes away again.
-enum MenuDismissal: String, Codable, CaseIterable, Identifiable {
-	/// Pressing any of its keys runs the key and closes the menu.
-	case onAction
-	/// It stays until its Close key is pressed; that key takes a corner of the menu.
-	case manual
-
-	var id: String { rawValue }
-
-	var title: String {
-		switch self {
-			case .onAction: "On Action"
-			case .manual:   "Manually"
-		}
-	}
-}
-
-/// The Close key of a menu that's closed manually: where it is and what it shows.
+/// A menu's Close key: where it is and what it shows.
 enum MenuCloseStyle: String, Codable, CaseIterable, Identifiable {
 	/// A "go back" key at the top left.
 	case back
@@ -68,7 +51,9 @@ struct DeckMenu: Codable, Equatable, Identifiable {
 	var id          = UUID()
 	/// Its keys, on the same grid as a page's (DeviceSettings.pages).
 	var keys        : [KeyAssignment] = []
-	var dismissal   = MenuDismissal.onAction
+	/// Pressing one of its keys runs the key and closes the menu. Either way the Close key
+	/// leaves it without doing anything.
+	var closesOnAction = true
 	var closeStyle  = MenuCloseStyle.back
 	/// The Close key's SF Symbol; nil (or one the style doesn't offer) is the style's first.
 	var closeSymbol : String?
@@ -82,9 +67,9 @@ struct DeckMenu: Codable, Equatable, Identifiable {
 		closeSymbol.flatMap { closeStyle.symbols.contains( $0 ) ? $0 : nil } ?? closeStyle.symbols[0]
 	}
 
-	/// Where the Close key is on a deck with `layout`; nil for a menu that closes on its own.
-	func closeKey( in layout: DeckLayout ) -> Int? {
-		dismissal == .manual ? closeStyle.key( in: layout ) : nil
+	/// Where the Close key is on a deck with `layout`.
+	func closeKey( in layout: DeckLayout ) -> Int {
+		closeStyle.key( in: layout )
 	}
 
 	/// The key standing in the Close key's place: not stored, and not editable.
@@ -97,7 +82,8 @@ struct DeckMenu: Codable, Equatable, Identifiable {
 	}()
 
 	private enum CodingKeys: String, CodingKey {
-		case id, keys, dismissal, closeStyle, closeSymbol
+		case id, keys, closesOnAction, closeStyle, closeSymbol
+		case dismissal   // before every menu had a Close key: "onAction" or "manual"
 	}
 
 	/// Field by field; only the ID is needed.
@@ -105,7 +91,7 @@ struct DeckMenu: Codable, Equatable, Identifiable {
 		let container = try decoder.container( keyedBy: CodingKeys.self )
 		id            = try container.decode( UUID.self, forKey: .id )
 		keys          = container.lenientArray( of: KeyAssignment.self, forKey: .keys, placeholder: KeyAssignment() ) ?? []
-		dismissal     = container.lenient( MenuDismissal.self, forKey: .dismissal ) ?? .onAction
+		closesOnAction = container.lenient( Bool.self, forKey: .closesOnAction ) ?? ( container.lenient( String.self, forKey: .dismissal ) != "manual" )
 		closeStyle    = container.lenient( MenuCloseStyle.self, forKey: .closeStyle ) ?? .back
 		closeSymbol   = container.lenient( String.self, forKey: .closeSymbol )
 	}
@@ -116,7 +102,7 @@ struct DeckMenu: Codable, Equatable, Identifiable {
 		var keys = keys
 		while let last = keys.last, last.isEmpty { keys.removeLast() }
 		try container.encode( keys, forKey: .keys )
-		try container.encode( dismissal, forKey: .dismissal )
+		try container.encode( closesOnAction, forKey: .closesOnAction )
 		try container.encode( closeStyle, forKey: .closeStyle )
 		try container.encodeIfPresent( closeSymbol, forKey: .closeSymbol )
 	}

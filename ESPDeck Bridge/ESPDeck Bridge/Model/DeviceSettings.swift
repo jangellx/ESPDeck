@@ -304,13 +304,14 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	/// The current page's keys, numbered as `layout` numbers them. Setting it writes them back
 	/// to their grid places and leaves keys the layout doesn't show alone.
 	///
-	/// With a menu open these are the menu's keys instead, and a menu that's closed manually
-	/// has its Close key in its corner, which setting leaves alone.
+	/// With a menu open these are the menu's keys instead, with the menu's Close key in its
+	/// corner, which setting leaves alone.
 	var keys: [KeyAssignment] {
 		get {
 			guard let menu = shownMenu else { return Self.display( pages[currentPage], layout: layout ) }
 			var keys = Self.display( menu.keys, layout: layout )
-			if let close = menu.closeKey( in: layout ), close < keys.count { keys[close] = DeckMenu.closeAssignment }
+			let close = menu.closeKey( in: layout )
+			if close < keys.count { keys[close] = DeckMenu.closeAssignment }
 			return keys
 		}
 		set {
@@ -388,6 +389,37 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 			menus.append( DeckMenu( id: id ) )
 		}
 		if shownMenu == nil { openMenu = nil }
+		// A key stored in a menu's Close corner (a menu from before every menu had a Close
+		// key) moves to the first free key, so the Close key doesn't hide it.
+		for index in menus.indices {
+			let corner = menus[index].closeKey( in: layout )
+			let keys   = Self.display( menus[index].keys, layout: layout )
+			guard corner < keys.count, !keys[corner].isEmpty,
+				  let free = keys.indices.first( where: { $0 != corner && keys[$0].isEmpty } ) else { continue }
+			swapMenuKeys( menu: index, corner, free )
+		}
+	}
+
+	/// Moves a menu's Close key to its other corner. The key that was in that corner takes
+	/// the corner the Close key leaves, so it isn't hidden under it.
+	mutating func setCloseStyle( _ style: MenuCloseStyle, menu id: UUID ) {
+		guard let index = menus.firstIndex( where: { $0.id == id } ), menus[index].closeStyle != style else { return }
+		let old = menus[index].closeKey( in: layout )
+		menus[index].closeStyle  = style
+		menus[index].closeSymbol = nil   // the other style's symbols
+		swapMenuKeys( menu: index, old, menus[index].closeKey( in: layout ) )
+	}
+
+	/// Exchanges two of a menu's keys, as `layout` numbers them; a Level pair stays a pair.
+	private mutating func swapMenuKeys( menu index: Int, _ first: Int, _ second: Int ) {
+		var keys = Self.display( menus[index].keys, layout: layout )
+		guard first != second, max( first, second ) < keys.count else { return }
+		keys.swapAt( first, second )
+		for key in keys.indices {
+			if keys[key].slider?.partner == first { keys[key].slider?.partner = second }
+			else if keys[key].slider?.partner == second { keys[key].slider?.partner = first }
+		}
+		menus[index].keys = Self.store( keys, into: menus[index].keys, layout: layout )
 	}
 
 	/// The key that opens a menu, for its name: the first one found, the page shown first.

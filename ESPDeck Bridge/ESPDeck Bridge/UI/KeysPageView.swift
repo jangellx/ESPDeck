@@ -193,7 +193,7 @@ struct KeysPageView: View {
 				Spacer( minLength: 8 )
 				Button( "Close Menu" ) { controller.closeMenu( device: deviceID ) }
 					.buttonStyle( .borderedProminent )
-					.help( "Go back to the page. On the deck, the menu closes \(menu.dismissal == .manual ? "with its Close key" : "when one of its keys is pressed")." )
+					.help( "Go back to the page. On the deck, the menu closes with its Close key\(menu.closesOnAction ? ", or when one of its keys is pressed" : "")." )
 			} else {
 				Text( "Page" )
 					.foregroundStyle( Color.secondary )

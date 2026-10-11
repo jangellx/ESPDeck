@@ -88,7 +88,8 @@ extension DeckController {
 		return opener.label.isEmpty ? defaultName( for: opener ) ?? "Menu" : opener.label
 	}
 
-	/// Changes a menu's own settings (how it closes, its Close key), as an undo step.
+	/// Changes a menu's own settings (whether it dismisses on action, its Close key's icon),
+	/// as an undo step.
 	func updateMenu( device id: String, _ menu: UUID, _ change: ( inout DeckMenu ) -> Void ) {
 		guard let index = config.settings.deviceIndex( id ),
 			  let place = config.settings.devices[index].menus.firstIndex( where: { $0.id == menu } ) else { return }
@@ -101,6 +102,19 @@ extension DeckController {
 		assignmentsChanged( device: id )
 	}
 
+	/// Moves a menu's Close key to its other corner, as an undo step; the key that was there
+	/// moves to the corner it left.
+	func setMenuCloseStyle( device id: String, _ menu: UUID, _ style: MenuCloseStyle ) {
+		guard let index = config.settings.deviceIndex( id ) else { return }
+		var changed = config.settings.devices[index]
+		changed.setCloseStyle( style, menu: menu )
+		guard changed != config.settings.devices[index] else { return }
+		recordUndo( device: id, "Edit Menu" )
+		if changed.openMenu == menu { stopSliders( device: id ) }
+		config.settings.devices[index] = changed
+		assignmentsChanged( device: id )
+	}
+
 	/// A Menu key's press, or the Close key's.
 	func performMenu( _ assignment: KeyAssignment, device id: String, key: Int? ) {
 		if assignment.action == .closeMenu {
@@ -110,11 +124,11 @@ extension DeckController {
 		}
 	}
 
-	/// Whether pressing a key for `action` closes the open menu afterward: a menu that closes
-	/// on action, and a key that did something. Page commands leave the menu themselves, and
+	/// Whether pressing a key for `action` closes the open menu afterward: a menu that
+	/// dismisses on action, and a key that did something. Page commands leave the menu themselves, and
 	/// Level keys (which step while held) keep it open.
 	func closesMenu( after action: KeyAssignment?, device id: String ) -> Bool {
-		guard openMenu( device: id )?.dismissal == .onAction, let action, let kind = action.kind else { return false }
+		guard openMenu( device: id )?.closesOnAction == true, let action, let kind = action.kind else { return false }
 		return kind != .menu && kind != .page && action.action != .none && action.slider == nil
 	}
 

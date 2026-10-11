@@ -2,14 +2,14 @@
 //  MenuOptionRows.swift
 //  ESPDeck Bridge
 //
-//  A menu's own settings, as Form rows: how it closes and, for one that's closed manually,
-//  where its Close key is and what it shows. Shown for the key that opens the menu, and by
+//  A menu's own settings, as Form rows: whether it dismisses on action, and where its Close
+//  key is and what it shows. Shown for the key that opens the menu, and by
 //  the inspector's Menu tab while the menu is open (MenuInspector).
 //
 
 import SwiftUI
 
-/// How a menu closes, and its Close key.
+/// Whether a menu dismisses on action, and its Close key.
 struct MenuOptionRows: View {
 	let controller : DeckController
 	let deviceID   : String
@@ -27,55 +27,42 @@ struct MenuOptionRows: View {
 
 	var body: some View {
 		if let menu {
-			LabeledContent( "Dismiss" ) {
-				Picker( "Dismiss", selection: binding( \.dismissal, of: menu ) ) {
-					ForEach( MenuDismissal.allCases ) { dismissal in
-						Text( dismissal.title ).tag( dismissal )
+			Toggle( isOn: binding( \.closesOnAction, of: menu ) ) {
+				Text( "Dismiss on Action" )
+				Text( menu.closesOnAction
+					  ? "Pressing a key in the menu runs the key and closes the menu. Level keys keep the menu open, since they step while held."
+					  : "The menu stays open until its Close key is pressed." )
+			}
+			.toggleStyle( .switch )
+
+			LabeledContent( "Close Key" ) {
+				Picker( "Close Key", selection: Binding {
+					menu.closeStyle
+				} set: { style in
+					controller.setMenuCloseStyle( device: deviceID, menuID, style )
+				} ) {
+					ForEach( MenuCloseStyle.allCases ) { style in
+						Label( style.title, systemImage: style.symbols[0] ).tag( style )
 					}
 				}
-				.pickerStyle( .segmented )
 				.labelsHidden()
 				.scaledFrame( width: Self.controlWidth )
 			}
 
-			if menu.dismissal == .manual {
-				LabeledContent( "Close Key" ) {
-					Picker( "Close Key", selection: Binding {
-						menu.closeStyle
-					} set: { style in
-						controller.updateMenu( device: deviceID, menuID ) { menu in
-							menu.closeStyle  = style
-							menu.closeSymbol = nil   // the other style's symbols
-						}
-					} ) {
-						ForEach( MenuCloseStyle.allCases ) { style in
-							Label( style.title, systemImage: style.symbols[0] ).tag( style )
-						}
-					}
-					.labelsHidden()
-					.scaledFrame( width: Self.controlWidth )
-				}
-
-				LabeledContent( "Icon" ) {
-					// Two rows: five across for Back, four for Close.
-					let symbols = menu.closeStyle.symbols
-					let across  = ( symbols.count + 1 ) / 2
-					Grid( horizontalSpacing: Self.symbolSpacing, verticalSpacing: Self.symbolSpacing ) {
-						ForEach( [ Array( symbols.prefix( across ) ), Array( symbols.dropFirst( across ) ) ], id: \.self ) { row in
-							GridRow {
-								ForEach( row, id: \.self ) { symbol in
-									symbolButton( symbol, chosen: symbol == menu.symbol )
-								}
+			LabeledContent( "Icon" ) {
+				// Two rows: five across for Back, four for Close.
+				let symbols = menu.closeStyle.symbols
+				let across  = ( symbols.count + 1 ) / 2
+				Grid( horizontalSpacing: Self.symbolSpacing, verticalSpacing: Self.symbolSpacing ) {
+					ForEach( [ Array( symbols.prefix( across ) ), Array( symbols.dropFirst( across ) ) ], id: \.self ) { row in
+						GridRow {
+							ForEach( row, id: \.self ) { symbol in
+								symbolButton( symbol, chosen: symbol == menu.symbol )
 							}
 						}
 					}
 				}
 			}
-
-			Text( menu.dismissal == .onAction
-				  ? "Pressing a key in the menu runs the key and closes the menu. Level keys keep the menu open, since they step while held."
-				  : "The menu stays open until its Close key is pressed." )
-				.secondaryCaption()
 		}
 	}
 
