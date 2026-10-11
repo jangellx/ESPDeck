@@ -148,7 +148,7 @@ struct KeysPageView: View {
 			// Fixed under the deck, so they don't move when it scrolls or zooms.
 			VStack( spacing: 8 ) {
 				LabelPositionControl( controller: controller, deviceID: deviceID )
-				Text( "Shift-click a key to press it, as on the deck: shift-double-click for its Double Tap, shift-hold for its Hold (a Level key keeps stepping). Double-click a Page or Menu key to go where it goes." )
+				Text( "Shift-click a key to press it, as on the deck: shift-double-click for its Double Tap, shift-hold for its Hold (a Level key keeps stepping)." + ( doubleClickNote.map { " " + $0 } ?? "" ) )
 					.secondaryCaption()
 					.multilineTextAlignment( .center )
 					.fixedSize( horizontal: false, vertical: true )
@@ -156,6 +156,22 @@ struct KeysPageView: View {
 			}
 			.padding( .horizontal, 14 )
 			.padding( .vertical, 10 )
+		}
+	}
+
+	/// What a double-click does to the selected key, for the note under the deck: only keys
+	/// whose tap changes page, or opens or closes a menu, do anything (DeckKeyView.goToPage).
+	private var doubleClickNote: String? {
+		let key = controller.assignment( deviceID, key: selection )
+		switch ( key.kind, key.action ) {
+			case ( .page, .nextPage ), ( .page, .previousPage ), ( .page, .firstPage ), ( .page, .lastPage ), ( .page, .goToPage ):
+				return "Double-click this key to go to its page."
+			case ( .menu, .closeMenu ):
+				return "Double-click this key to close the menu."
+			case ( .menu, _ ):
+				return "Double-click this key to open its menu."
+			default:
+				return nil
 		}
 	}
 
