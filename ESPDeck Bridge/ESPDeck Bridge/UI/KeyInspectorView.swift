@@ -62,6 +62,17 @@ struct KeyInspectorView: View {
 				}
 				.id( "\(deviceID)/\(key)/\(pressKind.rawValue)" )   // fresh mode and search for each key and press
 
+				// On the Menu tab of a press that opens no menu, when another press of the key
+				// does: where that menu is, since this tab would otherwise look as if there's none.
+				if pickerTab == .menu && editing.kind != .menu, let other = otherMenuPress {
+					LabeledContent {
+						Button( "Show \(other.rawValue)" ) { controller.window.pressKind = other }
+					} label: {
+						Text( "This key's \(other.rawValue) opens a menu." )
+							.foregroundStyle( Color.secondary )
+					}
+				}
+
 				if let kind = editing.kind {
 					// Each under its own tab of the picker, not whichever tab is showing.
 					if kind == .shortcut && pressKind == .tap && pickerTab == .shortcut {
@@ -276,6 +287,11 @@ struct KeyInspectorView: View {
 					.secondaryCaption()
 			}
 		}
+	}
+
+	/// Another press of the key than the one being edited that opens a menu, if one does.
+	private var otherMenuPress: PressKind? {
+		PressKind.allCases.first { $0 != pressKind && assignment.press( $0 )?.kind == .menu }
 	}
 
 	/// The key's current state, as the deck shows it.
