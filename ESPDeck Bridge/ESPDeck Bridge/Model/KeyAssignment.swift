@@ -34,6 +34,9 @@ struct KeyAssignment: Codable, Equatable {
 	/// Icons keyed by `KeyState.rawValue`: an image file name, or an SF Symbol
 	/// name prefixed with `KeyAssignment.symbolPrefix`.
 	var icons       : [String: String] = [:]
+	/// True shows the Default icon whatever state the accessory is in (a Close Doors key that
+	/// always shows a closed door); nil (or false) shows each state's own.
+	var singleIcon      : Bool?
 	/// "#RRGGBB" base of the key's background gradient; nil is plain black.
 	var backgroundColor : String?
 	/// One of a pair of keys stepping a level up and down, instead of the key's action.
@@ -79,6 +82,10 @@ struct KeyAssignment: Codable, Equatable {
 
 	/// Nothing on it at all.
 	var isEmpty: Bool { self == KeyAssignment() }
+
+	/// The states with an icon of their own to choose, besides `standard`: none with one icon
+	/// for every state.
+	var iconStates: [KeyState] { singleIcon == true ? [] : states }
 
 	/// States that can have their own icon, besides `standard`.
 	var states: [KeyState] { isToggleShortcut ? [ .on, .off ] : kind?.states ?? [] }
@@ -146,6 +153,7 @@ extension KeyAssignment {
 		showLabel       = container.lenient( Bool.self, forKey: .showLabel ) ?? true
 		others          = container.lenientArray( of: KeyMember.self, forKey: .others )
 		icons           = container.lenient( [String: String].self, forKey: .icons ) ?? [:]
+		singleIcon      = container.lenient( Bool.self, forKey: .singleIcon )
 		backgroundColor = container.lenient( String.self, forKey: .backgroundColor )
 		slider          = container.lenient( SliderKey.self, forKey: .slider )
 		pageNumber      = container.lenient( Int.self, forKey: .pageNumber )

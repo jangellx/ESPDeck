@@ -702,7 +702,8 @@ final class DeckController {
 			return face
 		}
 
-		let state = override ?? state( device: id, key: key )
+		// With one icon for every state, the key looks as it does for Default whatever its state.
+		let state = assignment.singleIcon == true ? .standard : override ?? state( device: id, key: key )
 		// The key accessory's (the first one chosen) look, as near as HomeKit lets us to Home's.
 		face.symbol     = home.symbol( for: kind, accessoryID: assignment.accessoryID, serviceID: assignment.serviceID, state: state )
 		face.tint       = kind.tint( for: state )

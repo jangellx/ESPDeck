@@ -167,6 +167,7 @@ The Appearance and Icons sections set what the key shows. A key can look differe
 - **Label** sets the key's text, and **Show Label** hides or shows it.
 - **Background** sets the key's color.
 - **Icons** has one icon for each state the key can show: Default, plus On and Off, or Open, Opening and Closed, and so on. Drop an image on a state, or choose an SF Symbol for it. A state without its own icon uses Default.
+- **One Icon**, at the top of Icons, makes the key show a single icon whatever state its accessory is in. A Close Doors key can then always show a closed door. **An Icon for Each State** goes back, and the icons chosen for each state are kept.
 
 **Copy Key**, **Paste Key** and **Clear Key** are at the bottom of the settings, and in the Edit menu.
 

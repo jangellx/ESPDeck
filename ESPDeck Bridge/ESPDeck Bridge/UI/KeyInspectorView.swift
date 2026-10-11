@@ -175,10 +175,23 @@ struct KeyInspectorView: View {
 			}
 
 			Section {
+				// A key whose accessory has states: an icon for each, or one for all of them.
+				if !assignment.states.isEmpty {
+					Picker( "Shows", selection: Binding {
+						assignment.singleIcon == true
+					} set: { single in
+						controller.update( device: deviceID, key: key ) { $0.singleIcon = single ? true : nil }
+					} ) {
+						Text( "An Icon for Each State" ).tag( false )
+						Text( "One Icon" ).tag( true )
+					}
+					.pickerStyle( .segmented )
+					.labelsHidden()
+				}
 				LazyVGrid( columns: [ GridItem( .adaptive( minimum: 76 ), alignment: .top ) ], spacing: 14 ) {
-					ForEach( [ KeyState.standard ] + assignment.states ) { state in
+					ForEach( [ KeyState.standard ] + assignment.iconStates ) { state in
 						let face = controller.face( device: deviceID, key: key, state: state )
-						IconWell( title: state.title,
+						IconWell( title: assignment.singleIcon == true ? "Icon" : state.title,
 								  face: face,
 								  icon: controller.artwork( for: face ),
 								  hasCustomIcon: assignment.icons[state.rawValue] != nil,
@@ -193,7 +206,11 @@ struct KeyInspectorView: View {
 			} header: {
 				SectionHeader( "Icons" )
 			} footer: {
-				Text( "Click a state to choose an SF Symbol, or drag an image onto it. States without their own icon use Default's, filled for On. Icons with dashed outlines are set to Default." )
+				if assignment.singleIcon == true {
+					Text( "Click the icon to choose an SF Symbol, or drag an image onto it. The key shows this icon whatever state its accessory is in." )
+				} else {
+					Text( "Click a state to choose an SF Symbol, or drag an image onto it. States without their own icon use Default's, filled for On. Icons with dashed outlines are set to Default." )
+				}
 			}
 
 			// Copy and Paste together, then a divider, then the destructive Clear Key.
