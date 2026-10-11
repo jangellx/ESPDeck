@@ -56,7 +56,8 @@ struct KeyInspectorView: View {
 			Section {
 				TargetPicker( controller: controller, assignment: editing, modes: modes,
 							  edit: { change in edit( change ) },
-							  modeRequest: modeRequest ) { target in
+							  modeRequest: modeRequest,
+							  showMenu: { controller.showMenu( device: deviceID, $0, from: key ) } ) { target in
 					edit { $0.bind( to: target ) }
 				}
 				.id( "\(deviceID)/\(key)/\(pressKind.rawValue)" )   // fresh mode and search for each key and press

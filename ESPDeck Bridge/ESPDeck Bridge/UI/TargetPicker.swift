@@ -155,6 +155,8 @@ struct TargetPicker: View {
 	var edit       : ( ( ( inout KeyAssignment ) -> Void ) -> Void )?
 	/// A mode to switch to, from the Key menu; cleared once taken.
 	var modeRequest: Binding<TargetMode?>?
+	/// Keys only: shows a menu that Make Menu has just made, to set up its keys.
+	var showMenu   : ( ( UUID ) -> Void )?
 	let onSelect   : ( HomeTarget? ) -> Void
 
 	@State private var mode = TargetMode.accessory
@@ -170,7 +172,7 @@ struct TargetPicker: View {
 			if mode == .page {
 				PageCommandRows( kind: assignment.kind, action: assignment.action, edit: edit )
 			} else if mode == .menu {
-				MenuKeyRows( kind: assignment.kind, edit: edit )
+				MenuKeyRows( kind: assignment.kind, edit: edit, showMenu: showMenu )
 			} else if mode == .home {
 				ChosenTargetRows( controller: controller, assignment: assignment, edit: edit )
 			} else {
@@ -601,12 +603,20 @@ private struct MenuKeyRows: View {
 	let kind : KeyKind?
 	/// Applies a change to the assignment; without it nothing can be chosen.
 	let edit : ( ( ( inout KeyAssignment ) -> Void ) -> Void )?
+	/// Shows the new menu, which starts empty: setting up its keys is what comes next.
+	let showMenu : ( ( UUID ) -> Void )?
 
 	var body: some View {
 		if kind != .menu {
 			LabeledContent {
 				Button( "Make Menu" ) {
-					edit? { $0.bind( to: HomeTarget( kind: .menu, name: "Menu", room: nil ) ) }
+					guard let edit else { return }
+					let menu = UUID()
+					edit { assignment in
+						assignment.bind( to: HomeTarget( kind: .menu, name: "Menu", room: nil ) )
+						assignment.menuID = menu
+					}
+					showMenu?( menu )
 				}
 			} label: {
 				Text( "Opens a Menu" )
