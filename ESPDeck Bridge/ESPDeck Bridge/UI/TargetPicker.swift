@@ -612,6 +612,7 @@ private struct MenuKeyRows: View {
 				Text( "Opens a Menu" )
 				Text( "The press shows another set of keys on the deck, in place of the page." )
 			}
+			.padding( .bottom, 6 )
 		}
 	}
 }

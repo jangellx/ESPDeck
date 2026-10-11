@@ -3,8 +3,8 @@
 //  ESPDeck Bridge
 //
 //  A menu's own settings, as Form rows: how it closes and, for one that's closed manually,
-//  where its Close key is and what it shows. Shown for the key that opens the menu and for
-//  the Close key itself.
+//  where its Close key is and what it shows. Shown for the key that opens the menu, and by
+//  the inspector's Menu tab while the menu is open (MenuInspector).
 //
 
 import SwiftUI
@@ -43,9 +43,16 @@ struct MenuOptionRows: View {
 				}
 
 				LabeledContent( "Icon" ) {
-					LazyVGrid( columns: [ GridItem( .adaptive( minimum: 30 ), spacing: 6 ) ], alignment: .trailing, spacing: 6 ) {
-						ForEach( menu.closeStyle.symbols, id: \.self ) { symbol in
-							symbolButton( symbol, chosen: symbol == menu.symbol )
+					// Two rows: five across for Back, four for Close.
+					let symbols = menu.closeStyle.symbols
+					let across  = ( symbols.count + 1 ) / 2
+					Grid( horizontalSpacing: 6, verticalSpacing: 6 ) {
+						ForEach( [ Array( symbols.prefix( across ) ), Array( symbols.dropFirst( across ) ) ], id: \.self ) { row in
+							GridRow {
+								ForEach( row, id: \.self ) { symbol in
+									symbolButton( symbol, chosen: symbol == menu.symbol )
+								}
+							}
 						}
 					}
 				}
@@ -84,30 +91,77 @@ struct MenuOptionRows: View {
 	}
 }
 
-/// The inspector for an open menu's Close key, which has nothing of its own to edit: the
-/// menu's settings, and a way out of the menu.
-struct MenuCloseKeyInspector: View {
+/// The inspector while a menu is open: Menu (the menu's settings) or Key (the selected key
+/// of the menu) above whichever is chosen, with a button that closes the menu. The deck
+/// preview beside it shows the menu, so its settings can be seen as they change.
+struct MenuInspector<KeyForm: View>: View {
 	let controller : DeckController
 	let deviceID   : String
 	let key        : Int
 	let menu       : DeckMenu
+	/// The selected key's own settings, as outside a menu.
+	@ViewBuilder let keyForm: KeyForm
+
+	private var tab: MenuInspectorTab { controller.window.menuInspectorTab }
 
 	var body: some View {
+		VStack( spacing: 0 ) {
+			HStack( spacing: 10 ) {
+				Picker( "Inspector", selection: Bindable( controller.window ).menuInspectorTab ) {
+					ForEach( MenuInspectorTab.allCases ) { tab in
+						Text( tab.rawValue ).tag( tab )
+					}
+				}
+				.pickerStyle( .segmented )
+				.labelsHidden()
+
+				Button {
+					controller.closeMenu( device: deviceID )
+				} label: {
+					Image( systemName: "xmark.circle.fill" )
+						.imageScale( .large )
+				}
+				.buttonStyle( .borderless )
+				.help( "Close Menu" )
+				.accessibilityLabel( "Close Menu" )
+			}
+			.padding( .horizontal, 20 )
+			.padding( .top, 12 )
+			.padding( .bottom, 4 )
+
+			switch tab {
+				case .menu:
+					Form {
+						Section {
+							MenuOptionRows( controller: controller, deviceID: deviceID, menuID: menu.id )
+						} header: {
+							SectionHeader( controller.menuName( device: deviceID, menu.id ) )
+						}
+					}
+					.formStyle( .grouped )
+				case .key:
+					if controller.isMenuClose( device: deviceID, key: key ) {
+						closeKeyForm
+					} else {
+						keyForm
+					}
+			}
+		}
+		.background( Color( uiColor: .systemGroupedBackground ) )
+	}
+
+	/// The Close key has nothing of its own to edit: its place and icon are the menu's.
+	private var closeKeyForm: some View {
 		Form {
 			Section {
-				MenuOptionRows( controller: controller, deviceID: deviceID, menuID: menu.id )
-			} header: {
-				VStack( alignment: .leading, spacing: 4 ) {
-					SectionHeader( "Key \(key + 1): Close Menu" )
-					Text( "This key closes the menu. It can't be changed like the menu's other keys." )
-						.secondaryCaption()
-						.textCase( nil )
+				LabeledContent {
+					Button( "Menu Settings" ) { controller.window.menuInspectorTab = .menu }
+				} label: {
+					Text( "Closes the Menu" )
+					Text( "This key can't be changed like the menu's other keys. Its place and icon are in the menu's settings." )
 				}
-			}
-
-			PillRow {
-				Button( "Close Menu" ) { controller.closeMenu( device: deviceID ) }
-					.buttonStyle( .borderedProminent )
+			} header: {
+				SectionHeader( "Key \(key + 1)" )
 			}
 		}
 		.formStyle( .grouped )

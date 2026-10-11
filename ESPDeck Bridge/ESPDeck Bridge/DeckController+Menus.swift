@@ -42,7 +42,10 @@ extension DeckController {
 		let wasOpen = openMenu( device: id ) != nil
 		show( device: id, .menu( menu ) )
 		guard openMenu( device: id )?.id == menu else { return }
-		if !wasOpen { device( id )?.menuOpenerKey = key }
+		if !wasOpen {
+			device( id )?.menuOpenerKey = key
+			window.menuInspectorTab     = .key
+		}
 		// Not left on the Close key, which has nothing to edit.
 		if window.selection == id, isMenuClose( device: id, key: window.selectedKey ), layout( id ).keyCount > 1 {
 			window.selectedKey = window.selectedKey == 0 ? 1 : window.selectedKey - 1

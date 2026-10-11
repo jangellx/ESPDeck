@@ -104,6 +104,7 @@ A menu is another set of keys that takes the place of the page while the menu is
 - A key becomes a Menu key on the **Menu** tab of its settings. The menu can open on the key's tap, double tap or hold.
 - **Edit Menu**, in the Menu key's settings, shows the menu in the preview and on the deck. The menu's keys are then set up like the keys of a page.
 - While a menu is open, the page bar reads **Editing** with the menu's name, which is the label of the key that opens it. **Close Menu**, at the right of the bar, goes back to the page.
+- While a menu is open, the settings beside the preview have two tabs. **Menu** has the menu's own settings: how the menu closes, and its Close key. **Key** has the settings of the selected key. The ✕ beside the tabs closes the menu.
 - Double-clicking a Menu key in the preview also opens its menu, and shift-clicking a key presses the key as the deck would.
 - A menu that closes **On Action** runs the key that is pressed and then closes. Level keys keep the menu open, since they step while held.
 - A menu that closes **Manually** stays open until its Close key is pressed. The Close key is either a back key at the top left or a close key at the top right, with a choice of icons for each. The Close key can't be edited, and the key stored in its corner comes back when the Close key moves.

@@ -38,9 +38,9 @@ struct KeyInspectorView: View {
 	}
 
 	var body: some View {
-		// An open menu's Close key has only the menu's settings.
-		if assignment.isMenuClose, let menu = controller.openMenu( device: deviceID ) {
-			MenuCloseKeyInspector( controller: controller, deviceID: deviceID, key: key, menu: menu )
+		// In a menu: the menu's settings or the key's, under Menu | Key.
+		if let menu = controller.openMenu( device: deviceID ) {
+			MenuInspector( controller: controller, deviceID: deviceID, key: key, menu: menu ) { keyForm }
 		} else {
 			keyForm
 		}

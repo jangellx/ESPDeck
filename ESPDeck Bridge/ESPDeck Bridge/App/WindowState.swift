@@ -101,6 +101,8 @@ final class WindowState {
 	/// The inspector's press tab (Tap, Double Tap, Hold); kept from key to key, to set up the
 	/// same press on several keys.
 	var pressKind           = PressKind.tap
+	/// With a menu open, what the inspector shows: the menu's settings, or the selected key's.
+	var menuInspectorTab    = MenuInspectorTab.key
 	/// The key picker's tab last chosen: a blank key's picker opens on it.
 	var lastKeyTargetMode   = TargetMode.home
 	/// Key ▸ Assign Accessory/Scene/Shortcut: the mode the key's picker switches to.
@@ -114,4 +116,12 @@ final class WindowState {
 
 	/// Set while the configuration window is on screen.
 	var isShowing   = false
+}
+
+/// The inspector's tabs while a menu is open; the raw values are their titles.
+enum MenuInspectorTab: String, CaseIterable, Identifiable {
+	case menu = "Menu"
+	case key  = "Key"
+
+	var id: String { rawValue }
 }
