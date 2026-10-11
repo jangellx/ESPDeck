@@ -15,6 +15,12 @@ struct MenuOptionRows: View {
 	let deviceID   : String
 	let menuID     : UUID
 
+	/// A Close key symbol's button, and the gap between two of them.
+	private static let symbolSize    : CGFloat = 30
+	private static let symbolSpacing : CGFloat = 6
+	/// The width of the widest icon grid (Back's five across), which the controls above it match.
+	private static let controlWidth  = 5 * symbolSize + 4 * symbolSpacing
+
 	private var menu: DeckMenu? {
 		controller.settings( deviceID )?.menus.first { $0.id == menuID }
 	}
@@ -29,28 +35,32 @@ struct MenuOptionRows: View {
 				}
 				.pickerStyle( .segmented )
 				.labelsHidden()
-				.fixedSize()
+				.scaledFrame( width: Self.controlWidth )
 			}
 
 			if menu.dismissal == .manual {
-				Picker( "Close Key", selection: Binding {
-					menu.closeStyle
-				} set: { style in
-					controller.updateMenu( device: deviceID, menuID ) { menu in
-						menu.closeStyle  = style
-						menu.closeSymbol = nil   // the other style's symbols
+				LabeledContent( "Close Key" ) {
+					Picker( "Close Key", selection: Binding {
+						menu.closeStyle
+					} set: { style in
+						controller.updateMenu( device: deviceID, menuID ) { menu in
+							menu.closeStyle  = style
+							menu.closeSymbol = nil   // the other style's symbols
+						}
+					} ) {
+						ForEach( MenuCloseStyle.allCases ) { style in
+							Label( style.title, systemImage: style.symbols[0] ).tag( style )
+						}
 					}
-				} ) {
-					ForEach( MenuCloseStyle.allCases ) { style in
-						Label( style.title, systemImage: style.symbols[0] ).tag( style )
-					}
+					.labelsHidden()
+					.scaledFrame( width: Self.controlWidth )
 				}
 
 				LabeledContent( "Icon" ) {
 					// Two rows: five across for Back, four for Close.
 					let symbols = menu.closeStyle.symbols
 					let across  = ( symbols.count + 1 ) / 2
-					Grid( horizontalSpacing: 6, verticalSpacing: 6 ) {
+					Grid( horizontalSpacing: Self.symbolSpacing, verticalSpacing: Self.symbolSpacing ) {
 						ForEach( [ Array( symbols.prefix( across ) ), Array( symbols.dropFirst( across ) ) ], id: \.self ) { row in
 							GridRow {
 								ForEach( row, id: \.self ) { symbol in
@@ -76,7 +86,7 @@ struct MenuOptionRows: View {
 		} label: {
 			Image( systemName: symbol )
 				.foregroundStyle( chosen ? Color.white : Color.primary )
-				.scaledFrame( width: 30, height: 30 )
+				.scaledFrame( width: Self.symbolSize, height: Self.symbolSize )
 				.background( RoundedRectangle( cornerRadius: 7 ).fill( chosen ? AnyShapeStyle( Color.accentColor ) : AnyShapeStyle( .quaternary ) ) )
 				.contentShape( Rectangle() )
 		}
