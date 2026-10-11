@@ -109,6 +109,7 @@ A menu is another set of keys that takes the place of the page while the menu is
 - A menu that closes **On Action** runs the key that is pressed and then closes. Level keys keep the menu open, since they step while held.
 - A menu that closes **Manually** stays open until its Close key is pressed. The Close key is either a back key at the top left or a close key at the top right, with a choice of icons for each. The Close key can't be edited, and the key stored in its corner comes back when the Close key moves.
 - A menu's keys can do everything a page's keys can, except open another menu.
+- Copying a Menu key, or its action, copies the menu with it.
 - Clearing the key that opens a menu removes the menu too. **Edit ▸ Undo** brings both back.
 
 ### Size and arrangement
@@ -169,7 +170,14 @@ The Appearance and Icons sections set what the key shows. A key can look differe
 - **Icons** has one icon for each state the key can show: Default, plus On and Off, or Open, Opening and Closed, and so on. Drop an image on a state, or choose an SF Symbol for it. A state without its own icon uses Default.
 - **One Icon**, at the top of Icons, makes the key show a single icon whatever state its accessory is in. A Close Doors key can then always show a closed door. **An Icon for Each State** goes back, and the icons chosen for each state are kept.
 
-**Copy Key**, **Paste Key** and **Clear Key** are at the bottom of the settings, and in the Edit menu.
+**Copy Key**, **Paste Key** and **Clear Key** are at the bottom of the settings, and in the Edit menu. A copied key includes all three of its presses and the menus they open, and the pasted key gets its own copies of those menus.
+
+**Copy Action** and **Paste Action**, above them, work on one press: the Tap, Double Tap or Hold whose tab is showing.
+
+- Copy Action copies what that press controls and does, with the menu it opens.
+- Paste Action replaces that press of the selected key, and leaves the key's other presses alone.
+- A Tap's action also carries the key's label, background and icons, which are pasted only onto another Tap. A Double Tap or Hold has no look of its own, so pasting onto one never changes how the key looks.
+- An action that opens a menu can't be pasted onto a key inside a menu.
 
 A key acts when it's released, not when it goes down. A press that's part of pressing several keys at once is ignored, so the two-corner hold for setup mode doesn't set anything off.
 
@@ -284,6 +292,7 @@ Every command in the menu bar, with its keyboard shortcut where it has one.
 | | Forget Device… | | Removes the deck from this Mac and unpairs it. |
 | **Key** | Select Key to the Left, Right, Above, Below | ⌥ and an arrow | Moves the selection. Plain arrows work too, after a click in the deck preview. |
 | | Test Action | ⌘T | Performs the selected key's action now. |
+| | Copy Action, Paste Action | ⇧⌘C, ⇧⌘V | Copies or pastes one press of the selected key: the one whose tab is showing. |
 | | Assign Home…, Shortcut…, Page…, Menu… | ⌥⌘1, ⌥⌘2, ⌥⌘3, ⌥⌘4 | Opens the key's picker on that tab. |
 | **Help** | ESPDeck Help | | Opens this documentation. |
 | | Getting Started | | Opens one of Getting Started's sheets, from a submenu. |

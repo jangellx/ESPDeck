@@ -140,6 +140,8 @@ extension AppDelegate {
 			} ),
 			UIMenu( options: .displayInline, children: [
 				UIKeyCommand( title: "Test Action", action: #selector( testAction ), input: "t", modifierFlags: .command ),
+				UIKeyCommand( title: "Copy Action", action: #selector( copyAction ), input: "c", modifierFlags: [ .command, .shift ] ),
+				UIKeyCommand( title: "Paste Action", action: #selector( pasteAction ), input: "v", modifierFlags: [ .command, .shift ] ),
 			] ),
 			// ⌥⌘1–3, in the order of the picker's tabs.
 			UIMenu( options: .displayInline, children: TargetMode.keyModes.enumerated().map { index, mode in
@@ -197,6 +199,10 @@ extension AppDelegate {
 				currentDevice != nil
 			case #selector( clearKey ), #selector( testAction ), #selector( moveKeySelection( _: ) ):
 				currentKey != nil && ( action != #selector( testAction ) || currentAssignmentActs )
+			case #selector( copyAction ):
+				currentKey.map { controller.pressContents( device: $0.device, key: $0.key, window.pressKind ) != nil } ?? false
+			case #selector( pasteAction ):
+				currentKey.map { controller.clipboardHasPress && controller.assignment( $0.device, key: $0.key ).slider == nil } ?? false
 			case #selector( assignTarget( _: ) ):
 				currentDevice != nil
 			case #selector( nextDevice ), #selector( previousDevice ):
@@ -409,6 +415,18 @@ extension AppDelegate {
 	@objc func clearKey() {
 		guard let key = currentKey, !controller.isMenuClose( device: key.device, key: key.key ) else { return }
 		window.confirmingClearKey = true
+	}
+
+	/// Copies what the inspector's press tab (Tap, Double Tap or Hold) does on the selected key.
+	@objc func copyAction() {
+		guard let key = currentKey else { return }
+		controller.copyPress( device: key.device, key: key.key, window.pressKind )
+	}
+
+	/// Pastes the copied action onto that press of the selected key.
+	@objc func pasteAction() {
+		guard let key = currentKey else { return }
+		controller.pastePress( device: key.device, key: key.key, window.pressKind )
 	}
 
 	/// Presses the selected key, as if on the deck.

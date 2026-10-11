@@ -227,9 +227,23 @@ struct KeyInspectorView: View {
 			// Copy and Paste together, then a divider, then the destructive Clear Key.
 			PillRow {
 				VStack( spacing: 10 ) {
+					// One press on its own (this tab's), to move to another press or key.
+					if !isSlider {
+						Pill {
+							Button( "Copy \(pressKind.rawValue) Action" ) { controller.copyPress( device: deviceID, key: key, pressKind ) }
+								.disabled( controller.pressContents( device: deviceID, key: key, pressKind ) == nil )
+								.help( "Copy what this key's \(pressKind.rawValue) does\(pressKind == .tap ? ", with its label, background and icons" : ""), and the menu it opens (⇧⌘C)" )
+							Divider()
+								.scaledFrame( height: 18 )
+							Button( "Paste Action" ) { controller.pastePress( device: deviceID, key: key, pressKind ) }
+								.disabled( !controller.clipboardHasPress )
+								.help( "Make this key's \(pressKind.rawValue) do what the copied action does; the key's other presses stay (⇧⌘V)" )
+						}
+					}
+
 					Pill {
 						Button( "Copy Key" ) { controller.copyKey( device: deviceID, key: key ) }
-							.help( "Copy this key (⌘C)" )
+							.help( "Copy this key, with all its presses and the menus they open (⌘C)" )
 						Divider()
 							.scaledFrame( height: 18 )
 						Button( "Paste Key" ) { controller.pasteKey( device: deviceID, key: key ) }

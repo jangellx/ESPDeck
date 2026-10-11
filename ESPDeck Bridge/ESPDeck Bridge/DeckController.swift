@@ -31,6 +31,8 @@ final class DeckController {
 	var focusedKey       : ( device: String, key: Int )?
 	/// A copied key is on the clipboard; see DeckController+Clipboard.
 	var clipboardHasKey  = false
+	/// The clipboard holds one copied press of a key (Copy Action).
+	var clipboardHasPress = false
 	/// The configuration window's selection and page, shared with the menus.
 	let window           = WindowState()
 

@@ -31,6 +31,16 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
+			<string>ESPDeck Key Action</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.tmproductions.espdeck.key-press</string>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
 			<string>ESPDeck Key</string>
 			<key>UTTypeIdentifier</key>
 			<string>com.tmproductions.espdeck.key</string>
