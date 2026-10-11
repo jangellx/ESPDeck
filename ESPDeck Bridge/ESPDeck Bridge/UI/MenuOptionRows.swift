@@ -154,14 +154,19 @@ struct MenuInspector<KeyForm: View>: View {
 	private var closeKeyForm: some View {
 		Form {
 			Section {
-				LabeledContent {
-					Button( "Menu Settings" ) { controller.window.menuInspectorTab = .menu }
-				} label: {
+				VStack( alignment: .leading, spacing: 2 ) {
 					Text( "Closes the Menu" )
 					Text( "This key can't be changed like the menu's other keys. Its place and icon are in the menu's settings." )
+						.secondaryCaption()
 				}
+				.padding( .vertical, 6 )
 			} header: {
 				SectionHeader( "Key \(key + 1)" )
+			}
+
+			PillRow {
+				Button( "Menu Settings" ) { controller.window.menuInspectorTab = .menu }
+					.buttonStyle( .borderedProminent )
 			}
 		}
 		.formStyle( .grouped )
