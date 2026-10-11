@@ -21,12 +21,16 @@ struct MenuOptionRows: View {
 
 	var body: some View {
 		if let menu {
-			Picker( "Closes", selection: binding( \.dismissal, of: menu ) ) {
-				ForEach( MenuDismissal.allCases ) { dismissal in
-					Text( dismissal.title ).tag( dismissal )
+			LabeledContent( "Dismiss" ) {
+				Picker( "Dismiss", selection: binding( \.dismissal, of: menu ) ) {
+					ForEach( MenuDismissal.allCases ) { dismissal in
+						Text( dismissal.title ).tag( dismissal )
+					}
 				}
+				.pickerStyle( .segmented )
+				.labelsHidden()
+				.fixedSize()
 			}
-			.pickerStyle( .segmented )
 
 			if menu.dismissal == .manual {
 				Picker( "Close Key", selection: Binding {
@@ -60,7 +64,7 @@ struct MenuOptionRows: View {
 
 			Text( menu.dismissal == .onAction
 				  ? "Pressing a key in the menu runs the key and closes the menu. Level keys keep the menu open, since they step while held."
-				  : "The menu stays open until its Close key is pressed. The Close key takes the menu's \( menu.closeStyle == .back ? "top left" : "top right" ) key." )
+				  : "The menu stays open until its Close key is pressed." )
 				.secondaryCaption()
 		}
 	}
@@ -107,6 +111,18 @@ struct MenuInspector<KeyForm: View>: View {
 	var body: some View {
 		VStack( spacing: 0 ) {
 			HStack( spacing: 10 ) {
+				// Back out of the menu, to the page.
+				Button {
+					controller.closeMenu( device: deviceID )
+				} label: {
+					Image( systemName: "chevron.left" )
+						.imageScale( .large )
+						.fontWeight( .semibold )
+				}
+				.buttonStyle( .borderless )
+				.help( "Close Menu" )
+				.accessibilityLabel( "Close Menu" )
+
 				Picker( "Inspector", selection: Bindable( controller.window ).menuInspectorTab ) {
 					ForEach( MenuInspectorTab.allCases ) { tab in
 						Text( tab.rawValue ).tag( tab )
@@ -114,16 +130,6 @@ struct MenuInspector<KeyForm: View>: View {
 				}
 				.pickerStyle( .segmented )
 				.labelsHidden()
-
-				Button {
-					controller.closeMenu( device: deviceID )
-				} label: {
-					Image( systemName: "xmark.circle.fill" )
-						.imageScale( .large )
-				}
-				.buttonStyle( .borderless )
-				.help( "Close Menu" )
-				.accessibilityLabel( "Close Menu" )
 			}
 			.padding( .horizontal, 20 )
 			.padding( .top, 12 )

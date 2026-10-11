@@ -150,6 +150,7 @@ private struct DeckKeyView: View {
 			// Leave any text field, so Cmd-C / Cmd-V go to the key instead of the text.
 			ConfigurationHostingController.takeKeyboardFocus()
 			selection = index
+			controller.window.menuInspectorTab = .key   // in a menu: the key that was clicked, not the menu's settings
 		}
 		// Double-click a Next, Previous, First, Last, Go to Page or Menu key to go there, as pressing
 		// it on the deck would. Alongside the click above, so selecting isn't delayed.

@@ -451,6 +451,7 @@ extension AppDelegate {
 			default:                           return
 		}
 		window.selectedKey = row * layout.cols + column
+		window.menuInspectorTab = .key
 	}
 }
 
