@@ -97,7 +97,9 @@ private struct DeckKeyView: View {
 	private func goToPage() {
 		let assignment = controller.assignment( deviceID, key: index )
 		if assignment.kind == .menu {
-			controller.performMenu( assignment, device: deviceID, key: index )
+			// After the second click's own tap, which selects this key: closing the menu selects
+			// the key that opened it, and that has to come last.
+			Task { controller.performMenu( assignment, device: deviceID, key: index ) }
 			return
 		}
 		guard assignment.kind == .page,
