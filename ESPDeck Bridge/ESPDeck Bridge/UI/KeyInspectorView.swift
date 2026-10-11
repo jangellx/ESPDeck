@@ -125,8 +125,10 @@ struct KeyInspectorView: View {
 				}
 			}
 
-			// What a press does: Toggle (or the kind's actions), or Level's two keys.
-			if let kind = editing.kind, kind != .page, kind != .menu {
+			// What a press does: Toggle (or the kind's actions), or Level's two keys. Under the
+			// Home tab, whose accessories have actions to choose from, and under Shortcut for an
+			// On/Off shortcut (Toggle, Turn On or Turn Off).
+			if showsActionSection {
 				if isSlider && pressKind == .tap {
 					SliderSection( controller: controller, deviceID: deviceID, key: key, levels: levels )
 				} else {
@@ -300,6 +302,18 @@ struct KeyInspectorView: View {
 				Text( "Double taps and holds need the latest firmware (4.1.0 from today or later) on the device." )
 					.secondaryCaption()
 			}
+		}
+	}
+
+	/// Whether the Action section goes with the picker's tab: what the press does to its
+	/// accessories and scenes on Home, or to an On/Off shortcut on Shortcut. A One-Shot
+	/// shortcut, a Page command and a menu have nothing more to choose.
+	private var showsActionSection: Bool {
+		guard let kind = editing.kind else { return false }
+		switch pickerTab {
+			case .home:     return TargetMode.of( kind, in: TargetMode.keyModes ) == .home
+			case .shortcut: return editing.isToggleShortcut
+			default:        return false
 		}
 	}
 

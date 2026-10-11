@@ -228,6 +228,8 @@ struct KeysPageView: View {
 			}
 		}
 		.controlSize( .small )
+		// The same height for pages and for a menu, so the deck doesn't move between them.
+		.scaledFrame( height: 24 )
 		.padding( .horizontal, 14 )
 		.padding( .vertical, 8 )
 		// A menu is being edited, not a page: the bar is tinted to say so.

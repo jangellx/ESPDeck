@@ -160,6 +160,13 @@ struct TargetPicker: View {
 	let onSelect   : ( HomeTarget? ) -> Void
 
 	@State private var mode = TargetMode.accessory
+	/// A choice on one tab that would replace what's set up on another, waiting to be confirmed.
+	@State private var pendingReplace: PendingReplace?
+
+	/// A change held back until the Replace dialog is answered.
+	private struct PendingReplace {
+		let apply: () -> Void
+	}
 
 	var body: some View {
 		let targets = targets( for: mode )
@@ -167,16 +174,27 @@ struct TargetPicker: View {
 		Group {
 			if modes.count > 1 {
 				TargetModePicker( modes: modes, kind: assignment.kind, mode: $mode )
+					// On this row, which is always there: the rows under it come and go.
+					.confirmationDialog( "Replace What This Press Does?", isPresented: Binding( presenting: $pendingReplace ), titleVisibility: .visible ) {
+						Button( "Replace", role: .destructive ) {
+							pendingReplace?.apply()
+							pendingReplace = nil
+						}
+					} message: {
+						Text( replaceMessage )
+					}
 			}
 
 			if mode == .page {
-				PageCommandRows( kind: assignment.kind, action: assignment.action, edit: edit )
+				PageCommandRows( kind: assignment.kind, action: assignment.action, edit: edit, confirm: replacing )
 			} else if mode == .menu {
-				MenuKeyRows( kind: assignment.kind, edit: edit, showMenu: showMenu )
+				MenuKeyRows( kind: assignment.kind, edit: edit, showMenu: showMenu, confirm: replacing )
 			} else if mode == .home {
-				ChosenTargetRows( controller: controller, assignment: assignment, edit: edit )
+				ChosenTargetRows( controller: controller, assignment: assignment, edit: edit, confirm: replacing )
 			} else {
-				TargetChoiceRows( controller: controller, assignment: assignment, mode: mode, targets: targets, edit: edit, onSelect: onSelect )
+				TargetChoiceRows( controller: controller, assignment: assignment, mode: mode, targets: targets, edit: edit ) { target in
+					replacing { onSelect( target ) }
+				}
 			}
 		}
 		.onAppear {
@@ -193,6 +211,27 @@ struct TargetPicker: View {
 			if mode == .shortcut && !controller.shortcutsLoaded {
 				controller.reloadShortcuts()
 			}
+		}
+	}
+
+	/// Makes a change chosen on this tab. A press does one kind of thing (Home, Shortcut, Page
+	/// or Menu), so a choice on another tab than the one it's set up on replaces that: asked
+	/// about first, since a menu goes with all its keys.
+	private func replacing( _ change: @escaping () -> Void ) {
+		if assignment.kind != nil, modes.count > 1, TargetMode.of( assignment.kind, in: modes ) != mode {
+			pendingReplace = PendingReplace( apply: change )
+		} else {
+			change()
+		}
+	}
+
+	/// What the Replace dialog says would be lost.
+	private var replaceMessage: String {
+		switch TargetMode.of( assignment.kind, in: modes ) {
+			case .menu:     "This press opens a menu now. Replacing it removes the menu and all of its keys."
+			case .page:     "This press is a Page command now, which will be replaced."
+			case .shortcut: "This press runs a shortcut now, which will be replaced."
+			default:        "This press controls accessories or scenes now, which will be replaced."
 		}
 	}
 
@@ -252,6 +291,8 @@ private struct ChosenTargetRows: View {
 	let assignment : KeyAssignment
 	/// Applies a change to the assignment; without it the rows are read-only.
 	let edit       : ( ( ( inout KeyAssignment ) -> Void ) -> Void )?
+	/// Runs a choice that may replace what another tab set up, asking first if it would.
+	let confirm    : ( @escaping () -> Void ) -> Void
 
 	/// The Accessories & Scenes sheet is up.
 	@State private var choosing = false
@@ -286,7 +327,7 @@ private struct ChosenTargetRows: View {
 
 		let chosen = !assignment.members.isEmpty || !scenes.isEmpty
 		Button {
-			choosing = true
+			confirm { choosing = true }
 		} label: {
 			Label( chosen ? "Change Accessories & Scenes…" : "Choose Accessories & Scenes…", systemImage: chosen ? "checklist" : "plus" )
 		}
@@ -558,6 +599,8 @@ private struct PageCommandRows: View {
 	let action : KeyAction
 	/// Applies a change to the assignment; without it nothing can be chosen.
 	let edit   : ( ( ( inout KeyAssignment ) -> Void ) -> Void )?
+	/// Runs a choice that may replace what another tab set up, asking first if it would.
+	let confirm: ( @escaping () -> Void ) -> Void
 
 	var body: some View {
 		LabeledContent( "Command" ) {
@@ -565,9 +608,11 @@ private struct PageCommandRows: View {
 				kind == .page ? action : KeyAction.none
 			} set: { action in
 				guard let edit, action != .none else { return }
-				edit { assignment in
-					assignment.bind( to: HomeTarget( kind: .page, name: "Page", room: nil ) )
-					assignment.action = action
+				confirm {
+					edit { assignment in
+						assignment.bind( to: HomeTarget( kind: .page, name: "Page", room: nil ) )
+						assignment.action = action
+					}
 				}
 			} ) {
 				if kind != .page {
@@ -605,18 +650,22 @@ private struct MenuKeyRows: View {
 	let edit : ( ( ( inout KeyAssignment ) -> Void ) -> Void )?
 	/// Shows the new menu, which starts empty: setting up its keys is what comes next.
 	let showMenu : ( ( UUID ) -> Void )?
+	/// Runs a choice that may replace what another tab set up, asking first if it would.
+	let confirm  : ( @escaping () -> Void ) -> Void
 
 	var body: some View {
 		if kind != .menu {
 			LabeledContent {
 				Button( "Make Menu" ) {
 					guard let edit else { return }
-					let menu = UUID()
-					edit { assignment in
-						assignment.bind( to: HomeTarget( kind: .menu, name: "Menu", room: nil ) )
-						assignment.menuID = menu
+					confirm {
+						let menu = UUID()
+						edit { assignment in
+							assignment.bind( to: HomeTarget( kind: .menu, name: "Menu", room: nil ) )
+							assignment.menuID = menu
+						}
+						showMenu?( menu )
 					}
-					showMenu?( menu )
 				}
 			} label: {
 				Text( "Opens a Menu" )
