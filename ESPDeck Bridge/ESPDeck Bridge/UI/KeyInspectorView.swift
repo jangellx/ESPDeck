@@ -57,7 +57,7 @@ struct KeyInspectorView: View {
 				TargetPicker( controller: controller, assignment: editing, modes: modes,
 							  edit: { change in edit( change ) },
 							  modeRequest: modeRequest,
-							  showMenu: { controller.showMenu( device: deviceID, $0, from: key ) } ) { target in
+							  showMenu: { controller.editMenu( device: deviceID, $0, from: key ) } ) { target in
 					edit { $0.bind( to: target ) }
 				}
 				.id( "\(deviceID)/\(key)/\(pressKind.rawValue)" )   // fresh mode and search for each key and press
@@ -149,7 +149,7 @@ struct KeyInspectorView: View {
 					if editing.kind == .menu, let menu = editing.menuID {
 						// Shows the menu here and on the deck, to set up its keys; the bar over
 						// the deck has Close Menu.
-						Button( "Edit Menu" ) { controller.showMenu( device: deviceID, menu, from: key ) }
+						Button( "Edit Menu" ) { controller.editMenu( device: deviceID, menu, from: key ) }
 					} else {
 						Button( "Test Action" ) {
 							if pressKind == .tap {

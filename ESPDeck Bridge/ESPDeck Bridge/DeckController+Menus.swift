@@ -43,7 +43,8 @@ extension DeckController {
 		show( device: id, .menu( menu ) )
 		guard openMenu( device: id )?.id == menu else { return }
 		if !wasOpen {
-			device( id )?.menuOpenerKey = key
+			device( id )?.menuOpenerKey   = key
+			device( id )?.menuOpenerPress = nil
 			window.menuInspectorTab     = .key
 		}
 		// Not left on the Close key, which has nothing to edit.
@@ -52,14 +53,28 @@ extension DeckController {
 		}
 	}
 
+	/// Make Menu and Edit Menu: opens the menu from the inspector, to set up its keys. The
+	/// inspector shows the keys' taps, whichever press opens the menu, until the menu closes.
+	func editMenu( device id: String, _ menu: UUID, from key: Int ) {
+		let wasOpen = openMenu( device: id ) != nil
+		let press   = window.pressKind
+		showMenu( device: id, menu, from: key )
+		guard !wasOpen, openMenu( device: id )?.id == menu else { return }
+		device( id )?.menuOpenerPress = press
+		window.pressKind              = .tap
+	}
+
 	/// Goes back to the page under the open menu.
 	func closeMenu( device id: String ) {
 		guard let settings = settings( id ), settings.openMenu != nil else { return }
 		show( device: id, .page( settings.currentPage ) )
 		if let key = device( id )?.menuOpenerKey, window.selection == id, key < layout( id ).keyCount {
 			window.selectedKey = key
+			// Back on the press that opens the menu.
+			if let press = device( id )?.menuOpenerPress { window.pressKind = press }
 		}
-		device( id )?.menuOpenerKey = nil
+		device( id )?.menuOpenerKey   = nil
+		device( id )?.menuOpenerPress = nil
 	}
 
 	/// The open menu's Close key, which can't be edited, moved or cleared.

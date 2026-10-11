@@ -40,6 +40,8 @@ final class DeckDevice: Identifiable {
 	var pageChange: ( at: Date, previews: [UIImage?] )?
 	/// The key that opened the menu now showing; selected again when it closes.
 	@ObservationIgnored var menuOpenerKey: Int?
+	/// The inspector's press tab when the menu was opened from it; chosen again when it closes.
+	@ObservationIgnored var menuOpenerPress: PressKind?
 
 	/// Seconds between keys as a new page pops in, in key order.
 	static let pagePopStep: TimeInterval = 0.05

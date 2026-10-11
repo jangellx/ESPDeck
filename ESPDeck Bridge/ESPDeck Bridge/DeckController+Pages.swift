@@ -25,7 +25,8 @@ extension DeckController {
 	func showPage( device id: String, _ page: Int ) {
 		// An open menu closes: it was over the page before.
 		show( device: id, .page( page ) )
-		device( id )?.menuOpenerKey = nil
+		device( id )?.menuOpenerKey   = nil
+		device( id )?.menuOpenerPress = nil
 	}
 
 	/// A new page after this one, which the deck then shows.
