@@ -186,6 +186,8 @@ struct KeysPageView: View {
 				Image( systemName: "square.grid.2x2.fill" )
 					.foregroundStyle( Color.secondary )
 				Text( "Editing \(controller.menuName( device: deviceID, menu.id ))" )
+					.fontWeight( .medium )
+					.foregroundStyle( Color.primary )
 					.lineLimit( 1 )
 					.truncationMode( .middle )
 				Spacer( minLength: 8 )
@@ -228,6 +230,8 @@ struct KeysPageView: View {
 		.controlSize( .small )
 		.padding( .horizontal, 14 )
 		.padding( .vertical, 8 )
+		// A menu is being edited, not a page: the bar is tinted to say so.
+		.background( controller.openMenu( device: deviceID ) != nil ? Color.primary.opacity( 0.08 ) : Color.clear )
 		.confirmationDialog( "Move Key \( ( controller.pendingLevelMove?.source ?? 0 ) + 1 ) Alone?",
 							 isPresented: Binding( presenting: Bindable( controller ).pendingLevelMove ),
 							 titleVisibility: .visible ) {
