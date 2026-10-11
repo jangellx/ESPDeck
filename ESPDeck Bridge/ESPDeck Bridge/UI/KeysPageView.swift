@@ -148,7 +148,7 @@ struct KeysPageView: View {
 			// Fixed under the deck, so they don't move when it scrolls or zooms.
 			VStack( spacing: 8 ) {
 				LabelPositionControl( controller: controller, deviceID: deviceID )
-				Text( "Shift-click a key to press it, as on the deck: shift-double-click for its Double Tap, shift-hold for its Hold (a Level key keeps stepping)." + ( doubleClickNote.map { " " + $0 } ?? "" ) )
+				Text( "Shift-click a key to press it, shift-double-click to Double Tap, shift-hold to Hold (a Level key keeps stepping when held)." + ( doubleClickNote.map { " " + $0 } ?? "" ) )
 					.secondaryCaption()
 					.multilineTextAlignment( .center )
 					.fixedSize( horizontal: false, vertical: true )
