@@ -407,7 +407,7 @@ extension AppDelegate {
 
 	/// The Key Inspector's own confirmation.
 	@objc func clearKey() {
-		guard currentKey != nil else { return }
+		guard let key = currentKey, !controller.isMenuClose( device: key.device, key: key.key ) else { return }
 		window.confirmingClearKey = true
 	}
 

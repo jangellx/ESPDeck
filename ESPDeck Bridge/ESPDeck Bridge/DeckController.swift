@@ -214,6 +214,7 @@ final class DeckController {
 		guard let index = config.settings.deviceIndex( id ) else { return }
 		guard key < config.settings.devices[index].keys.count else { return }   // not on this deck
 		let before = config.settings.devices[index].keys[key]
+		guard !before.isMenuClose else { return }   // a menu's Close key isn't a key to edit
 		var after  = before
 		change( &after )
 		guard after != before else { return }
@@ -227,6 +228,7 @@ final class DeckController {
 
 	/// Imports a dropped image as a state's icon.
 	func setIcon( data: Data, device id: String, key: Int, state: KeyState ) {
+		guard !isMenuClose( device: id, key: key ) else { return }
 		guard let name = config.importIcon( data ) else {
 			lastError = BridgeProblem( "Image Not Added", "That image couldn't be read." )
 			return
@@ -240,6 +242,7 @@ final class DeckController {
 	/// Locked/Unlocked) the matching symbol, unless it has an icon of its own that wasn't
 	/// matched this way.
 	func setSymbol( _ name: String, device id: String, key: Int, state: KeyState ) {
+		guard !isMenuClose( device: id, key: key ) else { return }
 		recordUndo( device: id, "Change Icon" )
 		let before = assignment( id, key: key )
 		config.setIcon( KeyAssignment.symbolPrefix + name, device: id, key: key, state: state )
@@ -265,7 +268,8 @@ final class DeckController {
 	/// Exchanges two keys' assignments, icons and appearance.
 	func swapKeys( device id: String, _ first: Int, _ second: Int ) {
 		guard first != second, let index = config.settings.deviceIndex( id ),
-			  max( first, second ) < config.settings.devices[index].keys.count else { return }
+			  max( first, second ) < config.settings.devices[index].keys.count,
+			  !isMenuClose( device: id, key: first ), !isMenuClose( device: id, key: second ) else { return }
 		recordUndo( device: id, "Move Key" )
 		config.settings.devices[index].keys.swapAt( first, second )
 		Self.remapSliders( &config.settings.devices[index].keys ) { $0 == first ? second : $0 == second ? first : $0 }
@@ -275,7 +279,8 @@ final class DeckController {
 	/// Empties a key. A Level pair's other key is cleared too, unless `keepingPartner`: then it
 	/// stays as an ordinary key for the same accessory.
 	func clear( device id: String, key: Int, keepingPartner: Bool = false ) {
-		guard let index = config.settings.deviceIndex( id ), key < config.settings.devices[index].keys.count else { return }
+		guard let index = config.settings.deviceIndex( id ), key < config.settings.devices[index].keys.count,
+			  !isMenuClose( device: id, key: key ) else { return }
 		recordUndo( device: id, "Clear Key" )
 		let keys = config.settings.devices[index].keys
 		if let partner = keys[key].slider?.partner, Self.isPartner( partner, of: key, in: keys ) {
@@ -482,6 +487,9 @@ final class DeckController {
 			recordUndo( device: destination, "Copy Page" )
 			let current = config.settings.devices[index].currentPage
 			config.settings.devices[index].pages[current] = from.pages[page]
+			// With the menus its keys open; the ones nothing opens are dropped again (reconcileMenus).
+			let known = Set( config.settings.devices[index].menus.map( \.id ) )
+			config.settings.devices[index].menus += from.menus.filter { !known.contains( $0.id ) }
 		} else {
 			recordUndo( device: destination, "Copy Keys" )
 			config.settings.devices[index].copyPages( from: from )
@@ -604,6 +612,10 @@ final class DeckController {
 	/// (or every device). `deferPush` batches edits from the configuration UI (e.g. dragging
 	/// the color picker) so the ESP32 only receives the final image.
 	func assignmentsChanged( device id: String? = nil, deferPush: Bool = false ) {
+		// Every Menu key has its menu, and no menu is left without a key.
+		for index in config.settings.devices.indices where id == nil || config.settings.devices[index].id == id {
+			config.settings.devices[index].reconcileMenus()
+		}
 		var refs = Set<CharacteristicRef>()
 		for settings in config.settings.devices {
 			for key in settings.allKeys {
@@ -701,6 +713,9 @@ final class DeckController {
 			if assignment.action == .pageNumber {
 				face.pageNumber = currentPage( device: id ) + 1
 			}
+		}
+		if assignment.isMenuClose {
+			face.symbol = openMenu( device: id )?.symbol ?? MenuCloseStyle.back.symbols[0]
 		}
 		if let slider = assignment.slider {
 			// Up or down (right or left, side by side), whatever the kind's own symbol is.
@@ -1067,14 +1082,17 @@ final class DeckController {
 			}
 			return
 		}
+		// Decided before the press, which may itself change what the deck shows.
+		let closing = closesMenu( after: assignment.press( kind )?.assignment, device: id )
 		switch kind {
 			case .tap:
 				press( device: id, key: key )
 			case .doubleTap, .hold:
 				if let action = assignment.press( kind ) {
-					perform( action.assignment, context: "Key \(key + 1) \(kind == .hold ? "held" : "double-tapped")", device: id )
+					perform( action.assignment, context: "Key \(key + 1) \(kind == .hold ? "held" : "double-tapped")", device: id, opener: key )
 				}
 		}
+		if closing { closeMenu( device: id ) }
 	}
 
 	/// Performs a key's action; also used by the configuration UI's Test button.
@@ -1085,7 +1103,10 @@ final class DeckController {
 	/// Runs an assignment's action: a HomeKit write, a scene, or a shortcut.
 	/// `device` is whose log records it; `key`, when it's a key press, lets an On/Off
 	/// shortcut record its new state.
-	func perform( _ assignment: KeyAssignment, context: String, device id: String? = nil, key: Int? = nil ) {
+	/// `opener`: the key pressed, for a double tap or hold that opens a menu.
+	func perform( _ assignment: KeyAssignment, context: String, device id: String? = nil, key: Int? = nil, opener: Int? = nil ) {
+		// Where the key is, for what finishes after the deck has moved on (a menu that closed).
+		let surface = id.flatMap { surface( device: $0 ) }
 		// A slider key's Test Action: one step.
 		if let id, let key, assignment.slider != nil {
 			stepSlider( device: id, key: key )
@@ -1100,8 +1121,12 @@ final class DeckController {
 			if let id { performPage( assignment, device: id ) }
 			return
 		}
+		if kind == .menu {
+			if let id { performMenu( assignment, device: id, key: key ?? opener ) }
+			return
+		}
 		if kind == .shortcut {
-			runShortcut( assignment, context: context, device: id, key: key )
+			runShortcut( assignment, context: context, device: id, key: key, surface: surface )
 			return
 		}
 
@@ -1127,7 +1152,7 @@ final class DeckController {
 			} catch {
 				print( "[DeckController] \(context) failed: \(error)" )
 				lastError = BridgeProblem( "HomeKit Error", "\(context): \(error.localizedDescription)" )
-				if let id, let key { flagFailure( device: id, key: key ) }
+				if let id, let key { flagFailure( device: id, key: key, on: surface ) }
 				logEvent( "\(context) failed: \(error.localizedDescription)", device: id )
 			}
 		}
@@ -1188,6 +1213,11 @@ final class DeckController {
 						refresh( &config.settings.devices[index].pages[page][key] )
 					}
 				}
+				for menu in config.settings.devices[index].menus.indices {
+					for key in config.settings.devices[index].menus[menu].keys.indices {
+						refresh( &config.settings.devices[index].menus[menu].keys[key] )
+					}
+				}
 				refresh( &config.settings.devices[index].onSleep )
 				refresh( &config.settings.devices[index].onWake )
 			}
@@ -1218,7 +1248,7 @@ final class DeckController {
 	/// A One-Shot shortcut just runs. An On/Off one gets "on" or "off" as its input, the state
 	/// the key is switching to, and the key then shows the state the shortcut output
 	/// ("on"/"off", "true"/"false", "yes"/"no", "1"/"0"), or failing that the one it asked for.
-	private func runShortcut( _ assignment: KeyAssignment, context: String, device: String?, key: Int? ) {
+	private func runShortcut( _ assignment: KeyAssignment, context: String, device: String?, key: Int?, surface: KeySurface? ) {
 		guard let id = assignment.shortcutID else { return }
 		guard let macBridge else {
 			lastError = BridgeProblem( "Shortcuts Unavailable", "Shortcuts can only run on the Mac." )
@@ -1250,7 +1280,7 @@ final class DeckController {
 					: ""
 				lastError = BridgeProblem( "Shortcut Error", "\(context): \(message)\(hint)",
 											link: assignment.shortcutName.flatMap { BridgeProblem.openShortcut( named: $0 ) } )
-				if let device, let key { flagFailure( device: device, key: key ) }
+				if let device, let key { flagFailure( device: device, key: key, on: surface ) }
 				logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} failed: \(message)", device: device )
 				return
 			}
@@ -1259,10 +1289,7 @@ final class DeckController {
 				return
 			}
 			let state = Self.shortcutState( from: output ) ?? target
-			update( device: device, key: key ) { assignment in
-				// Unless the key was reassigned while the shortcut ran.
-				if assignment.isToggleShortcut && assignment.shortcutID == id { assignment.shortcutState = state }
-			}
+			setShortcutState( state, shortcut: id, device: device, key: key, on: surface )
 			logEvent( "\(context): shortcut \u{201C}\(name)\u{201D} finished; the key shows \(state.title)", device: device )
 		}
 	}
@@ -1306,7 +1333,11 @@ final class DeckController {
 
 	/// Name used when a key has no custom label.
 	func defaultName( for assignment: KeyAssignment ) -> String? {
-		assignment.kind == .shortcut ? assignment.shortcutName : home.name( for: assignment )
+		switch assignment.kind {
+			case .shortcut: assignment.shortcutName
+			case .menu:     assignment.isMenuClose ? nil : "Menu"
+			default:        home.name( for: assignment )
+		}
 	}
 
 	/// The dropped icon for a face, or a shortcut's own icon when it has none.

@@ -38,9 +38,23 @@ struct KeyInspectorView: View {
 	}
 
 	var body: some View {
+		// An open menu's Close key has only the menu's settings.
+		if assignment.isMenuClose, let menu = controller.openMenu( device: deviceID ) {
+			MenuCloseKeyInspector( controller: controller, deviceID: deviceID, key: key, menu: menu )
+		} else {
+			keyForm
+		}
+	}
+
+	/// A menu's keys don't open menus themselves.
+	private var modes: [TargetMode] {
+		controller.openMenu( device: deviceID ) == nil ? TargetMode.keyModes : TargetMode.menuKeyModes
+	}
+
+	private var keyForm: some View {
 		Form {
 			Section {
-				TargetPicker( controller: controller, assignment: editing, modes: TargetMode.keyModes,
+				TargetPicker( controller: controller, assignment: editing, modes: modes,
 							  edit: { change in edit( change ) },
 							  modeRequest: modeRequest ) { target in
 					edit { $0.bind( to: target ) }
@@ -75,6 +89,10 @@ struct KeyInspectorView: View {
 							LabeledContent( "Page", value: "\(min( editing.pageNumber ?? 1, max( pageCount, 1 ) )) of \(pageCount)" )
 						}
 					}
+					// The menu the press opens: how it closes.
+					if kind == .menu && pickerTab == .menu, let menu = editing.menuID {
+						MenuOptionRows( controller: controller, deviceID: deviceID, menuID: menu )
+					}
 				}
 			} header: {
 				let cols = max( controller.layout( deviceID ).cols, 1 )
@@ -89,14 +107,14 @@ struct KeyInspectorView: View {
 					}
 					// Between the heading and the section: which press the section is about.
 					pressTabs
-					// Over Home | Shortcut | Page: what that press controls.
+					// Over Home | Shortcut | Page | Menu: what that press controls.
 					SectionHeader( "Controlling" )
 						.padding( .top, 6 )
 				}
 			}
 
 			// What a press does: Toggle (or the kind's actions), or Level's two keys.
-			if let kind = editing.kind, kind != .page {
+			if let kind = editing.kind, kind != .page, kind != .menu {
 				if isSlider && pressKind == .tap {
 					SliderSection( controller: controller, deviceID: deviceID, key: key, levels: levels )
 				} else {
@@ -127,14 +145,20 @@ struct KeyInspectorView: View {
 
 			PillRow {
 				Pill {
-					Button( "Test Action" ) {
-						if pressKind == .tap {
-							controller.press( device: deviceID, key: key )
-						} else {
-							controller.perform( editing, context: "Key \(key + 1) (\(pressKind.rawValue.lowercased()))", device: deviceID )
+					if editing.kind == .menu, let menu = editing.menuID {
+						// Shows the menu here and on the deck, to set up its keys; the bar over
+						// the deck has Close Menu.
+						Button( "Edit Menu" ) { controller.showMenu( device: deviceID, menu, from: key ) }
+					} else {
+						Button( "Test Action" ) {
+							if pressKind == .tap {
+								controller.press( device: deviceID, key: key )
+							} else {
+								controller.perform( editing, context: "Key \(key + 1) (\(pressKind.rawValue.lowercased()))", device: deviceID )
+							}
 						}
+						.disabled( editing.kind == nil || ( editing.action == .none && editing.slider == nil ) )
 					}
-					.disabled( editing.kind == nil || ( editing.action == .none && editing.slider == nil ) )
 				}
 			}
 

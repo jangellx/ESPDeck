@@ -132,6 +132,11 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	var pages         : [[KeyAssignment]] = [ [] ]
 	/// The page the deck shows (and the Keys page edits).
 	var currentPage   = 0
+	/// The device's menus: each is opened by the keys that name it (KeyAssignment.menuID).
+	var menus         : [DeckMenu] = []
+	/// The menu the deck shows over its page, if one is open. Not saved: a menu is closed
+	/// when the app starts.
+	var openMenu      : UUID?
 	/// Last layout the device reported, so an offline device's keys still draw correctly.
 	var layout        = DeckLayout.mini
 
@@ -196,6 +201,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 			pages = pages.map { Self.grid( fromDisplay: $0, layout: old ) }
 		}
 		currentPage   = min( max( container.lenient( Int.self, forKey: .currentPage ) ?? 0, 0 ), pages.count - 1 )
+		menus         = container.lenientArray( of: DeckMenu.self, forKey: .menus ) ?? []
 		brightness    = container.lenient( Int.self, forKey: .brightness ) ?? 80
 		orientation   = container.lenient( String.self, forKey: .orientation ) ?? "auto"
 		sleepTimeout  = container.lenient( Int.self, forKey: .sleepTimeout ) ?? 0
@@ -251,7 +257,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	}
 
 	private enum CodingKeys: String, CodingKey {
-		case id, name, isDemo, pages, gridColumns, currentPage, layout, brightness, orientation, sleepTimeout, devOTA, labelPosition
+		case id, name, isDemo, pages, menus, gridColumns, currentPage, layout, brightness, orientation, sleepTimeout, devOTA, labelPosition
 		case repeatDelay, repeatRate, doubleTapWindow, holdTime, sleepTriggers, onSleep, onWake
 		case hostname, lastSeen
 		case keys   // before pages
@@ -263,6 +269,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		try container.encode( name, forKey: .name )
 		try container.encode( isDemo, forKey: .isDemo )
 		try container.encode( pages.map( Self.trimmed ), forKey: .pages )
+		if !menus.isEmpty { try container.encode( menus, forKey: .menus ) }
 		try container.encode( Self.gridColumns, forKey: .gridColumns )
 		try container.encode( currentPage, forKey: .currentPage )
 		try container.encode( layout, forKey: .layout )
@@ -296,9 +303,97 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 
 	/// The current page's keys, numbered as `layout` numbers them. Setting it writes them back
 	/// to their grid places and leaves keys the layout doesn't show alone.
+	///
+	/// With a menu open these are the menu's keys instead, and a menu that's closed manually
+	/// has its Close key in its corner, which setting leaves alone.
 	var keys: [KeyAssignment] {
-		get { Self.display( pages[currentPage], layout: layout ) }
-		set { pages[currentPage] = Self.store( newValue, into: pages[currentPage], layout: layout ) }
+		get {
+			guard let menu = shownMenu else { return Self.display( pages[currentPage], layout: layout ) }
+			var keys = Self.display( menu.keys, layout: layout )
+			if let close = menu.closeKey( in: layout ), close < keys.count { keys[close] = DeckMenu.closeAssignment }
+			return keys
+		}
+		set {
+			guard let index = menus.firstIndex( where: { $0.id == openMenu } ) else {
+				pages[currentPage] = Self.store( newValue, into: pages[currentPage], layout: layout )
+				return
+			}
+			// The Close key isn't a stored key, wherever it was dragged to; what's stored under
+			// it stays.
+			var keys   = newValue
+			let stored = Self.display( menus[index].keys, layout: layout )
+			for key in keys.indices where keys[key].isMenuClose || key == menus[index].closeKey( in: layout ) {
+				keys[key] = key < stored.count ? stored[key] : KeyAssignment()
+			}
+			menus[index].keys = Self.store( keys, into: menus[index].keys, layout: layout )
+		}
+	}
+
+	/// The open menu, if there is one.
+	var shownMenu: DeckMenu? {
+		openMenu.flatMap { id in menus.first { $0.id == id } }
+	}
+
+	/// What the deck shows: the open menu, else the current page.
+	var surface: KeySurface {
+		get { shownMenu.map { .menu( $0.id ) } ?? .page( currentPage ) }
+		set {
+			switch newValue {
+				case .page( let page ):
+					currentPage = min( max( page, 0 ), pages.count - 1 )
+					openMenu    = nil
+				case .menu( let id ):
+					openMenu = menus.contains { $0.id == id } ? id : nil
+			}
+		}
+	}
+
+	/// Changes a key of a surface that may not be the one showing (something that finished
+	/// after the deck moved on). False if that surface is gone.
+	mutating func update( key: Int, on surface: KeySurface, _ change: ( inout KeyAssignment ) -> Void ) -> Bool {
+		let shown = ( currentPage, openMenu )
+		defer { ( currentPage, openMenu ) = shown }
+		switch surface {
+			case .page( let page ):
+				guard page < pages.count else { return false }
+				currentPage = page
+				openMenu    = nil
+			case .menu( let id ):
+				guard menus.contains( where: { $0.id == id } ) else { return false }
+				openMenu = id
+		}
+		var keys = keys
+		guard key < keys.count, !keys[key].isMenuClose else { return false }
+		change( &keys[key] )
+		self.keys = keys
+		return true
+	}
+
+	/// Makes a menu for every key that names one that isn't there (a new Menu key, a pasted
+	/// one), and drops the menus no key opens any more.
+	mutating func reconcileMenus() {
+		// From the pages first, then from the menus those reach, so a menu only another
+		// dropped menu opens goes too.
+		var wanted  = pages.joined().flatMap( \.menuIDs )
+		var checked = 0
+		while checked < wanted.count {
+			let id = wanted[checked]
+			checked += 1
+			for inner in ( menus.first { $0.id == id }?.keys ?? [] ).flatMap( \.menuIDs ) where !wanted.contains( inner ) {
+				wanted.append( inner )
+			}
+		}
+		menus.removeAll { !wanted.contains( $0.id ) }
+		for id in wanted where !menus.contains( where: { $0.id == id } ) {
+			menus.append( DeckMenu( id: id ) )
+		}
+		if shownMenu == nil { openMenu = nil }
+	}
+
+	/// The key that opens a menu, for its name: the first one found, the page shown first.
+	func opener( of menu: UUID ) -> KeyAssignment? {
+		let all = pages[currentPage] + pages.joined() + menus.flatMap( \.keys )
+		return all.first { $0.menuIDs.contains( menu ) }
 	}
 
 	/// Where a key of `layout` lives on the grid.
@@ -382,7 +477,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	}
 
 	/// Every page's keys, for what doesn't care about pages (icon files, HomeKit watching).
-	var allKeys: [KeyAssignment] { pages.flatMap { $0 } }
+	var allKeys: [KeyAssignment] { pages.flatMap { $0 } + menus.flatMap( \.keys ) }
 
 	/// The key at `index`, or an empty one past the end of `keys`.
 	func key( _ index: Int ) -> KeyAssignment {
@@ -393,6 +488,8 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	mutating func copyPages( from source: DeviceSettings ) {
 		pages       = source.pages.isEmpty ? [ [] ] : source.pages
 		currentPage = min( source.currentPage, max( source.pages.count - 1, 0 ) )
+		menus       = source.menus
+		openMenu    = nil
 	}
 }
 

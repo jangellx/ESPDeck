@@ -21,22 +21,16 @@ extension DeckController {
 		settings( id )?.currentPage ?? 0
 	}
 
-	/// Shows a page on the deck (and in the Keys page).
+	/// Shows a page on the deck (and in the Keys page); see show(device:_:).
 	func showPage( device id: String, _ page: Int ) {
-		guard let index = config.settings.deviceIndex( id ) else { return }
-		let page = min( max( page, 0 ), config.settings.devices[index].pages.count - 1 )
-		guard page != config.settings.devices[index].currentPage else { return }
-		stopSliders( device: id )
-		// What each key shows now, which may still be the page before (changing twice quickly).
-		device( id )?.pageChange = ( Date(), device( id )?.displayedPreviews ?? [] )
-		config.settings.devices[index].currentPage = page
-		clearFailures( device: id )   // they were about the other page's keys
-		window.selectedKey = min( window.selectedKey, max( layout( id ).keyCount - 1, 0 ) )
-		assignmentsChanged( device: id )
+		// An open menu closes: it was over the page before.
+		show( device: id, .page( page ) )
+		device( id )?.menuOpenerKey = nil
 	}
 
 	/// A new page after this one, which the deck then shows.
 	func addPage( device id: String ) {
+		closeMenu( device: id )   // the keys below are the page's
 		guard let index = config.settings.deviceIndex( id ) else { return }
 		let layout     = layout( id )
 		let count      = max( layout.keyCount, 1 )
@@ -93,6 +87,7 @@ extension DeckController {
 	/// the first) is shown if it was that one. Afterward the last page has no Next Page key
 	/// and the first no Previous Page key, since they'd have nowhere to go.
 	func deletePage( device id: String, _ page: Int? = nil ) {
+		closeMenu( device: id )
 		guard let index = config.settings.deviceIndex( id ), config.settings.devices[index].pages.count > 1 else { return }
 		var settings = config.settings.devices[index]
 		let removed  = min( page ?? settings.currentPage, settings.pages.count - 1 )
@@ -120,6 +115,8 @@ extension DeckController {
 		stopSliders( device: id )
 		config.settings.devices[index].pages       = [ [] ]
 		config.settings.devices[index].currentPage = 0
+		config.settings.devices[index].menus       = []
+		config.settings.devices[index].openMenu    = nil
 		config.removeUnusedIcons()
 		assignmentsChanged( device: id )
 	}
@@ -134,12 +131,16 @@ extension DeckController {
 	/// Keeps Go to Page keys pointing at the same pages after one is inserted or removed:
 	/// `renumber` maps a page number (from 1) to its new one, or nil to leave it.
 	private static func renumberPageKeys( _ settings: inout DeviceSettings, _ renumber: ( Int ) -> Int? ) {
+		func renumbered( _ key: inout KeyAssignment ) {
+			if key.kind == .page, let number = key.pageNumber, let new = renumber( number ) { key.pageNumber = new }
+			if key.doubleTap?.kind == .page, let number = key.doubleTap?.pageNumber, let new = renumber( number ) { key.doubleTap?.pageNumber = new }
+			if key.hold?.kind == .page, let number = key.hold?.pageNumber, let new = renumber( number ) { key.hold?.pageNumber = new }
+		}
 		for page in settings.pages.indices {
-			for key in settings.pages[page].indices where settings.pages[page][key].kind == .page {
-				if let number = settings.pages[page][key].pageNumber, let new = renumber( number ) {
-					settings.pages[page][key].pageNumber = new
-				}
-			}
+			for key in settings.pages[page].indices { renumbered( &settings.pages[page][key] ) }
+		}
+		for menu in settings.menus.indices {
+			for key in settings.menus[menu].keys.indices { renumbered( &settings.menus[menu].keys[key] ) }
 		}
 	}
 
@@ -190,8 +191,9 @@ extension DeckController {
 
 	/// Marks a key whose action failed with a warning triangle on the deck, for
 	/// failureMarkDuration: a hint to look at the bridge (Status, or the notification).
-	func flagFailure( device id: String, key: Int ) {
-		guard let device = device( id ) else { return }
+	func flagFailure( device id: String, key: Int, on surface: KeySurface? = nil ) {
+		// Not on another page's key, or the page's under a menu that has closed since.
+		guard let device = device( id ), surface == nil || surface == self.surface( device: id ) else { return }
 		device.failedKeys.insert( key )
 		device.failureTasks[key]?.cancel()
 		device.failureTasks[key] = Task { [weak self, weak device] in

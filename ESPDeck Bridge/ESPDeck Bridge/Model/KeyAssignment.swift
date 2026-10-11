@@ -40,6 +40,8 @@ struct KeyAssignment: Codable, Equatable {
 	var slider          : SliderKey?
 	/// Go to Page: the page, from 1.
 	var pageNumber      : Int?
+	/// Menu keys: the menu it opens (DeckMenu.id).
+	var menuID          : UUID?
 	/// Scenes the key runs besides its accessories, or besides `actionSetID` on a scenes-only
 	/// key; nil for none.
 	var scenes          : [UUID]?
@@ -63,6 +65,14 @@ struct KeyAssignment: Codable, Equatable {
 			case .hold:      hold
 		}
 	}
+
+	/// The menus the key opens, with any of its presses.
+	var menuIDs: [UUID] {
+		[ kind == .menu ? menuID : nil, doubleTap?.kind == .menu ? doubleTap?.menuID : nil, hold?.kind == .menu ? hold?.menuID : nil ].compactMap { $0 }
+	}
+
+	/// An open menu's Close key, which stands in for whatever is stored under it.
+	var isMenuClose: Bool { kind == .menu && action == .closeMenu }
 
 	/// An On/Off shortcut rather than a One-Shot one.
 	var isToggleShortcut: Bool { kind == .shortcut && shortcutToggles == true }
@@ -139,6 +149,7 @@ extension KeyAssignment {
 		backgroundColor = container.lenient( String.self, forKey: .backgroundColor )
 		slider          = container.lenient( SliderKey.self, forKey: .slider )
 		pageNumber      = container.lenient( Int.self, forKey: .pageNumber )
+		menuID          = container.lenient( UUID.self, forKey: .menuID )
 		scenes          = container.lenientArray( of: UUID.self, forKey: .scenes )
 		sceneTiming     = container.lenient( SceneTiming.self, forKey: .sceneTiming )
 		doubleTap       = container.lenient( PressAction.self, forKey: .doubleTap )
@@ -187,6 +198,7 @@ extension KeyAssignment {
 		shortcutToggles = nil
 		shortcutState   = nil
 		pageNumber      = nil
+		menuID          = nil
 		if let first = accessories.first {
 			kind        = first.kind
 			accessoryID = first.accessoryID

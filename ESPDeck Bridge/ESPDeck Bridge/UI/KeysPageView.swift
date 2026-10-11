@@ -165,36 +165,49 @@ struct KeysPageView: View {
 		let count   = controller.pageCount( device: deviceID )
 		let current = controller.currentPage( device: deviceID )
 		return HStack( spacing: 6 ) {
-			Text( "Page" )
-				.foregroundStyle( Color.secondary )
-			ScrollView( .horizontal ) {
-				HStack( spacing: 6 ) {
-					ForEach( 0..<count, id: \.self ) { page in
-						pageButton( page, current: current, pills: count >= 10 )
+			// A menu is open: its name and the way out, in place of the pages.
+			if let menu = controller.openMenu( device: deviceID ) {
+				Image( systemName: "square.grid.2x2.fill" )
+					.foregroundStyle( Color.secondary )
+				Text( "Editing \(controller.menuName( device: deviceID, menu.id ))" )
+					.lineLimit( 1 )
+					.truncationMode( .middle )
+				Spacer( minLength: 8 )
+				Button( "Close Menu" ) { controller.closeMenu( device: deviceID ) }
+					.buttonStyle( .borderedProminent )
+					.help( "Go back to the page. On the deck, the menu closes \(menu.dismissal == .manual ? "with its Close key" : "when one of its keys is pressed")." )
+			} else {
+				Text( "Page" )
+					.foregroundStyle( Color.secondary )
+				ScrollView( .horizontal ) {
+					HStack( spacing: 6 ) {
+						ForEach( 0..<count, id: \.self ) { page in
+							pageButton( page, current: current, pills: count >= 10 )
+						}
+						Button {
+							controller.addPage( device: deviceID )
+						} label: {
+							Image( systemName: "plus" )
+								.scaledFrame( width: 22, height: 22 )
+								.background( Circle().strokeBorder( .tertiary, lineWidth: 1 ) )
+								.contentShape( Circle() )
+						}
+						.buttonStyle( .plain )
+						.help( "Add a page after this one. This page's lower-right key becomes Next Page, and what was there moves to the new page." )
 					}
-					Button {
-						controller.addPage( device: deviceID )
-					} label: {
-						Image( systemName: "plus" )
-							.scaledFrame( width: 22, height: 22 )
-							.background( Circle().strokeBorder( .tertiary, lineWidth: 1 ) )
-							.contentShape( Circle() )
-					}
-					.buttonStyle( .plain )
-					.help( "Add a page after this one. This page's lower-right key becomes Next Page, and what was there moves to the new page." )
+					.padding( .vertical, 1 )
 				}
-				.padding( .vertical, 1 )
+				.scrollIndicators( .hidden )
+				Spacer( minLength: 0 )
+				Button {
+					requestDelete( current )
+				} label: {
+					Image( systemName: "trash" )
+				}
+				.buttonStyle( .borderless )
+				.disabled( count <= 1 )
+				.help( "Delete this page" )
 			}
-			.scrollIndicators( .hidden )
-			Spacer( minLength: 0 )
-			Button {
-				requestDelete( current )
-			} label: {
-				Image( systemName: "trash" )
-			}
-			.buttonStyle( .borderless )
-			.disabled( count <= 1 )
-			.help( "Delete this page" )
 		}
 		.controlSize( .small )
 		.padding( .horizontal, 14 )

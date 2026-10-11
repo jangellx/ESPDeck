@@ -38,6 +38,8 @@ final class DeckDevice: Identifiable {
 	/// The last page change: when, and what each key showed before it, so the Keys page's
 	/// preview can pop the new page in a key at a time.
 	var pageChange: ( at: Date, previews: [UIImage?] )?
+	/// The key that opened the menu now showing; selected again when it closes.
+	@ObservationIgnored var menuOpenerKey: Int?
 
 	/// Seconds between keys as a new page pops in, in key order.
 	static let pagePopStep: TimeInterval = 0.05

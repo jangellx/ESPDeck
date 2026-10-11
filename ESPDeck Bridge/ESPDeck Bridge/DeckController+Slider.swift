@@ -32,7 +32,8 @@ extension DeckController {
 	/// `key` is cleared.
 	func makeSlider( device id: String, key: Int, partner: Int, level: SliderLevel ) {
 		guard let index = config.settings.deviceIndex( id ), key != partner,
-			  max( key, partner ) < config.settings.devices[index].keys.count else { return }
+			  max( key, partner ) < config.settings.devices[index].keys.count,
+			  !isMenuClose( device: id, key: partner ) else { return }
 		recordUndo( device: id, "Make Slider" )
 
 		let partnerRaises = Self.raisesByDefault( partner, partner: key, cols: max( layout( id ).cols, 1 ) )
@@ -234,7 +235,7 @@ extension DeckController {
 				performPress( device: id, key: key, kind: .tap )
 			}
 		} else {
-			press( device: id, key: key )
+			performPress( device: id, key: key, kind: .tap )
 		}
 	}
 
@@ -320,7 +321,8 @@ extension DeckController {
 	/// `pendingLevelMove` is set for the view to ask about.
 	func moveKey( device id: String, from source: Int, to target: Int ) {
 		guard source != target, let index = config.settings.deviceIndex( id ),
-			  max( source, target ) < config.settings.devices[index].keys.count else { return }
+			  max( source, target ) < config.settings.devices[index].keys.count,
+			  !isMenuClose( device: id, key: source ), !isMenuClose( device: id, key: target ) else { return }
 		let keys = config.settings.devices[index].keys
 		// Dropping an ordinary key on a Level key moves the Level key the other way.
 		let ( moving, destination ) = isPairedSlider( keys, source ) ? ( source, target ) : isPairedSlider( keys, target ) ? ( target, source ) : ( -1, -1 )

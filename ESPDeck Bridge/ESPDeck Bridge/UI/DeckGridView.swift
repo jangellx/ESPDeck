@@ -93,8 +93,13 @@ private struct DeckKeyView: View {
 	@State private var swappedFor: Date?
 
 	/// The page this key's command goes to, if it's one that changes page, run as the deck would.
+	/// A Menu key opens its menu, and a menu's Close key closes it.
 	private func goToPage() {
 		let assignment = controller.assignment( deviceID, key: index )
+		if assignment.kind == .menu {
+			controller.performMenu( assignment, device: deviceID, key: index )
+			return
+		}
 		guard assignment.kind == .page,
 			  [ .nextPage, .previousPage, .firstPage, .lastPage, .goToPage ].contains( assignment.action ) else { return }
 		controller.performPage( assignment, device: deviceID )
@@ -144,7 +149,7 @@ private struct DeckKeyView: View {
 			ConfigurationHostingController.takeKeyboardFocus()
 			selection = index
 		}
-		// Double-click a Next, Previous, First, Last or Go to Page key to go there, as pressing
+		// Double-click a Next, Previous, First, Last, Go to Page or Menu key to go there, as pressing
 		// it on the deck would. Alongside the click above, so selecting isn't delayed.
 		.simultaneousGesture( TapGesture( count: 2 ).onEnded { goToPage() } )
 		.contextMenu {

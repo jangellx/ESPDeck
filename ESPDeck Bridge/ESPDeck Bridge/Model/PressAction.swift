@@ -30,6 +30,7 @@ struct PressAction: Codable, Equatable {
 	var shortcutToggles : Bool?
 	var action          = KeyAction.none
 	var pageNumber      : Int?
+	var menuID          : UUID?
 	var others          : [KeyMember]?
 	var scenes          : [UUID]?
 	var sceneTiming     : SceneTiming?
@@ -46,6 +47,7 @@ struct PressAction: Codable, Equatable {
 		shortcutToggles = assignment.shortcutToggles
 		action          = assignment.action
 		pageNumber      = assignment.pageNumber
+		menuID          = assignment.menuID
 		others          = assignment.others
 		scenes          = assignment.scenes
 		sceneTiming     = assignment.sceneTiming
@@ -63,6 +65,7 @@ struct PressAction: Codable, Equatable {
 		assignment.shortcutToggles = shortcutToggles
 		assignment.action          = action
 		assignment.pageNumber      = pageNumber
+		assignment.menuID          = menuID
 		assignment.others          = others
 		assignment.scenes          = scenes
 		assignment.sceneTiming     = sceneTiming
@@ -81,6 +84,7 @@ struct PressAction: Codable, Equatable {
 		shortcutToggles = container.lenient( Bool.self, forKey: .shortcutToggles )
 		action          = container.lenient( KeyAction.self, forKey: .action ) ?? .none
 		pageNumber      = container.lenient( Int.self, forKey: .pageNumber )
+		menuID          = container.lenient( UUID.self, forKey: .menuID )
 		others          = container.lenientArray( of: KeyMember.self, forKey: .others )
 		scenes          = container.lenientArray( of: UUID.self, forKey: .scenes )
 		sceneTiming     = container.lenient( SceneTiming.self, forKey: .sceneTiming )

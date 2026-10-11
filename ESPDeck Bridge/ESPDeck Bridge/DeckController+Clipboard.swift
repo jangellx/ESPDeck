@@ -39,6 +39,7 @@ extension DeckController {
 	/// Puts a key on the clipboard: its assignment with its images, and a PNG of how it looks.
 	func copyKey( device id: String, key: Int ) {
 		let assignment = assignment( id, key: key )
+		guard !assignment.isMenuClose else { return }   // not a key of its own
 
 		var images: [String: Data] = [:]
 		for name in assignment.icons.values where !name.hasPrefix( KeyAssignment.symbolPrefix ) {

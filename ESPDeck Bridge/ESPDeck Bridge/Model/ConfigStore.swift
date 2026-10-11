@@ -329,7 +329,8 @@ final class ConfigStore {
 
 	/// Sets (or with nil removes) a state's icon on a key of the page the device shows.
 	func setIcon( _ name: String?, device: String, key: Int, state: KeyState ) {
-		guard let index = settings.deviceIndex( device ), key < settings.devices[index].keys.count else { return }
+		guard let index = settings.deviceIndex( device ), key < settings.devices[index].keys.count,
+			  !settings.devices[index].keys[key].isMenuClose else { return }
 		settings.devices[index].keys[key].icons[state.rawValue] = name
 		removeUnusedIcons()
 	}

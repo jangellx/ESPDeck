@@ -22,11 +22,15 @@ enum TargetMode: String, CaseIterable, Identifiable {
 	case shortcut  = "Shortcut"
 	/// Keys only: page commands.
 	case page      = "Page"
+	/// Keys only: opens a menu of more keys.
+	case menu      = "Menu"
 
 	var id: String { rawValue }
 
 	/// Keys' tabs, and sleep and wake commands'.
-	static let keyModes: [TargetMode]  = [ .home, .shortcut, .page ]
+	static let keyModes: [TargetMode]  = [ .home, .shortcut, .page, .menu ]
+	/// A menu's own keys: a menu doesn't open another.
+	static let menuKeyModes: [TargetMode] = [ .home, .shortcut, .page ]
 	static let homeModes: [TargetMode] = [ .home, .shortcut ]
 
 	/// The tab showing a kind among `modes`: accessories and scenes share Home.
@@ -41,6 +45,7 @@ enum TargetMode: String, CaseIterable, Identifiable {
 			case .scene:    self = .scene
 			case .shortcut: self = .shortcut
 			case .page:     self = .page
+			case .menu:     self = .menu
 			default:        self = .accessory
 		}
 	}
@@ -88,6 +93,11 @@ extension KeyAssignment {
 		if kind != .page {
 			pageNumber = nil
 		}
+		if kind != .menu {
+			menuID = nil
+		} else if menuID == nil {
+			menuID = UUID()   // the controller makes its menu (reconcileMenus)
+		}
 		scenes = nil   // a single target
 		if target?.kind != nil {
 			if kindChanged || !actions.contains( action ) {
@@ -119,7 +129,7 @@ private extension TargetMode {
 		switch self {
 			case .accessory: severalHomes ? "Search accessories, rooms, Homes, or types" : "Search accessories, rooms, or types"
 			case .shortcut:  "Search shortcuts or folders"
-			case .page, .home, .scene: ""
+			case .page, .menu, .home, .scene: ""
 		}
 	}
 
@@ -159,6 +169,8 @@ struct TargetPicker: View {
 
 			if mode == .page {
 				PageCommandRows( kind: assignment.kind, action: assignment.action, edit: edit )
+			} else if mode == .menu {
+				MenuKeyRows( kind: assignment.kind, edit: edit )
 			} else if mode == .home {
 				ChosenTargetRows( controller: controller, assignment: assignment, edit: edit )
 			} else {
@@ -173,7 +185,7 @@ struct TargetPicker: View {
 		.onChange( of: modeRequest?.wrappedValue ) { takeModeRequest() }
 		.onChange( of: mode ) {
 			// TargetChoiceRows clears its own search.
-			if modes == TargetMode.keyModes {   // a key's picker
+			if modes.contains( .page ) {   // a key's picker
 				controller.window.lastKeyTargetMode = mode
 			}
 			if mode == .shortcut && !controller.shortcutsLoaded {
@@ -199,7 +211,7 @@ struct TargetPicker: View {
 	/// Shows the tab for what's bound, and loads shortcuts when that's their tab.
 	private func syncMode() {
 		// A blank key keeps the tab the last key was on.
-		let bound = assignment.kind == nil && modes == TargetMode.keyModes ? controller.window.lastKeyTargetMode : TargetMode.of( assignment.kind, in: modes )
+		let bound = assignment.kind == nil && modes.contains( .page ) ? controller.window.lastKeyTargetMode : TargetMode.of( assignment.kind, in: modes )
 		mode = modes.contains( bound ) ? bound : ( modes.first ?? .accessory )
 		if mode == .shortcut && !controller.shortcutsLoaded {
 			controller.reloadShortcuts()
@@ -421,8 +433,8 @@ private struct TargetMenu: View {
 							menuItem( target, title: "\(target.name) (\(target.kind.title))" )
 						}
 					}
-				case .page, .home, .scene:
-					EmptyView()   // PageCommandRows and ChosenTargetRows, not this menu
+				case .page, .menu, .home, .scene:
+					EmptyView()   // PageCommandRows, MenuKeyRows and ChosenTargetRows, not this menu
 			}
 		} label: {
 			// Menus size to their label, so shorten long names before they push the row wider.
@@ -459,7 +471,7 @@ private struct TargetMenu: View {
 				case .shortcut:
 					// Before the list loads, show the remembered name rather than "missing".
 					return shortcutsLoaded ? "Missing Shortcut" : ( assignment.shortcutName ?? "Shortcut" )
-				case .page:
+				case .page, .menu:
 					return assignment.action.title
 				case .home, .scene:
 					return "Missing"
@@ -577,6 +589,29 @@ private struct PageCommandRows: View {
 			case .lastPage:     "chevron.right.to.line"
 			case .goToPage:     "number.circle.fill"
 			default:            "doc.fill"
+		}
+	}
+}
+
+// MARK: - Menus
+
+/// Keys only: makes the press open a menu. The menu's own settings are the inspector's.
+private struct MenuKeyRows: View {
+	/// What the assignment is bound to now.
+	let kind : KeyKind?
+	/// Applies a change to the assignment; without it nothing can be chosen.
+	let edit : ( ( ( inout KeyAssignment ) -> Void ) -> Void )?
+
+	var body: some View {
+		if kind != .menu {
+			LabeledContent {
+				Button( "Make Menu" ) {
+					edit? { $0.bind( to: HomeTarget( kind: .menu, name: "Menu", room: nil ) ) }
+				}
+			} label: {
+				Text( "Opens a Menu" )
+				Text( "The press shows another set of keys on the deck, in place of the page." )
+			}
 		}
 	}
 }
