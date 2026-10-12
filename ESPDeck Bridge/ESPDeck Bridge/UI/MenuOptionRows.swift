@@ -27,7 +27,14 @@ struct MenuOptionRows: View {
 
 	var body: some View {
 		if let menu {
-			Toggle( isOn: binding( \.closesOnAction, of: menu ) ) {
+			// Animated: the description under it changes length, and the rows below move.
+			Toggle( isOn: Binding {
+				menu.closesOnAction
+			} set: { closes in
+				withAnimation( .easeInOut( duration: 0.2 ) ) {
+					controller.updateMenu( device: deviceID, menuID ) { $0.closesOnAction = closes }
+				}
+			} ) {
 				Text( "Dismiss on Action" )
 				Text( menu.closesOnAction
 					  ? "Pressing a key in the menu runs the key and closes the menu. Level keys keep the menu open, since they step while held."
@@ -62,7 +69,11 @@ struct MenuOptionRows: View {
 						}
 					}
 				}
+				// Centered under the popup, which is as wide as Back's five across.
+				.scaledFrame( width: Self.controlWidth )
 			}
+			.padding( .top, 2 )
+			.padding( .bottom, 8 )
 		}
 	}
 
@@ -81,15 +92,7 @@ struct MenuOptionRows: View {
 		.accessibilityLabel( symbol )
 		.accessibilityAddTraits( chosen ? .isSelected : [] )
 	}
-
-	/// One of the menu's settings.
-	private func binding<Value>( _ path: WritableKeyPath<DeckMenu, Value>, of menu: DeckMenu ) -> Binding<Value> {
-		Binding {
-			menu[keyPath: path]
-		} set: { value in
-			controller.updateMenu( device: deviceID, menuID ) { $0[keyPath: path] = value }
-		}
-	}
+}
 }
 
 /// The inspector while a menu is open: Menu (the menu's settings) or Key (the selected key
