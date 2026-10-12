@@ -55,7 +55,10 @@ enum HomeActionError: LocalizedError {
 	/// Whether an error from an action (ours, or HomeKit's own from a scene) is that refusal.
 	static func isDeviceLocked( _ error: Error ) -> Bool {
 		if case HomeActionError.deviceLocked = error { return true }
-		return ( error as? HMError )?.code == .deviceLocked
+		if ( error as? HMError )?.code == .deviceLocked { return true }
+		// HomeKit's wording for it ("Operation Requires Device to be Unlocked"), in case it comes
+		// under another code; only matches in English, where the code is the real test.
+		return error.localizedDescription.localizedCaseInsensitiveContains( "device to be unlocked" )
 	}
 
 	var errorDescription: String? {
