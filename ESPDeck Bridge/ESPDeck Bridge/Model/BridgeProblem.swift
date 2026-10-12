@@ -27,6 +27,16 @@ struct BridgeProblem: Equatable {
 		self.link   = link
 	}
 
+	/// Opens a question of the FAQ on GitHub, by its heading's anchor.
+	static func faq( _ anchor: String, repository: String? ) -> Link? {
+		URL( string: "https://github.com/\(repository ?? "jangellx/ESPDeck")/blob/main/docs/faq.md#\(anchor)" )
+			.map { Link( title: "Why This Happens", url: $0 ) }
+	}
+
+	/// The FAQ's question about garage doors and locks while the Mac is locked (docs/faq.md;
+	/// GitHub makes the anchor from the heading).
+	static let lockedMacAnchor = "garage-doors-and-locks-dont-work-while-the-mac-is-locked"
+
 	/// Opens a shortcut in the Shortcuts editor, by name (Shortcuts' own URL scheme).
 	static func openShortcut( named name: String ) -> Link? {
 		var components        = URLComponents()

@@ -48,13 +48,22 @@ enum HomeActionError: LocalizedError {
 	case notFound
 	case unsupported
 	case failed( String )
+	/// HomeKit refused because this Mac is locked: it doesn't operate garage doors, locks or
+	/// security systems from a locked device. The message is what failed.
+	case deviceLocked( String )
+
+	/// Whether an error from an action (ours, or HomeKit's own from a scene) is that refusal.
+	static func isDeviceLocked( _ error: Error ) -> Bool {
+		if case HomeActionError.deviceLocked = error { return true }
+		return ( error as? HMError )?.code == .deviceLocked
+	}
 
 	var errorDescription: String? {
 		switch self {
 			case .noHome:      "No HomeKit home is available."
 			case .notFound:    "The accessory or scene for this key no longer exists."
 			case .unsupported: "This key has no action for its accessory."
-			case .failed( let message ): message
+			case .failed( let message ), .deviceLocked( let message ): message
 		}
 	}
 }
@@ -344,6 +353,7 @@ final class HomeObserver: NSObject {
 
 		var done: [String] = []
 		var failures: [String] = []
+		var locked = false
 		for member in members {
 			guard let targetType = member.kind.targetCharacteristicType, let value = member.kind.targetValue( activate: activate ),
 				  let accessory = self.accessory( member.accessoryID ),
@@ -357,6 +367,7 @@ final class HomeObserver: NSObject {
 				noteWrite( member: member, value: value )
 			} catch {
 				failures.append( "\(accessory.name) (\(error.localizedDescription))" )
+				if HomeActionError.isDeviceLocked( error ) { locked = true }
 			}
 		}
 
@@ -366,7 +377,7 @@ final class HomeObserver: NSObject {
 			default:          activate ? "Turn on" : "Turn off"
 		}
 		if done.isEmpty, let first = failures.first {
-			throw HomeActionError.failed( "\(verb) failed: \(first)" )
+			throw locked ? HomeActionError.deviceLocked( "\(verb) failed: \(first)" ) : HomeActionError.failed( "\(verb) failed: \(first)" )
 		}
 		var summary = "\(verb): \(done.joined( separator: ", " ))"
 		if !failures.isEmpty { summary += "; failed: \(failures.joined( separator: ", " ))" }

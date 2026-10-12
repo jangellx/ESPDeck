@@ -1154,7 +1154,13 @@ final class DeckController {
 				logEvent( "\(context): \(summary)", device: id )
 			} catch {
 				print( "[DeckController] \(context) failed: \(error)" )
-				lastError = BridgeProblem( "HomeKit Error", "\(context): \(error.localizedDescription)" )
+				if HomeActionError.isDeviceLocked( error ) {
+					// HomeKit's own wording doesn't say it's a rule, or what to do about it.
+					lastError = BridgeProblem( "This Mac Is Locked", "\(context): HomeKit doesn't operate garage doors, locks or security systems while the Mac is locked.",
+											   link: BridgeProblem.faq( BridgeProblem.lockedMacAnchor, repository: updates.repository ) )
+				} else {
+					lastError = BridgeProblem( "HomeKit Error", "\(context): \(error.localizedDescription)" )
+				}
 				if let id, let key { flagFailure( device: id, key: key, on: surface ) }
 				logEvent( "\(context) failed: \(error.localizedDescription)", device: id )
 			}

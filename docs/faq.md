@@ -149,6 +149,17 @@ It's almost always power. The OTG adapter has to be a passive one with a power i
 
 It's asleep: the sleep timer on its Device page ran out, or one of its sleep triggers fired. Press any key to wake it. That first press only wakes the deck; it doesn't run the key.
 
+### Garage doors and locks don't work while the Mac is locked.
+
+HomeKit doesn't let a locked Mac operate garage doors, locks or security systems, whichever app asks. Lights, fans, switches and scenes without those accessories keep working. The key shows a warning triangle, and the app's Status says **This Mac Is Locked**.
+
+There are two ways around it.
+
+- **Keep the Mac unlocked.** In System Settings → Lock Screen, set **Require password after screen saver begins or display is turned off** to **Never**. The display can still sleep. Anyone who can reach that Mac can then use it, so this suits a Mac that's kept somewhere private.
+- **Let your home hub do it.** Automations in the Home app run on the home hub (an Apple TV or a HomePod), which is never locked. Add an ordinary switch or smart plug to act as a trigger, make an automation in the Home app that opens or closes the door when that switch turns on, and point the key at the switch. The key then shows the switch's state, not the door's.
+
+A shortcut that operates the door doesn't help: a shortcut run from the locked Mac is refused in the same way.
+
 ### I pressed a key and nothing happened.
 
 - A key acts when it's released, not when it goes down.
