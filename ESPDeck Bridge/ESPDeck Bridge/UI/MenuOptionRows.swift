@@ -93,7 +93,6 @@ struct MenuOptionRows: View {
 		.accessibilityAddTraits( chosen ? .isSelected : [] )
 	}
 }
-}
 
 /// The inspector while a menu is open: Menu (the menu's settings) or Key (the selected key
 /// of the menu) above whichever is chosen, with a button that closes the menu. The deck
