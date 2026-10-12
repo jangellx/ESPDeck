@@ -151,7 +151,7 @@ It's asleep: the sleep timer on its Device page ran out, or one of its sleep tri
 
 ### Garage doors and locks don't work while the Mac is locked.
 
-HomeKit doesn't let a locked Mac operate garage doors, locks or security systems, whichever app asks. Lights, fans, switches and scenes without those accessories keep working. The key shows a warning triangle, and the app's Status says **This Mac Is Locked**.
+This is a security rule of HomeKit's, so that someone who picks up a locked device can't open your doors with it. HomeKit doesn't let a locked Mac operate garage doors, locks or security systems, whichever app asks, and ESPDeck Bridge has no way to turn the rule off. Lights, fans, switches and scenes without those accessories keep working. The key shows a warning triangle, and the app's Status says **This Mac Is Locked**.
 
 There are two ways around it.
 
