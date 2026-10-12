@@ -29,7 +29,12 @@ final class DeckServer {
 	private static let networkQueue = DispatchQueue( label: "com.tmproductions.espdeck.server" )
 
 	static let serviceType = "_deckbridge._tcp"
+	/// The port it listens on unless something else has it. Devices find the port through
+	/// Bonjour, so any port works; a fixed one is steadier for firewalls and reconnecting.
 	static let port: NWEndpoint.Port = 48620
+	/// The port the system gave it the last time 48620 was taken, tried again before asking
+	/// for another: it stays the same from launch to launch while 48620 stays taken.
+	private static let fallbackPortDefault = "serverFallbackPort"
 	/// PROTOCOL.md's version, advertised in the Bonjour TXT record.
 	static let protocolVersion = 4
 
@@ -52,6 +57,8 @@ final class DeckServer {
 	}
 
 	private(set) var listenerState = ListenerState.stopped
+	/// The port it's listening on, while it is.
+	private(set) var listeningPort: UInt16?
 
 	/// A connection that had opened closed, for whatever reason.
 	@ObservationIgnored var onDisconnect : ( ( ClientID ) -> Void )?
@@ -86,6 +93,9 @@ final class DeckServer {
 	}
 
 	@ObservationIgnored private var listener    : NWListener?
+	/// The ports still to try this time, in order; `.any` lets the system choose. Empty
+	/// between attempts, which start from the top.
+	@ObservationIgnored private var candidates  : [NWEndpoint.Port] = []
 	@ObservationIgnored private var clients     : [ClientID: Client] = [:]
 	@ObservationIgnored private var restartTask : Task<Void, Never>?
 	@ObservationIgnored private var sweepTask   : Task<Void, Never>?
@@ -113,8 +123,14 @@ final class DeckServer {
 		parameters.defaultProtocolStack.applicationProtocols.insert( webSocket, at: 0 )
 		parameters.allowLocalEndpointReuse = true
 
+		// 48620, then the port it fell back to before, then whatever is free.
+		if candidates.isEmpty {
+			let saved  = UInt16( exactly: UserDefaults.standard.integer( forKey: Self.fallbackPortDefault ) ).flatMap { $0 == 0 ? nil : NWEndpoint.Port( rawValue: $0 ) }
+			candidates = [ Self.port ] + ( saved.map { $0 == Self.port ? [] : [ $0 ] } ?? [] ) + [ .any ]
+		}
+
 		do {
-			let listener = try NWListener( using: parameters, on: Self.port )
+			let listener = try NWListener( using: parameters, on: candidates[0] )
 			let txt = NWTXTRecord( [ "id": bridgeID, "proto": "\(Self.protocolVersion)" ] )
 			listener.service = NWListener.Service( name: "ESPDeck Bridge", type: Self.serviceType, domain: nil, txtRecord: txt )
 			listener.stateUpdateHandler = { [weak self] state in
@@ -128,6 +144,7 @@ final class DeckServer {
 			startSweeping()
 		} catch {
 			listenerState = .failed( error.localizedDescription )
+			candidates    = []
 			scheduleRestart()
 		}
 	}
@@ -143,6 +160,8 @@ final class DeckServer {
 		listener?.newConnectionHandler = nil
 		listener?.cancel()
 		listener = nil
+		candidates    = []
+		listeningPort = nil
 		for id in Array( clients.keys ) {
 			drop( id )
 		}
@@ -180,11 +199,30 @@ final class DeckServer {
 		switch state {
 			case .ready:
 				listenerState = .listening
+				candidates    = []
+				listeningPort = listener?.port?.rawValue
+				// A fallback port is kept for next time; back on 48620, it's forgotten.
+				if let port = listeningPort, port != Self.port.rawValue {
+					print( "[DeckServer] Port \(Self.port.rawValue) is in use; listening on \(port)" )
+					UserDefaults.standard.set( Int( port ), forKey: Self.fallbackPortDefault )
+				} else {
+					UserDefaults.standard.removeObject( forKey: Self.fallbackPortDefault )
+				}
 			case .failed( let error ):
 				print( "[DeckServer] Listener failed: \(error)" )
-				listenerState = .failed( error.localizedDescription )
+				// Its "cancelled" mustn't arrive after the next listener is up, and read as that one stopping.
+				listener?.stateUpdateHandler = nil
 				listener?.cancel()
-				listener = nil
+				listener      = nil
+				listeningPort = nil
+				// Something else has the port: the next one, at once.
+				if case .posix( .EADDRINUSE ) = error, candidates.count > 1 {
+					candidates.removeFirst()
+					start( bridgeID: bridgeID )
+					return
+				}
+				listenerState = .failed( error.localizedDescription )
+				candidates    = []
 				scheduleRestart()
 			case .cancelled:
 				if listenerState == .listening { listenerState = .stopped }

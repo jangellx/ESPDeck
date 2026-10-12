@@ -131,7 +131,7 @@ Test a shortcut from the key's settings (**Key ▸ Test Action**, ⌘T) to see w
 - The Mac is asleep, logged out, or ESPDeck Bridge isn't running.
 - The Mac and the deck are on different networks, or on a guest network that keeps devices apart ("client isolation").
 - macOS's **Local Network** permission is off for ESPDeck Bridge (System Settings → Privacy & Security → Local Network).
-- A firewall on the Mac is blocking incoming connections to ESPDeck Bridge (it listens on port 48620).
+- A firewall on the Mac is blocking incoming connections to ESPDeck Bridge (it listens on port 48620, or on another port when something else on the Mac is already using 48620).
 - The deck is paired with a different Mac, or this Mac has lost its pairing key. Its page in the app says so and shows how to unpair it.
 
 ### My board doesn't show up in USB Setup.

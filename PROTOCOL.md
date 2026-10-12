@@ -4,7 +4,7 @@ The Mac app (ESPDeck Bridge) runs a WebSocket server. Any number of ESP32s (ESPD
 
 ## Discovery
 
-- Bonjour service type `_deckbridge._tcp`, fixed port **48620**. TXT record: `id` (the bridge ID, a lowercase UUID the Mac generates once) and `proto` (`4`).
+- Bonjour service type `_deckbridge._tcp`, on port **48620** unless something else on the Mac has that port: the bridge then listens on a port the system assigns (and asks for that one again the next time 48620 is taken), so an ESP32 must use the port the service resolves to. TXT record: `id` (the bridge ID, a lowercase UUID the Mac generates once) and `proto` (`4`).
 - Each ESP32 resolves the service with mDNS and connects to `ws://<host>:<port>/`.
   - A paired ESP32 only connects to a bridge whose `id` is the one it paired with. Of its addresses it prefers the one where it last authenticated, then one on its own subnet.
   - An unpaired ESP32 connects to the first bridge found, where it can only offer pairing.
