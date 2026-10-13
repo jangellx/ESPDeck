@@ -14,6 +14,9 @@ import Foundation
 public enum DeckConfigurationWindow {
 	public static let title         = "ESPDeck Bridge"
 	public static let frameName     = "ESPDeckConfiguration"
+	/// The What's New window's title. The configuration window opens as that one closes, so
+	/// the app has to stay in front in between (DockPresence).
+	public static let whatsNewTitle = "What's New"
 	/// How tall its content is the first time it opens, where the screen has room: Getting
 	/// Started's first sheet fits without scrolling. Only where it starts; it can be made
 	/// shorter, down to the scene's minimum size.

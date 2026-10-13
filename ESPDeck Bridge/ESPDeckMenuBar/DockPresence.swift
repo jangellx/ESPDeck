@@ -57,7 +57,12 @@ enum DockPresence {
 		NSApp.applicationIconImage = appIcon
 
 		observers = names.map { name in
-			NotificationCenter.default.addObserver( forName: name, object: nil, queue: .main ) { _ in
+			NotificationCenter.default.addObserver( forName: name, object: nil, queue: .main ) { note in
+				// What's New closing (Continue, or its close button): the configuration window
+				// follows, so the app mustn't leave the Dock and the front in between.
+				if name == NSWindow.willCloseNotification, ( note.object as? NSWindow )?.title == DeckConfigurationWindow.whatsNewTitle {
+					MainActor.assumeIsolated { windowWillOpen() }
+				}
 				// After the change settles: a closing window is still listed as visible here.
 				DispatchQueue.main.async {
 					MainActor.assumeIsolated {
@@ -85,6 +90,8 @@ enum DockPresence {
 	static func windowWillOpen() {
 		expectingWindowUntil = Date( timeIntervalSinceNow: 5 )
 		logState( "window requested" )
+		// If it never shows up, the app goes back to being an accessory then.
+		DispatchQueue.main.asyncAfter( deadline: .now() + 5.2 ) { update() }
 	}
 
 	/// Activation diagnostics:
@@ -131,9 +138,12 @@ enum DockPresence {
 		}
 	}
 
-	/// Regular while a window is open (minimized counts), an accessory otherwise.
+	/// Regular while a window is open (minimized counts) or one is on its way, an accessory
+	/// otherwise. Becoming an accessory hands the front to another app, and a window that
+	/// opens after that opens behind it: that's what happened between What's New closing and
+	/// the configuration window appearing.
 	static func update() {
-		let policy: NSApplication.ActivationPolicy = hasOpenWindow ? .regular : .accessory
+		let policy: NSApplication.ActivationPolicy = hasOpenWindow || Date() < expectingWindowUntil ? .regular : .accessory
 		if NSApp.activationPolicy() != policy {
 			NSApp.setActivationPolicy( policy )
 			// The new Dock tile takes the icon Launch Services has on file (often the generic

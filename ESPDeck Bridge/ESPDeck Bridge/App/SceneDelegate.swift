@@ -9,7 +9,7 @@ import SwiftUI
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 	static let splashTitle = "ESPDeck Bridge Starting"
 	static let windowTitle = DeckConfigurationWindow.title
-	static let whatsNewTitle = "What's New"
+	static let whatsNewTitle = DeckConfigurationWindow.whatsNewTitle
 
 	private static let splashDuration: Duration = .seconds( 2 )
 	private static let splashSize        = CGSize( width: 420, height: 280 )
