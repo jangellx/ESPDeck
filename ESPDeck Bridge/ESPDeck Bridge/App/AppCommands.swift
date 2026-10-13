@@ -84,6 +84,9 @@ extension AppDelegate {
 			builder.remove( menu: .autoFill )
 		}
 		builder.insertSibling( UIMenu( options: .displayInline, children: [
+			// One press of the key (the inspector's Tap, Double Tap or Hold), under Copy and Paste Key.
+			UIKeyCommand( title: "Copy Action", action: #selector( copyAction ), input: "c", modifierFlags: [ .command, .shift ] ),
+			UIKeyCommand( title: "Paste Action", action: #selector( pasteAction ), input: "v", modifierFlags: [ .command, .shift ] ),
 			UIKeyCommand( title: "Clear Key…", action: #selector( clearKey ), input: UIKeyCommand.inputDelete, modifierFlags: [] ),
 		] ), afterMenu: .standardEdit )
 
@@ -140,8 +143,6 @@ extension AppDelegate {
 			} ),
 			UIMenu( options: .displayInline, children: [
 				UIKeyCommand( title: "Test Action", action: #selector( testAction ), input: "t", modifierFlags: .command ),
-				UIKeyCommand( title: "Copy Action", action: #selector( copyAction ), input: "c", modifierFlags: [ .command, .shift ] ),
-				UIKeyCommand( title: "Paste Action", action: #selector( pasteAction ), input: "v", modifierFlags: [ .command, .shift ] ),
 			] ),
 			// ⌥⌘1–3, in the order of the picker's tabs.
 			UIMenu( options: .displayInline, children: TargetMode.keyModes.enumerated().map { index, mode in

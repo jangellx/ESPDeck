@@ -173,7 +173,7 @@ The Appearance and Icons sections set what the key shows. A key can look differe
 
 **Copy Key**, **Paste Key** and **Clear Key** are at the bottom of the settings, and in the Edit menu. A copied key includes all three of its presses and the menus they open, and the pasted key gets its own copies of those menus.
 
-**Copy Action** and **Paste Action**, above them, work on one press: the Tap, Double Tap or Hold whose tab is showing.
+**Copy Action** and **Paste Action**, above them and in the Edit menu, work on one press: the Tap, Double Tap or Hold whose tab is showing.
 
 - Copy Action copies what that press controls and does, with the menu it opens.
 - Paste Action replaces that press of the selected key, and leaves the key's other presses alone.
@@ -280,6 +280,7 @@ Every command in the menu bar, with its keyboard shortcut where it has one.
 | | Reset Bridge… | | Forgets every device and starts over as a new bridge. |
 | **Edit** | Undo, Redo | ⌘Z, ⇧⌘Z | Undoes or redoes a change to a key. |
 | | Cut, Copy, Paste | ⌘X, ⌘C, ⌘V | Acts on the selected key, or on the text in a text field. Copy also copies selected Log entries. |
+| | Copy Action, Paste Action | ⇧⌘C, ⇧⌘V | Copies or pastes one press of the selected key: the one whose tab is showing. |
 | | Clear Key… | Delete | Empties the selected key, after the same confirmation as the button. |
 | **View** | Keys, Device, Log | ⌘1, ⌘2, ⌘3 | Shows that page of the selected deck. |
 | | Getting Started, USB Setup, Updates, About | | Shows that page of the sidebar. |
@@ -293,7 +294,6 @@ Every command in the menu bar, with its keyboard shortcut where it has one.
 | | Forget Device… | | Removes the deck from this Mac and unpairs it. |
 | **Key** | Select Key to the Left, Right, Above, Below | ⌥ and an arrow | Moves the selection. Plain arrows work too, after a click in the deck preview. |
 | | Test Action | ⌘T | Performs the selected key's action now. |
-| | Copy Action, Paste Action | ⇧⌘C, ⇧⌘V | Copies or pastes one press of the selected key: the one whose tab is showing. |
 | | Assign Home…, Shortcut…, Page…, Menu… | ⌥⌘1, ⌥⌘2, ⌥⌘3, ⌥⌘4 | Opens the key's picker on that tab. |
 | **Help** | ESPDeck Help | | Opens this documentation. |
 | | Getting Started | | Opens one of Getting Started's sheets, from a submenu. |
