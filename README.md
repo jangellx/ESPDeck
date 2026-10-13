@@ -26,6 +26,7 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 - **[espdeck.tmproductions.com](https://espdeck.tmproductions.com/)**: the project's site, with the web installer.
 - **[Setting up a deck](docs/setup.md)**: installing the firmware, setup mode, pairing, and encrypting what the deck stores.
 - **[The Mac app](docs/mac-app.md)**: building and running ESPDeck Bridge, its pages and menus, Shortcuts, updates, and moving to another Mac.
+- **[Version history](docs/version-history.md)**: what changed in each version of the Mac app.
 - **[FAQ](docs/faq.md)**: which Stream Decks work, why it's a Catalyst app, what to check when Shortcuts fail or a deck won't connect.
 - **[Development](docs/development.md)**: firmware releases and their signing, uploading from PlatformIO, the tests, and notes on the hardware.
 - **[PROTOCOL.md](PROTOCOL.md)**: the wire format both sides implement.

@@ -27,6 +27,15 @@ Notes:
 - `custom_component_remove` drops RainMaker, Insights, Zigbee and other components that Arduino pulls in. Insights doesn't build under PlatformIO.
 - If a PlatformIO tool download fails with `CERTIFICATE_VERIFY_FAILED`, run it with `SSL_CERT_FILE=$(~/.platformio/penv/bin/python -c "import certifi;print(certifi.where())")`.
 
+## What's New and the version history
+
+Each version of the Mac app that has something to show gets a What's New window.
+
+- `ESPDeck Bridge/ESPDeck Bridge/WhatsNew.md` holds what the window shows: a title, and one to four features. Each feature is a `## Headline`, a `symbol:` line naming an SF Symbol, and a sentence or two of description. The file's own comment shows the format.
+- The app remembers the hash of the file it last showed, so the window appears once after any change to the file. Leave the file alone for a version with nothing worth a window.
+- A new installation doesn't get the window, since there is nothing for the changes to be new against.
+- `docs/version-history.md` lists everything that changed in each version, which can be more than the window shows. The window's **Full Version History** button opens that page on GitHub, so the page has to be pushed before the version ships.
+
 ## Release signing
 
 Firmware releases are signed with an Ed25519 key, so ESPDeck Bridge only installs firmware built by this repository's release workflow, even if someone replaced a release's files and their `.sha256`.

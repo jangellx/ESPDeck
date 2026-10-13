@@ -24,6 +24,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 	private var configurationRequested   = false
 	/// Launch windows showing the splash screen; never reused for configuration.
 	var splashSessions                   : Set<String> = []
+	/// The bundle's What's New, while the user hasn't seen it: shown before the configuration
+	/// window the next time that's opened, and offered in the menu bar menu until then.
+	private(set) var pendingWhatsNew     : WhatsNew?
+	/// What the next window to open should show instead of the configuration window.
+	private var whatsNewRequest          : WhatsNew?
+	/// Windows showing What's New, and those of them already dismissed (on their way out).
+	var whatsNewSessions                 : Set<String> = []
+	private var whatsNewDismissed        : Set<String> = []
 	/// The names the Device menu was built with.
 	private var deviceMenuNames          : [String] = []
 
@@ -74,6 +82,16 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		}
 		controller.refreshLaunchAtLogin()
 		setUpNotifications()
+		// What's New, unless it has been seen. A new installation has nothing to compare
+		// with, so everything is new: it's taken as seen.
+		if let whatsNew = WhatsNew.bundled, !whatsNew.isSeen {
+			if controller.config.settings.devices.isEmpty {
+				whatsNew.markSeen()
+			} else {
+				pendingWhatsNew = whatsNew
+			}
+		}
+		menuBar?.setWhatsNewAvailable( pendingWhatsNew != nil )
 		controller.start()
 
 		return true
@@ -101,6 +119,49 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 	func consumeConfigurationRequest() -> Bool {
 		defer { configurationRequested = false }
 		return configurationRequested
+	}
+
+	/// What's New for the window that's opening, once: asked for (the menu, Help), or still
+	/// unseen when the window would otherwise be the configuration window (`orPending`).
+	func consumeWhatsNewRequest( orPending: Bool ) -> WhatsNew? {
+		defer { whatsNewRequest = nil }
+		if let whatsNewRequest { return whatsNewRequest }
+		return orPending && openWhatsNewSession == nil ? pendingWhatsNew : nil
+	}
+
+	/// A What's New window that's open and hasn't been dismissed.
+	private var openWhatsNewSession: UISceneSession? {
+		UIApplication.shared.openSessions.first { whatsNewSessions.contains( $0.persistentIdentifier ) && !whatsNewDismissed.contains( $0.persistentIdentifier ) && $0.scene != nil }
+	}
+
+	/// Continue, Full Version History, or the window's own close button (`closing` false: it's
+	/// going already). What's New counts as seen, and the configuration window opens; for the
+	/// history, so does that page in the browser.
+	func dismissWhatsNew( _ session: UISceneSession, history: Bool = false, closing: Bool = true ) {
+		let id = session.persistentIdentifier
+		guard whatsNewSessions.contains( id ), !whatsNewDismissed.contains( id ) else { return }
+		whatsNewDismissed.insert( id )
+		( pendingWhatsNew ?? WhatsNew.bundled )?.markSeen()
+		pendingWhatsNew = nil
+		menuBar?.setWhatsNewAvailable( false )
+
+		// The configuration window first, while this one still keeps the app in front.
+		menuBarOpenConfiguration()
+		if closing {
+			UIApplication.shared.requestSceneSessionDestruction( session, options: nil )
+			menuBar?.closeWindows( titled: SceneDelegate.whatsNewTitle )
+		}
+		if history, let url = URL( string: "https://github.com/\(controller.updates.repository ?? "jangellx/ESPDeck")/blob/main/docs/version-history.md" ) {
+			UIApplication.shared.open( url )
+		}
+	}
+
+	/// A What's New window is gone: by its own close button, if it wasn't dismissed.
+	func whatsNewDisconnected( _ session: UISceneSession ) {
+		guard whatsNewSessions.contains( session.persistentIdentifier ) else { return }
+		dismissWhatsNew( session, closing: false )
+		whatsNewSessions.remove( session.persistentIdentifier )
+		whatsNewDismissed.remove( session.persistentIdentifier )
 	}
 
 	/// Closes the launch window once the splash has shown.
@@ -167,17 +228,41 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		return true
 	}
 
+	/// The What's New window (what's unseen, or the bundle's again), from the menu bar menu or
+	/// Help. Dismissing it opens the configuration window.
+	func menuBarShowWhatsNew() {
+		guard let whatsNew = pendingWhatsNew ?? WhatsNew.bundled else { return menuBarOpenConfiguration() }
+		menuBar?.activateApp()
+		if let session = openWhatsNewSession {
+			UIApplication.shared.activateSceneSession( for: UISceneSessionActivationRequest( session: session ) )
+			bringConfigurationToFront()
+			return
+		}
+		whatsNewRequest = whatsNew
+		UIApplication.shared.activateSceneSession( for: UISceneSessionActivationRequest( role: .windowApplication ) ) { error in
+			print( "[AppDelegate] Opening What's New failed: \(error)" )
+		}
+	}
+
 	/// Opens the window on USB Setup.
 	func menuBarOpenUSBSetup() {
 		controller.window.selection = SidebarItem.usbSetup
 		menuBarOpenConfiguration()
 	}
 
-	/// Brings the configuration window forward, or opens one.
+	/// Brings the configuration window forward, or opens one: after What's New, the first time
+	/// since there was something new (SceneDelegate shows that in the new window instead).
 	func menuBarOpenConfiguration() {
 		menuBar?.activateApp()
 
-		if let session = UIApplication.shared.openSessions.first( where: { $0.role == .windowApplication && $0.scene != nil && !splashSessions.contains( $0.persistentIdentifier ) } ) {
+		// What's New is up: it comes first, and opens this window when it's dismissed.
+		if let session = openWhatsNewSession {
+			UIApplication.shared.activateSceneSession( for: UISceneSessionActivationRequest( session: session ) )
+			bringConfigurationToFront()
+			return
+		}
+
+		if let session = UIApplication.shared.openSessions.first( where: { $0.role == .windowApplication && $0.scene != nil && !splashSessions.contains( $0.persistentIdentifier ) && !whatsNewSessions.contains( $0.persistentIdentifier ) } ) {
 			UIApplication.shared.activateSceneSession( for: UISceneSessionActivationRequest( session: session ) )
 			bringConfigurationToFront()
 		} else {

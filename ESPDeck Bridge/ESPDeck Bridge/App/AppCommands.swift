@@ -158,6 +158,7 @@ extension AppDelegate {
 		}
 		builder.replaceChildren( ofMenu: .help ) { _ in
 			[ UICommand( title: "ESPDeck Help", action: #selector( openHelp ) ),
+			  UICommand( title: "What's New…", action: #selector( showWhatsNew ) ),
 			  UIMenu( options: .displayInline, children: [ UIMenu( title: "Getting Started", children: sheets ) ] ) ]
 		}
 	}
@@ -345,6 +346,11 @@ extension AppDelegate {
 	@objc func showImportBridge() {
 		window.bridgeTransfer = .import
 		menuBarOpenConfiguration()
+	}
+
+	/// The What's New window again, whether or not it has been seen.
+	@objc func showWhatsNew() {
+		AppDelegate.shared.menuBarShowWhatsNew()
 	}
 
 	/// The README on GitHub.

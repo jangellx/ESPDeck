@@ -279,7 +279,8 @@ private final class MenuPanelRowView: NSView {
 		}
 		NSLayoutConstraint.activate( [
 			iconView.leadingAnchor.constraint( equalTo: leadingAnchor, constant: 9 ),
-			iconView.widthAnchor.constraint( equalToConstant: 16 ),
+			// A symbol's column, or as wide as a badge that's wider (What's New's "NEW").
+			iconView.widthAnchor.constraint( equalToConstant: ( icon?.size.width ?? 0 ) > 22 ? ceil( icon?.size.width ?? 16 ) : 16 ),
 			iconView.heightAnchor.constraint( equalToConstant: 16 ),
 			iconView.centerYAnchor.constraint( equalTo: titleLabel.centerYAnchor ),
 			text.leadingAnchor.constraint( equalTo: iconView.trailingAnchor, constant: 6 ),

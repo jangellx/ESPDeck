@@ -27,6 +27,8 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 	private var statusLevels : [Int]    = [ 0 ]
 	private var connected    = false
 	private var decks        : [( id: String, title: String, level: Int )] = []
+	/// There's something new the user hasn't seen: the menu has a What's New row.
+	private var whatsNew     = false
 
 	// USB setup; see MenuBarController+USB.swift.
 	var portWatcher   : SerialPortWatcher?
@@ -87,6 +89,12 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 	/// New deck list; updates the panel.
 	func updateDecks( ids: [String], titles: [String], levels: [Int] ) {
 		decks = zip( ids, zip( titles, levels ) ).map { ( $0, $1.0, $1.1 ) }
+		rebuild()
+	}
+
+	/// Shows or hides the What's New row.
+	func setWhatsNewAvailable( _ available: Bool ) {
+		whatsNew = available
 		rebuild()
 	}
 
@@ -165,6 +173,9 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 			entries.append( .row( icon: Self.statusImage( level: level ), title: line ) { [weak self] in self?.openConfiguration() } )
 		}
 		entries.append( .separator )
+		if whatsNew {
+			entries.append( .row( icon: Self.newBadge, title: "What's New" ) { [weak self] in self?.showWhatsNew() } )
+		}
 		entries.append( .row( icon: Self.symbol( "gearshape" ), title: "Configure…" ) { [weak self] in self?.openConfiguration() } )
 		entries.append( .row( icon: Self.symbol( "cable.connector" ), title: "Set Up a Device over USB…" ) { [weak self] in self?.openUSBSetup() } )
 		let loginOn = SMAppService.mainApp.status == .enabled
@@ -239,6 +250,19 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		return NSImage( systemSymbolName: name, accessibilityDescription: nil )?.withSymbolConfiguration( configuration )
 	}
 
+	/// "NEW" in white on a blue capsule, for the What's New row.
+	private static let newBadge: NSImage = {
+		let text = NSAttributedString( string: "NEW", attributes: [ .font: NSFont.systemFont( ofSize: 9, weight: .bold ), .foregroundColor: NSColor.white, .kern: 0.3 ] )
+		let size = NSSize( width: ceil( text.size().width ) + 11, height: 15 )
+		return NSImage( size: size, flipped: false ) { rect in
+			NSColor.systemBlue.setFill()
+			NSBezierPath( roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2 ).fill()
+			let textSize = text.size()
+			text.draw( at: NSPoint( x: ( rect.width - textSize.width ) / 2, y: ( rect.height - textSize.height ) / 2 ) )
+			return true
+		}
+	}()
+
 	/// A deck: the status lines' icons (green check connected, green dot asleep, yellow dot
 	/// connecting, red exclamation mark a problem, dashed circle a demo), or the sidebar's
 	/// shield for a new device waiting to be paired.
@@ -265,6 +289,12 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 	private func openConfiguration() {
 		activateApp()
 		host?.menuBarOpenConfiguration()
+	}
+
+	/// "What's New": that window, and the configuration window after it.
+	private func showWhatsNew() {
+		activateApp()
+		host?.menuBarShowWhatsNew()
 	}
 
 	/// A deck: the configuration window on that deck's Keys page.

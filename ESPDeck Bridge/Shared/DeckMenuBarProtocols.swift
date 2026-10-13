@@ -26,6 +26,9 @@ public protocol DeckMenuBarHost: NSObjectProtocol {
 	/// The user picked "Configure…" from the menu.
 	func menuBarOpenConfiguration()
 
+	/// The user picked "What's New": the What's New window, then the configuration window.
+	func menuBarShowWhatsNew()
+
 	/// The user picked "Set Up a Device over USB…": the configuration window's USB Setup page.
 	func menuBarOpenUSBSetup()
 
@@ -63,6 +66,9 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// The decks at the top of the menu. `levels` as in update(statusLines:); 3 is a demo
 	/// deck, 4 a new device waiting to be paired.
 	func updateDecks( ids: [String], titles: [String], levels: [Int] )
+
+	/// Whether the menu has a "What's New" row: there's something new the user hasn't seen.
+	func setWhatsNewAvailable( _ available: Bool )
 
 	/// Launch at Login (SMAppService.mainApp, which Catalyst can't reach): 0 off, 1 on,
 	/// 2 waiting for approval in System Settings.

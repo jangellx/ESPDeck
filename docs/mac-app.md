@@ -36,6 +36,7 @@ ESPDeck Bridge has no Dock icon while its window is closed. It lives in the menu
 - The status lines at the top say whether the bridge is waiting for a deck, whether HomeKit is connected, and whether anything needs attention.
 - Each deck is listed with its state. Choosing one opens its Keys page.
 - **Configure…** opens the configuration window.
+- **What's New**, marked NEW, appears after an update that has something new to show. The What's New window lists the main changes, and also opens by itself before the configuration window the first time after such an update. **Continue** goes on to the configuration window, and **Full Version History** also opens the [version history](version-history.md).
 - **Set Up a Device over USB…** opens the window on USB Setup.
 - **Launch at Login** and **Quit ESPDeck Bridge** are at the bottom.
 
@@ -296,6 +297,7 @@ Every command in the menu bar, with its keyboard shortcut where it has one.
 | | Test Action | ⌘T | Performs the selected key's action now. |
 | | Assign Home…, Shortcut…, Page…, Menu… | ⌥⌘1, ⌥⌘2, ⌥⌘3, ⌥⌘4 | Opens the key's picker on that tab. |
 | **Help** | ESPDeck Help | | Opens this documentation. |
+| | What's New… | | Shows the What's New window again. |
 | | Getting Started | | Opens one of Getting Started's sheets, from a submenu. |
 
 ## Moving to another Mac

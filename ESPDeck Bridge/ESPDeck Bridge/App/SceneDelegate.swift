@@ -5,14 +5,16 @@
 
 import SwiftUI
 
-/// Makes each window either the configuration window or the launch splash.
+/// Makes each window the configuration window, What's New, or the launch splash.
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 	static let splashTitle = "ESPDeck Bridge Starting"
 	static let windowTitle = DeckConfigurationWindow.title
+	static let whatsNewTitle = "What's New"
 
 	private static let splashDuration: Duration = .seconds( 2 )
 	private static let splashSize        = CGSize( width: 420, height: 280 )
 	private static let windowMinimumSize = CGSize( width: 1040, height: 640 )
+	private static let whatsNewSize      = CGSize( width: 760, height: 620 )
 	var window: UIWindow?
 
 	/// Sets up the new window as the configuration window or the splash.
@@ -24,7 +26,18 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 		// With no decks set up yet (first launch, say), the launch window is the configuration
 		// window rather than a splash: there's nothing to do but set one up.
 		let noDecks = app.controller.config.settings.devices.allSatisfy( \.isDemo )
-		if app.consumeConfigurationRequest() || noDecks {
+		let configuration = app.consumeConfigurationRequest() || noDecks
+		if let whatsNew = app.consumeWhatsNewRequest( orPending: configuration ) {
+			// Before the configuration window, which opens when this is dismissed.
+			windowScene.title = Self.whatsNewTitle
+			windowScene.sizeRestrictions?.minimumSize = Self.whatsNewSize
+			windowScene.sizeRestrictions?.maximumSize = Self.whatsNewSize
+			windowScene.titlebar?.titleVisibility = .hidden
+			app.whatsNewSessions.insert( session.persistentIdentifier )
+			window.rootViewController = UIHostingController( rootView: WhatsNewView( whatsNew: whatsNew ) { history in
+				app.dismissWhatsNew( session, history: history )
+			} )
+		} else if configuration {
 			windowScene.title = Self.windowTitle
 			// The smallest it can be made; it opens there, and the menu bar bundle then gives it
 			// the size and place it had last time, or its starting height the first time
@@ -51,13 +64,14 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 		self.window = window
 
 		// The NSWindow behind the scene appears a moment later; bring it forward then.
-		if windowScene.title == Self.windowTitle {
+		if windowScene.title == Self.windowTitle || windowScene.title == Self.whatsNewTitle {
 			app.bringConfigurationToFront()
 		}
 	}
 
-	/// Forgets a closed splash window.
+	/// Forgets a closed splash window; a closed What's New window opens the configuration window.
 	func sceneDidDisconnect( _ scene: UIScene ) {
+		AppDelegate.shared.whatsNewDisconnected( scene.session )
 		AppDelegate.shared.splashSessions.remove( scene.session.persistentIdentifier )
 	}
 }
