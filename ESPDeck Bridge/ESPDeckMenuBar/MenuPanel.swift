@@ -25,8 +25,9 @@ enum MenuPanelEntry {
 	/// A small gray heading ("Decks").
 	case header( String )
 	/// A row: an icon (an image, or an SF Symbol) or blank space, its title, an optional
-	/// second line, and what choosing it does (nil: shown but not choosable).
-	case row( icon: NSImage?, title: String, detail: String? = nil, action: ( () -> Void )? )
+	/// second line, an optional badge at its right edge (a word in a capsule, as menus mark
+	/// updates and new items), and what choosing it does (nil: shown but not choosable).
+	case row( icon: NSImage?, title: String, detail: String? = nil, badge: String? = nil, action: ( () -> Void )? )
 	/// A thin line between groups.
 	case separator
 }
@@ -96,8 +97,8 @@ final class MenuPanel: NSPanel {
 					view = MenuPanelHeaderView( title )
 				case .separator:
 					view = MenuPanelSeparatorView()
-				case .row( let icon, let title, let detail, let action ):
-					let row = MenuPanelRowView( icon: icon, title: title, detail: detail, action: action.map { action in
+				case .row( let icon, let title, let detail, let badge, let action ):
+					let row = MenuPanelRowView( icon: icon, title: title, detail: detail, badge: badge, action: action.map { action in
 						{ [weak self] in
 							self?.close()
 							action()
@@ -248,15 +249,20 @@ private final class MenuPanelRowView: NSView {
 	private let iconView   = NSImageView()
 	private let titleLabel : NSTextField
 	private let detailLabel: NSTextField?
+	/// The badge at the right edge, if the row has one: its capsule and the word in it.
+	private let badgeView  : NSView?
+	private let badgeLabel : NSTextField?
 	/// Set by the panel, which keeps one row highlighted at most.
 	var isHighlighted = false { didSet { updateColors() } }
 	/// The pointer came over the row, or left it.
 	var onHover: ( ( Bool ) -> Void )?
 
-	init( icon: NSImage?, title: String, detail: String?, action: ( () -> Void )? ) {
+	init( icon: NSImage?, title: String, detail: String?, badge: String? = nil, action: ( () -> Void )? ) {
 		self.action = action
 		titleLabel  = NSTextField( labelWithString: title )
 		detailLabel = detail.map { NSTextField( labelWithString: $0 ) }
+		badgeLabel  = badge.map { NSTextField( labelWithString: $0 ) }
+		badgeView   = badge.map { _ in NSView() }
 		super.init( frame: .zero )
 		wantsLayer = true
 		layer?.cornerRadius = 5
@@ -279,8 +285,7 @@ private final class MenuPanelRowView: NSView {
 		}
 		NSLayoutConstraint.activate( [
 			iconView.leadingAnchor.constraint( equalTo: leadingAnchor, constant: 9 ),
-			// A symbol's column, or as wide as a badge that's wider (What's New's "NEW").
-			iconView.widthAnchor.constraint( equalToConstant: ( icon?.size.width ?? 0 ) > 22 ? ceil( icon?.size.width ?? 16 ) : 16 ),
+			iconView.widthAnchor.constraint( equalToConstant: 16 ),
 			iconView.heightAnchor.constraint( equalToConstant: 16 ),
 			iconView.centerYAnchor.constraint( equalTo: titleLabel.centerYAnchor ),
 			text.leadingAnchor.constraint( equalTo: iconView.trailingAnchor, constant: 6 ),
@@ -288,6 +293,24 @@ private final class MenuPanelRowView: NSView {
 			text.topAnchor.constraint( equalTo: topAnchor, constant: 3 ),
 			text.bottomAnchor.constraint( equalTo: bottomAnchor, constant: -3 ),
 		] )
+		if let badgeView, let badgeLabel {
+			badgeLabel.font = .systemFont( ofSize: 9, weight: .bold )
+			badgeView.wantsLayer = true
+			badgeView.layer?.cornerRadius = 7.5
+			for ( view, parent ) in [ ( badgeView, self as NSView ), ( badgeLabel as NSView, badgeView ) ] {
+				view.translatesAutoresizingMaskIntoConstraints = false
+				parent.addSubview( view )
+			}
+			NSLayoutConstraint.activate( [
+				badgeView.trailingAnchor.constraint( equalTo: trailingAnchor, constant: -9 ),
+				badgeView.centerYAnchor.constraint( equalTo: titleLabel.centerYAnchor ),
+				badgeView.heightAnchor.constraint( equalToConstant: 15 ),
+				badgeView.leadingAnchor.constraint( greaterThanOrEqualTo: text.trailingAnchor, constant: 8 ),
+				badgeLabel.leadingAnchor.constraint( equalTo: badgeView.leadingAnchor, constant: 6 ),
+				badgeLabel.trailingAnchor.constraint( equalTo: badgeView.trailingAnchor, constant: -6 ),
+				badgeLabel.centerYAnchor.constraint( equalTo: badgeView.centerYAnchor ),
+			] )
+		}
 		updateColors()
 	}
 
@@ -333,5 +356,8 @@ private final class MenuPanelRowView: NSView {
 		titleLabel.textColor   = isHighlighted ? .white : action == nil ? .secondaryLabelColor : .labelColor
 		detailLabel?.textColor = isHighlighted ? NSColor.white.withAlphaComponent( 0.85 ) : .secondaryLabelColor
 		iconView.contentTintColor = isHighlighted ? .white : .labelColor
+		// White on blue; reversed on the highlight, which is the accent color itself.
+		badgeView?.layer?.backgroundColor = ( isHighlighted ? NSColor.white : NSColor.systemBlue ).cgColor
+		badgeLabel?.textColor             = isHighlighted ? .controlAccentColor : .white
 	}
 }

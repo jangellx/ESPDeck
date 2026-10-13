@@ -173,13 +173,15 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 			entries.append( .row( icon: Self.statusImage( level: level ), title: line ) { [weak self] in self?.openConfiguration() } )
 		}
 		entries.append( .separator )
-		if whatsNew {
-			entries.append( .row( icon: Self.newBadge, title: "What's New" ) { [weak self] in self?.showWhatsNew() } )
-		}
 		entries.append( .row( icon: Self.symbol( "gearshape" ), title: "Configure…" ) { [weak self] in self?.openConfiguration() } )
 		entries.append( .row( icon: Self.symbol( "cable.connector" ), title: "Set Up a Device over USB…" ) { [weak self] in self?.openUSBSetup() } )
 		let loginOn = SMAppService.mainApp.status == .enabled
 		entries.append( .row( icon: loginOn ? Self.symbol( "checkmark" ) : nil, title: "Launch at Login" ) { [weak self] in self?.toggleLaunchAtLogin() } )
+		// In a group of its own, with a badge at its right as menus mark what's new.
+		if whatsNew {
+			entries.append( .separator )
+			entries.append( .row( icon: Self.symbol( "sparkles" ), title: "What\u{2019}s New", badge: "NEW" ) { [weak self] in self?.showWhatsNew() } )
+		}
 		entries.append( .separator )
 		entries.append( .row( icon: Self.symbol( "power" ), title: "Quit ESPDeck Bridge" ) { [weak self] in self?.quit() } )
 		return entries
@@ -249,19 +251,6 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		}
 		return NSImage( systemSymbolName: name, accessibilityDescription: nil )?.withSymbolConfiguration( configuration )
 	}
-
-	/// "NEW" in white on a blue capsule, for the What's New row.
-	private static let newBadge: NSImage = {
-		let text = NSAttributedString( string: "NEW", attributes: [ .font: NSFont.systemFont( ofSize: 9, weight: .bold ), .foregroundColor: NSColor.white, .kern: 0.3 ] )
-		let size = NSSize( width: ceil( text.size().width ) + 11, height: 15 )
-		return NSImage( size: size, flipped: false ) { rect in
-			NSColor.systemBlue.setFill()
-			NSBezierPath( roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2 ).fill()
-			let textSize = text.size()
-			text.draw( at: NSPoint( x: ( rect.width - textSize.width ) / 2, y: ( rect.height - textSize.height ) / 2 ) )
-			return true
-		}
-	}()
 
 	/// A deck: the status lines' icons (green check connected, green dot asleep, yellow dot
 	/// connecting, red exclamation mark a problem, dashed circle a demo), or the sidebar's
