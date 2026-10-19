@@ -153,7 +153,8 @@ extension DeckController {
 		return key
 	}
 
-	/// Next, Previous, Go to Page; Show Page Number does nothing when pressed.
+	/// Next, Previous, Go to Page, and Sleep the Deck; Show Page Number does nothing when
+	/// pressed.
 	func performPage( _ assignment: KeyAssignment, device id: String ) {
 		let current = currentPage( device: id )
 		switch assignment.action {
@@ -162,6 +163,7 @@ extension DeckController {
 			case .firstPage:    showPage( device: id, 0 )
 			case .lastPage:     showPage( device: id, pageCount( device: id ) - 1 )
 			case .goToPage:     showPage( device: id, ( assignment.pageNumber ?? 1 ) - 1 )
+			case .sleepDeck:    sleep( device: id )
 			default:            break
 		}
 	}
@@ -174,6 +176,7 @@ extension DeckController {
 			case .firstPage:    return "chevron.left.to.line"
 			case .lastPage:     return "chevron.right.to.line"
 			case .goToPage:     return Self.numberSymbol( assignment.pageNumber ?? 1, shape: "circle" )
+			case .sleepDeck:    return "moon.fill"
 			default:            return "doc"   // drawn as a page with the number on it (KeyFace.pageNumber)
 		}
 	}

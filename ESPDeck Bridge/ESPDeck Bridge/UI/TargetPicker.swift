@@ -20,7 +20,7 @@ enum TargetMode: String, CaseIterable, Identifiable {
 	/// Keys and commands: any mix of accessories and scenes, from a Home-style sheet.
 	case home      = "Home"
 	case shortcut  = "Shortcut"
-	/// Keys only: page commands.
+	/// Keys only: page commands, and Sleep the Deck.
 	case page      = "Page"
 	/// Keys only: opens a menu of more keys.
 	case menu      = "Menu"
@@ -622,9 +622,12 @@ private struct PageCommandRows: View {
 				if kind != .page {
 					Text( "Choose…" ).tag( KeyAction.none )
 				}
-				ForEach( KeyKind.page.actions ) { action in
+				ForEach( KeyKind.page.actions.filter { $0 != .sleepDeck } ) { action in
 					Label( action.title, systemImage: Self.pageSymbol( action ) ).tag( action )
 				}
+				// Not a page command, but a deck one: on its own below them.
+				Divider()
+				Label( KeyAction.sleepDeck.title, systemImage: Self.pageSymbol( .sleepDeck ) ).tag( KeyAction.sleepDeck )
 			}
 			.labelsHidden()
 			.fixedSize()
@@ -639,6 +642,7 @@ private struct PageCommandRows: View {
 			case .firstPage:    "chevron.left.to.line"
 			case .lastPage:     "chevron.right.to.line"
 			case .goToPage:     "number.circle.fill"
+			case .sleepDeck:    "moon.fill"
 			default:            "doc.fill"
 		}
 	}

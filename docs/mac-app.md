@@ -146,7 +146,7 @@ The **Controlling** section chooses what the press acts on. It has four tabs.
   - Scenes can be mixed in with accessories. **Scenes Run** then says when they run: on every press, only when turning on, or only when turning off.
   - With more than one Home, accessories and scenes are grouped by Home, and one key can use several Homes.
 - The **Shortcut** tab has your Shortcuts. See [Shortcuts](#shortcuts), below.
-- The **Page** tab has the commands that move between pages: Next Page, Previous Page, First Page, Last Page, Go to Page, and Show Page Number.
+- The **Page** tab has the commands that move between pages: Next Page, Previous Page, First Page, Last Page, Go to Page, and Show Page Number. It also has **Sleep the Deck**, for a key (or a key's Hold) that only puts the deck to sleep.
 - The **Menu** tab makes the press open a menu of more keys, and has the menu's settings. See [Menus](#menus), above.
 
 ### 3. What the press does

@@ -53,6 +53,8 @@ enum KeyAction: String, Codable, CaseIterable, Identifiable {
 	case runShortcut
 	case nextPage, previousPage, firstPage, lastPage, goToPage, pageNumber
 	case openMenu, closeMenu
+	/// A Page-tab command that puts the deck to sleep, for a key that does only that.
+	case sleepDeck
 
 	var id: String { rawValue }
 
@@ -76,6 +78,7 @@ enum KeyAction: String, Codable, CaseIterable, Identifiable {
 			case .pageNumber:   "Show Page Number"
 			case .openMenu:     "Open Menu"
 			case .closeMenu:    "Close Menu"
+			case .sleepDeck:    "Sleep the Deck"
 		}
 	}
 }
@@ -162,7 +165,7 @@ enum KeyKind: String, Codable, CaseIterable, Identifiable {
 			case .contact, .temperature: [ .none ]
 			case .scene:                 [ .run, .none ]
 			case .shortcut:              [ .runShortcut, .none ]
-			case .page:                  [ .nextPage, .previousPage, .firstPage, .lastPage, .goToPage, .pageNumber ]
+			case .page:                  [ .nextPage, .previousPage, .firstPage, .lastPage, .goToPage, .pageNumber, .sleepDeck ]
 			case .menu:                  [ .openMenu ]
 		}
 	}
