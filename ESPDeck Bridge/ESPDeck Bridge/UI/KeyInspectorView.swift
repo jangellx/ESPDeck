@@ -312,8 +312,9 @@ struct KeyInspectorView: View {
 			}
 			.pickerStyle( .segmented )
 			.labelsHidden()
-			if pressKind != .tap && controller.device( deviceID )?.status.presses != true {
-				Text( "Double taps and holds need the latest firmware (4.1.0 from today or later) on the device." )
+			// A demo deck has no firmware to be out of date.
+			if pressKind != .tap && controller.settings( deviceID )?.isDemo != true && controller.device( deviceID )?.status.presses != true {
+				Text( "Double taps and holds need firmware 4.1.0 or later on the device." )
 					.secondaryCaption()
 			}
 		}
