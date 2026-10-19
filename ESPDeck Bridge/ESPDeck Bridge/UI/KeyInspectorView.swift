@@ -167,7 +167,7 @@ struct KeyInspectorView: View {
 					} )
 					.toggleStyle( .switch )
 				} footer: {
-					Text( "The deck's keys go dark once the press has run, as if it had gone to sleep by itself. Pressing any key wakes it." )
+					Text( "The deck's keys go dark after the action has run, as if it had gone to sleep by itself. Pressing any key wakes it." )
 				}
 			}
 
