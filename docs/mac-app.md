@@ -161,6 +161,7 @@ Once a key has something to control, this section chooses the action. The choice
   - **Step** sets how far each press goes. Holding a key keeps stepping.
   - **Double-Tap Goes All the Way** makes a double tap jump to full, or to off.
   - The two keys share their background color.
+- **Sleep the Deck Afterward** puts the deck to sleep once a Home or Shortcut press has run, as a Good Night key might. Pressing any key wakes the deck. Level keys don't have it, since they step while held.
 - **Test Action** (⌘T) performs the action now, without the deck. For a Menu key the button is **Edit Menu**.
 
 ### 4. How it looks

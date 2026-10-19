@@ -1119,6 +1119,14 @@ final class DeckController {
 			return
 		}
 		guard let kind = assignment.kind, assignment.action != .none else { return }
+		// Sleep the Deck Afterward: once the action has been started (HomeKit and Shortcuts
+		// finish on the Mac, whether the deck is awake or not).
+		defer {
+			if let id, assignment.sleepsDeck == true, kind != .page, kind != .menu {
+				logEvent( "\(context): putting the deck to sleep", device: id )
+				sleep( device: id )
+			}
+		}
 
 		if kind == .page {
 			if let id { performPage( assignment, device: id ) }

@@ -45,6 +45,9 @@ struct KeyAssignment: Codable, Equatable {
 	var pageNumber      : Int?
 	/// Menu keys: the menu it opens (DeckMenu.id).
 	var menuID          : UUID?
+	/// Home and Shortcut presses: puts the deck to sleep once the press has run. nil (or
+	/// false) leaves it awake.
+	var sleepsDeck      : Bool?
 	/// Scenes the key runs besides its accessories, or besides `actionSetID` on a scenes-only
 	/// key; nil for none.
 	var scenes          : [UUID]?
@@ -158,6 +161,7 @@ extension KeyAssignment {
 		slider          = container.lenient( SliderKey.self, forKey: .slider )
 		pageNumber      = container.lenient( Int.self, forKey: .pageNumber )
 		menuID          = container.lenient( UUID.self, forKey: .menuID )
+		sleepsDeck      = container.lenient( Bool.self, forKey: .sleepsDeck )
 		scenes          = container.lenientArray( of: UUID.self, forKey: .scenes )
 		sceneTiming     = container.lenient( SceneTiming.self, forKey: .sceneTiming )
 		doubleTap       = container.lenient( PressAction.self, forKey: .doubleTap )

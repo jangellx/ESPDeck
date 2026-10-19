@@ -93,6 +93,10 @@ extension KeyAssignment {
 		if kind != .page {
 			pageNumber = nil
 		}
+		// Only Home and Shortcut presses sleep the deck afterward.
+		if kind == nil || kind == .page || kind == .menu {
+			sleepsDeck = nil
+		}
 		if kind != .menu {
 			menuID = nil
 		} else if menuID == nil {

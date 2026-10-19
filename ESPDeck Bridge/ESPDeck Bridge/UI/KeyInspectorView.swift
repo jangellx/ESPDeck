@@ -157,6 +157,20 @@ struct KeyInspectorView: View {
 				}
 			}
 
+			// After what the press does: whether the deck goes to sleep then.
+			if showsSleepToggle {
+				Section {
+					Toggle( "Sleep the Deck Afterward", isOn: Binding {
+						editing.sleepsDeck == true
+					} set: { sleeps in
+						edit { $0.sleepsDeck = sleeps ? true : nil }
+					} )
+					.toggleStyle( .switch )
+				} footer: {
+					Text( "The deck's keys go dark once the press has run, as if it had gone to sleep by itself. Pressing any key wakes it." )
+				}
+			}
+
 			PillRow {
 				Pill {
 					if editing.kind == .menu, let menu = editing.menuID {
@@ -315,6 +329,13 @@ struct KeyInspectorView: View {
 			case .shortcut: return editing.isToggleShortcut
 			default:        return false
 		}
+	}
+
+	/// Whether the press can sleep the deck afterward: one that controls something on the
+	/// Home or Shortcut tab, under that tab. Not a Level key, which steps while held.
+	private var showsSleepToggle: Bool {
+		guard let kind = editing.kind, !isSlider, pickerTab == .home || pickerTab == .shortcut else { return false }
+		return TargetMode.of( kind, in: TargetMode.keyModes ) == pickerTab
 	}
 
 	/// Another press of the key than the one being edited that opens a menu, if one does.
