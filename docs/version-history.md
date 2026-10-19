@@ -16,10 +16,11 @@ What changed in each version of ESPDeck Bridge, the Mac app. The firmware has it
 
 - **Copy Action** and **Paste Action** (⇧⌘C, ⇧⌘V) copy what one press of a key does (its Tap, Double Tap or Hold) to another press or another key.
 - A copied key or action includes the menus it opens.
-- **Sleep the Deck Afterward** puts the deck to sleep once a Home or Shortcut press has run, and **Sleep the Deck** on the Page tab makes a press that does only that.
+- **Sleep the Deck Afterward** puts the deck to sleep once a Home or Shortcut press has run, and **Sleep the Deck** on the Deck tab makes a press that does only that.
 - **One Icon** makes a key show the same icon whatever state its accessory is in.
 - Choosing something on another tab of **Controlling** asks before it replaces what the press already does.
 - The **Action** section is shown only where there is an action to choose.
+- The **Page** tab of **Controlling** is now **Deck**, since it controls the deck itself: its pages, and sleeping it.
 
 ### Other changes
 

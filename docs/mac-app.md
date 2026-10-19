@@ -146,7 +146,7 @@ The **Controlling** section chooses what the press acts on. It has four tabs.
   - Scenes can be mixed in with accessories. **Scenes Run** then says when they run: on every press, only when turning on, or only when turning off.
   - With more than one Home, accessories and scenes are grouped by Home, and one key can use several Homes.
 - The **Shortcut** tab has your Shortcuts. See [Shortcuts](#shortcuts), below.
-- The **Page** tab has the commands that move between pages: Next Page, Previous Page, First Page, Last Page, Go to Page, and Show Page Number. It also has **Sleep the Deck**, for a key (or a key's Hold) that only puts the deck to sleep.
+- The **Deck** tab controls the deck itself. It has the commands that move between pages: Next Page, Previous Page, First Page, Last Page, Go to Page, and Show Page Number. It also has **Sleep the Deck**, for a key (or a key's Hold) that only puts the deck to sleep.
 - The **Menu** tab makes the press open a menu of more keys, and has the menu's settings. See [Menus](#menus), above.
 
 ### 3. What the press does
@@ -295,7 +295,7 @@ Every command in the menu bar, with its keyboard shortcut where it has one.
 | | Forget Device… | | Removes the deck from this Mac and unpairs it. |
 | **Key** | Select Key to the Left, Right, Above, Below | ⌥ and an arrow | Moves the selection. Plain arrows work too, after a click in the deck preview. |
 | | Test Action | ⌘T | Performs the selected key's action now. |
-| | Assign Home…, Shortcut…, Page…, Menu… | ⌥⌘1, ⌥⌘2, ⌥⌘3, ⌥⌘4 | Opens the key's picker on that tab. |
+| | Assign Home…, Shortcut…, Deck…, Menu… | ⌥⌘1, ⌥⌘2, ⌥⌘3, ⌥⌘4 | Opens the key's picker on that tab. |
 | **Help** | ESPDeck Help | | Opens this documentation. |
 | | What's New… | | Shows the What's New window again. |
 | | Getting Started | | Opens one of Getting Started's sheets, from a submenu. |

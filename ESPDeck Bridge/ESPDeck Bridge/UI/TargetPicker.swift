@@ -20,8 +20,8 @@ enum TargetMode: String, CaseIterable, Identifiable {
 	/// Keys and commands: any mix of accessories and scenes, from a Home-style sheet.
 	case home      = "Home"
 	case shortcut  = "Shortcut"
-	/// Keys only: page commands, and Sleep the Deck.
-	case page      = "Page"
+	/// Keys only: deck control, the page commands and Sleep the Deck. The tab reads "Deck".
+	case page      = "Deck"
 	/// Keys only: opens a menu of more keys.
 	case menu      = "Menu"
 
