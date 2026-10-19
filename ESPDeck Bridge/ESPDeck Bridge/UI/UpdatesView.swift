@@ -2,8 +2,9 @@
 //  UpdatesView.swift
 //  ESPDeck Bridge
 //
-//  Firmware update policy and status for every device. The app itself is updated by the
-//  App Store.
+//  Firmware update policy and status for every device. The app itself is updated only by
+//  the App Store, and nothing here may look as if it updates the app: App Review rejected a
+//  build whose page was called just "Updates", with Check for Updates… in the app menu.
 //
 
 import SwiftUI
@@ -32,21 +33,21 @@ struct UpdatesView: View {
 					Text( "Firmware \(unsigned.description) on GitHub isn't signed, so it isn't offered. Releases are signed from \(FirmwareSignature.firstSignedRelease) on; an unsigned one can only be installed from a file, on the Mac." )
 						.secondaryCaption()
 				}
-				Picker( "Updates", selection: Bindable( updates ).firmwarePolicy ) {
+				Picker( "New Firmware", selection: Bindable( updates ).firmwarePolicy ) {
 					ForEach( UpdatePolicy.allCases ) { Text( $0.title ).tag( $0 ) }
 				}
 				ForEach( controller.devices.filter { controller.settings( $0.id )?.isDemo != true } ) { device in
 					FirmwareRow( controller: controller, device: device )
 				}
 			} header: {
-				SectionHeader( "ESPDeck Firmware" )
+				SectionHeader( "Firmware on the Decks" )
 			} footer: {
 				Text( "Firmware from GitHub is installed only if it's signed with ESPDeck's release key, and is sent to each ESPDeck over its paired connection. Automatic updates wait until a deck is asleep or hasn't been used for 5 minutes. If new firmware can't reconnect, the device goes back to its previous firmware on its own." )
 			}
 
 			Section {
 				HStack {
-					Button( updates.checking ? "Checking…" : "Check Now" ) {
+					Button( updates.checking ? "Checking…" : "Check for New Firmware" ) {
 						Task { await updates.check( userInitiated: true ) }
 					}
 					.disabled( updates.checking || updates.repository == nil )
@@ -62,7 +63,7 @@ struct UpdatesView: View {
 			}
 		}
 		.formStyle( .grouped )
-		.navigationTitle( "Updates" )
+		.navigationTitle( "Firmware Updates" )
 	}
 }
 

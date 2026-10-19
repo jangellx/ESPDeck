@@ -132,7 +132,7 @@ final class UpdateManager {
 	/// automatic updates allow. `userInitiated` isn't used.
 	func check( userInitiated: Bool ) async {
 		guard let repository else {
-			checkError = "No GitHub repository is configured for updates."
+			checkError = "No GitHub repository is configured for firmware updates."
 			return
 		}
 		guard !checking else { return }
@@ -149,7 +149,7 @@ final class UpdateManager {
 			unsignedFirmware = unsigned.flatMap { version in latestFirmware.map( { $0.version < version } ) ?? true ? version : nil }
 			settings.lastCheck = Date()
 		} catch {
-			checkError = error is UpdateError ? error.localizedDescription : "Couldn't check for updates: \(error.localizedDescription)"
+			checkError = error is UpdateError ? error.localizedDescription : "Couldn't check for new firmware: \(error.localizedDescription)"
 			return
 		}
 
@@ -289,7 +289,7 @@ final class UpdateManager {
 				case .signatureUnavailable:        "Couldn't get the release's signature."
 				case .badSignature:                "The download isn't signed by ESPDeck's release key, so it wasn't installed."
 				case .badSize:                     "The download isn't the size the release lists, or is too large to be firmware."
-				case .repositoryNotFound( let r ): "GitHub doesn't show \(r). Update checks need the repository to be public."
+				case .repositoryNotFound( let r ): "GitHub doesn't show \(r). Firmware checks need the repository to be public."
 				case .rateLimited:                 "GitHub's rate limit was reached; the app will try again later."
 				case .noFullImage:                 "The latest firmware release has no full image for installing over USB."
 				case .noRelease( let problem ):    problem ?? "GitHub doesn't list a signed firmware release (\(FirmwareSignature.firstSignedRelease) or later)."

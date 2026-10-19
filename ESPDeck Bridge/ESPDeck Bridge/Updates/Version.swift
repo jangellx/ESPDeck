@@ -57,7 +57,7 @@ enum FirmwareStanding: Equatable {
 	var description: String? {
 		switch self {
 			case .upToDate:                       "Up to date"
-			case .updateAvailable( let version ): "Update available: \(version)"
+			case .updateAvailable( let version ): "Firmware update available: \(version)"
 			case .newer:                          "Newer than the latest release"
 			case .unknown:                        nil
 		}

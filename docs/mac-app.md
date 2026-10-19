@@ -13,7 +13,7 @@
 - [The Device page](#the-device-page)
 - [The Log page](#the-log-page)
 - [Getting Started and USB Setup](#getting-started-and-usb-setup)
-- [Updates](#updates)
+- [Firmware Updates](#firmware-updates)
 - [Menus and keyboard shortcuts](#menus-and-keyboard-shortcuts)
 - [Moving to another Mac](#moving-to-another-mac)
 - [Sandbox and security](#sandbox-and-security)
@@ -61,7 +61,7 @@ This section holds the pages that belong to the app and not to any one deck. The
 
 - **Getting Started** has the parts list and the setup steps. The window opens here while there are no decks.
 - **USB Setup** installs firmware on a board plugged into the Mac. Its badge counts the boards it has found.
-- **Updates** shows firmware releases and installs them.
+- **Firmware Updates** shows firmware releases for the decks and installs them. The app itself is updated by the Mac App Store.
 - **About** has the version, the requirements, exporting and importing the bridge, the license and the acknowledgments.
 
 ### Status
@@ -253,11 +253,11 @@ These two pages take a new deck from a box of parts to a paired device. Getting 
 
 **USB Setup** installs firmware on a board plugged into the Mac and sets up its Wi-Fi and name; see [Installing](setup.md#installing). The end of the page says what comes next, with a button for Putting It Together.
 
-## Updates
+## Firmware Updates
 
-The Updates page keeps the decks' firmware current. It finds releases on GitHub and sends them to the decks over Wi-Fi.
+The Firmware Updates page keeps the decks' firmware current. It finds releases on GitHub and sends them to the decks over Wi-Fi. It doesn't update ESPDeck Bridge itself, which is updated by the Mac App Store.
 
-<p align="center"><img src="images/updates.png" alt="The Updates page, showing the latest firmware and each deck as up to date."></p>
+<p align="center"><img src="images/updates.png" alt="The Firmware Updates page, showing the latest firmware and each deck as up to date."></p>
 
 - The page checks GitHub Releases for firmware (tags `firmware-vX.Y.Z`).
 - It can be set to **Install Automatically**, to **Check Automatically, Ask to Install**, or to **Check Manually**, which only checks when you click **Check Now**.
@@ -271,7 +271,6 @@ Every command in the menu bar, with its keyboard shortcut where it has one.
 
 | Menu | Command | Keys | What it does |
 |---|---|---|---|
-| **ESPDeck Bridge** | Check for Updates… | | Looks for firmware releases. |
 | | Launch at Login | | Starts the app when you log in. |
 | **File** | New Demo Deck | ⌘N | Adds a demo deck. The submenu lists the models, and ⌘N makes the first. |
 | | Find Your Device | ⇧⌘F | Opens Getting Started's list of decks waiting to be set up or paired. |
@@ -284,7 +283,7 @@ Every command in the menu bar, with its keyboard shortcut where it has one.
 | | Copy Action, Paste Action | ⇧⌘C, ⇧⌘V | Copies or pastes one press of the selected key: the one whose tab is showing. |
 | | Clear Key… | Delete | Empties the selected key, after the same confirmation as the button. |
 | **View** | Keys, Device, Log | ⌘1, ⌘2, ⌘3 | Shows that page of the selected deck. |
-| | Getting Started, USB Setup, Updates, About | | Shows that page of the sidebar. |
+| | Getting Started, USB Setup, Firmware Updates, About | | Shows that page of the sidebar. |
 | | Zoom In, Zoom Out | ⌘=, ⌘- | Makes the deck preview larger or smaller. |
 | | Size to Fit | ⌘0 | Fits the deck preview to its pane. |
 | **Device** | Next Device, Previous Device | ⌘], ⌘[ | Steps through the decks in the sidebar. |

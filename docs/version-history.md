@@ -25,6 +25,7 @@ What changed in each version of ESPDeck Bridge, the Mac app. The firmware has it
 - When HomeKit refuses to operate a garage door or a lock because the Mac is locked, the app says so and links to an explanation.
 - The app listens on another port when port 48620 is already in use on the Mac.
 - A **What's New** window shows the main changes the first time the configuration window is opened after an update.
+- The Updates page is now called **Firmware Updates**, and the app menu no longer has Check for Updates…: the page only ever updated the decks' firmware, and the app itself is updated by the Mac App Store.
 
 ## 1.0.0
 

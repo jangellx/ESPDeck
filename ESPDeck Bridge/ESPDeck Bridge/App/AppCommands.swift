@@ -20,7 +20,6 @@ extension AppDelegate {
 		builder.remove( menu: .about )
 		let about = UIMenu( identifier: UIMenu.Identifier( "com.tmproductions.espdeck.about" ), options: .displayInline, children: [
 			UICommand( title: "About ESPDeck Bridge", action: #selector( showAbout ) ),
-			UICommand( title: "Check for Updates…", action: #selector( checkForUpdates ) ),
 		] )
 		builder.insertChild( about, atStartOfMenu: .application )
 		if menuBarAvailable {
@@ -96,7 +95,7 @@ extension AppDelegate {
 						  propertyList: page.rawValue )
 		}
 		// In sidebar order.
-		var items = [ ( "Getting Started", SidebarItem.parts ), ( "Updates", SidebarItem.updates ), ( "About", SidebarItem.about ) ]
+		var items = [ ( "Getting Started", SidebarItem.parts ), ( "Firmware Updates", SidebarItem.updates ), ( "About", SidebarItem.about ) ]
 		if menuBarAvailable {
 			items.insert( ( "USB Setup", SidebarItem.usbSetup ), at: 1 )
 		}
@@ -266,12 +265,6 @@ extension AppDelegate {
 
 	@objc func showAbout() {
 		show( SidebarItem.about )
-	}
-
-	/// Opens Updates and checks now.
-	@objc func checkForUpdates() {
-		show( SidebarItem.updates )
-		Task { await controller.updates.check( userInitiated: true ) }
 	}
 
 	@objc func toggleLaunchAtLogin() {

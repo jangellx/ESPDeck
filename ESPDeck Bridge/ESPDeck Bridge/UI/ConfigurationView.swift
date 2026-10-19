@@ -374,7 +374,7 @@ private struct Sidebar: View {
 
 				Label {
 					HStack {
-						Text( "Updates" )
+						Text( "Firmware Updates" )
 						if !controller.updates.statusItems.isEmpty {
 							Spacer()
 							Circle().frame( width: 8, height: 8 ).sidebarAccent().sidebarSlot()
