@@ -8,15 +8,15 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 
 <p align="center"><img src="docs/images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys."><br><sup>A Stream Deck Mini under a garage shelf, in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>.</sup></p>
 
-<p align="center"><img src="docs/images/keys.png" alt="ESPDeck Bridge&#x27;s Keys page: a 15-key deck with the garage door key selected, and that key&#x27;s settings beside it."></p>
+<p align="center"><img src="docs/images/keys.png" alt="ESPDeck Bridge&#x27;s Keys page: a 15-key deck with a garage door key selected, and that key&#x27;s settings beside it."></p>
 
-- **Keys that show what's happening.** A key shows its accessory's state (on or off, open, opening, closed, locked) with the icon, label and color you choose for each state, and follows changes made anywhere else.
+- **Keys that show what's happening.** A key shows its accessory's state (on or off, open, opening, closed, locked) with the icon, label and color you choose for each state, or one icon for all of them, and follows changes made anywhere else.
 - **Accessories, scenes and Shortcuts.** A key toggles an accessory or a group of them, runs a scene, or runs one of your Shortcuts.
-- **Tap, double tap and hold.** Each can do something different on the same key.
+- **Tap, double tap and hold.** Each can do something different on the same key, and an action can be copied from one press or key to another.
 - **Brightness and fan speed.** A pair of keys steps a light's brightness or a fan's speed up and down; holding repeats.
-- **Pages.** A deck has as many pages of keys as you like.
+- **Pages and menus.** A deck has as many pages of keys as you like, and a key can open a menu: another set of keys that takes the page's place until it closes.
 - **Supports every Stream Deck with keys.** Mini, Original, MK.2, XL, Neo, +, Pedal and the modules, each in its own layout; several decks can share one Mac. Only the keys are used, not dials, touch strips or second screens.
-- **Sleep and wake.** The deck's screen sleeps on a timer or when a HomeKit accessory changes (a door locks, a light goes off), and can run a scene or a shortcut as it sleeps and wakes.
+- **Sleep and wake.** The deck's screen sleeps on a timer, when a HomeKit accessory changes (a door locks, a light goes off), or from a key, on its own or after the key's action. It can run a scene or a shortcut as it sleeps and wakes.
 - **Set up from the Mac.** The app installs the firmware over USB, joins the dev kit to Wi-Fi and names it; firmware updates then arrive over Wi-Fi.
 - **Paired and private.** A deck only obeys the Mac it's paired with, over an authenticated connection on your own network. There's no account and no cloud service; the secrets a deck stores can be encrypted on its chip.
 - **Try it without hardware.** A demo deck lays out keys and tests their actions before anything is built.

@@ -63,7 +63,7 @@ There are two cases where the splash screen doesn't appear. Until a real deck is
 
 ### Does anything leave my network?
 
-No. The deck and the Mac talk to each other directly over your Wi-Fi, and the Mac talks to HomeKit. There's no account and no ESPDeck server. The only internet use is the app looking on GitHub for firmware releases and downloading them; under **Updates** you can have it look only when you click Check Now.
+No. The deck and the Mac talk to each other directly over your Wi-Fi, and the Mac talks to HomeKit. There's no account and no ESPDeck server. The only internet use is the app looking on GitHub for firmware releases and downloading them; under **Firmware Updates** you can have it look only when you click Check for New Firmware.
 
 ### What stops someone else on my Wi-Fi from pressing my keys?
 
@@ -110,7 +110,7 @@ Things to know:
 - **A development build stops working when its signing expires** (about a week with a free account, a year with a paid one). Build and run again to renew it; your decks, keys and pairings are kept.
 - **Updating is `git pull` and run again.**
 
-The firmware is yours to build too: `pio run -t upload` in `ESPDeck Device`, with PlatformIO. One thing differs from the app's own installer: ESPDeck Bridge's **Updates** page only installs releases signed by this project, so put your own builds on with **Install Firmware from File…**, USB Setup's **Choose File…**, or PlatformIO. See [Development](development.md).
+The firmware is yours to build too: `pio run -t upload` in `ESPDeck Device`, with PlatformIO. One thing differs from the app's own installer: ESPDeck Bridge's **Firmware Updates** page only installs releases signed by this project, so put your own builds on with **Install Firmware from File…**, USB Setup's **Choose File…**, or PlatformIO. See [Development](development.md).
 
 ## When something doesn't work
 
@@ -182,4 +182,4 @@ Export the bridge on the old Mac and import it on the new one; the decks carry o
 
 ### How do I update the firmware?
 
-The **Updates** page offers new releases and installs them over Wi-Fi; it can do so automatically. The app only installs releases signed by this project.
+The **Firmware Updates** page offers new firmware releases and installs them over Wi-Fi; it can do so automatically. The app only installs releases signed by this project.

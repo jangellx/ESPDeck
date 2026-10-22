@@ -31,7 +31,7 @@
 
 ESPDeck Bridge has no Dock icon while its window is closed. It lives in the menu bar, under the grid icon, and that menu is how you open everything else.
 
-<p align="center"><img src="images/menu-bar.png" width="290" alt="The menu bar menu, listing two decks as connected, HomeKit as connected, and the Configure, Set Up a Device over USB, Launch at Login and Quit commands."></p>
+<p align="center"><img src="images/menu-bar.png" width="448" alt="The menu bar menu under the app&#x27;s icon, listing four decks and their states, HomeKit as connected, and the Configure, Set Up a Device over USB, Launch at Login and Quit commands."></p>
 
 - The status lines at the top say whether the bridge is waiting for a deck, whether HomeKit is connected, and whether anything needs attention.
 - Each deck is listed with its state. Choosing one opens its Keys page.
@@ -77,7 +77,7 @@ This section shows how the bridge itself is doing, at a glance. It's the first p
 
 The Keys page is where a deck's keys are laid out. It shows a preview of the deck and, for the key you select, everything that key shows and does.
 
-<p align="center"><img src="images/keys.png" alt="The Keys page with the preview beside the selected key&#x27;s settings."></p>
+<p align="center"><img src="images/keys.png" alt="The Keys page: a 15-key deck with a garage door key selected, and that key&#x27;s settings beside it."></p>
 
 ### The preview
 
@@ -98,9 +98,13 @@ A deck can have several pages of keys, and the page bar above the preview moves 
 - Right-click a page number to delete that page.
 - Keys with a Page action move the deck from one page to another.
 
+<p align="center"><img src="images/pages.png" alt="The second page of a deck: lights, lamps, scenes, outlets and a door, with a Previous Page key at the lower left."></p>
+
 ### Menus
 
 A menu is another set of keys that takes the place of the page while the menu is open, like a folder. A key opens the menu, and the menu's Close key goes back to the page.
+
+<p align="center"><img src="images/menu.png" alt="A Vents menu being edited: its Close key at the top left and five vent keys, with the menu&#x27;s settings beside it."></p>
 
 - A key becomes a Menu key on the **Menu** tab of its settings. The menu can open on the key's tap, double tap or hold.
 - **Edit Menu**, in the Menu key's settings, shows the menu in the preview and on the deck. The menu's keys are then set up like the keys of a page.
@@ -131,7 +135,7 @@ A key's settings appear when you select it. Work down them in order: which press
 
 ### 1. Presses: Tap, Double Tap and Hold
 
-<p align="center"><img src="images/hold.png" alt="A key&#x27;s settings with the Hold tab chosen, and its icons for each state of a garage door."></p>
+<p align="center"><img src="images/hold.png" alt="A key&#x27;s Hold tab: it runs two garage scenes and then puts the deck to sleep."></p>
 
 A key can do three different things, one for each kind of press. **Tap**, **Double Tap** and **Hold**, at the top of the settings, choose which one you're setting up. The key's look (its icon, label and color) belongs to its tap.
 
@@ -139,7 +143,7 @@ A key can do three different things, one for each kind of press. **Tap**, **Doub
 
 The **Controlling** section chooses what the press acts on. It has four tabs.
 
-<p align="center"><img src="images/home-sheet.png" alt="The Home sheet, with a search field and a list of scenes to choose from."></p>
+<p align="center"><img src="images/home-sheet.png" alt="The Home sheet searched for Den: scenes, then lights and lamps grouped by room, each with its state."></p>
 
 - The **Home** tab has your accessories and scenes, in a sheet arranged by room like the Home app, with a search field.
   - You can pick one accessory, or several to control together. The starred one is the key accessory, and the key shows its state.
@@ -148,6 +152,8 @@ The **Controlling** section chooses what the press acts on. It has four tabs.
 - The **Shortcut** tab has your Shortcuts. See [Shortcuts](#shortcuts), below.
 - The **Deck** tab controls the deck itself. It has the commands that move between pages: Next Page, Previous Page, First Page, Last Page, Go to Page, and Show Page Number. It also has **Sleep the Deck**, for a key (or a key's Hold) that only puts the deck to sleep.
 - The **Menu** tab makes the press open a menu of more keys, and has the menu's settings. See [Menus](#menus), above.
+
+<p align="center"><img src="images/deck-sleep.png" alt="A key&#x27;s Hold set to Sleep the Deck, on the Deck tab."></p>
 
 ### 3. What the press does
 
@@ -167,6 +173,8 @@ Once a key has something to control, this section chooses the action. The choice
 ### 4. How it looks
 
 The Appearance and Icons sections set what the key shows. A key can look different in each state of its accessory.
+
+<p align="center"><img src="images/garage-icons.png" alt="A garage door key&#x27;s icons: one each for Default, Open, Closed, Opening, Closing, Stopped and Obstructed."></p>
 
 - **Label** sets the key's text, and **Show Label** hides or shows it.
 - **Background** sets the key's color.
@@ -261,7 +269,7 @@ The Firmware Updates page keeps the decks' firmware current. It finds releases o
 <p align="center"><img src="images/updates.png" alt="The Firmware Updates page, showing the latest firmware and each deck as up to date."></p>
 
 - The page checks GitHub Releases for firmware (tags `firmware-vX.Y.Z`).
-- It can be set to **Install Automatically**, to **Check Automatically, Ask to Install**, or to **Check Manually**, which only checks when you click **Check Now**.
+- It can be set to **Install Automatically**, to **Check Automatically, Ask to Install**, or to **Check Manually**, which only checks when you click **Check for New Firmware**.
 - It offers only signed releases (see [Release signing](development.md#release-signing)).
 - The repository must be public for update checks to work.
 - The app itself is distributed and updated through the Mac App Store.
