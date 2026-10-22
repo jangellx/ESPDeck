@@ -32,6 +32,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 	/// Windows showing What's New, and those of them already dismissed (on their way out).
 	var whatsNewSessions                 : Set<String> = []
 	private var whatsNewDismissed        : Set<String> = []
+	/// A window of the app has come on screen since launch. HomeKit serves an app only once it
+	/// has (see ensureForeground()).
+	var sawForeground                    = false
+	/// When ensureForeground() last opened a window, so a refusal doesn't open one after another.
+	private var foregroundRequestedAt    = Date.distantPast
 	/// The names the Device menu was built with.
 	private var deviceMenuNames          : [String] = []
 
@@ -82,6 +87,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		}
 		controller.refreshLaunchAtLogin()
 		setUpNotifications()
+		// HomeKit refuses an app until it has shown a window. Opened by Launch at Login (or
+		// `open -g`), the app may not have: then it shows its splash for a moment.
+		controller.home.onBackgroundRefusal = { [weak self] in self?.ensureForeground( afterRefusal: true ) }
+		Task { @MainActor [weak self] in
+			try? await Task.sleep( for: .seconds( 4 ) )
+			self?.ensureForeground( afterRefusal: false )
+		}
 		// What's New, unless it has been seen. A new installation has nothing to compare
 		// with, so everything is new: it's taken as seen.
 		if let whatsNew = WhatsNew.bundled, !whatsNew.isSeen {
@@ -164,11 +176,25 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		whatsNewDismissed.remove( session.persistentIdentifier )
 	}
 
-	/// Closes the launch window once the splash has shown.
+	/// Opens the splash window (which then stays, invisible: see closeSplash(_:)) if no window
+	/// has come on screen since launch, or (`afterRefusal`) HomeKit has started refusing the app
+	/// all the same: its invisible window was closed, say. Not more than once a minute.
+	func ensureForeground( afterRefusal: Bool ) {
+		guard afterRefusal || !sawForeground || splashSessions.isEmpty, Date().timeIntervalSince( foregroundRequestedAt ) > 60 else { return }
+		foregroundRequestedAt = Date()
+		print( "[AppDelegate] Showing the splash so HomeKit serves the app (\(afterRefusal ? "HomeKit refused it" : "no window yet"))" )
+		UIApplication.shared.activateSceneSession( for: UISceneSessionActivationRequest( role: .windowApplication ) ) { error in
+			print( "[AppDelegate] Opening the splash failed: \(error)" )
+		}
+	}
+
+	/// Once the splash has shown, makes its window invisible rather than closing it. HomeKit
+	/// serves the app only while macOS rates it as in the foreground, which a menu bar app with
+	/// no window on screen isn't (HomeKit answers "Handler does not support background access").
+	/// An invisible window that ignores the mouse keeps that rating, and with it the decks.
 	func closeSplash( _ session: UISceneSession ) {
 		guard splashSessions.contains( session.persistentIdentifier ) else { return }
-		UIApplication.shared.requestSceneSessionDestruction( session, options: nil )
-		menuBar?.closeWindows( titled: SceneDelegate.splashTitle )
+		menuBar?.hideWindows( titled: SceneDelegate.splashTitle )
 	}
 
 	// MARK: - DeckMenuBarHost

@@ -90,6 +90,10 @@ public protocol DeckMenuBarPlugin: NSObjectProtocol {
 	/// (the splash screen), in front of other apps' windows.
 	func bringWindowsToFront( excluding title: String )
 
+	/// Makes every window with this title invisible and untouchable, without closing it: it
+	/// stays on screen as far as macOS is concerned (see AppDelegate.ensureForeground()).
+	func hideWindows( titled title: String )
+
 	/// Closes every window with this title. Catalyst doesn't reliably close a scene's
 	/// window when its session is destroyed during launch.
 	func closeWindows( titled title: String )

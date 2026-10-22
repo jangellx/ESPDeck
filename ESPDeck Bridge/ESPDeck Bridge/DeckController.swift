@@ -1460,6 +1460,9 @@ final class DeckController {
 	/// Whether HomeKit is available: connected, denied, without a home, or not answered yet.
 	var homeStatus: StatusItem {
 		let authorization = home.authorization
+		if home.refusedInBackground {
+			return StatusItem( text: "HomeKit isn't answering: open this window", level: .problem )
+		}
 		if !home.homes.isEmpty {
 			return StatusItem( text: home.hasSeveralHomes ? "HomeKit: Connected (\(home.homes.count) Homes)" : "HomeKit: Connected", level: .ok )
 		} else if authorization.contains( .determined ) && !authorization.contains( .authorized ) {

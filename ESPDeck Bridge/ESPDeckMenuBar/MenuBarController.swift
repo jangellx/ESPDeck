@@ -137,6 +137,18 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 		}
 	}
 
+	/// Hides every window titled `title`: see DeckMenuBarPlugin.hideWindows(titled:).
+	func hideWindows( titled title: String ) {
+		for window in NSApp.windows where window.title == title {
+			window.alphaValue          = 0
+			window.ignoresMouseEvents  = true
+			window.hasShadow           = false
+			window.collectionBehavior  = [ .transient, .ignoresCycle, .stationary ]
+			window.isExcludedFromWindowsMenu = true
+			window.setFrame( NSRect( x: window.frame.minX, y: window.frame.minY, width: 1, height: 1 ), display: false )
+		}
+	}
+
 	/// Closes every window titled `title`.
 	func closeWindows( titled title: String ) {
 		for window in NSApp.windows where window.title == title {

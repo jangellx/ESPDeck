@@ -61,6 +61,13 @@ enum HomeActionError: LocalizedError {
 		return error.localizedDescription.localizedCaseInsensitiveContains( "device to be unlocked" )
 	}
 
+	/// HomeKit refusing an app it rates as in the background ("Handler does not support
+	/// background access", code 80, which the app sees as "Missing entitlement for API"). It
+	/// answers again once the app has shown a window (AppDelegate.ensureForeground()).
+	static func isBackgroundRefusal( _ error: Error ) -> Bool {
+		( error as? HMError )?.code == .missingEntitlement
+	}
+
 	var errorDescription: String? {
 		switch self {
 			case .noHome:      "No HomeKit home is available."
@@ -77,6 +84,11 @@ final class HomeObserver: NSObject {
 	@ObservationIgnored private let homeManager = HMHomeManager()
 
 	private(set) var homes         : [HMHome] = []
+	/// HomeKit is refusing this app as being in the background: the last read it answered
+	/// that way (HomeActionError.isBackgroundRefusal), until one succeeds.
+	private(set) var refusedInBackground = false
+	/// Told when refusedInBackground turns on.
+	@ObservationIgnored var onBackgroundRefusal: ( () -> Void )?
 	private(set) var authorization : HMHomeManagerAuthorizationStatus = []
 	/// Latest known value of each watched characteristic.
 	private(set) var values        : [CharacteristicRef: Any] = [:] {
@@ -197,8 +209,10 @@ final class HomeObserver: NSObject {
 			do {
 				try await characteristic.enableNotification( true )
 				try await characteristic.readValue()   // initial snapshot
+				noteRead( nil )
 			} catch {
 				print( "[HomeObserver] Failed to observe \(accessory.name): \(error)" )
+				noteRead( error )
 			}
 			values[ref] = characteristic.value
 			onChange?( ref )
@@ -221,11 +235,32 @@ final class HomeObserver: NSObject {
 		}
 	}
 
+	/// Follows whether HomeKit is refusing this app as being in the background: from each read's
+	/// outcome (nil for success). Other failures (an accessory that's offline) don't change it.
+	private func noteRead( _ error: Error? ) {
+		if let error {
+			guard HomeActionError.isBackgroundRefusal( error ), !refusedInBackground else { return }
+			Self.log.error( "HomeKit is refusing this app as being in the background" )
+			refusedInBackground = true
+			onBackgroundRefusal?()
+		} else if refusedInBackground {
+			Self.log.info( "HomeKit is answering again" )
+			refusedInBackground = false
+		}
+	}
+
 	/// Re-reads everything watched now, and logs what changed without a notification (none of
 	/// it is this app's own doing). Also when a deck wakes: it should show what's true now.
 	func refreshNow( reason: String ) async {
 		for entry in watched where levelGoals[entry.ref] == nil {   // not mid-write: that would show the old level
-			guard ( try? await entry.characteristic.readValue() ) != nil, levelGoals[entry.ref] == nil else { continue }
+			do {
+				try await entry.characteristic.readValue()
+				noteRead( nil )
+			} catch {
+				noteRead( error )
+				continue
+			}
+			guard levelGoals[entry.ref] == nil else { continue }
 			let old = values[entry.ref] as? NSObject
 			let new = entry.characteristic.value as? NSObject
 			if old != new {

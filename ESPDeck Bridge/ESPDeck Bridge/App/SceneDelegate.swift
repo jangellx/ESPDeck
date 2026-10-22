@@ -69,6 +69,11 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 		}
 	}
 
+	/// A window is on screen: from now on HomeKit serves the app (AppDelegate.ensureForeground()).
+	func sceneWillEnterForeground( _ scene: UIScene ) {
+		AppDelegate.shared.sawForeground = true
+	}
+
 	/// Forgets a closed splash window; a closed What's New window opens the configuration window.
 	func sceneDidDisconnect( _ scene: UIScene ) {
 		AppDelegate.shared.whatsNewDisconnected( scene.session )
