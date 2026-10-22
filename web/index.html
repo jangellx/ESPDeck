@@ -56,7 +56,8 @@ figure{margin:0}
 /* The app's drawings are black on white: they keep a white sheet in the dark too. */
 .paper{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;overflow:hidden}
 .paper img{margin:0 auto}
-.steps{counter-reset:step;list-style:none;padding:0;margin:22px 0 0;display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.steps{counter-reset:step;list-style:none;padding:0;margin:22px 0 0;display:grid;gap:16px;grid-template-columns:repeat(3,1fr)}
+@media (max-width:720px){.steps{grid-template-columns:1fr}}   /* three across, or one above another: never two and one */
 .steps li{counter-increment:step;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 22px;color:var(--muted);font-size:16px}
 .steps li::before{content:counter(step);display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--amber);color:var(--amber-text);font-weight:700;font-size:15px;margin-bottom:10px}
 .steps strong{color:var(--text)}
@@ -77,14 +78,16 @@ figure{margin:0}
 .gallery figcaption strong{color:var(--text);display:block;font-size:17px;margin-bottom:2px}
 .gallery figure{cursor:pointer}
 /* One dot for each picture; the one showing is filled. */
-.dots{display:flex;gap:10px;justify-content:center;margin-top:4px}
-.dots button{width:9px;height:9px;padding:0;border-radius:50%;border:0;background:var(--line);cursor:pointer;transition:background .2s,transform .2s}
-.dots button[aria-current="true"]{background:var(--amber);transform:scale(1.25)}
+.dots{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:4px}
+/* A dot for each picture; the one showing stretches into a pill. */
+.dots button{width:8px;height:8px;padding:0;border-radius:4px;border:0;background:var(--line);cursor:pointer;transition:background .25s,width .25s}
+.dots button[aria-current="true"]{background:var(--amber);width:24px}
 .dots button:hover{background:var(--muted)}
 .dots button[aria-current="true"]:hover{background:var(--amber)}
 
 /* Parts */
-.parts{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.parts{display:grid;gap:14px;grid-template-columns:repeat(3,1fr)}
+@media (max-width:560px){.parts{grid-template-columns:repeat(2,1fr)}}   /* six parts: three across in two rows, or two across in three */
 .parts figure{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:10px 10px 12px}
 /* Every card as tall as the tallest in its row, with room for a name on two lines. */
 .parts figure{flex:1;display:flex;flex-direction:column}

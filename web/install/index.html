@@ -40,7 +40,8 @@ img{max-width:100%;height:auto;display:block}
 /* The app's drawings are black on white: they keep a white sheet in the dark too. */
 .paper{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin:16px 0}
 .paper img{margin:0 auto}
-.parts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:4px 0 18px}
+.parts{display:grid;gap:12px;grid-template-columns:repeat(3,1fr);margin:4px 0 18px}
+@media (max-width:560px){.parts{grid-template-columns:repeat(2,1fr)}}   /* six parts: three across in two rows, or two across in three */
 .parts a{text-decoration:none;display:flex;border-radius:14px;transition:transform .15s,box-shadow .15s}
 .parts a:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.14)}
 .parts figure{flex:1;margin:0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px 8px 10px;text-align:center}
