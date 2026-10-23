@@ -79,9 +79,7 @@ extension AppDelegate {
 		for menu: UIMenu.Identifier in [ .format, .find, .spelling, .substitutions, .transformations, .speech ] {
 			builder.remove( menu: menu )
 		}
-		if #available( iOS 17.0, * ) {
-			builder.remove( menu: .autoFill )
-		}
+		builder.remove( menu: .autoFill )
 		builder.insertSibling( UIMenu( options: .displayInline, children: [
 			// One press of the key (the inspector's Tap, Double Tap or Hold), under Copy and Paste Key.
 			UIKeyCommand( title: "Copy Action", action: #selector( copyAction ), input: "c", modifierFlags: [ .command, .shift ] ),

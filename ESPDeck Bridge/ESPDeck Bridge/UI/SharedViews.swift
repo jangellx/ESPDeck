@@ -77,14 +77,10 @@ struct SystemSpinner: UIViewRepresentable {
 	}
 }
 
-/// Sizes a sheet to its content (iOS 18 and later; before that a sheet keeps its standard size).
+/// Sizes a sheet to its content.
 private struct FittedSheet: ViewModifier {
 	func body( content: Content ) -> some View {
-		if #available( iOS 18.0, * ) {
-			content.presentationSizing( .fitted )
-		} else {
-			content
-		}
+		content.presentationSizing( .fitted )
 	}
 }
 
@@ -281,16 +277,10 @@ private struct ProblemBar: View {
 
 extension View {
 	/// Reports whether this view is on screen in its scroll view (List included): at least
-	/// half of it showing. Before iOS 18, onAppear and onDisappear stand in, which a List that
-	/// doesn't need to scroll doesn't report reliably.
+	/// half of it showing.
 	@ViewBuilder
 	func onOnScreenChange( _ action: @escaping ( Bool ) -> Void ) -> some View {
-		if #available( iOS 18.0, * ) {
-			onScrollVisibilityChange( threshold: 0.5, action )
-		} else {
-			onAppear { action( true ) }
-				.onDisappear { action( false ) }
-		}
+		onScrollVisibilityChange( threshold: 0.5, action )
 	}
 }
 

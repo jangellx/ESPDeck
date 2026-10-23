@@ -213,7 +213,7 @@ struct AboutView: View {
 
 				section( "Requirements" ) {
 					// **Bold** marks what to look for: versions, parts and specs.
-					bullet( "A Mac running **macOS 14 Sonoma or later**, signed in to an iCloud account that's a **member of the Home**. The Mac must **stay on and logged in** (turn on automatic login and Launch at Login for an always-on deck)." )
+					bullet( "A Mac running **macOS 15 Sequoia or later**, signed in to an iCloud account that's a **member of the Home**. The Mac must **stay on and logged in** (turn on automatic login and Launch at Login for an always-on deck)." )
 					bullet( "An **ESP32-S3 dev kit with 16 MB flash and 8 MB PSRAM** (ESP32-S3-DevKitC-1 **N16R8**), running ESPDeck firmware." )
 					bullet( "An **[Elgato Stream Deck](https://www.elgato.com/stream-deck)** (Mini, Original, MK.2, XL, Neo, +, Pedal, or a module)." )
 					bullet( "A **5 V USB-C power supply rated 2 A or more**. Through the OTG adapter, it powers both the dev kit and the Stream Deck." )

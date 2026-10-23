@@ -2,6 +2,17 @@
 
 What changed in each version of ESPDeck Bridge, the Mac app. The firmware has its own versions, listed with each [release](https://github.com/jangellx/ESPDeck/releases).
 
+## 1.1.1
+
+### Fixes
+
+- HomeKit now keeps working while ESPDeck Bridge runs only in the menu bar. After Launch at Login, HomeKit refused the app until its window was opened, so keys showed out-of-date states and couldn't operate anything. If HomeKit does refuse it, Status now says so.
+
+### Other changes
+
+- ESPDeck Bridge now needs macOS 15 Sequoia or later. Every Mac with Apple silicon can run it.
+- The Wi-Fi network menu in USB Setup and the Deck tab's Command menu say "Choose…" without listing it as a choice.
+
 ## 1.1.0
 
 ### Menus

@@ -218,11 +218,7 @@ private struct SpinningSymbol: ViewModifier {
 	let active: Bool
 
 	func body( content: Content ) -> some View {
-		if #available( iOS 18.0, * ) {
-			content.symbolEffect( .rotate, options: .repeat( .continuous ), isActive: active )
-		} else {
-			content
-		}
+		content.symbolEffect( .rotate, options: .repeat( .continuous ), isActive: active )
 	}
 }
 

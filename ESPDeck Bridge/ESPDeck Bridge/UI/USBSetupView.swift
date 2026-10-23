@@ -565,27 +565,33 @@ private struct NetworkPicker: View {
 	@Binding var ssid : String
 
 	var body: some View {
-		Picker( "Network", selection: $ssid ) {
-			if setup.networks.isEmpty {
-				Text( setup.findingNetworks ? "Looking for networks…" : "No networks found" ).tag( "" )
-			} else if ssid.isEmpty {
-				// Otherwise the popup shows the first network, as if it were chosen.
-				Text( "Choose…" ).tag( "" )
-			}
-			ForEach( setup.networks ) { network in
-				Label {
-					Text( network.ssid )
-				} icon: {
-					Image( systemName: network.secure ? "lock.fill" : "wifi" )
+		// A menu around an inline picker: the picker ticks the chosen network, and the menu's
+		// label can say "Choose…" (or that it's still looking) without a menu item for it. A
+		// Picker's own currentValueLabel isn't used on the Mac, which shows the first item.
+		Menu {
+			Picker( "Network", selection: $ssid ) {
+				ForEach( setup.networks ) { network in
+					Label {
+						Text( network.ssid )
+					} icon: {
+						Image( systemName: network.secure ? "lock.fill" : "wifi" )
+					}
+					.tag( network.ssid )
 				}
-				.tag( network.ssid )
+				// Set up for a network it can't see now (out of range, or hidden).
+				if let savedSSID, !setup.networks.contains( where: { $0.ssid == savedSSID } ) {
+					Text( "\(savedSSID) (current setting)" ).tag( savedSSID )
+				}
+				Divider()
+				Text( "Other Network…" ).tag( WiFiSection.otherNetwork )
 			}
-			// Set up for a network it can't see now (out of range, or hidden).
-			if let savedSSID, !setup.networks.contains( where: { $0.ssid == savedSSID } ) {
-				Text( "\(savedSSID) (current setting)" ).tag( savedSSID )
+			.pickerStyle( .inline )
+		} label: {
+			if ssid.isEmpty {
+				Text( setup.networks.isEmpty ? ( setup.findingNetworks ? "Looking for networks…" : "No networks found" ) : "Choose…" )
+			} else {
+				Text( ssid == WiFiSection.otherNetwork ? "Other Network…" : ssid )
 			}
-			Divider()
-			Text( "Other Network…" ).tag( WiFiSection.otherNetwork )
 		}
 		.labelsHidden()
 		.fixedSize()

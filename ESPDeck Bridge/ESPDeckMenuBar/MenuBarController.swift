@@ -119,10 +119,8 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 	func setResizeCursor( _ active: Bool ) {
 		if !active {
 			NSCursor.arrow.set()
-		} else if #available( macOS 15, * ) {
-			NSCursor.columnResize.set()
 		} else {
-			NSCursor.resizeLeftRight.set()
+			NSCursor.columnResize.set()
 		}
 	}
 
@@ -130,10 +128,8 @@ final class MenuBarController: NSObject, DeckMenuBarPlugin {
 	func setRowResizeCursor( _ active: Bool ) {
 		if !active {
 			NSCursor.arrow.set()
-		} else if #available( macOS 15, * ) {
-			NSCursor.rowResize.set()
 		} else {
-			NSCursor.resizeUpDown.set()
+			NSCursor.rowResize.set()
 		}
 	}
 

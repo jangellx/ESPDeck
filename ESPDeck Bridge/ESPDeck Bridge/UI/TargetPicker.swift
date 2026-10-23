@@ -608,26 +608,35 @@ private struct PageCommandRows: View {
 
 	var body: some View {
 		LabeledContent( "Command" ) {
-			Picker( "Command", selection: Binding {
-				kind == .page ? action : KeyAction.none
-			} set: { action in
-				guard let edit, action != .none else { return }
-				confirm {
-					edit { assignment in
-						assignment.bind( to: HomeTarget( kind: .page, name: "Page", room: nil ) )
-						assignment.action = action
+			// A menu around an inline picker: the picker ticks the command and shows its symbol,
+			// and the menu's label can say "Choose…" without a menu item for it. A Picker's own
+			// currentValueLabel isn't used on the Mac, which shows the first item instead.
+			Menu {
+				Picker( "Command", selection: Binding {
+					kind == .page ? action : KeyAction.none
+				} set: { action in
+					guard let edit, action != .none else { return }
+					confirm {
+						edit { assignment in
+							assignment.bind( to: HomeTarget( kind: .page, name: "Page", room: nil ) )
+							assignment.action = action
+						}
 					}
+				} ) {
+					ForEach( KeyKind.page.actions.filter { $0 != .sleepDeck } ) { action in
+						Label( action.title, systemImage: Self.pageSymbol( action ) ).tag( action )
+					}
+					// Not a page command, but a deck one: on its own below them.
+					Divider()
+					Label( KeyAction.sleepDeck.title, systemImage: Self.pageSymbol( .sleepDeck ) ).tag( KeyAction.sleepDeck )
 				}
-			} ) {
-				if kind != .page {
-					Text( "Choose…" ).tag( KeyAction.none )
+				.pickerStyle( .inline )
+			} label: {
+				if kind == .page {
+					Label( action.title, systemImage: Self.pageSymbol( action ) )
+				} else {
+					Text( "Choose…" )
 				}
-				ForEach( KeyKind.page.actions.filter { $0 != .sleepDeck } ) { action in
-					Label( action.title, systemImage: Self.pageSymbol( action ) ).tag( action )
-				}
-				// Not a page command, but a deck one: on its own below them.
-				Divider()
-				Label( KeyAction.sleepDeck.title, systemImage: Self.pageSymbol( .sleepDeck ) ).tag( KeyAction.sleepDeck )
 			}
 			.labelsHidden()
 			.fixedSize()
