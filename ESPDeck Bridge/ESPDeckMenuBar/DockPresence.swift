@@ -60,8 +60,14 @@ enum DockPresence {
 			NotificationCenter.default.addObserver( forName: name, object: nil, queue: .main ) { note in
 				// What's New closing (Continue, or its close button): the configuration window
 				// follows, so the app mustn't leave the Dock and the front in between.
-				if name == NSWindow.willCloseNotification, ( note.object as? NSWindow )?.title == DeckConfigurationWindow.whatsNewTitle {
-					MainActor.assumeIsolated { windowWillOpen() }
+				// The closure runs on the main queue (queue: .main) but isn't main-actor isolated, so
+				// the window's title is read inside assumeIsolated. The window itself can cross (an
+				// NSWindow is Sendable); the notification can't.
+				if name == NSWindow.willCloseNotification {
+					let window = note.object as? NSWindow
+					MainActor.assumeIsolated {
+						if window?.title == DeckConfigurationWindow.whatsNewTitle { windowWillOpen() }
+					}
 				}
 				// After the change settles: a closing window is still listed as visible here.
 				DispatchQueue.main.async {
