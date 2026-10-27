@@ -6,7 +6,7 @@ Turn an [Elgato Stream Deck](https://www.elgato.com/stream-deck) into a HomeKit 
 
 You still need that Mac: it stays on, watches your Home, and triggers actions when keys are pressed. The dev kit only carries key presses and pictures between the Stream Deck and the Mac.
 
-**[Get ESPDeck Bridge on the Mac App Store](https://apps.apple.com/app/espdeck-bridge/id6820667614)**. It's free.
+<p align="center"><a href="https://apps.apple.com/app/espdeck-bridge/id6820667614"><picture><source srcset="docs/images/mac-app-store-white.svg" media="(prefers-color-scheme: dark)"><img src="docs/images/mac-app-store-black.svg" height="48" alt="Download on the Mac App Store"></picture></a></p>
 
 <p align="center"><img src="docs/images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys."><br><sup>A Stream Deck Mini under a garage shelf, in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>.</sup></p>
 

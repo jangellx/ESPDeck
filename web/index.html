@@ -40,6 +40,9 @@ section{padding:56px 0 0}
 .button{display:inline-block;font-size:17px;font-weight:600;text-decoration:none;border-radius:12px;padding:12px 22px;border:1px solid transparent}
 .button.primary{background:var(--amber);color:var(--amber-text)}
 .button.primary:hover{filter:brightness(1.06)}
+/* Apple's badge, as supplied: the same height as the buttons beside it, and never smaller than 40 px. */
+.badge{display:inline-flex;align-items:center}
+.badge img{display:block;height:48px;width:auto}
 .button.plain{background:var(--card);color:var(--text);border-color:var(--line)}
 .fine{font-size:14px;color:var(--muted);margin:0}
 .photo{border-radius:22px;margin:36px auto 0;box-shadow:0 18px 50px rgba(0,0,0,.22)}
@@ -115,8 +118,8 @@ footer nav a{margin:0 8px;white-space:nowrap}
 <h1>ESPDeck</h1>
 <p class="lead">Turn an Elgato Stream Deck into a HomeKit control panel you can put anywhere in the house.</p>
 <div class="buttons">
-<a class="button primary" href="https://apps.apple.com/app/espdeck-bridge/id6820667614">Get It on the Mac App Store</a>
-<a class="button plain" href="install/">Install the Firmware</a>
+<a class="badge" href="https://apps.apple.com/app/espdeck-bridge/id6820667614"><picture><source srcset="images/mac-app-store-white.svg" media="(prefers-color-scheme: dark)"><img src="images/mac-app-store-black.svg" width="187" height="48" alt="Download on the Mac App Store"></picture></a>
+<a class="button primary" href="install/">Install the Firmware</a>
 <a class="button plain" href="https://github.com/jangellx/ESPDeck">View on GitHub</a>
 </div>
 <p class="fine">A build-it-yourself project. Open source, with no account and no cloud service.</p>
