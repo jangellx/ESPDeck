@@ -15,6 +15,9 @@ What changed in each version of ESPDeck Bridge, the Mac app. The firmware has it
 
 ## 1.1.0
 
+The first version on the Mac App Store, released on October 27, 2026.
+
+
 ### Menus
 
 - A key can open a menu: another set of keys that takes the place of the page while the menu is open. The menu can open on the key's tap, double tap or hold.
@@ -42,4 +45,4 @@ What changed in each version of ESPDeck Bridge, the Mac app. The firmware has it
 
 ## 1.0.0
 
-The first version: HomeKit accessories, scenes and Shortcuts on a Stream Deck's keys, with pages, Level keys, double taps and holds, per-state icons, sleep triggers, setup over USB, and firmware updates.
+The first version, which wasn't released on the Mac App Store: HomeKit accessories, scenes and Shortcuts on a Stream Deck's keys, with pages, Level keys, double taps and holds, per-state icons, sleep triggers, setup over USB, and firmware updates.

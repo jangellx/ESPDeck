@@ -6,6 +6,8 @@ Turn an [Elgato Stream Deck](https://www.elgato.com/stream-deck) into a HomeKit 
 
 You still need that Mac: it stays on, watches your Home, and triggers actions when keys are pressed. The dev kit only carries key presses and pictures between the Stream Deck and the Mac.
 
+**[Get ESPDeck Bridge on the Mac App Store](https://apps.apple.com/app/espdeck-bridge/id6820667614)**. It's free.
+
 <p align="center"><img src="docs/images/mini-mounted.jpg" width="480" alt="A Stream Deck Mini mounted under a shelf, showing six HomeKit keys."><br><sup>A Stream Deck Mini under a garage shelf, in a <a href="https://makerworld.com/en/models/1651352-stream-deck-mini-under-desk-slide-out-mount#profileId-1745884">3D-printed slide-out mount</a>.</sup></p>
 
 <p align="center"><img src="docs/images/keys.png" alt="ESPDeck Bridge&#x27;s Keys page: a 15-key deck with a garage door key selected, and that key&#x27;s settings beside it."></p>
@@ -36,7 +38,7 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 <p align="center"><img src="docs/images/diagram-assembly.png" alt="A diagram: the Stream Deck and a power supply plug into an OTG adapter, which plugs into the dev kit's USB port; the dev kit reaches ESPDeck Bridge on a Mac over Wi-Fi."><br><sup>How the parts connect. The same drawings are in the app's Getting Started page.</sup></p>
 
 1. Gather the parts under Requirements, below. ESPDeck Bridge's **Getting Started** page lists them too and walks through each step.
-2. Build and run ESPDeck Bridge on the Mac ([The Mac app](docs/mac-app.md)).
+2. Install ESPDeck Bridge on the Mac from the [Mac App Store](https://apps.apple.com/app/espdeck-bridge/id6820667614), or build it yourself ([The Mac app](docs/mac-app.md)).
 3. Plug the dev kit's **USB** port into the Mac and open **USB Setup**: it installs the firmware, joins the dev kit to Wi-Fi and names it ([Setting up a deck](docs/setup.md)). Without the Mac app, the [web installer](https://espdeck.tmproductions.com/install/) does the same from a browser.
 4. Unplug the dev kit, and connect it to the Stream Deck and power through the OTG adapter.
 5. Pair it when it appears under **New Devices**, then give its keys something to do.

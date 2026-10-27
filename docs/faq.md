@@ -83,7 +83,7 @@ Because of HomeKit again. Apple only lets an app use HomeKit when it comes from 
 
 That leaves two ways to get ESPDeck Bridge:
 
-- **The Mac App Store.** ESPDeck Bridge is on its way there; the link will be here once it's available.
+- **The Mac App Store.** [ESPDeck Bridge is free there](https://apps.apple.com/app/espdeck-bridge/id6820667614), and the App Store keeps it up to date.
 - **Build it yourself.** With Xcode and an Apple developer account; see the next question.
 
 The firmware is different: it's a plain download. Releases are on this repository's Releases page, and the [web installer](https://espdeck.tmproductions.com/install/) installs the latest one from a browser.
