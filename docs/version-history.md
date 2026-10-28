@@ -4,6 +4,8 @@ What changed in each version of ESPDeck Bridge, the Mac app. The firmware has it
 
 ## 1.1.1
 
+Released on October 28, 2026.
+
 ### Fixes
 
 - HomeKit now keeps working while ESPDeck Bridge runs only in the menu bar. After Launch at Login, HomeKit refused the app until its window was opened, so keys showed out-of-date states and couldn't operate anything. If HomeKit does refuse it, Status now says so.
