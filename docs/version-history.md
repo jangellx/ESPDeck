@@ -2,7 +2,7 @@
 
 What changed in each version of ESPDeck Bridge, the Mac app. The firmware has its own versions, listed with each [release](https://github.com/jangellx/ESPDeck/releases).
 
-## Next version
+## 1.2.0
 
 Not released yet.
 
