@@ -85,7 +85,14 @@ struct KeysPageView: View {
 							}
 						}
 						.gesture( resizeGesture( current: extent, total: total ) )
-						.accessibilityLabel( "Resize the deck preview" )
+						.accessibilityLabel( "Deck preview divider" )
+						.accessibilityValue( "\(Int( extent )) points" )
+						// VoiceOver's increment and decrement move it, as dragging does.
+						.accessibilityAdjustableAction { direction in
+							let step: CGFloat = direction == .increment ? 40 : direction == .decrement ? -40 : 0
+							let moved = Double( clampedExtent( extent + step, total: total ) )
+							if stacked { previewHeight = moved } else { previewWidth = moved }
+						}
 				}
 			}
 		}
@@ -212,6 +219,7 @@ struct KeysPageView: View {
 						}
 						.buttonStyle( .plain )
 						.help( "Add a page after this one. This page's lower-right key becomes Next Page, and what was there moves to the new page." )
+						.accessibilityLabel( "Add Page" )
 					}
 					.padding( .vertical, 1 )
 				}
@@ -225,6 +233,7 @@ struct KeysPageView: View {
 				.buttonStyle( .borderless )
 				.disabled( count <= 1 )
 				.help( "Delete this page" )
+				.accessibilityLabel( "Delete Page" )
 			}
 		}
 		.controlSize( .small )
@@ -272,6 +281,8 @@ struct KeysPageView: View {
 		}
 		.buttonStyle( .plain )
 		.help( "Page \(page + 1)" )
+		.accessibilityLabel( "Page \(page + 1)" )
+		.accessibilityAddTraits( selected ? .isSelected : [] )
 		.contextMenu {
 			Button( "Delete Page \(page + 1)…", systemImage: "trash", role: .destructive ) { requestDelete( page ) }
 				.disabled( controller.pageCount( device: deviceID ) <= 1 )
@@ -300,6 +311,7 @@ struct KeysPageView: View {
 			}
 			.buttonStyle( HoverButtonStyle() )
 			.help( "Smallest keys" )
+			.accessibilityLabel( "Smallest Keys" )
 
 			Slider( value: sliderBinding, in: Self.keySizes )
 				.frame( maxWidth: 180 )
@@ -314,6 +326,7 @@ struct KeysPageView: View {
 			}
 			.buttonStyle( HoverButtonStyle() )
 			.help( "Full-size keys" )
+			.accessibilityLabel( "Full-Size Keys" )
 
 			// Blue while the deck follows the pane's size (a button-style Toggle doesn't tint on
 			// Mac Catalyst); turning it off keeps the current size.

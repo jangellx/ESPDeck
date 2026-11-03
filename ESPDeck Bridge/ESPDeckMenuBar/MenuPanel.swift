@@ -342,6 +342,25 @@ private final class MenuPanelRowView: NSView {
 		super.hitTest( point ) == nil ? nil : self
 	}
 
+	// MARK: - Accessibility
+
+	/// To VoiceOver the row is one button, named by its text (and badge), that it can press;
+	/// dimmed when it can't be chosen. Its labels and icon aren't separate elements.
+	override func isAccessibilityElement() -> Bool { true }
+	override func accessibilityRole() -> NSAccessibility.Role? { .button }
+	override func isAccessibilityEnabled() -> Bool { action != nil }
+	override func accessibilityChildren() -> [Any]? { nil }
+
+	override func accessibilityLabel() -> String? {
+		[ titleLabel.stringValue, detailLabel?.stringValue, badgeLabel?.stringValue ].compactMap { $0 }.joined( separator: ", " )
+	}
+
+	override func accessibilityPerformPress() -> Bool {
+		guard action != nil else { return false }
+		choose()
+		return true
+	}
+
 	/// Chosen on release inside, as a menu item is.
 	override func mouseDown( with event: NSEvent ) {}
 	override func mouseUp( with event: NSEvent ) {

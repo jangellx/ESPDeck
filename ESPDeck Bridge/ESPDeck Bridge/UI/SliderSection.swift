@@ -251,5 +251,7 @@ private struct StylePicker: View {
 			.contentShape( Rectangle() )
 		}
 		.buttonStyle( .plain )
+		.accessibilityLabel( style.title )
+		.accessibilityAddTraits( style == selection ? .isSelected : [] )
 	}
 }

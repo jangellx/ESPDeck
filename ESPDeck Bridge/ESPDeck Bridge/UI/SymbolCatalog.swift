@@ -73,6 +73,11 @@ final class SymbolCatalog {
 		}
 	}
 
+	/// A symbol's name as VoiceOver should read it: "chevron left circle fill", not the dots.
+	static func spokenName( _ name: String ) -> String {
+		name.replacingOccurrences( of: ".", with: " " )
+	}
+
 	/// Symbols in `category` (nil or "all" for every symbol) whose name or keywords
 	/// contain every word of `query`, in SF Symbols order.
 	func symbols( matching query: String, in category: String? ) -> [String] {

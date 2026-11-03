@@ -88,6 +88,8 @@ struct SymbolPicker: View {
 				}
 				.buttonStyle( .plain )
 				.help( name )
+				.accessibilityLabel( SymbolCatalog.spokenName( name ) )
+				.accessibilityAddTraits( name == current ? .isSelected : [] )
 			}
 		}
 	}

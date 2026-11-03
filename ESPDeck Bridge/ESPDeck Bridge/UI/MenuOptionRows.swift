@@ -89,7 +89,7 @@ struct MenuOptionRows: View {
 				.contentShape( Rectangle() )
 		}
 		.buttonStyle( .plain )
-		.accessibilityLabel( symbol )
+		.accessibilityLabel( SymbolCatalog.spokenName( symbol ) )
 		.accessibilityAddTraits( chosen ? .isSelected : [] )
 	}
 }

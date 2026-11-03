@@ -238,16 +238,29 @@ extension View {
 	/// clicking it runs `reveal`. An overlay rather than a safe-area bar: on Mac Catalyst a
 	/// safe-area bar kept (and stretched) its space after its content went away.
 	func problemBar( _ problem: BridgeProblem?, reveal: @escaping () -> Void ) -> some View {
-		overlay( alignment: .bottom ) {
-			if let problem {
-				ProblemBar( title: problem.title, reveal: reveal )
-					.background( .regularMaterial, in: RoundedRectangle( cornerRadius: 10 ) )
-					.overlay( RoundedRectangle( cornerRadius: 10 ).strokeBorder( Color.orange.opacity( 0.4 ), lineWidth: 1 ) )
-					.padding( 8 )
-					.transition( .move( edge: .bottom ).combined( with: .opacity ) )
+		modifier( ProblemBarOverlay( problem: problem, reveal: reveal ) )
+	}
+}
+
+/// The problem bar over the view; it slides up into place, or with Reduce Motion fades in.
+private struct ProblemBarOverlay: ViewModifier {
+	let problem : BridgeProblem?
+	let reveal  : () -> Void
+
+	@Environment( \.accessibilityReduceMotion ) private var reduceMotion
+
+	func body( content: Content ) -> some View {
+		content
+			.overlay( alignment: .bottom ) {
+				if let problem {
+					ProblemBar( title: problem.title, reveal: reveal )
+						.background( .regularMaterial, in: RoundedRectangle( cornerRadius: 10 ) )
+						.overlay( RoundedRectangle( cornerRadius: 10 ).strokeBorder( Color.orange.opacity( 0.4 ), lineWidth: 1 ) )
+						.padding( 8 )
+						.transition( reduceMotion ? .opacity : .move( edge: .bottom ).combined( with: .opacity ) )
+				}
 			}
-		}
-		.animation( .easeOut( duration: 0.2 ), value: problem )
+			.animation( .easeOut( duration: 0.2 ), value: problem )
 	}
 }
 

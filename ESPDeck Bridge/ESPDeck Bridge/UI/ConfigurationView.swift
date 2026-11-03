@@ -248,12 +248,14 @@ private struct Sidebar: View {
 
 	/// Whether the problem row is on screen (onOnScreenChange).
 	@State private var problemShowing = false
+	/// Scrolls to the problem row at once rather than gliding there.
+	@Environment( \.accessibilityReduceMotion ) private var reduceMotion
 
 	var body: some View {
 		ScrollViewReader { proxy in
 			sidebarList
 				.problemBar( problemShowing ? nil : controller.lastError ) {
-					withAnimation { proxy.scrollTo( Self.problemRowID, anchor: .bottom ) }
+					withAnimation( reduceMotion ? nil : .default ) { proxy.scrollTo( Self.problemRowID, anchor: .bottom ) }
 				}
 				.onChange( of: controller.window.scrollToProblem, initial: true ) {
 					guard controller.window.scrollToProblem else { return }
@@ -261,7 +263,7 @@ private struct Sidebar: View {
 					// A window the notification just opened lays out first.
 					Task {
 						try? await Task.sleep( for: .milliseconds( 300 ) )
-						withAnimation { proxy.scrollTo( Self.problemRowID, anchor: .bottom ) }
+						withAnimation( reduceMotion ? nil : .default ) { proxy.scrollTo( Self.problemRowID, anchor: .bottom ) }
 					}
 				}
 		}

@@ -61,6 +61,7 @@ struct TrafficLogView: View {
 					let selected = window.logSelection.contains( entry.id )
 					LogRow( entry: entry, selected: selected ) { copy( [ entry.id ] ) }
 						.onTapGesture { click( entry ) }
+						.accessibilityAddTraits( selected ? [ .isButton, .isSelected ] : .isButton )
 						// On a selected row, the selection; on any other, that row.
 						.contextMenu {
 							let ids = selected ? window.logSelection : [ entry.id ]

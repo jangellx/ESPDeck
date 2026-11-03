@@ -15,6 +15,9 @@ struct DeckGridView: View {
 	/// Each key's side; see fittingKeySize(for:in:).
 	let keySize            : CGFloat
 	@Binding var selection : Int
+	/// Each key describes itself to VoiceOver only while it's running: working the description
+	/// out reads the key's settings and HomeKit state, which would redraw the deck more often.
+	@Environment( \.accessibilityVoiceOverEnabled ) private var voiceOver
 
 	/// Keys at full size, and the smallest they get when zoomed out.
 	static let fullKeySize : CGFloat = 96
@@ -56,7 +59,9 @@ struct DeckGridView: View {
 						DeckKeyView( controller: controller, deviceID: deviceID, index: index, size: size,
 									 preview: index < keys.count ? keys[index]?.preview : nil,
 									 pressed: pressed.contains( index ), selected: selection == index,
-									 changedAt: changed?.at, oldPreview: changed?.previews[index], selection: $selection )
+									 changedAt: changed?.at, oldPreview: changed?.previews[index],
+									 description: voiceOver ? controller.accessibilityDescription( device: deviceID, key: index ) : nil,
+									 selection: $selection )
 					}
 				}
 			}
@@ -83,6 +88,9 @@ private struct DeckKeyView: View {
 	/// The last page change, and what this key showed before it.
 	let changedAt          : Date?
 	let oldPreview         : UIImage?
+	/// What VoiceOver says the key is (DeckController.accessibilityDescription); nil while
+	/// VoiceOver is off.
+	let description        : String?
 	/// Only written here (a click selects the key); `selected` says whether it is.
 	@Binding var selection : Int
 	@State private var isTargeted = false
@@ -91,6 +99,29 @@ private struct DeckKeyView: View {
 	private var targeted: Bool { isTargeted || controller.window.colorDropKey == index }
 	/// The page change this key has already swapped for.
 	@State private var swappedFor: Date?
+	@Environment( \.accessibilityReduceMotion ) private var reduceMotion
+
+	/// What a double-click does to this key, for VoiceOver's actions; nil if it does nothing.
+	private var goToPageName: String? {
+		let assignment = controller.assignment( deviceID, key: index )
+		switch ( assignment.kind, assignment.action ) {
+			case ( .menu, .closeMenu ):
+				return "Close Menu"
+			case ( .menu, _ ):
+				return "Open Menu"
+			case ( .page, .nextPage ), ( .page, .previousPage ), ( .page, .firstPage ), ( .page, .lastPage ), ( .page, .goToPage ):
+				return "Go to Page"
+			default:
+				return nil
+		}
+	}
+
+	/// A press and release, as a shift-click is (ConfigurationHostingController).
+	private func press() {
+		selection = index
+		controller.previewPress( device: deviceID, key: index, down: true )
+		controller.previewPress( device: deviceID, key: index, down: false )
+	}
 
 	/// The page this key's command goes to, if it's one that changes page, run as the deck would.
 	/// A Menu key opens its menu, and a menu's Close key closes it.
@@ -143,7 +174,7 @@ private struct DeckKeyView: View {
 		}
 		.keyOutline( cornerRadius: radius, pressed ? Color.white : targeted ? Color.accentColor : selected ? Color.accentColor.opacity( 0.9 ) : Color( white: 0.3 ),
 					 lineWidth: pressed || targeted || selected ? 3 : 1 )
-		.scaleEffect( pressed ? 0.94 : 1 )
+		.scaleEffect( pressed && !reduceMotion ? 0.94 : 1 )
 		.animation( .easeOut( duration: 0.08 ), value: pressed )
 		.contentShape( Rectangle() )
 		.onTapGesture {
@@ -207,7 +238,16 @@ private struct DeckKeyView: View {
 			swappedFor = at
 		}
 		.accessibilityLabel( "Key \(index + 1)" )
+		.accessibilityValue( description ?? "" )
 		.accessibilityAddTraits( selected ? [ .isButton, .isSelected ] : .isButton )
+		// What shift-clicking and double-clicking do, which VoiceOver can't.
+		.accessibilityAction( named: "Press" ) { press() }
+		.accessibilityActions {
+			// Only with VoiceOver on, so the key doesn't read its settings otherwise (see `description`).
+			if description != nil, let name = goToPageName {
+				Button( name ) { goToPage() }
+			}
+		}
 	}
 }
 

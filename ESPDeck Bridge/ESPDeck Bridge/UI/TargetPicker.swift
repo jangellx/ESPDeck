@@ -724,6 +724,7 @@ private struct MemberRows: View {
 					.buttonStyle( .borderless )
 					.disabled( index == 0 )
 					.help( index == 0 ? "The key accessory: its state is the key's state" : "Make this the key accessory" )
+					.accessibilityLabel( index == 0 ? "Key Accessory" : "Make Key Accessory" )
 				}
 
 				VStack( alignment: .leading, spacing: 1 ) {

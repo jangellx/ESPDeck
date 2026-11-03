@@ -681,6 +681,7 @@ private struct DeveloperPasswordRows: View {
 				}
 				.buttonStyle( .borderless )
 				.help( revealed ? "Hide the password" : "Show the password" )
+				.accessibilityLabel( revealed ? "Hide Password" : "Show Password" )
 				Button( "Copy" ) {
 					// This Mac only (not Universal Clipboard), and gone after two minutes.
 					UIPasteboard.general.setItems( [ [ UTType.plainText.identifier: password ] ],
@@ -1073,6 +1074,9 @@ private struct StatusLightSection: View {
 		var id: String { title }
 	}
 
+	/// The lights hold still; their names still say how each one pulses or blinks.
+	@Environment( \.accessibilityReduceMotion ) private var reduceMotion
+
 	private static let entries: [Entry] = [
 		Entry( color: .blue, style: .pulsing, title: "Pulsing blue", meaning: "Setup mode" ),
 		Entry( color: .yellow, style: .pulsing, title: "Pulsing yellow", meaning: "Looking for Wi-Fi" ),
@@ -1104,7 +1108,7 @@ private struct StatusLightSection: View {
 			.fill( entry.color )
 			.overlay( Circle().strokeBorder( .tertiary, lineWidth: 1 ) )   // white on white
 			.scaledFrame( width: 14, height: 14 )
-			.phaseAnimator( entry.style == .solid ? [ 1.0 ] : [ 1.0, 0.2 ] ) { view, opacity in
+			.phaseAnimator( entry.style == .solid || reduceMotion ? [ 1.0 ] : [ 1.0, 0.2 ] ) { view, opacity in
 				view.opacity( opacity )
 			} animation: { _ in
 				entry.style == .blinking ? .linear( duration: 0.01 ).delay( 0.25 ) : .easeInOut( duration: 1 )

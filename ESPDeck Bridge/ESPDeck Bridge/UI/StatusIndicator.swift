@@ -12,23 +12,27 @@ struct StatusIndicator: View {
 	let level: DeckController.StatusItem.Level
 
 	var body: some View {
-		switch level {
-			case .waiting:
-				Image( systemName: "circle.fill" )
-					.foregroundStyle( .yellow )
-			case .ok:
-				Image( systemName: "checkmark.circle.fill" )
-					.foregroundStyle( .white, .green )
-			case .problem:
-				Image( systemName: "exclamationmark.circle.fill" )
-					.foregroundStyle( .white, .red )
-			case .demo:
-				Image( systemName: "circle.dashed" )
-					.foregroundStyle( .secondary )
-			case .asleep:
-				Image( systemName: "circle.fill" )
-					.foregroundStyle( .green )
+		Group {
+			switch level {
+				case .waiting:
+					Image( systemName: "circle.fill" )
+						.foregroundStyle( .yellow )
+				case .ok:
+					Image( systemName: "checkmark.circle.fill" )
+						.foregroundStyle( .white, .green )
+				case .problem:
+					Image( systemName: "exclamationmark.circle.fill" )
+						.foregroundStyle( .white, .red )
+				case .demo:
+					Image( systemName: "circle.dashed" )
+						.foregroundStyle( .secondary )
+				case .asleep:
+					Image( systemName: "circle.fill" )
+						.foregroundStyle( .green )
+			}
 		}
+		// Always beside the state in words, which VoiceOver reads instead.
+		.accessibilityHidden( true )
 	}
 }
 

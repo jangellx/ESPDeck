@@ -1357,6 +1357,23 @@ final class DeckController {
 		}
 	}
 
+	/// What VoiceOver says about a key of the preview, after "Key 3": its name, what it does
+	/// and its state ("Garage, Garage Door, Closed"), or "Empty".
+	func accessibilityDescription( device id: String, key: Int ) -> String {
+		let assignment = assignment( id, key: key )
+		guard let kind = assignment.kind else { return assignment.label.isEmpty ? "Empty" : assignment.label }
+		let name = assignment.label.isEmpty ? defaultName( for: assignment ) : assignment.label
+		// A page or menu key is what it does; anything else, what it controls.
+		var parts = [ name, kind == .page || kind == .menu ? assignment.action.title : kind.title ].compactMap { $0 }
+		if let ref = assignment.characteristicRef, !home.isReachable( ref ) {
+			parts.append( "No Response" )
+		} else if kind != .page && kind != .menu && kind != .scene {
+			let state = state( device: id, key: key )
+			if state != .standard && state != .unknown { parts.append( state.title ) }
+		}
+		return parts.joined( separator: ", " )
+	}
+
 	/// The dropped icon for a face, or a shortcut's own icon when it has none.
 	func artwork( for face: KeyFace ) -> UIImage? {
 		if let name = face.iconName, let icon = config.icon( named: name ) { return icon }

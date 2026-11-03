@@ -247,6 +247,7 @@ private struct BoardRow: View {
 			.contentShape( Rectangle() )
 		}
 		.buttonStyle( .plain )
+		.accessibilityAddTraits( choosable && chosen ? .isSelected : [] )
 	}
 
 	/// What it runs, how that compares with the latest release, and what hardware it is.

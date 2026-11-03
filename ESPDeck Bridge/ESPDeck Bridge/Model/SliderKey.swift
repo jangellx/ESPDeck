@@ -50,6 +50,20 @@ enum SliderStyle: String, Codable, CaseIterable, Identifiable {
 
 	var id: String { rawValue }
 
+	/// The set's name, for VoiceOver.
+	var title: String {
+		switch self {
+			case .chevron:         "Chevrons"
+			case .chevronCircle:   "Chevrons in Circles"
+			case .arrow:           "Arrows"
+			case .arrowCircle:     "Arrows in Circles"
+			case .triangle:        "Triangles"
+			case .plusMinus:       "Plus and Minus"
+			case .plusMinusCircle: "Plus and Minus in Circles"
+			case .sun:             "Suns"
+		}
+	}
+
 	/// The symbol for the key that raises (or lowers) the level, pointing along the pair.
 	func symbol( raises: Bool, horizontal: Bool ) -> String {
 		let direction = horizontal ? ( raises ? "right" : "left" ) : ( raises ? "up" : "down" )
