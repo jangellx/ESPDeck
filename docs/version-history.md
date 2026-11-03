@@ -6,6 +6,11 @@ What changed in each version of ESPDeck Bridge, the Mac app. The firmware has it
 
 Not released yet.
 
+### Shortcuts actions
+
+- ESPDeck Bridge adds actions to the Shortcuts app: **Go to Page**, **Open Menu**, **Close Menu**, **Sleep Deck**, **Wake Deck** and **Set Deck Brightness**. Shortcuts and automations can now control the decks themselves, not only what their keys do.
+- **Sleep Decks** and **Wake Decks** are ready-made in Shortcuts and work with Siri.
+
 ### Accessibility
 
 - VoiceOver describes each key in the preview: what it controls, what it does and its state. Its actions press the key (Press, Double Tap, Hold) and go where a Page or Menu key goes, as shift-clicking and double-clicking do.

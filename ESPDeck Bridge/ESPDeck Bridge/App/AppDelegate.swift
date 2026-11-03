@@ -6,6 +6,7 @@
 //  decks are set up yet. The configuration window opens from the menu bar item.
 //
 
+import AppIntents
 import SwiftUI
 import UIKit
 
@@ -45,6 +46,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, DeckMenuBarHost {
 		// AppKit adds Start Dictation and Emoji & Symbols to the Edit menu unless these are set.
 		UserDefaults.standard.set( true, forKey: "NSDisabledDictationMenuItem" )
 		UserDefaults.standard.set( true, forKey: "NSDisabledCharacterPaletteMenuItem" )
+		// For the Shortcuts actions (DeckIntents), before any can run: Shortcuts may launch
+		// the app just to run one.
+		let controller = controller
+		AppDependencyManager.shared.add( dependency: controller )
 		return true
 	}
 

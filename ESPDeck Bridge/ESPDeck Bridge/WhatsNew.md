@@ -11,6 +11,10 @@ The What's New window, shown once before the configuration window after this fil
 The full list of changes is docs/version-history.md, which the window links to.
 -->
 
+## Shortcuts Actions
+symbol: square.2.layers.3d
+Shortcuts and automations can change a deck's page, open a menu, sleep or wake the decks, and set their brightness.
+
 ## Accessibility
 symbol: accessibility
 VoiceOver describes each key in the preview and can press it, and the menu bar menu works with VoiceOver. Reduce Motion is respected throughout.

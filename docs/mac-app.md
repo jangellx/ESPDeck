@@ -211,6 +211,18 @@ How shortcuts run:
 
 When a shortcut fails, the key shows a warning triangle and the Log page says why. See [Why do my Shortcuts fail?](faq.md#why-do-my-shortcuts-fail) in the FAQ.
 
+### ESPDeck actions in Shortcuts
+
+ESPDeck Bridge also adds its own actions to the Shortcuts app, so a shortcut or an automation can control the decks: a page of morning keys at 7 AM, or the decks asleep when a Focus starts.
+
+- **Go to Page** shows one of a deck's pages, closing any menu that's open.
+- **Open Menu** opens one of a deck's menus, named for the key that opens it, and **Close Menu** goes back to the page.
+- **Sleep Deck** and **Wake Deck** turn a deck's screen off and on. Leave Deck empty to sleep or wake every deck.
+- **Set Deck Brightness** sets a deck's brightness from 0 to 100 percent, or every deck's when Deck is empty.
+- **Sleep Decks** and **Wake Decks** are ready-made in the Shortcuts app, and Siri knows them as "Sleep my decks with ESPDeck Bridge" and "Wake my decks with ESPDeck Bridge".
+
+The actions run in ESPDeck Bridge, which Shortcuts launches in the background if it isn't running. A deck that's still connecting gets up to 15 seconds; after that the action fails and says which deck isn't connected. Demo decks aren't listed.
+
 ## The Device page
 
 The Device page has everything about the deck itself, as opposed to its keys: its name, its screen, when it sleeps, and its firmware. The destructive and one-time actions are here too.
