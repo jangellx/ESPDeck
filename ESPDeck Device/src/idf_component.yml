@@ -1,8 +1,11 @@
 dependencies:
   idf: ">=5.1"
-  espressif/usb_host_hid: "^1.0.3"
   espressif/esp_websocket_client: "^1.4.0"
   espressif/mdns: "*"
-  espressif/qrcode: "*"
-  espressif/esp_new_jpeg: "*"
   joltwallet/littlefs: "*"
+  # DeckKit (the Stream Deck driver, key images and shared helpers), from a checkout beside
+  # this repository.
+  deckkit_deck:
+    path: ../../../DeckKit/components/deckkit_deck
+  deckkit_util:
+    path: ../../../DeckKit/components/deckkit_util

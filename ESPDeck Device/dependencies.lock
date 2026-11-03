@@ -1,4 +1,27 @@
 dependencies:
+  deckkit_deck:
+    dependencies:
+    - name: idf
+      version: '>=5.1'
+    - name: espressif/usb_host_hid
+      require: public
+      version: ^1.0.3
+    - name: espressif/qrcode
+      version: '*'
+    - name: espressif/esp_new_jpeg
+      version: '*'
+    source:
+      path: /Users/joeangell/Developer/JoesSource/DeckKit/components/deckkit_deck
+      type: local
+    version: '*'
+  deckkit_util:
+    dependencies:
+    - name: idf
+      version: '>=5.1'
+    source:
+      path: /Users/joeangell/Developer/JoesSource/DeckKit/components/deckkit_util
+      type: local
+    version: '*'
   espressif/esp_new_jpeg:
     component_hash: e1e7e6991193c41ed6c9fc386702aa7821433319e7aa9c3147cd3236310cd69c
     dependencies: []
@@ -84,13 +107,13 @@ dependencies:
       type: service
     version: 1.22.3
 direct_dependencies:
-- espressif/esp_new_jpeg
+- deckkit_deck
+- deckkit_util
 - espressif/esp_websocket_client
 - espressif/mdns
 - espressif/qrcode
-- espressif/usb_host_hid
 - idf
 - joltwallet/littlefs
-manifest_hash: c32c174165ca8f03d097c1fae5f04ba0faa349353052cd8adf66f2d81d575b76
+manifest_hash: c16f9b4372804abbd4e34ab56a2250c0569aa867131369f3d2a86e9ce1be7e0b
 target: esp32s3
 version: 2.0.0

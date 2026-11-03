@@ -15,6 +15,7 @@
 #include "mdns.h"
 
 #include "Config.h"
+#include "StreamDeck.h"
 #include "Text.h"
 #include "Timing.h"
 
