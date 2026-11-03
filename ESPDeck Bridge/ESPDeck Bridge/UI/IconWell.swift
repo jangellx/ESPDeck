@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// One state's icon well: its title under a preview that takes drops and opens the symbol
 /// picker.
@@ -28,6 +29,8 @@ struct IconWell: View {
 
 	@State private var isTargeted     = false
 	@State private var showingSymbols = false
+	/// The file picker from the context menu's Choose Image… (the symbol picker has its own).
+	@State private var choosingImage  = false
 
 	private static let size: CGFloat = 64
 
@@ -51,6 +54,9 @@ struct IconWell: View {
 				SymbolPicker( current: customSymbol, removeTitle: removeTitle, canRemove: hasCustomIcon, onPick: { name in
 					onPickSymbol( name )
 					showingSymbols = false
+				}, onPickImage: { image in
+					onDrop( image )
+					showingSymbols = false
 				}, onRemove: {
 					onRemove()
 					showingSymbols = false
@@ -65,12 +71,16 @@ struct IconWell: View {
 				// Named for the state, and always listed but disabled when the state has no icon of
 				// its own, so it can't appear to remove the Default icon a state is only borrowing.
 				Button( "Choose Symbol…" ) { showingSymbols = true }
+				Button( "Choose Image…" ) { choosingImage = true }
 				Button( removeTitle, role: .destructive, action: onRemove )
 					.disabled( !hasCustomIcon )
 			}
 
 			Text( title )
 				.secondaryCaption()
+		}
+		.fileImporter( isPresented: $choosingImage, allowedContentTypes: [ .image ] ) { result in
+			if case .success( let url ) = result { onDrop( .chosen( url ) ) }
 		}
 		.help( "Click to choose an SF Symbol, or drag an image here" )
 	}

@@ -2,6 +2,22 @@
 
 What changed in each version of ESPDeck Bridge, the Mac app. The firmware has its own versions, listed with each [release](https://github.com/jangellx/ESPDeck/releases).
 
+## Next version
+
+Not released yet.
+
+### Accessibility
+
+- VoiceOver describes each key in the preview: what it controls, what it does and its state. Its actions press the key (Press, Double Tap, Hold) and go where a Page or Menu key goes, as shift-clicking and double-clicking do.
+- VoiceOver can now choose the rows of the menu bar menu, and names buttons that showed only an icon, such as the page numbers, zoom and the password's Show button.
+- With Reduce Motion on, the problem bar fades in rather than sliding, the sidebar jumps to a problem, the status light examples hold still, and pressed keys don't shrink.
+
+### Other changes
+
+- **Cut Key** (⌘X) copies a key and clears it, so a key can be moved by pasting it, even to another page.
+- **Choose Image…** picks an image file for a key's icon, in the symbol picker and in the icon's right-click menu.
+- Pasting an image onto a selected key makes it the key's icon.
+
 ## 1.1.1
 
 Released on October 28, 2026.

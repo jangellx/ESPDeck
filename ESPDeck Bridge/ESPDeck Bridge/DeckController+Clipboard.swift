@@ -70,6 +70,24 @@ extension DeckController {
 		refreshClipboard()
 	}
 
+	/// Copies a key and clears it, so Paste can put it somewhere else: moving a key without
+	/// dragging it. Clearing one of a Level pair clears both, as Clear Key does.
+	func cutKey( device id: String, key: Int ) {
+		guard !assignment( id, key: key ).isMenuClose else { return }
+		copyKey( device: id, key: key )
+		clear( device: id, key: key, undoName: "Cut Key" )
+	}
+
+	/// Makes the image on the clipboard a key's Default icon, as dropping it on the key does.
+	func pasteIcon( device id: String, key: Int ) {
+		guard let data = UIPasteboard.general.image?.pngData() else {
+			lastError = BridgeProblem( "Nothing to Paste", "There's no copied image to paste." )
+			return
+		}
+		setIcon( dropped: DroppedImage( data: data.count <= ConfigStore.iconFileLimit ? .success( data ) : .failure( .tooLarge ) ),
+				 device: id, key: key, state: .standard )
+	}
+
 	/// Replaces a key with the copied one. Its images are imported afresh and its menus are
 	/// copied, so the two keys don't share files or menus.
 	func pasteKey( device id: String, key: Int ) {
@@ -219,5 +237,6 @@ extension DeckController {
 	func refreshClipboard() {
 		clipboardHasKey   = UIPasteboard.general.contains( pasteboardTypes: [ UTType.deckKeyAssignment.identifier ] )
 		clipboardHasPress = UIPasteboard.general.contains( pasteboardTypes: [ UTType.deckKeyPress.identifier ] )
+		clipboardHasImage = UIPasteboard.general.hasImages
 	}
 }

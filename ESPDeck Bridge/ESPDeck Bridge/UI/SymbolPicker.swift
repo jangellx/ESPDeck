@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The SF Symbol picker: suggestions, search, categories, and removing the state's icon.
 struct SymbolPicker: View {
@@ -14,12 +15,15 @@ struct SymbolPicker: View {
 	/// The state has an icon of its own to remove.
 	let canRemove   : Bool
 	let onPick      : ( String ) -> Void
+	/// An image file chosen with Choose Image… instead of a symbol.
+	let onPickImage : ( DroppedImage ) -> Void
 	let onRemove    : () -> Void
 	/// The key's accessories' own symbols, shown first.
 	var suggested   : [String] = []
 
 	@State private var query    = ""
 	@State private var category = "all"
+	@State private var choosingImage = false
 	@FocusState private var searchFocused: Bool
 
 	private let catalog = SymbolCatalog.shared
@@ -64,8 +68,13 @@ struct SymbolPicker: View {
 				Text( symbols.isEmpty ? "No matching symbols. Press Return to use a name exactly as typed." : "\(symbols.count) symbols" )
 					.secondaryCaption()
 				Spacer()
+				Button( "Choose Image…" ) { choosingImage = true }
+					.help( "Use an image file instead of a symbol" )
 				Button( removeTitle, role: .destructive, action: onRemove )
 					.disabled( !canRemove )
+			}
+			.fileImporter( isPresented: $choosingImage, allowedContentTypes: [ .image ] ) { result in
+				if case .success( let url ) = result { onPickImage( .chosen( url ) ) }
 			}
 		}
 		.padding( 14 )

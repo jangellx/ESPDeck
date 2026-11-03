@@ -33,6 +33,8 @@ final class DeckController {
 	var clipboardHasKey  = false
 	/// The clipboard holds one copied press of a key (Copy Action).
 	var clipboardHasPress = false
+	/// The clipboard holds an image, which Paste makes a key's icon when there's no key to paste.
+	var clipboardHasImage = false
 	/// The configuration window's selection and page, shared with the menus.
 	let window           = WindowState()
 
@@ -279,11 +281,11 @@ final class DeckController {
 	}
 
 	/// Empties a key. A Level pair's other key is cleared too, unless `keepingPartner`: then it
-	/// stays as an ordinary key for the same accessory.
-	func clear( device id: String, key: Int, keepingPartner: Bool = false ) {
+	/// stays as an ordinary key for the same accessory. `undoName` names the undo step.
+	func clear( device id: String, key: Int, keepingPartner: Bool = false, undoName: String = "Clear Key" ) {
 		guard let index = config.settings.deviceIndex( id ), key < config.settings.devices[index].keys.count,
 			  !isMenuClose( device: id, key: key ) else { return }
-		recordUndo( device: id, "Clear Key" )
+		recordUndo( device: id, undoName )
 		let keys = config.settings.devices[index].keys
 		if let partner = keys[key].slider?.partner, Self.isPartner( partner, of: key, in: keys ) {
 			if keepingPartner {

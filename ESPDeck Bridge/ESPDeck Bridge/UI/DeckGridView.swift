@@ -116,6 +116,15 @@ private struct DeckKeyView: View {
 		}
 	}
 
+	/// The key's Double Tap and Hold, when it has them, for VoiceOver's actions. A Level key's
+	/// double tap (Double-Tap Goes All the Way) counts; its hold is its own stepping, which Press
+	/// covers.
+	private var otherPresses: [PressKind] {
+		let assignment = controller.assignment( deviceID, key: index )
+		if let slider = assignment.slider { return slider.doubleTapToEnd ? [ .doubleTap ] : [] }
+		return [ assignment.doubleTap != nil ? PressKind.doubleTap : nil, assignment.hold != nil ? .hold : nil ].compactMap { $0 }
+	}
+
 	/// A press and release, as a shift-click is (ConfigurationHostingController).
 	private func press() {
 		selection = index
@@ -187,6 +196,7 @@ private struct DeckKeyView: View {
 		// it on the deck would. Alongside the click above, so selecting isn't delayed.
 		.simultaneousGesture( TapGesture( count: 2 ).onEnded { goToPage() } )
 		.contextMenu {
+			Button( "Cut Key", systemImage: "scissors" ) { controller.cutKey( device: deviceID, key: index ) }
 			Button( "Copy Key", systemImage: "doc.on.doc" ) { controller.copyKey( device: deviceID, key: index ) }
 			Button( "Paste Key", systemImage: "doc.on.clipboard" ) {
 				selection = index
@@ -244,8 +254,17 @@ private struct DeckKeyView: View {
 		.accessibilityAction( named: "Press" ) { press() }
 		.accessibilityActions {
 			// Only with VoiceOver on, so the key doesn't read its settings otherwise (see `description`).
-			if description != nil, let name = goToPageName {
-				Button( name ) { goToPage() }
+			if description != nil {
+				// Run straight away, rather than timed out as presses, as the deck would judge them.
+				ForEach( otherPresses ) { kind in
+					Button( kind.rawValue ) {
+						selection = index
+						controller.performPress( device: deviceID, key: index, kind: kind )
+					}
+				}
+				if let name = goToPageName {
+					Button( name ) { goToPage() }
+				}
 			}
 		}
 	}

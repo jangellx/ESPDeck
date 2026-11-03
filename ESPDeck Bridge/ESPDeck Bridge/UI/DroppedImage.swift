@@ -31,6 +31,14 @@ struct DroppedImage: Transferable {
 		}
 	}
 
+	/// An image file chosen with Choose Image…: outside the sandbox, so read with its
+	/// security-scoped access.
+	nonisolated static func chosen( _ url: URL ) -> DroppedImage {
+		let scoped = url.startAccessingSecurityScopedResource()
+		defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+		return ( try? read( url ) ) ?? DroppedImage( data: .failure( .unreadable ) )
+	}
+
 	/// A local image file's bytes, unless it's larger than an icon file may be.
 	private nonisolated static func read( _ url: URL ) throws -> DroppedImage {
 		if let size = try url.resourceValues( forKeys: [ .fileSizeKey ] ).fileSize, size > ConfigStore.iconFileLimit {

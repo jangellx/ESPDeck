@@ -234,9 +234,9 @@ struct KeyInspectorView: View {
 				SectionHeader( "Icons" )
 			} footer: {
 				if assignment.singleIcon == true {
-					Text( "Click the icon to choose an SF Symbol, or drag an image onto it. The key shows this icon whatever state its accessory is in." )
+					Text( "Click the icon to choose an SF Symbol or an image, or drag an image onto it. The key shows this icon whatever state its accessory is in." )
 				} else {
-					Text( "Click a state to choose an SF Symbol, or drag an image onto it. States without their own icon use Default's, filled for On. Icons with dashed outlines are set to Default." )
+					Text( "Click a state to choose an SF Symbol or an image, or drag an image onto it. States without their own icon use Default's, filled for On. Icons with dashed outlines are set to Default." )
 				}
 			}
 
@@ -258,6 +258,10 @@ struct KeyInspectorView: View {
 					}
 
 					Pill {
+						Button( "Cut Key" ) { controller.cutKey( device: deviceID, key: key ) }
+							.help( "Copy this key and clear it, to paste it somewhere else (⌘X)" )
+						Divider()
+							.scaledFrame( height: 18 )
 						Button( "Copy Key" ) { controller.copyKey( device: deviceID, key: key ) }
 							.help( "Copy this key, with all its presses and the menus they open (⌘C)" )
 						Divider()

@@ -87,10 +87,11 @@ The preview is a simulated deck in the device's own layout. It shows what each k
 
 - Click a key to select it. The arrow keys move the selection after a click in the preview.
 - Shift-click a key to press it as on the deck. Shift-double-click does its Double Tap, and holding with Shift does its Hold.
-- Drag a key onto another to swap them.
-- Drop an image on a key to make it the key's icon.
+- Drag a key onto another to swap them. To move a key without dragging, Cut it and Paste it where it should go.
+- Drop an image on a key to make it the key's icon, or copy an image and Paste it onto the selected key.
 - Drop a color on a key, from the Colors panel or a color well, to make it the key's background.
-- Right-click a key for Copy, Paste and Clear.
+- Right-click a key for Cut, Copy, Paste and Clear.
+- With VoiceOver, each key says what it controls and its state. Its actions (VO-Command-Space) include Press, Double Tap and Hold, and Go to Page or Open Menu, in place of shift-clicking and double-clicking.
 
 ### Pages
 
@@ -180,10 +181,10 @@ The Appearance and Icons sections set what the key shows. A key can look differe
 
 - **Label** sets the key's text, and **Show Label** hides or shows it.
 - **Background** sets the key's color.
-- **Icons** has one icon for each state the key can show: Default, plus On and Off, or Open, Opening and Closed, and so on. Drop an image on a state, or choose an SF Symbol for it. A state without its own icon uses Default.
+- **Icons** has one icon for each state the key can show: Default, plus On and Off, or Open, Opening and Closed, and so on. Drop an image on a state, or click it to choose an SF Symbol or an image file (**Choose Image…**). A state without its own icon uses Default.
 - **One Icon**, at the top of Icons, makes the key show a single icon whatever state its accessory is in. A Close Doors key can then always show a closed door. **An Icon for Each State** goes back, and the icons chosen for each state are kept.
 
-**Copy Key**, **Paste Key** and **Clear Key** are at the bottom of the settings, and in the Edit menu. A copied key includes all three of its presses and the menus they open, and the pasted key gets its own copies of those menus.
+**Cut Key**, **Copy Key**, **Paste Key** and **Clear Key** are at the bottom of the settings, and in the Edit menu. A copied key includes all three of its presses and the menus they open, and the pasted key gets its own copies of those menus. Cut Key copies the key and clears it, which moves it when it's pasted somewhere else, even on another page. When the clipboard holds an image rather than a key, Paste makes the image the key's icon.
 
 **Copy Action** and **Paste Action**, above them and in the Edit menu, work on one press: the Tap, Double Tap or Hold whose tab is showing.
 

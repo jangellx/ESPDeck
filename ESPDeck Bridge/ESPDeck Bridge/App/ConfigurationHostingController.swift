@@ -91,12 +91,13 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		controller.undoManager = undoManager   // the window's, which Edit ▸ Undo uses
 	}
 
-	/// Copy and Paste only with a key to act on (and Paste with a key copied); Copy also with
-	/// log entries selected.
+	/// Cut, Copy and Paste only with a key to act on (and Paste with a key or an image copied);
+	/// Copy also with log entries selected.
 	override func canPerformAction( _ action: Selector, withSender sender: Any? ) -> Bool {
 		switch action {
+			case #selector( cut( _: ) ):   controller.focusedKey != nil
 			case #selector( copy( _: ) ):  controller.focusedKey != nil || !controller.selectedLogEntries.isEmpty
-			case #selector( paste( _: ) ): controller.focusedKey != nil && controller.clipboardHasKey
+			case #selector( paste( _: ) ): controller.focusedKey != nil && ( controller.clipboardHasKey || controller.clipboardHasImage )
 			default:                       super.canPerformAction( action, withSender: sender )
 		}
 	}
@@ -109,7 +110,8 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 			case #selector( copy( _: ) ):
 				let entries = controller.selectedLogEntries.count
 				command.title = entries == 0 ? "Copy Key" : entries == 1 ? "Copy Entry" : "Copy \(entries) Entries"
-			case #selector( paste( _: ) ): command.title = "Paste Key"
+			case #selector( cut( _: ) ):   command.title = "Cut Key"
+			case #selector( paste( _: ) ): command.title = controller.clipboardHasKey || !controller.clipboardHasImage ? "Paste Key" : "Paste Image as Icon"
 			default:                       break
 		}
 	}
@@ -122,10 +124,20 @@ final class ConfigurationHostingController: UIHostingController<ConfigurationVie
 		controller.copyKey( device: focused.device, key: focused.key )
 	}
 
-	/// Pastes onto the focused key.
+	/// Copies the focused key and clears it.
+	override func cut( _ sender: Any? ) {
+		guard let focused = controller.focusedKey else { return }
+		controller.cutKey( device: focused.device, key: focused.key )
+	}
+
+	/// Pastes a copied key onto the focused key, or else a copied image as its icon.
 	override func paste( _ sender: Any? ) {
 		guard let focused = controller.focusedKey else { return }
-		controller.pasteKey( device: focused.device, key: focused.key )
+		if controller.clipboardHasKey || !controller.clipboardHasImage {
+			controller.pasteKey( device: focused.device, key: focused.key )
+		} else {
+			controller.pasteIcon( device: focused.device, key: focused.key )
+		}
 	}
 }
 
