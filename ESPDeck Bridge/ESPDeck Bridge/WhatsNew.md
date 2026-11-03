@@ -11,18 +11,14 @@ The What's New window, shown once before the configuration window after this fil
 The full list of changes is docs/version-history.md, which the window links to.
 -->
 
-## Menus
-symbol: square.grid.2x2.fill
-A key can open a menu of more keys in place of the page. Its Close key goes back, and a menu can close by itself after a key is pressed.
+## Accessibility
+symbol: accessibility
+VoiceOver describes each key in the preview and can press it, and the menu bar menu works with VoiceOver. Reduce Motion is respected throughout.
 
-## Copy and Paste Actions
-symbol: doc.on.doc.fill
-Move what a Tap, Double Tap or Hold does to another press or another key, with the menu it opens.
+## Cut Key
+symbol: scissors
+Cut a key and paste it somewhere else, even on another page, to move it without dragging.
 
-## One Icon for Every State
-symbol: door.garage.closed
-A key can show the same icon whatever its accessory is doing: a Close Doors key that always shows a closed door.
-
-## Help When the Mac Is Locked
-symbol: lock.fill
-HomeKit won’t open garage doors or locks from a locked Mac. The app now says so, and explains the ways around it.
+## Choose an Image
+symbol: photo
+Pick an image file for a key's icon with Choose Image…, or paste a copied image onto a key.
