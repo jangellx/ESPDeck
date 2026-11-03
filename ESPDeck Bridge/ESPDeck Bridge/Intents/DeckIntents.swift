@@ -16,7 +16,10 @@ import AppIntents
 
 /// A deck, as Shortcuts lists it; demo decks aren't offered.
 struct DeckEntity: AppEntity {
-	static let typeDisplayRepresentation: TypeDisplayRepresentation = "Deck"
+	/// The plural (AppIntents.stringsdict) is what Shortcuts' Find Decks action says.
+	static let typeDisplayRepresentation = TypeDisplayRepresentation(
+		name: LocalizedStringResource( "Deck", table: "AppIntents" ),
+		numericFormat: LocalizedStringResource( "\(placeholder: .int) decks", table: "AppIntents" ) )
 	static let defaultQuery = DeckQuery()
 
 	/// The deck's ID (DeviceSettings.id), which stays the same when it's renamed.
@@ -33,6 +36,9 @@ struct DeckEntity: AppEntity {
 
 /// Every deck that isn't a demo: there are only ever a few.
 struct DeckQuery: EnumerableEntityQuery {
+	static let findIntentDescription: IntentDescription? = IntentDescription(
+		"Finds the decks set up in ESPDeck Bridge, other than demo decks. Filter them by name, sort them, or limit how many are found, then pass them to Sleep Deck, Wake Deck or another ESPDeck action." )
+
 	@Dependency private var controller: DeckController
 
 	@MainActor func allEntities() async throws -> [DeckEntity] {
@@ -46,7 +52,9 @@ struct DeckQuery: EnumerableEntityQuery {
 
 /// One of a deck's menus, named for the key that opens it.
 struct MenuEntity: AppEntity {
-	static let typeDisplayRepresentation: TypeDisplayRepresentation = "Menu"
+	static let typeDisplayRepresentation = TypeDisplayRepresentation(
+		name: LocalizedStringResource( "Menu", table: "AppIntents" ),
+		numericFormat: LocalizedStringResource( "\(placeholder: .int) menus", table: "AppIntents" ) )
 	static let defaultQuery = MenuQuery()
 
 	let id: UUID
@@ -69,6 +77,9 @@ struct MenuEntity: AppEntity {
 
 /// Every menu of every deck that isn't a demo.
 struct MenuQuery: EnumerableEntityQuery {
+	static let findIntentDescription: IntentDescription? = IntentDescription(
+		"Finds the menus on the decks set up in ESPDeck Bridge, each named for the key that opens it. Filter them by name or deck, sort them, or limit how many are found, then pass one to Open Menu." )
+
 	@Dependency private var controller: DeckController
 
 	@MainActor func allEntities() async throws -> [MenuEntity] {
@@ -85,10 +96,11 @@ struct MenuQuery: EnumerableEntityQuery {
 /// Shows a page, as a Go to Page key does.
 struct GoToPageIntent: AppIntent {
 	static let title: LocalizedStringResource = "Go to Page"
-	static let description = IntentDescription( "Shows one of a deck's pages, closing any menu that's open." )
+	static let description = IntentDescription( "Shows one of a deck's pages, as a Go to Page key does. A menu that's open on the deck closes." )
 
-	@Parameter( title: "Deck" ) var deck: DeckEntity
-	@Parameter( title: "Page", default: 1, inclusiveRange: ( 1, 99 ) ) var page: Int
+	@Parameter( title: "Deck", description: "The deck to change." ) var deck: DeckEntity
+	@Parameter( title: "Page", description: "The page's number, counting from 1, as the Keys page shows them.",
+				default: 1, inclusiveRange: ( 1, 99 ) ) var page: Int
 
 	static var parameterSummary: some ParameterSummary {
 		Summary( "Show page \(\.$page) on \(\.$deck)" )
@@ -107,9 +119,9 @@ struct GoToPageIntent: AppIntent {
 /// Opens a menu over the page, as its Menu key does.
 struct OpenMenuIntent: AppIntent {
 	static let title: LocalizedStringResource = "Open Menu"
-	static let description = IntentDescription( "Opens one of a deck's menus, as the key that opens it would." )
+	static let description = IntentDescription( "Opens one of a deck's menus over the page it's on, as the key that opens it does." )
 
-	@Parameter( title: "Menu" ) var menu: MenuEntity
+	@Parameter( title: "Menu", description: "Each menu is named for the key that opens it, with its deck below." ) var menu: MenuEntity
 
 	static var parameterSummary: some ParameterSummary {
 		Summary( "Open \(\.$menu)" )
@@ -130,9 +142,9 @@ struct OpenMenuIntent: AppIntent {
 /// Closes the open menu, as its Close key does.
 struct CloseMenuIntent: AppIntent {
 	static let title: LocalizedStringResource = "Close Menu"
-	static let description = IntentDescription( "Closes the menu open on a deck, going back to the page under it." )
+	static let description = IntentDescription( "Closes the menu open on a deck, as its Close key does, going back to the page under it. Nothing happens if no menu is open." )
 
-	@Parameter( title: "Deck" ) var deck: DeckEntity
+	@Parameter( title: "Deck", description: "The deck whose menu to close." ) var deck: DeckEntity
 
 	static var parameterSummary: some ParameterSummary {
 		Summary( "Close the menu on \(\.$deck)" )
@@ -150,7 +162,7 @@ struct CloseMenuIntent: AppIntent {
 /// Turns a deck's screen off, as Sleep Now does; any key press wakes it.
 struct SleepDeckIntent: AppIntent {
 	static let title: LocalizedStringResource = "Sleep Deck"
-	static let description = IntentDescription( "Turns a deck's screen off. Pressing any of its keys wakes it." )
+	static let description = IntentDescription( "Turns a deck's screen off, as Sleep Now on the Device page does. Pressing any of its keys wakes it." )
 
 	@Parameter( title: "Deck", description: "Leave empty for every deck." ) var deck: DeckEntity?
 
@@ -171,7 +183,7 @@ struct SleepDeckIntent: AppIntent {
 /// Turns a deck's screen back on, as Wake Now does.
 struct WakeDeckIntent: AppIntent {
 	static let title: LocalizedStringResource = "Wake Deck"
-	static let description = IntentDescription( "Turns a sleeping deck's screen back on." )
+	static let description = IntentDescription( "Turns a sleeping deck's screen back on, as Wake Now on the Device page does." )
 
 	@Parameter( title: "Deck", description: "Leave empty for every deck." ) var deck: DeckEntity?
 
@@ -192,10 +204,10 @@ struct WakeDeckIntent: AppIntent {
 /// Sets a deck's screen brightness, as the Device page's slider does.
 struct SetDeckBrightnessIntent: AppIntent {
 	static let title: LocalizedStringResource = "Set Deck Brightness"
-	static let description = IntentDescription( "Sets how bright a deck's keys are, from 0 to 100 percent." )
+	static let description = IntentDescription( "Sets how bright a deck's screen is, from 0 to 100 percent. It's the same setting as Brightness on the Device page, and stays until it's changed again." )
 
 	@Parameter( title: "Deck", description: "Leave empty for every deck." ) var deck: DeckEntity?
-	@Parameter( title: "Brightness", default: 80, inclusiveRange: ( 0, 100 ) ) var brightness: Int
+	@Parameter( title: "Brightness", description: "From 0 to 100 percent.", default: 80, inclusiveRange: ( 0, 100 ) ) var brightness: Int
 
 	static var parameterSummary: some ParameterSummary {
 		Summary( "Set the brightness of \(\.$deck) to \(\.$brightness)%" )
