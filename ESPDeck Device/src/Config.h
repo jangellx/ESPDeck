@@ -25,8 +25,6 @@ constexpr int         kProtocolVersion = 4;
 constexpr const char *kBridgeService  = "_deckbridge";
 constexpr const char *kBridgeProto    = "_tcp";
 
-constexpr uint8_t  kMaxKeys           = 32;          // Stream Deck XL
-constexpr size_t   kMaxImageSize      = 64 * 1024;   // 96 px BMPs are ~27 KB, 120 px JPEGs far less
 constexpr size_t   kHashSize          = 16;          // first 16 bytes of SHA-256
 
 // The dev board's RGB status LED (WS2812): GPIO 48 on the ESP32-S3-DevKitC-1 v1.0 and most

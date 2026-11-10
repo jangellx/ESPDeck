@@ -1,4 +1,4 @@
-// Prints the pairing and session test vectors computed by src/Crypto.cpp (built against the
+// Prints the pairing and session test vectors computed by DeckKit's Crypto.cpp (built against the
 // mbedTLS sources that ship with ESP-IDF). crypto_test.swift computes the same values with
 // ESPDeck Bridge's own DeckCrypto (CryptoKit), and run.sh checks that both match
 // vectors.txt. See run.sh.

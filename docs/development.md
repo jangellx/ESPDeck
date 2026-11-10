@@ -19,12 +19,13 @@ ESPDeck Bridge updates the firmware over Wi-Fi from GitHub Releases, and install
   - It's for development: anyone on the network with the password can replace the firmware.
 - **Security tests:** `ESPDeck Bridge/tools/security_test/run.sh` signs a file with a throwaway key through `tools/sign_release.sh` and checks it with the app's own signature check (and that changed files, changed signatures and other keys fail); it also round-trips a made-up bridge through the export file's encryption, and checks that a wrong passphrase, a changed byte anywhere in the file, and a newer format all fail. Needs OpenSSL 3.
 - **Crypto test vectors:** `ESPDeck Device/tools/crypto_test/run.sh` checks the firmware's pairing, session and devOTA crypto (mbedTLS) and the app's own `DeckCrypto.swift` (CryptoKit) against RFC 7748 and `vectors.txt`, the shared reference.
-- **Text tests:** `ESPDeck Device/tools/text_test/run.sh` builds the firmware's `src/Text.cpp` (the JSON nesting check, device-name validation and log sanitizing) on the Mac with the address and undefined-behavior sanitizers, and runs its tests.
+- **Text tests:** DeckKit's `tools/text_test/run.sh` builds DeckKit's `Text.cpp` (the JSON nesting check, device-name validation and log sanitizing) on the Mac with the address and undefined-behavior sanitizers, and runs its tests.
 
 Notes:
 - The platform is pinned to pioarduino `55.03.312-1` (Arduino 3.3.12, ESP-IDF 5.5.5), which needs PlatformIO Core 6.2, as installed by the pioarduino IDE extension. The previous pin, `55.03.30-2`, doesn't build on Core 6.2.
 - ESP-IDF can't build in a path containing spaces, so `build_dir` is `~/.platformio/build/ESPDeck`, outside iCloud Drive.
 - `custom_component_remove` drops RainMaker, Insights, Zigbee and other components that Arduino pulls in. Insights doesn't build under PlatformIO.
+- DeckKit (the Stream Deck driver, key images, text checks and pairing crypto) comes from [jangellx/DeckKit](https://github.com/jangellx/DeckKit) by tag, set in `ESPDeck Device/src/idf_component.yml`. To work on DeckKit and ESPDeck together, put a DeckKit checkout beside this repository and, while you work, change both DeckKit entries to `path: ../../../DeckKit/components/deckkit_deck` (and `deckkit_util`) without committing that; then tag DeckKit and point `version:` at the new tag. PlatformIO doesn't reliably honor the component manager's `override_path`, so the manifest doesn't use it. The crypto test builds DeckKit's `Crypto.cpp` from that checkout too (set `DECKKIT` to use another).
 - If a PlatformIO tool download fails with `CERTIFICATE_VERIFY_FAILED`, run it with `SSL_CERT_FILE=$(~/.platformio/penv/bin/python -c "import certifi;print(certifi.where())")`.
 
 ## What's New and the version history

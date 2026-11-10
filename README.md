@@ -82,7 +82,7 @@ ESPDeck uses or includes the following; [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOT
 - [ESP-IDF](https://github.com/espressif/esp-idf) (Apache 2.0) and the [Arduino core for ESP32](https://github.com/espressif/arduino-esp32) (LGPL 2.1).
 - Espressif components: the [USB Host HID driver](https://github.com/espressif/esp-usb), [esp_websocket_client and mdns](https://github.com/espressif/esp-protocols), the [QR Code component](https://github.com/espressif/idf-extra-components) (all Apache 2.0), and [esp_new_jpeg](https://github.com/espressif/esp-adf-libs) (Espressif MIT).
 - [esp_littlefs](https://github.com/joltwallet/esp_littlefs) by Brian Pugh (MIT).
-- [Inter](https://github.com/rsms/inter) by Rasmus Andersson (SIL Open Font License 1.1): the typeface for text the firmware draws on keys, rendered into `src/Font.h` by `tools/make_font.swift`.
+- [Inter](https://github.com/rsms/inter) by Rasmus Andersson (SIL Open Font License 1.1): the typeface for text the firmware draws on keys, rendered into DeckKit's `Font.h` by its `tools/make_font.swift`.
 - [ESP Web Tools](https://github.com/esphome/esp-web-tools) (Apache 2.0): the browser installer.
 
 The app's About page lists the same credits and shows the full license text where the license requires it. Keep the two in sync (`ESPDeck Bridge/UI/AboutView.swift`).

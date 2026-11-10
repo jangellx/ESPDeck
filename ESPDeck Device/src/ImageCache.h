@@ -26,6 +26,7 @@
 
 #include "Hash.h"
 #include "ImageData.h"
+#include "StreamDeck.h"
 
 class ImageCache {
 public:
