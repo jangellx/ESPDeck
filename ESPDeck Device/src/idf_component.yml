@@ -7,8 +7,8 @@ dependencies:
   deckkit_deck:
     git: https://github.com/jangellx/DeckKit.git
     path: components/deckkit_deck
-    version: v1.0.0
+    version: v1.1.0
   deckkit_util:
     git: https://github.com/jangellx/DeckKit.git
     path: components/deckkit_util
-    version: v1.0.0
+    version: v1.1.0
