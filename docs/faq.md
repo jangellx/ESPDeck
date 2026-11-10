@@ -145,6 +145,12 @@ Test a shortcut from the key's settings (**Key ▸ Test Action**, ⌘T) to see w
 
 It's almost always power. The OTG adapter has to be a passive one with a power input, the supply 5 V and 2 A or more, and a Stream Deck whose cable ends in USB-C needs a USB-A to USB-C adapter with the right resistor in it. The [requirements](../README.md#requirements) have the details and a way to test the adapter on a Mac first.
 
+### The deck stays on Elgato's logo, or the board restarts when the deck is plugged in.
+
+It's the Stream Deck's startup surge. For a moment after it gets power, the deck draws a lot of current while its own capacitors charge. When the board and the deck share one supply through the OTG adapter, that pulls the 5 V down far enough that the board restarts (its lights go out for a moment), and the deck can come up without connecting to it: it sits on Elgato's logo instead of showing its keys. A bigger supply doesn't always help, since the dip happens in the adapter and its cables.
+
+Give the board a supply of its own: connect its UART/COM port to a second 5 V USB supply (or a computer), and keep the deck's supply on the OTG adapter. Then the deck's surge can't reach the board. In testing, a Stream Deck MK.2 Scissor that came up on its logo about half the time this way connected every time, including when plugged into a running board. On clone boards whose COM port doesn't power the board (see [Clone boards](setup.md#clone-boards)), this doesn't work; plugging the deck in before switching the supply on gives the best chance there.
+
 ### The deck went dark after working.
 
 It's asleep: the sleep timer on its Device page ran out, or one of its sleep triggers fired. Press any key to wake it. That first press only wakes the deck; it doesn't run the key.
