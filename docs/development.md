@@ -25,6 +25,7 @@ Notes:
 - The platform is pinned to pioarduino `55.03.312-1` (Arduino 3.3.12, ESP-IDF 5.5.5), which needs PlatformIO Core 6.2, as installed by the pioarduino IDE extension. The previous pin, `55.03.30-2`, doesn't build on Core 6.2.
 - ESP-IDF can't build in a path containing spaces, so `build_dir` is `~/.platformio/build/ESPDeck`, outside iCloud Drive.
 - `custom_component_remove` drops RainMaker, Insights, Zigbee and other components that Arduino pulls in. Insights doesn't build under PlatformIO.
+- DeckKit (the Stream Deck driver, key images, text checks and pairing crypto) comes from [jangellx/DeckKit](https://github.com/jangellx/DeckKit) by tag, set in `ESPDeck Device/src/idf_component.yml`. To work on DeckKit and ESPDeck together, put a DeckKit checkout beside this repository and, while you work, change both DeckKit entries to `path: ../../../DeckKit/components/deckkit_deck` (and `deckkit_util`) without committing that; then tag DeckKit and point `version:` at the new tag. PlatformIO doesn't reliably honor the component manager's `override_path`, so the manifest doesn't use it. The crypto test builds DeckKit's `Crypto.cpp` from that checkout too (set `DECKKIT` to use another).
 - If a PlatformIO tool download fails with `CERTIFICATE_VERIFY_FAILED`, run it with `SSL_CERT_FILE=$(~/.platformio/penv/bin/python -c "import certifi;print(certifi.where())")`.
 
 ## What's New and the version history

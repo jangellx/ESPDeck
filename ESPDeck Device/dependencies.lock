@@ -1,5 +1,6 @@
 dependencies:
   deckkit_deck:
+    component_hash: 12df50f6b5c8a181919b354b70c7294c64fedca11e369a89a578abce746e9776
     dependencies:
     - name: idf
       version: '>=5.1'
@@ -11,17 +12,20 @@ dependencies:
     - name: espressif/esp_new_jpeg
       version: '*'
     source:
-      path: /Users/joeangell/Developer/JoesSource/DeckKit/components/deckkit_deck
-      type: local
-    version: '*'
+      git: https://github.com/jangellx/DeckKit.git
+      path: components/deckkit_deck
+      type: git
+    version: 9c3480276ab4c0289ca136da51c95c9b89b42ec1
   deckkit_util:
+    component_hash: c16e5b695198b3c47ceec55cd5e2a88fbdae149d4ffbc5c2e41b249bc7ba6d2a
     dependencies:
     - name: idf
       version: '>=5.1'
     source:
-      path: /Users/joeangell/Developer/JoesSource/DeckKit/components/deckkit_util
-      type: local
-    version: '*'
+      git: https://github.com/jangellx/DeckKit.git
+      path: components/deckkit_util
+      type: git
+    version: 9c3480276ab4c0289ca136da51c95c9b89b42ec1
   espressif/esp_new_jpeg:
     component_hash: e1e7e6991193c41ed6c9fc386702aa7821433319e7aa9c3147cd3236310cd69c
     dependencies: []
@@ -114,6 +118,6 @@ direct_dependencies:
 - espressif/qrcode
 - idf
 - joltwallet/littlefs
-manifest_hash: c16f9b4372804abbd4e34ab56a2250c0569aa867131369f3d2a86e9ce1be7e0b
+manifest_hash: de09da857a612e90c106107738ec3e0e10a1a73ec92146035e54eea82571709e
 target: esp32s3
 version: 2.0.0
