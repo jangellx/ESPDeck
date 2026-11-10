@@ -118,6 +118,6 @@ direct_dependencies:
 - espressif/qrcode
 - idf
 - joltwallet/littlefs
-manifest_hash: de09da857a612e90c106107738ec3e0e10a1a73ec92146035e54eea82571709e
+manifest_hash: 20babbd5fa3c1bf9a3b088543e8ea4a0744f239fc63bc64299c68a9307c719ed
 target: esp32s3
 version: 2.0.0
