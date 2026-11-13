@@ -113,3 +113,34 @@ enum KeySurface: Equatable {
 	case page( Int )
 	case menu( UUID )
 }
+
+extension DeviceSettings {
+	/// Copies of the menus that `pages` open, each with a new ID, with the pages' keys pointed
+	/// at the copies. Copied keys then never share a menu with the keys they came from: on the
+	/// same deck, editing one's menu would change the other's, and across decks a saved Open
+	/// Menu shortcut (which names a menu by its ID) could open the wrong deck's. Keys in the
+	/// copy that opened the same menu still share one copy of it.
+	static func copyingMenus( of pages: inout [[KeyAssignment]], from menus: [DeckMenu] ) -> [DeckMenu] {
+		var renamed : [UUID: UUID] = [:]
+		var copies  : [DeckMenu] = []
+		func renew( _ id: UUID? ) -> UUID? {
+			guard let id, let menu = menus.first( where: { $0.id == id } ) else { return id }
+			if let new = renamed[id] { return new }
+			var copy = menu
+			copy.id = UUID()
+			renamed[id] = copy.id
+			copies.append( copy )
+			return copy.id
+		}
+		for page in pages.indices {
+			for index in pages[page].indices {
+				var key = pages[page][index]
+				if key.kind == .menu { key.menuID = renew( key.menuID ) }
+				if key.doubleTap?.kind == .menu { let id = renew( key.doubleTap?.menuID ); key.doubleTap?.menuID = id }
+				if key.hold?.kind == .menu { let id = renew( key.hold?.menuID ); key.hold?.menuID = id }
+				pages[page][index] = key
+			}
+		}
+		return copies
+	}
+}

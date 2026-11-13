@@ -26,11 +26,23 @@ extension DeckController {
 			return
 		}
 		// Older firmware can't read encrypted storage: it would erase the device's Wi-Fi
-		// settings, name and pairing, and store new ones unencrypted.
-		if device.status.storage == "encrypted", let new = Version( version ), new < Self.storageEncryptionFirmware {
-			device.firmwareProgress = FirmwareProgress( version: version, phase: .failed(
-				"This device's stored secrets are encrypted, which firmware before \(Self.storageEncryptionFirmware) can't read. Installing \(version) would erase its Wi-Fi settings and pairing." ) )
-			return
+		// settings, name and pairing, and store new ones unencrypted. Judged by the version in
+		// the image itself (a release's tag isn't covered by its signature), and an image whose
+		// version can't be read isn't sent to an encrypted device at all.
+		if device.status.storage == "encrypted" {
+			let imageVersion = ( try? FirmwareImage.appInfo( image ) )?.version ?? version
+			let refusal: String?
+			if let new = Version( imageVersion ) {
+				refusal = new < Self.storageEncryptionFirmware
+					? "This device's stored secrets are encrypted, which firmware before \(Self.storageEncryptionFirmware) can't read. Installing \(imageVersion) would erase its Wi-Fi settings and pairing."
+					: nil
+			} else {
+				refusal = "This device's stored secrets are encrypted, and this firmware's version (\(imageVersion)) can't be read, so ESPDeck Bridge can't tell whether it can read them. Installing it could erase the device's Wi-Fi settings and pairing."
+			}
+			if let refusal {
+				device.firmwareProgress = FirmwareProgress( version: version, phase: .failed( refusal ) )
+				return
+			}
 		}
 
 		print( "[DeckController] Updating \(id) to firmware \(version) (\(image.count) bytes)" )

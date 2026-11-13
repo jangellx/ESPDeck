@@ -117,4 +117,32 @@ struct DeckMenuTests {
 		settings.reconcileMenus()
 		#expect( settings.menus.isEmpty )
 	}
+
+	/// Copied keys get their own copies of the menus they open: on the same deck, editing one
+	/// key's menu would otherwise change the other's, and a saved Open Menu shortcut (which
+	/// names a menu by ID) could open another deck's. A deck's own snapshot keeps its IDs.
+	@Test func copiesGetTheirOwnMenus() throws {
+		var ( source, menu ) = deckWithMenu()
+		source.surface = .menu( menu )
+		source.keys[1] = labeled( "Fan" )
+		source.surface = .page( 0 )
+
+		var other = DeviceSettings( id: "cc:dd", name: "Garage" )
+		other.copyPages( from: source )
+		let copied = try #require( other.menus.first )
+		#expect( other.menus.count == 1 && copied.id != menu )
+		#expect( other.keys[0].menuID == copied.id )
+		#expect( copied.keys == source.menus[0].keys )
+
+		// Two keys opening one menu still share one copy.
+		var pages = source.pages
+		pages[0].append( pages[0][0] )
+		let menus = DeviceSettings.copyingMenus( of: &pages, from: source.menus )
+		#expect( menus.count == 1 && pages[0][0].menuID == menus[0].id && pages[0].last?.menuID == menus[0].id )
+
+		// Copy Deck from this deck's own snapshot keeps the IDs.
+		var same = source
+		same.copyPages( from: source )
+		#expect( same.menus.map( \.id ) == [ menu ] )
+	}
 }

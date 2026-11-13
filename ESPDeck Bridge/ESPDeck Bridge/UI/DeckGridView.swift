@@ -204,7 +204,13 @@ private struct DeckKeyView: View {
 			}
 			.disabled( !controller.clipboardHasKey )
 			Divider()
-			Button( "Clear Key", systemImage: "trash", role: .destructive ) { controller.clear( device: deviceID, key: index ) }
+			// Through the inspector's dialog, as Edit ▸ Clear Key: it confirms, and offers to keep a
+			// Level key's partner rather than clearing both.
+			Button( "Clear Key…", systemImage: "trash", role: .destructive ) {
+				selection = index
+				controller.window.confirmingClearKey = true
+			}
+			.disabled( controller.isMenuClose( device: deviceID, key: index ) )
 		}
 		.draggable( KeyDrag( index: index ) ) {
 			if let current {

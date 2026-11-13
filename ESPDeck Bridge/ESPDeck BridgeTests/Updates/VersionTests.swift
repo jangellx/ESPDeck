@@ -12,7 +12,7 @@ import Testing
 /// Reading version strings, comparing them, and what that means for a board's firmware.
 struct VersionTests {
 	/// Release tags and plain numbers all read as the same parts.
-	@Test( arguments: [ "4.1.0", "v4.1.0", "firmware-v4.1.0", "4.1.0-beta", "firmware-v4.1.0-rc1" ] )
+	@Test( arguments: [ "4.1.0", "v4.1.0", "firmware-v4.1.0", "4.1.0-beta", "firmware-v4.1.0-rc1", "4.1.0-preview", "4.1.0-rev2" ] )
 	func readsEveryFormAReleaseUses( _ string: String ) throws {
 		let version = try #require( Version( string ) )
 		#expect( version.parts == [ 4, 1, 0 ] )
@@ -21,6 +21,15 @@ struct VersionTests {
 	/// Nothing to read is no version, not version zero.
 	@Test( arguments: [ "", "dev", "-" ] )
 	func rejectsStringsWithoutNumbers( _ string: String ) {
+		#expect( Version( string ) == nil )
+	}
+
+	/// A version with a part that isn't a number is no version, rather than whatever numbers
+	/// it has: the encrypted-storage check refuses an image whose version can't be read, and
+	/// once let "4.x.0" through as 4.0. (A "v" inside the suffix once made "4.0.0-preview" read
+	/// as nothing.)
+	@Test( arguments: [ "4.x.1", "4..1", "4.1.", "v", "4.1.0 beta", "４.1.0" ] )
+	func rejectsPartsThatArentNumbers( _ string: String ) {
 		#expect( Version( string ) == nil )
 	}
 

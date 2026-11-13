@@ -86,16 +86,18 @@ struct DeviceSettingsView: View {
 			Section {
 				CopyKeysMenu( controller: controller, deviceID: deviceID )
 				Button( "Delete Demo Deck…", role: .destructive ) { controller.window.confirmingForget = true }
-					.confirmationDialog( "Delete \(settings.name)?", isPresented: confirmingForget ) {
-						Button( "Delete Demo Deck", role: .destructive ) { controller.forget( device: deviceID ) }
-					} message: {
-						Text( "This will remove its key assignments." )
-					}
 			} footer: {
 				Text( "To use this layout on a real deck, open that device's Keys page and choose Copy Keys From under the deck. Keys are matched by row and column, so layouts carry across deck sizes." )
 			}
 		}
 		.formStyle( .grouped )
+		// On the form, not the button: Device ▸ Forget Device shows it too, and a form row
+		// scrolled out of view isn't built.
+		.confirmationDialog( "Delete \(settings.name)?", isPresented: confirmingForget, titleVisibility: .visible ) {
+			Button( "Delete Demo Deck", role: .destructive ) { controller.forget( device: deviceID ) }
+		} message: {
+			Text( "This will remove its key assignments." )
+		}
 	}
 
 	/// The demo deck's model, by name.
@@ -288,11 +290,6 @@ struct DeviceSettingsView: View {
 				}
 				HStack {
 					Button( "Forget Device…", role: .destructive ) { controller.window.confirmingForget = true }
-						.confirmationDialog( "Forget \(settings.name)?", isPresented: confirmingForget ) {
-							Button( "Forget Device", role: .destructive ) { controller.forget( device: deviceID ) }
-						} message: {
-							Text( "This will remove its key assignments and settings from ESPDeck Bridge. If it connects again, it will appear as a new device." )
-						}
 					InfoButton( help: "About Forget Device",
 								text: "Forget Device removes it from ESPDeck Bridge, with its key assignments and settings, and unpairs it, but leaves its Wi-Fi settings alone. If it connects again, it will appear as a new device." )
 				}
@@ -305,6 +302,13 @@ struct DeviceSettingsView: View {
 			StatusLightSection()
 		}
 		.formStyle( .grouped )
+		// On the form, not the Forget button: Device ▸ Forget Device shows it too, and a form
+		// row scrolled out of view isn't built, so the menu command showed nothing.
+		.confirmationDialog( "Forget \(settings.name)?", isPresented: confirmingForget, titleVisibility: .visible ) {
+			Button( "Forget Device", role: .destructive ) { controller.forget( device: deviceID ) }
+		} message: {
+			Text( "This will remove its key assignments and settings from ESPDeck Bridge. If it connects again, it will appear as a new device." )
+		}
 		// Here rather than on a button: a Form only builds the rows on screen, and the offer
 		// at the top opens it too.
 		.sheet( isPresented: $copyingDeck ) {

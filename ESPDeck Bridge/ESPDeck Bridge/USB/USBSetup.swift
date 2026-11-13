@@ -549,10 +549,12 @@ final class USBSetup {
 	}
 
 	/// The board for a device, where one is plugged in and has answered: by its USB serial
-	/// number (the ESP32-S3's own port), else by name.
+	/// number (the ESP32-S3's own port), else by name, among boards whose port doesn't say
+	/// which device they are (a USB-to-serial chip). A board whose serial names another device
+	/// is never it, even with the same name: the Needs Unpairing page would unpair the wrong one.
 	func board( forDevice id: String ) -> Board? {
 		boards.first { $0.port.deviceID == id }
-			?? controller?.settings( id ).flatMap { settings in boards.first { $0.espDeck?.name == settings.name } }
+			?? controller?.settings( id ).flatMap { settings in boards.first { $0.port.deviceID == nil && $0.espDeck?.name == settings.name } }
 	}
 
 	/// Unpairs a board over USB, as its setup page's Unpair does. It then connects as a new

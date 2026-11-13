@@ -27,6 +27,14 @@ struct NewDeviceView: View {
 
 					pairing( device )
 				}
+				// Here, not on Pair: Try Again after a failed replacement asks too, and Pair
+				// isn't on screen then, so Try Again did nothing until pairing went back to idle.
+				.confirmationDialog( "Replace the existing pairing for \(replacing ?? "")?",
+									 isPresented: Binding( presenting: $replacing ), titleVisibility: .visible ) {
+					Button( "Replace Pairing", role: .destructive ) { controller.pair( client, replacing: true ) }
+				} message: {
+					Text( replaceMessage( device ) )
+				}
 				.frame( maxWidth: 460 )
 				.padding( 40 )
 				.frame( maxWidth: .infinity )
@@ -86,12 +94,6 @@ struct NewDeviceView: View {
 						.prominentButtonStyle()
 						.controlSize( .large )
 						.disabled( !hasDeck )
-						.confirmationDialog( "Replace the existing pairing for \(replacing ?? "")?",
-											 isPresented: Binding( presenting: $replacing ), titleVisibility: .visible ) {
-							Button( "Replace Pairing", role: .destructive ) { controller.pair( client, replacing: true ) }
-						} message: {
-							Text( replaceMessage( device ) )
-						}
 					if hasDeck {
 						Text( "The deck will show a code to compare with the one shown here. If they match, confirm here and hold Confirm on the deck." )
 							.secondaryCaption()

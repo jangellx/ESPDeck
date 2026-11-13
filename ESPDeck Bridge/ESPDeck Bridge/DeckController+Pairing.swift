@@ -238,12 +238,13 @@ extension DeckController {
 	}
 
 	/// Sends the Mac's proof of `key` and a fresh nonce; the device has to answer in time.
-	private func sendAuth( _ client: ClientID, key: Data, handshake: inout Handshake ) {
+	/// `pairing`: finishing a pairing, so the connection isn't closed to make room for others.
+	private func sendAuth( _ client: ClientID, key: Data, handshake: inout Handshake, pairing: Bool = false ) {
 		guard let deviceNonce = handshake.hello.nonce else { return }
 		let bridgeNonce = DeckCrypto.randomBytes( DeckCrypto.nonceSize )
 		handshake.key         = key
 		handshake.bridgeNonce = bridgeNonce
-		server.setDeadline( client, in: Self.authenticationTimeout )
+		server.setDeadline( client, in: Self.authenticationTimeout, pairing: pairing )
 		server.send( .auth( nonce: bridgeNonce, proof: DeckCrypto.bridgeProof( key: key, deviceNonce: deviceNonce, bridgeNonce: bridgeNonce ) ), to: client )
 	}
 
@@ -382,10 +383,13 @@ extension DeckController {
 
 	/// Confirmed on both sides: authenticate with the new K. The deck stores K when our auth
 	/// proves we have it; this Mac stores it when the deck's auth comes back.
+	/// Only once: a second confirmation (a double click, or the deck's pairConfirm again)
+	/// would send auth with a new nonce, and the deck, having stored K on the first, would
+	/// then be paired with a Mac that drops its key.
 	private func finishPairing( _ client: ClientID ) {
-		guard var handshake = handshakes[client], let key = handshake.pairing?.key else { return }
+		guard var handshake = handshakes[client], let key = handshake.pairing?.key, handshake.key == nil else { return }
 		handshake.hello.pairedBridge = config.settings.bridgeID
-		sendAuth( client, key: key, handshake: &handshake )
+		sendAuth( client, key: key, handshake: &handshake, pairing: true )
 		handshakes[client] = handshake
 		setPairing( client, .finishing )
 	}

@@ -490,10 +490,11 @@ final class DeckController {
 			guard page < from.pages.count else { return }
 			recordUndo( device: destination, "Copy Page" )
 			let current = config.settings.devices[index].currentPage
-			config.settings.devices[index].pages[current] = from.pages[page]
-			// With the menus its keys open; the ones nothing opens are dropped again (reconcileMenus).
-			let known = Set( config.settings.devices[index].menus.map( \.id ) )
-			config.settings.devices[index].menus += from.menus.filter { !known.contains( $0.id ) }
+			// With copies of the menus its keys open, so they don't share them with the page
+			// they came from (DeviceSettings.copyingMenus).
+			var copied = [ from.pages[page] ]
+			config.settings.devices[index].menus += DeviceSettings.copyingMenus( of: &copied, from: from.menus )
+			config.settings.devices[index].pages[current] = copied[0]
 		} else {
 			recordUndo( device: destination, "Copy Keys" )
 			config.settings.devices[index].copyPages( from: from )
@@ -563,6 +564,10 @@ final class DeckController {
 	/// DeckController+Transfer): forgets every connection and what it knew about the old
 	/// bridge, and starts again as the new one, without relaunching.
 	func restartAsReplacedBridge() {
+		// Undo steps belong to the settings just replaced: undoing one would write the old keys
+		// over a device of the same ID, naming icons the replacement deleted.
+		undoManager?.removeAllActions()
+		config.iconsKeptForUndo = []
 		server.stop()   // drops every client; clientDisconnected tidies up after each
 		for request in storageEncryptionRequests.values {
 			request.timeout.cancel()
@@ -1007,11 +1012,14 @@ final class DeckController {
 	func adoptDevice( _ hello: DeviceHello, from client: ClientID, handshakeTraffic: [TrafficEntry] = [] ) {
 		print( "[DeckController] hello from \(hello.name) (\(hello.id)): firmware \(hello.firmware), \(hello.cached.count) cached images" )
 
-		// A reconnecting device replaces its old connection.
+		// A reconnecting device replaces its old connection. That connection's disconnect finds
+		// no device (it's unmapped first), so a Level key it was repeating on the Mac stops here,
+		// rather than stepping the light for up to a minute with no key up to come.
 		for ( other, id ) in clientDevices where id == hello.id && other != client {
 			clientDevices[other] = nil
 			server.drop( other )
 		}
+		stopSliders( device: hello.id )   // `pressed` is cleared below, whatever the connection
 		clientDevices[client] = hello.id
 
 		if config.settings.deviceIndex( hello.id ) == nil {

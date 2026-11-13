@@ -38,11 +38,31 @@ struct KeyInspectorView: View {
 	}
 
 	var body: some View {
-		// In a menu: the menu's settings or the key's, under Menu | Key.
-		if let menu = controller.openMenu( device: deviceID ) {
-			MenuInspector( controller: controller, deviceID: deviceID, key: key, menu: menu ) { keyForm }
-		} else {
-			keyForm
+		Group {
+			// In a menu: the menu's settings or the key's, under Menu | Key.
+			if let menu = controller.openMenu( device: deviceID ) {
+				MenuInspector( controller: controller, deviceID: deviceID, key: key, menu: menu ) { keyForm }
+			} else {
+				keyForm
+			}
+		}
+		// Here, not on the Clear Key button or the key's form: rows scrolled out of view aren't
+		// built, and with a menu open its Menu tab hides the form, so the Delete key (Edit ▸
+		// Clear Key) got no dialog until the button or the Key tab came into view.
+		.confirmationDialog( "Clear Key \(key + 1)?", isPresented: confirmingClear, titleVisibility: .visible ) {
+			if let partner = assignment.slider?.partner {
+				Button( "Clear Both Level Keys", role: .destructive ) { controller.clear( device: deviceID, key: key ) }
+				Button( "Clear Key \(key + 1) Only", role: .destructive ) { controller.clear( device: deviceID, key: key, keepingPartner: true ) }
+					.help( "Key \(partner + 1) stays, as an ordinary key" )
+			} else {
+				Button( "Clear Key", role: .destructive ) { controller.clear( device: deviceID, key: key ) }
+			}
+		} message: {
+			if let partner = assignment.slider?.partner {
+				Text( "This will remove the key's accessory, action, label, background color, and icons. It's one of a pair of Level keys with Key \(partner + 1), which can be cleared too, or kept as an ordinary key." )
+			} else {
+				Text( "This will remove the key's accessory, action, label, background color, and icons." )
+			}
 		}
 	}
 
@@ -281,23 +301,6 @@ struct KeyInspectorView: View {
 			}
 		}
 		.formStyle( .grouped )
-		// On the form, not the Clear Key button: rows scrolled out of view aren't built, and
-		// the Delete key (Edit ▸ Clear Key) then got no dialog until the button came into view.
-		.confirmationDialog( "Clear Key \(key + 1)?", isPresented: confirmingClear ) {
-			if let partner = assignment.slider?.partner {
-				Button( "Clear Both Level Keys", role: .destructive ) { controller.clear( device: deviceID, key: key ) }
-				Button( "Clear Key \(key + 1) Only", role: .destructive ) { controller.clear( device: deviceID, key: key, keepingPartner: true ) }
-					.help( "Key \(partner + 1) stays, as an ordinary key" )
-			} else {
-				Button( "Clear Key", role: .destructive ) { controller.clear( device: deviceID, key: key ) }
-			}
-		} message: {
-			if let partner = assignment.slider?.partner {
-				Text( "This will remove the key's accessory, action, label, background color, and icons. It's one of a pair of Level keys with Key \(partner + 1), which can be cleared too, or kept as an ordinary key." )
-			} else {
-				Text( "This will remove the key's accessory, action, label, background color, and icons." )
-			}
-		}
 		.onChange( of: key ) { choosingPartner = false }
 		.onChange( of: assignment.slider != nil ) { if assignment.slider != nil { choosingPartner = false } }
 	}

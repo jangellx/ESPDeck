@@ -385,6 +385,10 @@ final class HomeObserver: NSObject {
 			activate = explicit
 		} else if kind == .garageDoor && keyState == .stopped {
 			activate = !( doorWasOpening[ref] ?? true )   // reverse; closing if we never saw it move
+		} else if kind == .garageDoor && keyState == .unknown {
+			// Not read yet (just launched, or its bridge is offline): close, never open, a door
+			// whose state isn't known. A lock already locks (unknown counts as unlocked).
+			activate = false
 		} else {
 			activate = !kind.isActive( keyState )
 		}

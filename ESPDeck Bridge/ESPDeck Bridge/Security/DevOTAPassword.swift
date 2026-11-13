@@ -55,61 +55,25 @@ nonisolated enum DevOTAPassword {
 	private static let service = "ESPDeck Bridge developer password"
 	private static let account = "PlatformIO uploads"
 
+	/// Where it's kept: the same Keychain access as the pairing keys (KeychainItem). It used to
+	/// have its own copy, which deleted "the login keychain's copy" after storing and so lost
+	/// the password at every launch: in this app both keychains are the same one.
+	private static let item = KeychainItem( service: service, account: account )
+
 	/// This Mac's password, if it has one yet.
 	static func stored() -> String? {
-		for dataProtection in [ true, false ] {
-			var query = base( dataProtection: dataProtection )
-			query[kSecReturnData as String] = true
-			query[kSecMatchLimit as String] = kSecMatchLimitOne
-			var result: AnyObject?
-			if SecItemCopyMatching( query as CFDictionary, &result ) == errSecSuccess, let data = result as? Data {
-				return String( decoding: data, as: UTF8.self )
-			}
-		}
-		return nil
+		item.read().map { String( decoding: $0, as: UTF8.self ) }
 	}
 
 	/// Replaces this Mac's password in place (or adds it), so the old one is never gone before
-	/// the new one is stored. The data-protection keychain when the app's signing allows it,
-	/// else the login keychain, as for the pairing keys.
+	/// the new one is stored, and checks it reads back.
 	@discardableResult
 	static func store( _ password: String ) -> Bool {
-		let data = Data( password.utf8 )
-		for dataProtection in [ true, false ] {
-			let query  = base( dataProtection: dataProtection )
-			var status = SecItemUpdate( query as CFDictionary, [ kSecValueData as String: data ] as CFDictionary )
-			if status == errSecItemNotFound {
-				var item = query
-				item[kSecValueData as String]      = data
-				item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-				item[kSecAttrLabel as String]      = "ESPDeck developer password"
-				status = SecItemAdd( item as CFDictionary, nil )
-			}
-			if status == errSecSuccess {
-				if dataProtection {
-					SecItemDelete( base( dataProtection: false ) as CFDictionary )   // an older, stale copy
-				}
-				return true
-			}
-			print( "[DevOTAPassword] Storing in the \(dataProtection ? "data-protection" : "login") keychain failed: \(status)" )
-		}
-		return false
+		item.store( Data( password.utf8 ), label: "ESPDeck developer password", logTag: "DevOTAPassword" )
 	}
 
 	/// This Mac no longer has a password: moving the bridge away, or importing one without.
 	static func delete() {
-		for dataProtection in [ true, false ] {
-			SecItemDelete( base( dataProtection: dataProtection ) as CFDictionary )
-		}
-	}
-
-	/// The password's query in one keychain.
-	private static func base( dataProtection: Bool ) -> [String: Any] {
-		[
-			kSecClass as String:                     kSecClassGenericPassword,
-			kSecAttrService as String:               service,
-			kSecAttrAccount as String:               account,
-			kSecUseDataProtectionKeychain as String: dataProtection,
-		]
+		item.delete()
 	}
 }

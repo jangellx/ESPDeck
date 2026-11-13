@@ -115,6 +115,10 @@ struct SliderKey: Codable, Equatable {
 		level          = try container.decode( SliderLevel.self, forKey: .level )
 		raises         = try container.decode( Bool.self, forKey: .raises )
 		partner        = try container.decode( Int.self, forKey: .partner )
+		// A negative partner would index keys[-1] at the next edit; such a key has no slider.
+		guard partner >= 0 else {
+			throw DecodingError.dataCorruptedError( forKey: .partner, in: container, debugDescription: "Negative partner \(partner)" )
+		}
 		step           = container.lenient( Double.self, forKey: .step ) ?? SliderLevel.defaultStep
 		style          = container.lenient( SliderStyle.self, forKey: .style ) ?? .chevron
 		labelsFacing   = container.lenient( Bool.self, forKey: .labelsFacing ) ?? true

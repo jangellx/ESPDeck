@@ -12,13 +12,18 @@ struct Version: Comparable, CustomStringConvertible {
 	let parts: [Int]
 
 	/// "1.2.3", "v1.2.3" or "firmware-v1.2.3"; anything after a "-" in the version itself
-	/// (like "-beta") is ignored.
+	/// (like "-beta") is ignored. Nil unless every dotted part is a number: a version read
+	/// wrongly could let older firmware past the check that guards encrypted storage.
 	init?( _ string: String ) {
-		let trimmed = string.split( separator: "v" ).last.map( String.init ) ?? string
-		let core    = trimmed.split( separator: "-" ).first.map( String.init ) ?? trimmed
-		let parts   = core.split( separator: "." ).compactMap { Int( $0 ) }
-		guard !parts.isEmpty else { return nil }
-		self.parts = parts
+		var rest = Substring( string )
+		if rest.hasPrefix( "firmware-" ) { rest = rest.dropFirst( "firmware-".count ) }
+		if rest.hasPrefix( "v" ) { rest = rest.dropFirst() }
+		let core  = rest.prefix { $0 != "-" }
+		let parts = core.split( separator: ".", omittingEmptySubsequences: false ).map { part in
+			part.allSatisfy( \.isASCII ) ? Int( part ) : nil
+		}
+		guard !parts.isEmpty, !parts.contains( nil ) else { return nil }
+		self.parts = parts.compactMap { $0 }
 	}
 
 	/// Part by part; a missing part counts as 0, so 4.1 equals 4.1.0.

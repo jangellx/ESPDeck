@@ -70,16 +70,19 @@ struct DeckLayout: Codable, Equatable {
 }
 
 extension DeckLayout {
-	/// Field by field; anything missing or implausible is the Mini's.
+	/// Field by field; anything missing or implausible is the Mini's. The ranges are the ones a
+	/// deck's report must fit (DeckInfo): a settings file or imported bridge with a huge grid
+	/// would otherwise hang the app at launch, laying out billions of keys.
 	init( from decoder: Decoder ) throws {
 		let container = try decoder.container( keyedBy: CodingKeys.self )
 		let mini      = DeckLayout.mini
 		model         = container.lenient( String.self, forKey: .model ) ?? mini.model
-		rows          = container.lenient( Int.self, forKey: .rows ).flatMap { $0 > 0 ? $0 : nil } ?? mini.rows
-		cols          = container.lenient( Int.self, forKey: .cols ).flatMap { $0 > 0 ? $0 : nil } ?? mini.cols
-		keySize       = container.lenient( Int.self, forKey: .keySize ).flatMap { $0 > 0 ? $0 : nil } ?? mini.keySize
+		rows          = container.lenient( Int.self, forKey: .rows ).flatMap { DeckInfo.rowRange.contains( $0 ) ? $0 : nil } ?? mini.rows
+		cols          = container.lenient( Int.self, forKey: .cols ).flatMap { DeckInfo.columnRange.contains( $0 ) ? $0 : nil } ?? mini.cols
+		keySize       = container.lenient( Int.self, forKey: .keySize ).flatMap { DeckInfo.keySizeRange.contains( $0 ) ? $0 : nil } ?? mini.keySize
 		format        = container.lenient( KeyImageFormat.self, forKey: .format ) ?? mini.format
 		transform     = container.lenient( KeyTransform.self, forKey: .transform ) ?? mini.transform
+		imageLimit    = container.lenient( Int.self, forKey: .imageLimit ).flatMap { $0 > 0 ? $0 : nil }
 	}
 }
 
@@ -443,6 +446,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 
 	/// The key a grid place is on `layout`, if it shows it.
 	static func displayIndex( _ grid: Int, layout: DeckLayout ) -> Int? {
+		guard grid >= 0 else { return nil }
 		let row = grid / gridColumns, col = grid % gridColumns
 		guard row < layout.rows, col < layout.cols else { return nil }
 		return row * layout.cols + col
@@ -523,11 +527,14 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		index < keys.count ? keys[index] : KeyAssignment()
 	}
 
-	/// Takes every page from `source`, and the page it shows.
+	/// Takes every page from `source`, and the page it shows. From another deck, its menus come
+	/// as copies with new IDs (see copyingMenus); a snapshot of this deck keeps its own, so
+	/// shortcuts that open them keep working.
 	mutating func copyPages( from source: DeviceSettings ) {
-		pages       = source.pages.isEmpty ? [ [] ] : source.pages
+		var copied  = source.pages.isEmpty ? [ [] ] : source.pages
+		menus       = source.id == id ? source.menus : Self.copyingMenus( of: &copied, from: source.menus )
+		pages       = copied
 		currentPage = min( source.currentPage, max( source.pages.count - 1, 0 ) )
-		menus       = source.menus
 		openMenu    = nil
 	}
 }
