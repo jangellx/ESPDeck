@@ -18,6 +18,11 @@ nonisolated extension ESPLoader {
 	static func install( port path: String, regions: [Region], minimumFlashSize: Int, identified: @escaping @Sendable ( String ) -> Void,
 						 progress: @escaping @Sendable ( String, Double ) -> Void ) -> ( String?, String ) {
 		var path = path
+		// Open until the end, so a failure can still restart the board, and whether flash was
+		// touched decides what that failure means.
+		var loader: ESPLoader?
+		var writing = false
+		defer { loader?.close() }
 		do {
 			guard var info = SerialPortInfo.named( path ) else {
 				throw Failure.message( "The board isn't connected anymore." )
@@ -36,32 +41,37 @@ nonisolated extension ESPLoader {
 			}
 
 			progress( "Connecting to the board…", 0 )
-			let loader = try ESPLoader( path: path, link: link )
-			defer { loader.close() }
-			try loader.connect()
-			let chip = try loader.checkChip()
+			let opened = try ESPLoader( path: path, link: link )
+			loader = opened
+			try opened.connect()
+			let chip = try opened.checkChip()
 			print( "[MenuBar] Installing firmware on \(chip) at \(path)" )
-			try loader.disableWatchdogs()
-			if try !loader.speedUp() {
-				try loader.connect()
-				_ = try loader.checkChip()
+			try opened.disableWatchdogs()
+			if try !opened.speedUp() {
+				try opened.connect()
+				_ = try opened.checkChip()
 			}
-			try loader.attachFlash( size: nil )
-			let flash = flashSize( jedecID: try loader.flashID() )
-			let psram = try loader.embeddedPSRAM()
+			try opened.attachFlash( size: nil )
+			let flash = flashSize( jedecID: try opened.flashID() )
+			let psram = try opened.embeddedPSRAM()
 			identified( describe( flash: flash, psram: psram ) )
 			if let problem = compatibilityProblem( flash: flash, psram: psram, minimumFlashSize: minimumFlashSize ) {
-				loader.restart()   // back to what it was running; nothing was written
-				throw Failure.message( problem )
+				throw Failure.message( problem )   // restarted below; nothing was written
 			}
-			try loader.attachFlash( size: flash ?? flashSize( regions ) )
-			try loader.write( regions, progress: progress )
+			try opened.attachFlash( size: flash ?? flashSize( regions ) )
+			writing = true
+			try opened.write( regions, progress: progress )
 			progress( "Restarting…", 1 )
-			loader.restart()
+			opened.restart()
 			return ( nil, path )
-		} catch is CancellationError {
-			return ( "Installing stopped partway. Install again before using the board.", path )
 		} catch {
+			// Nothing written yet: back to the firmware it was running, rather than left in its
+			// bootloader while USB Setup waits for it to restart.
+			if !writing { loader?.restart() }
+			if error is CancellationError {
+				return ( writing ? "Installing stopped partway. Install again before using the board."
+								 : "Installing was canceled before anything was written. The board is restarting into its old firmware.", path )
+			}
 			return ( error.localizedDescription, path )
 		}
 	}

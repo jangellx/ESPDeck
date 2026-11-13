@@ -59,7 +59,10 @@ nonisolated final class SerialPort {
 			guard tcsetattr( descriptor, TCSANOW, &options ) == 0 else { throw Failure.system( "tcsetattr", errno ) }
 			try setBaudRate( baudRate )
 		} catch {
-			Darwin.close( descriptor )
+			// close(), not Darwin.close: it also resets `descriptor`, so deinit (which runs when
+			// an init throws here) doesn't close the number again, after something else may
+			// have been given it.
+			close()
 			throw error
 		}
 	}
