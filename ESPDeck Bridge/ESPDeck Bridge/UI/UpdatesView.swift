@@ -36,7 +36,7 @@ struct UpdatesView: View {
 				Picker( "New Firmware", selection: Bindable( updates ).firmwarePolicy ) {
 					ForEach( UpdatePolicy.allCases ) { Text( $0.title ).tag( $0 ) }
 				}
-				ForEach( controller.devices.filter { controller.settings( $0.id )?.isDemo != true } ) { device in
+				ForEach( controller.devices.filter { controller.settings( $0.id ).map { !$0.isDemo && !$0.isDock } == true } ) { device in
 					FirmwareRow( controller: controller, device: device )
 				}
 			} header: {

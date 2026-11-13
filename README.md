@@ -30,6 +30,7 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 - **[Setting up a deck](docs/setup.md)**: installing the firmware, setup mode, pairing, and encrypting what the deck stores.
 - **[The Mac app](docs/mac-app.md)**: building and running ESPDeck Bridge, its pages and menus, Shortcuts, updates, and moving to another Mac.
 - **[ESPDeck actions in Shortcuts](docs/shortcuts.md)**: the actions ESPDeck Bridge adds to the Shortcuts app, with examples and what their errors mean.
+- **[Network Docks](docs/network-docks.md)**: using a Stream Deck through an Elgato Network Dock instead of an ESP32 (experimental).
 - **[Version history](docs/version-history.md)**: what changed in each version of the Mac app.
 - **[FAQ](docs/faq.md)**: which Stream Decks work, why it's a Catalyst app, what to check when Shortcuts fail or a deck won't connect.
 - **[Development](docs/development.md)**: firmware releases and their signing, uploading from PlatformIO, the tests, and notes on the hardware.

@@ -143,9 +143,13 @@ struct DeviceSettingsView: View {
 				}
 				.alignmentGuide( .listRowSeparatorLeading ) { _ in 0 }
 				LabeledContent( "Stream Deck", value: deckDescription( settings, device ) )
-				FirmwareRow( controller: controller, device: device, title: "Firmware" )
-				NetworkNameRow( controller: controller, device: device, settings: settings )
-				LabeledContent( "MAC Address", value: deviceID )
+				if settings.isDock {
+					LabeledContent( "Network Dock", value: dockDescription( device ) )
+				} else {
+					FirmwareRow( controller: controller, device: device, title: "Firmware" )
+					NetworkNameRow( controller: controller, device: device, settings: settings )
+					LabeledContent( "MAC Address", value: deviceID )
+				}
 				if let ip = device.ip, online {
 					LabeledContent( "IP Address", value: ip )
 				}
@@ -245,15 +249,17 @@ struct DeviceSettingsView: View {
 							footer: "Runs whenever the deck wakes, whatever woke it." )
 
 			Section {
-				HStack {
-					if device.status.setupMode {
-						Button( "Exit Setup Mode" ) { controller.setSetupMode( device: deviceID, false ) }
-					} else {
-						Button( "Enter Setup Mode" ) { controller.setSetupMode( device: deviceID, true ) }
-							.disabled( !online )
+				if !settings.isDock {
+					HStack {
+						if device.status.setupMode {
+							Button( "Exit Setup Mode" ) { controller.setSetupMode( device: deviceID, false ) }
+						} else {
+							Button( "Enter Setup Mode" ) { controller.setSetupMode( device: deviceID, true ) }
+								.disabled( !online )
+						}
+						InfoButton( help: "About setup mode",
+									text: "Setup mode shows QR codes on the deck for joining the device's own Wi-Fi network and opening its setup page, where you can change its Wi-Fi network and name. You can also enter it by holding the top-left and bottom-right keys for 5 seconds." )
 					}
-					InfoButton( help: "About setup mode",
-								text: "Setup mode shows QR codes on the deck for joining the device's own Wi-Fi network and opening its setup page, where you can change its Wi-Fi network and name. You can also enter it by holding the top-left and bottom-right keys for 5 seconds." )
 				}
 				HStack {
 					Button( "Copy From Deck…" ) { copyingDeck = true }
@@ -280,29 +286,38 @@ struct DeviceSettingsView: View {
 					InfoButton( help: "About Clear All Keys",
 								text: "Clear All Keys empties every key on every page of this deck and leaves one blank page. Its name, Wi-Fi network, pairing and other settings stay as they are, and Edit ▸ Undo brings the keys back." )
 				}
-				HStack {
-					Button( "Factory Reset Device…", role: .destructive ) { confirmingReset = true }
-						.disabled( !online )
-					InfoButton( help: "About Factory Reset",
-								text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It will restart in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again, it will get back its own settings, or it can be restored to another deck's settings." )
+				if !settings.isDock {
+					HStack {
+						Button( "Factory Reset Device…", role: .destructive ) { confirmingReset = true }
+							.disabled( !online )
+						InfoButton( help: "About Factory Reset",
+									text: "Factory Reset erases the device itself: its Wi-Fi settings, name, pairing and stored key images. It will restart in setup mode as if new. Its key layout stays in ESPDeck Bridge, and once you set it up and pair it again, it will get back its own settings, or it can be restored to another deck's settings." )
+					}
 				}
 				HStack {
 					Button( "Forget Device…", role: .destructive ) { controller.window.confirmingForget = true }
 						.confirmationDialog( "Forget \(settings.name)?", isPresented: confirmingForget ) {
 							Button( "Forget Device", role: .destructive ) { controller.forget( device: deviceID ) }
 						} message: {
-							Text( "This will remove its key assignments and settings from ESPDeck Bridge. If it connects again, it will appear as a new device." )
+							Text( settings.isDock
+								  ? "This will remove its key assignments and settings from ESPDeck Bridge, and disconnect from the dock. It can be added again from the Network Docks page."
+								  : "This will remove its key assignments and settings from ESPDeck Bridge. If it connects again, it will appear as a new device." )
 						}
 					InfoButton( help: "About Forget Device",
-								text: "Forget Device removes it from ESPDeck Bridge, with its key assignments and settings, and unpairs it, but leaves its Wi-Fi settings alone. If it connects again, it will appear as a new device." )
+								text: settings.isDock
+									? "Forget Device removes the dock from ESPDeck Bridge, with its key assignments and settings, and disconnects from it, so Elgato's app can use it. It stays on the Network Docks page, where it can be added again."
+									: "Forget Device removes it from ESPDeck Bridge, with its key assignments and settings, and unpairs it, but leaves its Wi-Fi settings alone. If it connects again, it will appear as a new device." )
 				}
 			}
 
-			SecuritySection( controller: controller, device: device, confirming: $confirmingEncrypt )
+			// An ESP32's own: a Network Dock has none of these.
+			if !settings.isDock {
+				SecuritySection( controller: controller, device: device, confirming: $confirmingEncrypt )
 
-			DeveloperSection( controller: controller, device: device )
+				DeveloperSection( controller: controller, device: device )
 
-			StatusLightSection()
+				StatusLightSection()
+			}
 		}
 		.formStyle( .grouped )
 		// Here rather than on a button: a Form only builds the rows on screen, and the offer
@@ -333,6 +348,13 @@ struct DeviceSettingsView: View {
 		if let serial = device.deck.serial, !serial.isEmpty { parts.append( serial ) }
 		if let firmware = device.deck.firmware, !firmware.isEmpty { parts.append( "firmware \(firmware)" ) }
 		return parts.joined( separator: " · " )
+	}
+
+	/// A Network Dock's serial number and firmware.
+	private func dockDescription( _ device: DeckDevice ) -> String {
+		let serial = deviceID.hasPrefix( "dock-" ) ? String( deviceID.dropFirst( 5 ) ).uppercased() : deviceID
+		guard let firmware = device.firmware, device.isOnline else { return serial }
+		return "\(serial) · firmware \(firmware)"
 	}
 
 	/// The network it's set up for (never its password, which stays on the device).

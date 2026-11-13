@@ -18,6 +18,12 @@ final class DeckController {
 	let server = DeckServer()
 	@ObservationIgnored private(set) lazy var updates  = UpdateManager( controller: self )
 	@ObservationIgnored private(set) lazy var usbSetup = USBSetup( controller: self )
+	/// Network Docks on the network (experimental; DeckController+Docks.swift).
+	let dockBrowser = DockBrowser()
+	/// Whether ESPDeck Bridge looks for Network Docks and connects to the ones added.
+	var networkDocksEnabled = UserDefaults.standard.bool( forKey: DeckController.networkDocksDefault )
+	/// Each added dock's connection, by device ID, while docks are turned on.
+	@ObservationIgnored var dockDecks: [String: DockDeck] = [:]
 
 	/// One per configured device, in the same order as `config.settings.devices`.
 	private(set) var devices   : [DeckDevice] = []
@@ -140,6 +146,7 @@ final class DeckController {
 			self?.handle( message, from: client, payload: payload )
 		}
 		server.start( bridgeID: config.settings.bridgeID )
+		startNetworkDocks()
 		Task.detached { [weak self] in
 			let name = ProcessInfo.processInfo.hostName   // can wait on DNS
 			await MainActor.run { self?.hostName = name }
@@ -557,6 +564,15 @@ final class DeckController {
 		devices.removeAll { $0.id == id }
 		config.removeUnusedIcons()
 		assignmentsChanged()
+		syncDocks()
+	}
+
+	/// Adds a device that hasn't connected yet (a Network Dock, say), with its settings.
+	func addDevice( _ settings: DeviceSettings ) {
+		guard config.settings.deviceIndex( settings.id ) == nil else { return }
+		config.settings.devices.append( settings )
+		devices.append( DeckDevice( id: settings.id ) )
+		assignmentsChanged()
 	}
 
 	/// After the settings and Keychain were replaced with another bridge (see
@@ -595,6 +611,7 @@ final class DeckController {
 		}
 		assignmentsChanged()
 		server.start( bridgeID: config.settings.bridgeID )
+		syncDocks()
 	}
 
 	/// Changes a device's settings without re-rendering or undo: what the device reported, or
@@ -888,6 +905,11 @@ final class DeckController {
 			return
 		}
 		if case .hello( let hello ) = message {
+			// A Network Dock's session starts with its hello: it's on this Mac, with nothing to authenticate.
+			if clientDevices[client] == nil, server.isDock( client ) {
+				adoptDevice( hello, from: client )
+				return
+			}
 			// A resync inside the session, which can't change who the device is.
 			guard hello.id == clientDevices[client] else {
 				print( "[DeckController] A hello inside the session claimed another ID (\(hello.id)); closing" )
@@ -1441,6 +1463,7 @@ final class DeckController {
 	/// For a device that isn't working normally: what's wrong and how to fix it.
 	func statusExplanation( device: DeckDevice ) -> String? {
 		if settings( device.id )?.isDemo == true { return nil }
+		if settings( device.id )?.isDock == true { return dockExplanation( device ) }
 		if !device.isOnline, let stuck = stuckConnection( for: device.id ) {
 			var text = "The deck is on the network and connected to this Mac, but can't be used. " + stuck.reason.explanation
 			if let steps = stuck.reason.steps { text += "\n\n" + steps }

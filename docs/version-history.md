@@ -17,6 +17,10 @@ Not released yet.
 - VoiceOver can now choose the rows of the menu bar menu, and names buttons that showed only an icon, such as the page numbers, zoom and the password's Show button.
 - With Reduce Motion on, the problem bar fades in rather than sliding, the sidebar jumps to a problem, the status light examples hold still, and pressed keys don't shrink.
 
+### Network Docks (experimental)
+
+- ESPDeck Bridge can drive a Stream Deck plugged into an Elgato Stream Deck Network Dock, with no ESP32. Turn it on from the new Network Docks page, which lists the docks on the network. It hasn't been tried with a real dock yet. See [Network Docks](network-docks.md).
+
 ### Other changes
 
 - **Cut Key** (⌘X) copies a key and clears it, so a key can be moved by pasting it, even to another page.

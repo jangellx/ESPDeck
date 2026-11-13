@@ -63,6 +63,7 @@ This section holds the pages that belong to the app and not to any one deck. The
 
 - **Getting Started** has the parts list and the setup steps. The window opens here while there are no decks.
 - **USB Setup** installs firmware on a board plugged into the Mac. Its badge counts the boards it has found.
+- **Network Docks** (experimental) finds Elgato Stream Deck Network Docks on the network and adds them as decks, with no ESP32. Its badge counts the docks found that aren't added yet. See [Network Docks](network-docks.md).
 - **Firmware Updates** shows firmware releases for the decks and installs them. The app itself is updated by the Mac App Store.
 - **About** has the version, the requirements, exporting and importing the bridge, the license and the acknowledgments.
 

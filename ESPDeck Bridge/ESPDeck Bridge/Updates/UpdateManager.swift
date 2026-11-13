@@ -72,9 +72,10 @@ final class UpdateManager {
 		Bundle.main.object( forInfoDictionaryKey: "CFBundleShortVersionString" ) as? String ?? "0"
 	}
 
-	/// Whether the latest release is newer than what the device runs.
+	/// Whether the latest release is newer than what the device runs. Never for a Network
+	/// Dock, whose firmware is Elgato's.
 	func firmwareUpdateAvailable( for device: DeckDevice ) -> Bool {
-		guard let latest = latestFirmware?.version, let running = device.firmware.flatMap( Version.init ) else { return false }
+		guard controller?.isDock( device.id ) != true, let latest = latestFirmware?.version, let running = device.firmware.flatMap( Version.init ) else { return false }
 		return running < latest
 	}
 

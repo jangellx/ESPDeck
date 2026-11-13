@@ -175,6 +175,12 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	var hostname      : String?
 	/// When it last had a session with this bridge.
 	var lastSeen      : Date?
+	/// A Stream Deck Network Dock's Bonjour service name, for a dock rather than an ESP32
+	/// (experimental; DockDeck).
+	var dockService   : String?
+
+	/// A Network Dock rather than an ESP32.
+	var isDock: Bool { dockService != nil }
 
 	init( id: String, name: String ) {
 		self.id   = id
@@ -216,6 +222,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		onWake        = container.lenient( KeyAssignment.self, forKey: .onWake ) ?? KeyAssignment()
 		hostname      = container.lenient( String.self, forKey: .hostname )
 		lastSeen      = container.lenient( Date.self, forKey: .lastSeen )
+		dockService   = container.lenient( String.self, forKey: .dockService )
 		if name.isEmpty { name = defaultName }
 	}
 
@@ -259,7 +266,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 	private enum CodingKeys: String, CodingKey {
 		case id, name, isDemo, pages, menus, gridColumns, currentPage, layout, brightness, orientation, sleepTimeout, devOTA, labelPosition
 		case repeatDelay, repeatRate, doubleTapWindow, holdTime, sleepTriggers, onSleep, onWake
-		case hostname, lastSeen
+		case hostname, lastSeen, dockService
 		case keys   // before pages
 	}
 
@@ -287,6 +294,7 @@ struct DeviceSettings: Codable, Equatable, Identifiable {
 		try container.encode( onWake, forKey: .onWake )
 		try container.encodeIfPresent( hostname, forKey: .hostname )
 		try container.encodeIfPresent( lastSeen, forKey: .lastSeen )
+		try container.encodeIfPresent( dockService, forKey: .dockService )
 	}
 
 	/// A page whose unreadable keys become empty ones (see lenientArray(of:forKey:placeholder:)).

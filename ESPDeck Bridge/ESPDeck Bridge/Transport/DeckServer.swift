@@ -11,6 +11,8 @@
 //  hello and to finish the handshake, and how large and how frequent their frames are.
 //  Network callbacks are delivered on the main queue, so each one asserts main-actor
 //  isolation.
+//  Network Docks (DockDeck) are connections too, without a socket here: see
+//  DeckServer+Docks.swift.
 //
 
 import Foundation
@@ -99,6 +101,8 @@ final class DeckServer {
 	@ObservationIgnored private var clients     : [ClientID: Client] = [:]
 	@ObservationIgnored private var restartTask : Task<Void, Never>?
 	@ObservationIgnored private var sweepTask   : Task<Void, Never>?
+	/// Network Docks' sessions, as connections (DeckServer+Docks.swift).
+	@ObservationIgnored var dockSessions        : [ClientID: DockDeck] = [:]
 
 	/// Advertised in the Bonjour TXT record so paired devices find their own bridge.
 	@ObservationIgnored private var bridgeID = ""
@@ -162,7 +166,7 @@ final class DeckServer {
 		listener = nil
 		candidates    = []
 		listeningPort = nil
-		for id in Array( clients.keys ) {
+		for id in Array( clients.keys ) + Array( dockSessions.keys ) {
 			drop( id )
 		}
 		listenerState = .stopped
@@ -170,12 +174,12 @@ final class DeckServer {
 
 	/// The client's address, once its connection is ready.
 	func endpoint( of client: ClientID ) -> String? {
-		clients[client]?.endpoint
+		clients[client]?.endpoint ?? dockSessions[client]?.address
 	}
 
 	/// Whether the client has a session: only then does anything but the handshake pass.
 	func isAuthenticated( _ client: ClientID ) -> Bool {
-		clients[client]?.session != nil
+		clients[client]?.session != nil || dockSessions[client] != nil
 	}
 
 	/// Switches a client to MAC'd frames with session key `key`.
@@ -295,6 +299,7 @@ final class DeckServer {
 
 	/// Closes a client's connection, e.g. an older one from a device that reconnected.
 	func drop( _ id: ClientID ) {
+		if dropDock( id ) { return }
 		guard let client = clients.removeValue( forKey: id ) else { return }
 		client.connection.stateUpdateHandler = nil
 		client.connection.cancel()
@@ -431,6 +436,11 @@ final class DeckServer {
 	/// Sends a control message; outside a session, only handshake messages go.
 	func send( _ message: HostMessage, to id: ClientID ) {
 		guard let data = try? JSONEncoder().encode( message ) else { return }
+		if let dock = dockSessions[id] {
+			onTraffic?( id, .frame( json: data, direction: .sent ) )
+			dock.receive( message )
+			return
+		}
 		guard message.isHandshake || isAuthenticated( id ) else {
 			print( "[DeckServer] Not sending \(String( decoding: data.prefix( 40 ), as: UTF8.self )) before authentication" )
 			return
@@ -454,6 +464,11 @@ final class DeckServer {
 	/// `keys`: the keys it's for (from 0), for the log; the frame itself only carries the hash.
 	func sendImage( hash: String, image: Data, keys: [Int] = [], to id: ClientID ) {
 		guard isAuthenticated( id ), let frame = HostMessage.imageFrame( hash: hash, image: image ) else { return }
+		if let dock = dockSessions[id] {
+			onTraffic?( id, .frame( binary: frame, imageKeys: keys ) )
+			dock.receiveImage( image, hash: hash )
+			return
+		}
 		send( frame, opcode: .binary, to: id, entry: .frame( binary: frame, imageKeys: keys ) )
 	}
 

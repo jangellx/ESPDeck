@@ -418,9 +418,10 @@ extension DeckController {
 	/// moment the key comes up, whatever the network does; older firmware leaves it to the Mac.
 	static let deviceRepeatFirmware = Version( "4.1.0" )!
 
-	/// Whether the device's firmware repeats held keys itself.
+	/// Whether the device's firmware repeats held keys itself. A Network Dock's DockDeck does.
 	func repeatsOnDevice( _ device: DeckDevice ) -> Bool {
-		device.firmware.flatMap( Version.init ).map { $0 >= Self.deviceRepeatFirmware } ?? false
+		if isDock( device.id ) { return true }
+		return device.firmware.flatMap( Version.init ).map { $0 >= Self.deviceRepeatFirmware } ?? false
 	}
 
 	/// Tells the device how the keys on the page it shows report presses (which repeat, which

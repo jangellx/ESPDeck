@@ -19,6 +19,7 @@ enum SidebarItem {
 	static let updates   = "app:updates"
 	static let parts     = "app:parts"
 	static let about     = "app:about"
+	static let docks     = "app:docks"
 	static let newPrefix = "new:"
 
 	/// The selection for a new device, by its connection.
@@ -77,6 +78,8 @@ struct ConfigurationView: View {
 				PartsView( controller: controller, selection: selection )
 			} else if window.selection == SidebarItem.about {
 				AboutView( controller: controller )
+			} else if window.selection == SidebarItem.docks {
+				NetworkDocksView( controller: controller )
 			} else if let item = window.selection, item.hasPrefix( SidebarItem.newPrefix ),
 					  let client = UUID( uuidString: String( item.dropFirst( SidebarItem.newPrefix.count ) ) ) {
 				NewDeviceView( controller: controller, client: client )
@@ -376,6 +379,25 @@ private struct Sidebar: View {
 
 				Label {
 					HStack {
+						Text( "Network Docks" )
+						// Docks found that aren't added yet.
+						let waiting = controller.networkDocksEnabled ? controller.dockBrowser.found.count { $0.serial != nil && controller.addedDock( $0 ) == nil } : 0
+						if waiting > 0 {
+							Spacer()
+							SidebarBadge( count: waiting )
+								.help( waiting == 1 ? "1 Network Dock found that isn't added" : "\(waiting) Network Docks found that aren't added" )
+								.accessibilityLabel( waiting == 1 ? "1 dock to add" : "\(waiting) docks to add" )
+						}
+					}
+					.sidebarTrailingInset()
+				} icon: {
+					Image( systemName: "network" )
+				}
+				.tag( SidebarItem.docks )
+				.environment( \.sidebarRowSelected, selection == SidebarItem.docks )
+
+				Label {
+					HStack {
 						Text( "Firmware Updates" )
 						if !controller.updates.statusItems.isEmpty {
 							Spacer()
@@ -464,7 +486,7 @@ private struct Sidebar: View {
 				.sidebarTrailingInset()
 				// Firmware, then the state.
 				// One line even when selection makes it bold: smaller, not taller.
-				Text( device.firmware.map { "\($0) · \(status.stateText)" } ?? status.stateText )
+				Text( controller.isDock( device.id ) ? "Network Dock · \(status.stateText)" : device.firmware.map { "\($0) · \(status.stateText)" } ?? status.stateText )
 					.font( .caption )
 					.foregroundStyle( .secondary )
 					.lineLimit( 1 )
