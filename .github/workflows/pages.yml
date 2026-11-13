@@ -42,7 +42,11 @@ jobs:
         run: |
           VERSION="$( python3 -c 'import json; print( json.load( open( "web/manifest.json" ) )["version"] )' )"
           mkdir -p web/firmware
-          gh release download "firmware-v$VERSION" --pattern "espdeck-firmware-$VERSION-merged.bin" --dir web/firmware --clobber
+          gh release download "firmware-v$VERSION" --pattern "espdeck-firmware-$VERSION-merged.bin" --pattern "espdeck-firmware-$VERSION-merged.bin.sha256" --dir web/firmware --clobber
+          # The installer doesn't check what it flashes, so check it here: a swapped release
+          # asset fails the deploy rather than reaching the site.
+          ( cd web/firmware && sha256sum --check --strict "espdeck-firmware-$VERSION-merged.bin.sha256" )
+          rm "web/firmware/espdeck-firmware-$VERSION-merged.bin.sha256"
           ls -l web/firmware
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

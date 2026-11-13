@@ -191,7 +191,7 @@ SOFTWARE.
 
 ## Web installer
 
-- ESP Web Tools (https://github.com/esphome/esp-web-tools), Copyright ESPHome, Apache License 2.0. The installer page in `web/` loads it from the unpkg CDN.
+- ESP Web Tools (https://github.com/esphome/esp-web-tools), Copyright ESPHome, Apache License 2.0. The installer page includes a copy of its browser build (10.5.2, from npm), with its license, in `web/install/esp-web-tools-10.5.2/`.
 
 ## ESPDeck Bridge
 

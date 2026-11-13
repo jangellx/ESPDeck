@@ -26,7 +26,9 @@
 <meta name="twitter:description" content="Install the ESPDeck firmware on an ESP32-S3 from your browser, or set it up from ESPDeck Bridge on the Mac.">
 <meta name="twitter:image" content="https://espdeck.tmproductions.com/images/og-image.png">
 <meta name="twitter:image:alt" content="A Stream Deck showing HomeKit keys, running from an ESP32-S3 dev kit, beside ESPDeck Bridge's Keys page.">
-<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<!-- Scripts only from this site: ESP Web Tools flashes the board and takes the Wi-Fi password, so it's a pinned copy here (esp-web-tools-10.5.2/, from npm, Apache 2.0), not whatever a CDN serves. -->
+<meta http-equiv="Content-Security-Policy" content="script-src 'self'">
+<script type="module" src="esp-web-tools-10.5.2/install-button.js"></script>
 <style>
 :root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2e2e7;--accent:#0a7cff;--accent-text:#fff;--warn-bg:#fff6e5;--warn:#8a5a00}
 @media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989f;--line:#2c2c2e;--accent:#3d9bff;--warn-bg:#2b2112;--warn:#f5c16c}}
