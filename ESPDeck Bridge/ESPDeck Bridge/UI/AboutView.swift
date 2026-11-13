@@ -27,6 +27,8 @@ enum Credits {
 		Credit( name: "python-elgato-streamdeck", use: "Stream Deck model layouts and USB report formats used by the firmware",
 				license: "MIT (Dean Camera)", url: URL( string: "https://github.com/abcminiuser/python-elgato-streamdeck" ),
 				text: pythonElgatoStreamDeckLicense ),
+		Credit( name: "DeckBridge", use: "Mirabox, Ajazz and Fifine deck models and USB protocol used by the firmware (experimental)",
+				license: "MIT (Lukas)", url: URL( string: "https://github.com/lukasMega/DeckBridge" ), text: deckBridgeLicense ),
 		Credit( name: "Elgato Stream Deck HID documentation", use: "Stream Deck USB protocol reference",
 				license: "Elgato", url: URL( string: "https://docs.elgato.com/streamdeck/hid/" ) ),
 		Credit( name: "ESP-IDF", use: "Firmware framework", license: "Apache License 2.0",
@@ -167,6 +169,16 @@ enum Credits {
 		LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 		OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 		SOFTWARE.
+		"""
+
+	static let deckBridgeLicense = """
+		Copyright (c) 2026 Lukas
+
+		Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+		The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+		THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 		"""
 
 	static let pythonElgatoStreamDeckLicense = """

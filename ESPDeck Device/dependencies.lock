@@ -1,6 +1,6 @@
 dependencies:
   deckkit_deck:
-    component_hash: 56dd61b6065d1c675bcb24aa8efb86436bf1154be15cf6b9f629a3e58c7c64d9
+    component_hash: 1c110921e8d935aa0ba19bf30e167da5c964ad63a8f72e02b7d46a0b5d76b5c7
     dependencies:
     - name: idf
       version: '>=5.1'
@@ -15,7 +15,7 @@ dependencies:
       git: https://github.com/jangellx/DeckKit.git
       path: components/deckkit_deck
       type: git
-    version: 994fa9b525cd051e04f3248b1a6d6976793a9350
+    version: 80a8273e9fb91f0e4dafbb205acba7ce3f1d6118
   deckkit_util:
     component_hash: c16e5b695198b3c47ceec55cd5e2a88fbdae149d4ffbc5c2e41b249bc7ba6d2a
     dependencies:
@@ -25,7 +25,7 @@ dependencies:
       git: https://github.com/jangellx/DeckKit.git
       path: components/deckkit_util
       type: git
-    version: 994fa9b525cd051e04f3248b1a6d6976793a9350
+    version: 80a8273e9fb91f0e4dafbb205acba7ce3f1d6118
   espressif/esp_new_jpeg:
     component_hash: e1e7e6991193c41ed6c9fc386702aa7821433319e7aa9c3147cd3236310cd69c
     dependencies: []
@@ -118,6 +118,6 @@ direct_dependencies:
 - espressif/qrcode
 - idf
 - joltwallet/littlefs
-manifest_hash: da9f8c7ef33fb3e2a3de982f4fb60be0df7535909a5a8e4b84d511a86f25dbd3
+manifest_hash: f93a37d813b24485c620db24ee46bb7c466d10aca3670b7eb89ed97cd3e107d7
 target: esp32s3
 version: 2.0.0

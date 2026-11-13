@@ -78,6 +78,7 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 ESPDeck uses or includes the following; [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) has the full notices and license details.
 
 - [python-elgato-streamdeck](https://github.com/abcminiuser/python-elgato-streamdeck) by Dean Camera (MIT license): the Stream Deck model layouts and USB report formats in the firmware are derived from it.
+- [DeckBridge](https://github.com/lukasMega/DeckBridge) by Lukas (MIT license): the experimental support for Mirabox, Ajazz and Fifine decks (their models and USB protocol, in DeckKit) is derived from it.
 - [Elgato's Stream Deck HID documentation](https://docs.elgato.com/streamdeck/hid/).
 - [ESP-IDF](https://github.com/espressif/esp-idf) (Apache 2.0) and the [Arduino core for ESP32](https://github.com/espressif/arduino-esp32) (LGPL 2.1).
 - Espressif components: the [USB Host HID driver](https://github.com/espressif/esp-usb), [esp_websocket_client and mdns](https://github.com/espressif/esp-protocols), the [QR Code component](https://github.com/espressif/idf-extra-components) (all Apache 2.0), and [esp_new_jpeg](https://github.com/espressif/esp-adf-libs) (Espressif MIT).
@@ -87,7 +88,7 @@ ESPDeck uses or includes the following; [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOT
 
 The app's About page lists the same credits and shows the full license text where the license requires it. Keep the two in sync (`ESPDeck Bridge/UI/AboutView.swift`).
 
-Elgato and Stream Deck are trademarks of Corsair Memory, Inc. HomeKit and Mac are trademarks of Apple Inc. ESPDeck isn't affiliated with, endorsed by, or sponsored by Elgato, Corsair, Apple, or Espressif.
+Elgato and Stream Deck are trademarks of Corsair Memory, Inc. HomeKit and Mac are trademarks of Apple Inc. Mirabox, Ajazz, Fifine and the other deck brands named in the FAQ are trademarks of their owners. ESPDeck isn't affiliated with, endorsed by, or sponsored by Elgato, Corsair, Apple, Espressif, or any of them.
 
 ## License
 
