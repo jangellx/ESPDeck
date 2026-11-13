@@ -93,7 +93,9 @@ void DevOTA::loop( bool busy ) {
 		ESP_LOGI( TAG, "Uploads from PlatformIO on, at %s", WiFi.localIP().toString().c_str() );
 	}
 	// Unanswered invitations time out in espota, which reports the upload as failed.
-	if( !busy && Timing::reached( ignoreUntil, millis() ) )
+	// due(), not reached(): ignoreUntil starts at 0, which reached() takes for the future from
+	// day 24.8 to day 49.7 of uptime, when uploads were then ignored.
+	if( !busy && Timing::due( ignoreUntil, millis(), kMaxPenalty ) )
 		ArduinoOTA.handle();
 }
 

@@ -39,7 +39,7 @@ They're supported experimentally, from firmware after 4.1.0. Nobody has tried th
 | AKP05 | 2 × 5 | Ajazz AKP05E, AKP05E Pro and AKP05CN Pro, Mirabox N4, N4E, N4 Pro and N4 Pro E, VSDinside N4 and N4 Pro, Redragon SS552, Mars Gaming MSD-PRO, Soomfon CN003, Streonor S10 Pro | the Ajazz AKP05E |
 
 - **Only the keys.** Dials and touch strips do nothing, as on Elgato's decks.
-- **Presses without releases:** the 293S board only says a key was pressed, not when it was let go, so its keys can be tapped but not held, and double taps and holds don't work on it.
+- **Presses without releases:** the 293S board only says a key was pressed, not when it was let go, so its keys can be tapped but not held, and double taps and holds don't work on it. For the same reason, pairing is confirmed with a press of **Press to Confirm** rather than a hold, and the two-corner hold for setup mode doesn't work: use **Enter Setup Mode** on the Device page, or USB Setup.
 - **Image quality:** these decks only take key images up to a size (4 to 10 KB), so ESPDeck Bridge lowers the JPEG quality until each one fits.
 - **If something's wrong:** pictures sideways or mirrored can be fixed with **Image Orientation** on the Device page. For anything else, please [open an issue](https://github.com/jangellx/ESPDeck/issues) with the deck's name and USB ID (the Log page shows it when it's plugged in).
 

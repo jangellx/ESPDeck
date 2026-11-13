@@ -29,9 +29,11 @@ namespace {
 		return (uint8_t)( scaled < 1 ? 1 : scaled > 255 ? 255 : scaled );
 	}
 
-	// Whether millis() hasn't reached deadline yet (wrap-safe).
-	bool before( uint32_t deadline ) {
-		return !Timing::reached( deadline, millis() );
+	// Whether millis() hasn't reached a deadline set at most `span` ms ahead. Wrap-safe for
+	// deadlines never set (0) too, which reached() alone took for the future from day 24.8 to
+	// day 49.7 of uptime: the light showed a key held all that time.
+	bool before( uint32_t deadline, uint32_t span ) {
+		return !Timing::due( deadline, millis(), span );
 	}
 
 	// 0…1…0 over the period, eased so it breathes rather than blinks.
@@ -65,7 +67,7 @@ void StatusLed::update( Mode mode, bool keyDown, bool asleep ) {
 		return;
 	dim_ = asleep;
 
-	if( keyDown || before( keyUntil_ ) ) {
+	if( keyDown || before( keyUntil_, kKeyFlash ) ) {
 		show( kKeyLevel, kKeyLevel, kKeyLevel );
 		return;
 	}
@@ -101,7 +103,7 @@ void StatusLed::update( Mode mode, bool keyDown, bool asleep ) {
 			show( kPairingLevel, 0, kPairingLevel );
 			break;
 		case Mode::Connected:
-			if( before( activityUntil_ ) )
+			if( before( activityUntil_, kActivityHold ) )
 				show( 0, (uint8_t)( kConnectedLevel + ( kActivityPeak - kConnectedLevel ) * pulse( kActivityPeriod ) ), 0 );
 			else
 				show( 0, kConnectedLevel, 0 );

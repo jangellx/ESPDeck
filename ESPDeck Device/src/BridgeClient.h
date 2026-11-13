@@ -17,6 +17,7 @@
 // from its loop with nextMessage().
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -93,6 +94,11 @@ private:
 	static void eventHandler( void *arg, esp_event_base_t base, int32_t eventID, void *eventData );
 	void handleData( const esp_websocket_event_data_t *data );
 	void enqueue( Message::Kind kind, uint8_t *data = nullptr, size_t size = 0 );
+	// The connection dropped (or is being given up): handed to the owner ahead of anything
+	// queued, never through the queue, which drops a message when it stays full.
+	void noteDisconnected();
+	// nextMessage()'s part of a disconnect: tears down, then connects elsewhere or retries.
+	void handOverDisconnect( Message &message );
 
 	// Discovery task. Only it calls mDNS.
 	static void discoveryTask( void *arg );
@@ -157,6 +163,9 @@ private:
 	Endpoint                      noKey_[kMaxNoKey]     = {};   // answered noKey since we last authenticated
 	size_t                        noKeyNext_            = 0;
 	bool                          switchPending_        = false;   // connect to switchTo_ once Disconnected is handed over
+	// The generation (+ 1, so 0 is none) whose connection dropped and the owner hasn't heard yet.
+	std::atomic<uint32_t>         disconnectedFor_      { 0 };
+	bool                          retryAtOnce_          = false;   // that drop was Wi-Fi going: retry once it's back, not after a backoff
 	Endpoint                      switchTo_             = {};
 
 	// Discovery requests and results, under discoveryMutex_. Results carry the request's id,

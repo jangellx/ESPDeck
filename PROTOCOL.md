@@ -51,7 +51,7 @@ Pairing needs protocol 4 on both sides. `PKm`, `PKd` are the Mac's and the ESP32
    - key presses are ignored for 1 second after the code appears;
    - decks without displays (the Pedal) show nothing: the status LED blinks magenta, and holding any key confirms.
 7. The user compares the codes:
-   - On the deck, holding Confirm for 1.5 seconds confirms (Cancel cancels at a press). The ESP32 then sends `pairConfirm` with `proof` = `HMAC( K, "espdeck-pair-confirm" )`, shows "Waiting for Mac" on the Confirm key (the Pedal's LED stays magenta), and keeps `K` in memory, not yet stored.
+   - On the deck, holding Confirm for 1.5 seconds confirms (Cancel cancels at a press). A deck that reports presses but not releases (the Mirabox 293S board and its rebadges; experimental) can't show a hold, so its key reads **Press to Confirm** and a press confirms. The ESP32 then sends `pairConfirm` with `proof` = `HMAC( K, "espdeck-pair-confirm" )`, shows "Waiting for Mac" on the Confirm key (the Pedal's LED stays magenta), and keeps `K` in memory, not yet stored.
    - On the Mac, the user answers "The deck shows this code" or "It doesn't match" (which sends `pairCancel`).
    - These can happen in either order. The Mac checks `proof` when it arrives.
 8. Once both have confirmed, the Mac runs the authentication handshake below with the new `K`, using the nonce from the device's original `hello`. The ESP32 checks the Mac's proof against the new `K`, and only then stores `K` and `bridgeID` (and turns uploads from PlatformIO off). The Mac stores `K` when the ESP32's `auth` verifies.
@@ -304,7 +304,7 @@ Sleep turns the deck's backlight off. The ESP32 manages the timer from key activ
 
 The ESP32 enters setup mode:
 - at boot if it has no Wi-Fi credentials,
-- when the top-left and bottom-right keys are held together for 5 seconds,
+- when the top-left and bottom-right keys are held together for 5 seconds (not on a deck that reports presses but not releases, which can't hold them),
 - or when the Mac sends `setupMode`.
 
 In setup mode it:

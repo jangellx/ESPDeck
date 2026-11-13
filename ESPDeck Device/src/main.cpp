@@ -689,6 +689,7 @@ static void showPairingKeys() {
 	first[3] = last[3] = '\0';
 
 	static const char *const kHold[]    = { "Hold to", "Confirm" };
+	static const char *const kPress[]   = { "Press to", "Confirm" };   // a deck that can't report a hold
 	static const char *const kWaiting[] = { "Waiting", "for Mac" };
 	bool    confirmed = pairing.stage == PairingStage::Confirmed;
 	uint8_t start     = pairingFirstKey();
@@ -702,7 +703,7 @@ static void showPairingKeys() {
 		else if( key == cancelKey() )
 			drawLine( "Cancel", 0xA01020 );
 		else if( key == confirmKey() )
-			keyImage.drawText( confirmed ? kWaiting : kHold, 2, confirmed ? 0x0A3D1E : 0x14803C );
+			keyImage.drawText( confirmed ? kWaiting : deckInfo.pressesOnly ? kPress : kHold, 2, confirmed ? 0x0A3D1E : 0x14803C );
 		else
 			keyImage.fill( 0, 0, 0 );
 	} );
@@ -1016,6 +1017,12 @@ static void handlePairingKey( uint8_t key ) {
 	if( deckHasLayout() && key == cancelKey() ) {
 		cancelPairing( true, "deck" );
 	} else if( pairing.stage == PairingStage::Comparing && ( !deckHasLayout() || key == confirmKey() ) ) {
+		// A deck that reports presses without releases (DeckKit's pressesOnly) can't show a
+		// hold: a press confirms there. It's still someone at the deck, after kPairingKeyGuard.
+		if( deckInfo.pressesOnly ) {
+			confirmPairing();
+			return;
+		}
 		pairing.holdKey   = key;
 		pairing.holdSince = millis();
 	}
@@ -1287,6 +1294,8 @@ static void encryptStorage() {
 }
 
 // Top-left and bottom-right held together for kSetupChordTime.
+// A deck that reports presses without releases (pressesOnly) never holds two keys at once, so
+// it has no chord: setup mode comes from the Mac, USB Setup, or starting with no Wi-Fi.
 static void checkSetupChord() {
 	uint8_t count = deckInfo.keyCount();
 	if( portal.active() || !deckConnected || count < 2 ) {

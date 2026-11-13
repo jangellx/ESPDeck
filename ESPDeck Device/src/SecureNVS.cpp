@@ -305,8 +305,8 @@ namespace {
 		return true;
 	}
 
-	// encryptForSetup()'s way on when the move failed after the burn: NVS erased and set up
-	// plain again, holding `entries`. init() finds them at the next start and encrypts them.
+	// The way on when the move failed after the burn (from setup or the bridge): NVS erased and
+	// set up plain again, holding `entries`. init() finds them at the next start and encrypts them.
 	bool fallBack( const std::vector<Entry> &entries ) {
 		nvs_flash_deinit();
 		esp_err_t err = nvs_flash_erase();
@@ -458,7 +458,10 @@ namespace {
 		// 3 and 4.
 		bool moved = moveInto( keys, entries );
 		memset( &keys, 0, sizeof( keys ) );
-		if( !moved && forSetup ) {
+		if( !moved ) {
+			// Whichever way it came: the settings are still in RAM, so they go back on flash,
+			// plain, for the next start to encrypt. (From the bridge this used to throw them
+			// away, and the device came back unpaired, without Wi-Fi.)
 			ESP_LOGE( TAG, "Moving to encrypted NVS failed; keeping it plain until the next start" );
 			initialized = fallBack( entries );
 			needRestart = true;

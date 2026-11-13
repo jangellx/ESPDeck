@@ -71,9 +71,11 @@ void BridgeClient::loop() {
 			switchPending_ = false;
 			bool wasConnected = state_ == State::Connected;
 			teardown();
-			if( wasConnected )
-				enqueue( Message::Kind::Disconnected );
 			retryNow();
+			if( wasConnected ) {
+				retryAtOnce_ = true;   // or handing it over would put the retry back on its backoff
+				noteDisconnected();
+			}
 		}
 		return;
 	}
@@ -89,7 +91,7 @@ void BridgeClient::loop() {
 					else
 						scheduleRetry();
 				}
-			} else if( Timing::reached( nextAttempt_, now ) ) {
+			} else if( Timing::due( nextAttempt_, now, kMaxBackoff ) ) {   // safe however long Wi-Fi was down
 				requestDiscovery();
 			}
 			break;
@@ -115,7 +117,7 @@ void BridgeClient::loop() {
 					// (so the owner resets too), then connects there.
 					switchTo_      = endpoint;
 					switchPending_ = true;
-					enqueue( Message::Kind::Disconnected );
+					noteDisconnected();
 				}
 			} else if( !switchPending_ && Timing::reached( nextLook_, now ) ) {
 				nextLook_ = now + kLookInterval;
@@ -395,7 +397,34 @@ void BridgeClient::disconnect( bool retrySoon ) {
 		scheduleRetry();
 }
 
+// Ahead of the queue: once the owner has this, anything still queued from that connection is
+// stale (its generation is gone) and dropped below.
+void BridgeClient::noteDisconnected() {
+	disconnectedFor_ = generation_ + 1;
+}
+
+void BridgeClient::handOverDisconnect( Message &message ) {
+	ESP_LOGI( TAG, "Disconnected" );
+	teardown();
+	if( switchPending_ ) {
+		switchPending_ = false;
+		connect( switchTo_ );   // looking elsewhere found another bridge
+	} else if( retryAtOnce_ ) {
+		retryNow();
+	} else {
+		scheduleRetry();
+	}
+	retryAtOnce_ = false;
+	// generation_ moved on, but the owner still needs to hear about this one
+	message = { Message::Kind::Disconnected, nullptr, 0, generation_ };
+}
+
 bool BridgeClient::nextMessage( Message &message ) {
+	uint32_t dropped = disconnectedFor_.exchange( 0 );
+	if( dropped != 0 && dropped - 1 == generation_ ) {
+		handOverDisconnect( message );
+		return true;
+	}
 	while( xQueueReceive( queue_, &message, 0 ) == pdTRUE ) {
 		if( message.generation != generation_ ) {
 			release( message );
@@ -408,17 +437,8 @@ bool BridgeClient::nextMessage( Message &message ) {
 				state_   = State::Connected;
 				backoff_ = kMinBackoff;
 				break;
-			case Message::Kind::Disconnected:
-				ESP_LOGI( TAG, "Disconnected" );
-				teardown();
-				if( switchPending_ ) {
-					switchPending_ = false;
-					connect( switchTo_ );   // looking elsewhere found another bridge
-				} else {
-					scheduleRetry();
-				}
-				// generation_ moved on, but the owner still needs to hear about this one
-				message.generation = generation_;
+			case Message::Kind::Disconnected:   // not queued any more; see noteDisconnected()
+				handOverDisconnect( message );
 				break;
 			default:
 				break;
@@ -456,7 +476,7 @@ void BridgeClient::eventHandler( void *arg, esp_event_base_t, int32_t eventID, v
 			break;
 		case WEBSOCKET_EVENT_DISCONNECTED:
 		case WEBSOCKET_EVENT_CLOSED:
-			self->enqueue( Message::Kind::Disconnected );
+			self->noteDisconnected();
 			break;
 		case WEBSOCKET_EVENT_ERROR:
 			ESP_LOGW( TAG, "WebSocket error" );
