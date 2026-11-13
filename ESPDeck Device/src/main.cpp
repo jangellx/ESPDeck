@@ -290,6 +290,9 @@ static cJSON *deckJSON() {
 		cJSON_AddNumberToObject( object, "keySize", deckInfo.keySize );
 		cJSON_AddStringToObject( object, "format", StreamDeck::formatName( deckInfo.format ) );
 		cJSON_AddStringToObject( object, "transform", StreamDeck::transformName( effectiveTransform() ) );
+		// Mirabox decks take key images up to a size; Elgato ones have no limit to report.
+		if( deckInfo.imageLimit )
+			cJSON_AddNumberToObject( object, "imageLimit", deckInfo.imageLimit );
 	}
 	return object;
 }

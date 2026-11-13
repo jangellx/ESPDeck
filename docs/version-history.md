@@ -19,6 +19,7 @@ Not released yet.
 
 ### Other changes
 
+- Experimental support for Mirabox, Ajazz and Fifine decks, with firmware after 4.1.0: ESPDeck Bridge keeps their key images within the size each deck takes, and they're offered as demo decks. See the [FAQ](faq.md#what-about-mirabox-ajazz-and-fifine-decks).
 - **Cut Key** (⌘X) copies a key and clears it, so a key can be moved by pasting it, even to another page.
 - **Choose Image…** picks an image file for a key's icon, in the symbol picker and in the icon's right-click menu.
 - Pasting an image onto a selected key makes it the key's icon.

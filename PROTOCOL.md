@@ -145,6 +145,7 @@ Control messages are JSON text frames with a `type` field. Image data is a binar
 - `keySize` (pixels)
 - `format`: `"bmp"`, `"jpeg"`, or `"none"` for decks without displays
 - `transform`: the transform in effect, taken from the setting or the model's default
+- `imageLimit` (firmware after 4.1.0; only for decks with one): the largest key image the deck takes, in bytes. Mirabox decks have one (4 to 10 KB); the Mac encodes each JPEG to fit it, and the device refuses a larger one. Elgato decks leave it out.
 
 **Settings object:**
 - `orientation`: `"auto"` or a transform name

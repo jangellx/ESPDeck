@@ -17,7 +17,7 @@ You still need that Mac: it stays on, watches your Home, and triggers actions wh
 - **Tap, double tap and hold.** Each can do something different on the same key, and an action can be copied from one press or key to another.
 - **Brightness and fan speed.** A pair of keys steps a light's brightness or a fan's speed up and down; holding repeats.
 - **Pages and menus.** A deck has as many pages of keys as you like, and a key can open a menu: another set of keys that takes the page's place until it closes.
-- **Supports every Stream Deck with keys.** Mini, Original, MK.2, XL, Neo, +, Pedal and the modules, each in its own layout; several decks can share one Mac. Only the keys are used, not dials, touch strips or second screens.
+- **Supports every Stream Deck with keys.** Mini, Original, MK.2, XL, Neo, +, Pedal and the modules, each in its own layout; several decks can share one Mac. Only the keys are used, not dials, touch strips or second screens. Mirabox, Ajazz and Fifine decks are supported experimentally ([FAQ](docs/faq.md#what-about-mirabox-ajazz-and-fifine-decks)).
 - **Sleep and wake.** The deck's screen sleeps on a timer, when a HomeKit accessory changes (a door locks, a light goes off), or from a key, on its own or after the key's action. It can run a scene or a shortcut as it sleeps and wakes.
 - **Shortcuts actions.** Shortcuts and automations can change a deck's page, open a menu, sleep or wake the decks, and set their brightness.
 - **Set up from the Mac.** The app installs the firmware over USB, joins the dev kit to Wi-Fi and names it; firmware updates then arrive over Wi-Fi.

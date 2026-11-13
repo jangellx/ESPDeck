@@ -45,6 +45,8 @@ struct DeckLayout: Codable, Equatable {
 	var keySize   = 80
 	var format    = KeyImageFormat.bmp
 	var transform = KeyTransform.transpose
+	/// The largest key image the deck takes, in bytes; nil for no limit (Elgato decks).
+	var imageLimit: Int?
 
 	var keyCount: Int { rows * cols }
 
@@ -59,6 +61,11 @@ struct DeckLayout: Codable, Equatable {
 		DeckLayout( model: "Stream Deck Neo", rows: 2, cols: 4, keySize: 96, format: .jpeg, transform: .rotate180 ),
 		DeckLayout( model: "Stream Deck +", rows: 2, cols: 4, keySize: 120, format: .jpeg, transform: .none ),
 		DeckLayout( model: "Stream Deck Pedal", rows: 1, cols: 3, keySize: 72, format: .none, transform: .none ),
+		// Mirabox's decks and their rebadges (experimental; DeckKit's MiraboxProtocol.h).
+		DeckLayout( model: "Mirabox 293V3", rows: 3, cols: 5, keySize: 112, format: .jpeg, transform: .rotate180, imageLimit: 10240 ),
+		DeckLayout( model: "Mirabox 293S", rows: 3, cols: 6, keySize: 85, format: .jpeg, transform: .rotate270, imageLimit: 5120 ),
+		DeckLayout( model: "Mirabox K1 Pro", rows: 2, cols: 3, keySize: 64, format: .jpeg, transform: .rotate90, imageLimit: 4096 ),
+		DeckLayout( model: "Ajazz AKP05E", rows: 2, cols: 5, keySize: 112, format: .jpeg, transform: .rotate180, imageLimit: 65535 ),
 	]
 }
 

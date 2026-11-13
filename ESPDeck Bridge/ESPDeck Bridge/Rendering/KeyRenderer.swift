@@ -221,7 +221,7 @@ enum KeyRenderer {
 		let data: Data?
 		switch layout.format {
 			case .bmp:  data = KeyImageEncoder.bmp( from: image, size: layout.keySize, transform: layout.transform )
-			case .jpeg: data = KeyImageEncoder.jpeg( from: image, size: layout.keySize, transform: layout.transform )
+			case .jpeg: data = KeyImageEncoder.jpeg( from: image, size: layout.keySize, transform: layout.transform, limit: layout.imageLimit )
 			case .none: data = Data()
 		}
 		guard let data else { return nil }
@@ -280,13 +280,28 @@ enum KeyImageEncoder {
 		return bmp
 	}
 
-	/// JPEG at 92% quality.
-	static func jpeg( from image: CGImage, size: Int, transform: KeyTransform ) -> Data? {
+	/// The qualities tried, best first, until an image fits the deck's limit.
+	private static let jpegQualities: [CGFloat] = [ 0.92, 0.8, 0.65, 0.5, 0.35, 0.2 ]
+
+	/// JPEG at 92% quality, or the best of jpegQualities that fits within `limit` bytes (a
+	/// Mirabox deck's); the smallest if none does, which the deck then refuses.
+	static func jpeg( from image: CGImage, size: Int, transform: KeyTransform, limit: Int? = nil ) -> Data? {
 		guard var rgba = pixels( of: image, size: size, transform: transform ) else { return nil }
 		let transformed = rgba.withUnsafeMutableBytes { buffer -> CGImage? in
 			bitmapContext( buffer.baseAddress, size: size )?.makeImage()
 		}
-		return transformed.flatMap { UIImage( cgImage: $0 ).jpegData( compressionQuality: 0.92 ) }
+		guard let transformed else { return nil }
+		let picture = UIImage( cgImage: transformed )
+		var smallest: Data?
+		for quality in limit == nil ? [ jpegQualities[0] ] : jpegQualities {
+			guard let data = picture.jpegData( compressionQuality: quality ) else { return nil }
+			if let limit, data.count > limit {
+				smallest = data
+				continue
+			}
+			return data
+		}
+		return smallest
 	}
 
 	/// RGBX pixels, top row first, scaled to `size` and transformed for the panel.

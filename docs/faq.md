@@ -27,6 +27,22 @@ The firmware knows each of these models and reports its layout to the Mac:
 - **What isn't supported on particular models:** the Stream Deck +'s four dials and its touch strip, and the Neo's two touch keys, do nothing. The Neo's info bar and the +'s strip show the deck's name and nothing else.
 - **The Pedal** has no screen: its pedals work as three keys, and the dev kit's [status light](setup.md#the-status-light) stands in for the display while pairing.
 
+### What about Mirabox, Ajazz and Fifine decks?
+
+They're supported experimentally, from firmware after 4.1.0. Nobody has tried them with ESPDeck yet: the firmware follows [DeckBridge](https://github.com/lukasMega/DeckBridge), which drives several of them on hardware. Mirabox makes the boards, and other brands sell them under their own names:
+
+| Board | Keys | Sold as | Tested in DeckBridge |
+|---|---|---|---|
+| 293V3 | 3 × 5 | Mirabox 293V3 and 293S V3, Fifine AmpliGame D6, upHere 293V3, Ajazz AKP153E and AKP153R (the second versions) | the Mirabox 293V3, the Fifine D6 (second version) and the Ajazz AKP153E |
+| 293S | 3 × 6 | Mirabox 293S, Ajazz AKP153 and the first AKP153E and AKP153R, Mars Gaming MSD-ONE, Mad Dog GK150K, Risemode Vision 01, TMICE Stream Controller | the Mirabox 293S (all but its rightmost column) |
+| K1 Pro | 2 × 3 | Mirabox K1 Pro | yes |
+| AKP05 | 2 × 5 | Ajazz AKP05E, AKP05E Pro and AKP05CN Pro, Mirabox N4, N4E, N4 Pro and N4 Pro E, VSDinside N4 and N4 Pro, Redragon SS552, Mars Gaming MSD-PRO, Soomfon CN003, Streonor S10 Pro | the Ajazz AKP05E |
+
+- **Only the keys.** Dials and touch strips do nothing, as on Elgato's decks.
+- **Presses without releases:** the 293S board only says a key was pressed, not when it was let go, so its keys can be tapped but not held, and double taps and holds don't work on it.
+- **Image quality:** these decks only take key images up to a size (4 to 10 KB), so ESPDeck Bridge lowers the JPEG quality until each one fits.
+- **If something's wrong:** pictures sideways or mirrored can be fixed with **Image Orientation** on the Device page. For anything else, please [open an issue](https://github.com/jangellx/ESPDeck/issues) with the deck's name and USB ID (the Log page shows it when it's plugged in).
+
 ### Does the Mac have to stay on?
 
 Yes. The Stream Deck no longer needs a computer next to it, but ESPDeck Bridge on the Mac is what talks to HomeKit and decides what every key shows and does. The Mac has to be on, awake and logged in to an account that's a member of the Home; turn on automatic login and the app's **Launch at Login** for a deck that's always ready. While the Mac is away, the deck reads "Connecting to Mac".

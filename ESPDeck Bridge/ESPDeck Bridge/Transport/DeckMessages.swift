@@ -19,6 +19,8 @@ struct DeckInfo: Codable, Equatable {
 	var keySize   : Int?
 	var format    : KeyImageFormat?
 	var transform : KeyTransform?
+	/// The largest key image it takes, in bytes (Mirabox decks; firmware after 4.1.0).
+	var imageLimit: Int?
 
 	static let disconnected = DeckInfo( connected: false )
 
@@ -34,7 +36,7 @@ struct DeckInfo: Codable, Equatable {
 		// A deck without images (the Pedal) reports a key size of 0; its grid still shows.
 		guard let keySize = format == KeyImageFormat.none ? 72 : keySize, Self.keySizeRange.contains( keySize ) else { return nil }
 		return DeckLayout( model: model ?? "Stream Deck", rows: rows, cols: cols, keySize: keySize,
-						   format: format ?? .jpeg, transform: transform ?? .none )
+						   format: format ?? .jpeg, transform: transform ?? .none, imageLimit: imageLimit.flatMap { $0 > 0 ? $0 : nil } )
 	}
 
 	/// Without a size the layout can't have: rendering and the key grid never see one.
